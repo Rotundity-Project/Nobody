@@ -410,3 +410,280 @@ mod tests {
         assert_eq!(loaded2.game_state.player.name, "Player 2");
     }
 }
+
+// 存档系统的属性测试
+#[cfg(test)]
+mod property_tests {
+    use super::*;
+    use crate::game_state::{Character, GameTime, WorldState};
+    use crate::models::{CharacterStats, CultivationRealm, Element, Grade, Lifespan, SpiritualRoot};
+    use crate::script::{InitialState, Location, Script, ScriptType, WorldSetting};
+    use proptest::prelude::*;
+    use tempfile::TempDir;
+
+    // 生成任意游戏状态的策略
+    fn arb_game_state() -> impl Strategy<Value = GameState> {
+        (
+            "[a-zA-Z]{3,10}",
+            16u32..=100,
+            1u32..=12,
+            1u32..=30,
+        ).prop_map(|(player_name, age, month, day)| {
+            let mut world_setting = WorldSetting::new();
+            world_setting.cultivation_realms = vec![
+                CultivationRealm::new("练气".to_string(), 1, 0, 1.0),
+            ];
+            world_setting.locations = vec![Location {
+                id: "sect".to_string(),
+                name: "宗门".to_string(),
+                description: "修仙宗门".to_string(),
+                spiritual_energy: 1.0,
+            }];
+
+            let initial_state = InitialState {
+                player_name: player_name.clone(),
+                player_spiritual_root: SpiritualRoot {
+                    element: Element::Fire,
+                    grade: Grade::Heavenly,
+                    affinity: 0.8,
+                },
+                starting_location: "sect".to_string(),
+                starting_age: age,
+            };
+
+            let script = Script::new(
+                "test".to_string(),
+                "测试剧本".to_string(),
+                ScriptType::Custom,
+                world_setting,
+                initial_state,
+            );
+
+            let stats = CharacterStats {
+                spiritual_root: SpiritualRoot {
+                    element: Element::Fire,
+                    grade: Grade::Heavenly,
+                    affinity: 0.8,
+                },
+                cultivation_realm: CultivationRealm::new("练气".to_string(), 1, 0, 1.0),
+                techniques: Vec::new(),
+                lifespan: Lifespan {
+                    current_age: age,
+                    max_age: 100,
+                    realm_bonus: 0,
+                },
+                combat_power: 100,
+            };
+
+            let player = Character::new(
+                "player".to_string(),
+                player_name,
+                stats,
+                "sect".to_string(),
+            );
+
+            let world_state = WorldState::from_script(&script);
+            let game_time = GameTime::new(1, month, day);
+
+            GameState {
+                script,
+                player,
+                world_state,
+                game_time,
+            }
+        })
+    }
+
+    // 任务 11.2: 属性 24 - 游戏状态保存能力
+    // 功能: Nobody, 属性 24: 游戏状态保存能力
+    // 对于任何有效的游戏状态，系统应该能够成功保存
+    // 验证需求: 9.1
+    proptest! {
+        #[test]
+        fn test_property_24_any_valid_game_state_can_be_saved(
+            game_state in arb_game_state()
+        ) {
+            let temp_dir = TempDir::new().unwrap();
+            let system = SaveLoadSystem::with_directory(temp_dir.path().to_path_buf());
+            let save_data = SaveData::from_game_state(game_state);
+
+            // 任何有效的游戏状态都应该能够保存
+            let result = system.save_game(1, &save_data);
+            prop_assert!(result.is_ok(), "保存游戏状态失败: {:?}", result.err());
+        }
+    }
+
+    // 任务 11.3: 属性 25 - 存档加载能力
+    // 功能: Nobody, 属性 25: 存档加载能力
+    // 对于任何有效的存档，系统应该能够成功加载
+    // 验证需求: 9.2
+    proptest! {
+        #[test]
+        fn test_property_25_any_valid_save_can_be_loaded(
+            game_state in arb_game_state()
+        ) {
+            let temp_dir = TempDir::new().unwrap();
+            let system = SaveLoadSystem::with_directory(temp_dir.path().to_path_buf());
+            let save_data = SaveData::from_game_state(game_state);
+
+            // 先保存
+            system.save_game(1, &save_data).unwrap();
+
+            // 任何有效的存档都应该能够加载
+            let result = system.load_game(1);
+            prop_assert!(result.is_ok(), "加载存档失败: {:?}", result.err());
+        }
+    }
+
+    // 任务 11.4: 属性 26 - 保存加载往返一致性
+    // 功能: Nobody, 属性 26: 保存加载往返一致性
+    // 对于任何游戏状态，经过保存和加载后，恢复的状态应该与原始状态等价
+    // 验证需求: 9.3, 9.4
+    proptest! {
+        #[test]
+        fn test_property_26_save_load_roundtrip_consistency(
+            game_state in arb_game_state()
+        ) {
+            let temp_dir = TempDir::new().unwrap();
+            let system = SaveLoadSystem::with_directory(temp_dir.path().to_path_buf());
+            let original_save_data = SaveData::from_game_state(game_state.clone());
+
+            // 保存
+            system.save_game(1, &original_save_data).unwrap();
+
+            // 加载
+            let loaded_save_data = system.load_game(1).unwrap();
+
+            // 验证关键数据一致性
+            prop_assert_eq!(
+                loaded_save_data.game_state.player.name,
+                game_state.player.name,
+                "玩家名称不一致"
+            );
+            prop_assert_eq!(
+                loaded_save_data.game_state.player.stats.lifespan.current_age,
+                game_state.player.stats.lifespan.current_age,
+                "玩家年龄不一致"
+            );
+            prop_assert_eq!(
+                loaded_save_data.game_state.game_time.year,
+                game_state.game_time.year,
+                "游戏年份不一致"
+            );
+            prop_assert_eq!(
+                loaded_save_data.game_state.game_time.month,
+                game_state.game_time.month,
+                "游戏月份不一致"
+            );
+            prop_assert_eq!(
+                loaded_save_data.game_state.game_time.day,
+                game_state.game_time.day,
+                "游戏日期不一致"
+            );
+        }
+    }
+
+    // 任务 11.5: 属性 27 - 存档验证保护
+    // 功能: Nobody, 属性 27: 存档验证保护
+    // 对于损坏或不兼容的存档，系统应该拒绝加载并返回错误
+    // 验证需求: 9.5, 9.6
+    proptest! {
+        #[test]
+        fn test_property_27_corrupted_saves_are_rejected(
+            game_state in arb_game_state(),
+            invalid_version in "[2-9]\\.[0-9]\\.[0-9]"
+        ) {
+            let temp_dir = TempDir::new().unwrap();
+            let system = SaveLoadSystem::with_directory(temp_dir.path().to_path_buf());
+            let mut save_data = SaveData::from_game_state(game_state);
+
+            // 修改为不兼容的版本
+            save_data.version = invalid_version;
+
+            // 验证应该失败
+            let result = system.validate_save_data(&save_data);
+            prop_assert!(result.is_err(), "应该拒绝不兼容版本的存档");
+        }
+
+        #[test]
+        fn test_property_27_invalid_timestamp_rejected(
+            game_state in arb_game_state()
+        ) {
+            let system = SaveLoadSystem::new();
+            let mut save_data = SaveData::from_game_state(game_state);
+
+            // 设置无效时间戳
+            save_data.timestamp = 0;
+
+            // 验证应该失败
+            let result = system.validate_save_data(&save_data);
+            prop_assert!(result.is_err(), "应该拒绝无效时间戳的存档");
+        }
+
+        #[test]
+        fn test_property_27_empty_player_name_rejected(
+            game_state in arb_game_state()
+        ) {
+            let system = SaveLoadSystem::new();
+            let mut save_data = SaveData::from_game_state(game_state);
+
+            // 设置空玩家名称
+            save_data.game_state.player.name = "".to_string();
+
+            // 验证应该失败
+            let result = system.validate_save_data(&save_data);
+            prop_assert!(result.is_err(), "应该拒绝空玩家名称的存档");
+        }
+    }
+
+    // 任务 11.6: 属性 28 - 多存档槽位隔离
+    // 功能: Nobody, 属性 28: 多存档槽位隔离
+    // 不同槽位的存档数据应该相互独立，互不影响
+    // 验证需求: 9.7
+    proptest! {
+        #[test]
+        fn test_property_28_multiple_save_slots_are_isolated(
+            game_state1 in arb_game_state(),
+            game_state2 in arb_game_state(),
+            slot1 in 1u32..=5,
+            slot2 in 6u32..=10
+        ) {
+            let temp_dir = TempDir::new().unwrap();
+            let system = SaveLoadSystem::with_directory(temp_dir.path().to_path_buf());
+
+            let save_data1 = SaveData::from_game_state(game_state1.clone());
+            let save_data2 = SaveData::from_game_state(game_state2.clone());
+
+            // 保存到不同槽位
+            system.save_game(slot1, &save_data1).unwrap();
+            system.save_game(slot2, &save_data2).unwrap();
+
+            // 加载并验证隔离
+            let loaded1 = system.load_game(slot1).unwrap();
+            let loaded2 = system.load_game(slot2).unwrap();
+
+            // 验证槽位1的数据与原始数据1一致
+            prop_assert_eq!(
+                loaded1.game_state.player.name,
+                game_state1.player.name,
+                "槽位1的玩家名称应该与原始数据1一致"
+            );
+
+            // 验证槽位2的数据与原始数据2一致
+            prop_assert_eq!(
+                loaded2.game_state.player.name,
+                game_state2.player.name,
+                "槽位2的玩家名称应该与原始数据2一致"
+            );
+
+            // 验证两个槽位的数据不同（如果原始数据不同）
+            if game_state1.player.name != game_state2.player.name {
+                prop_assert_ne!(
+                    loaded1.game_state.player.name,
+                    loaded2.game_state.player.name,
+                    "不同槽位的数据应该相互独立"
+                );
+            }
+        }
+    }
+}
