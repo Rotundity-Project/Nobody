@@ -1,5 +1,7 @@
 pub mod models;
 pub mod numerical_system;
+pub mod script;
+pub mod script_manager;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
