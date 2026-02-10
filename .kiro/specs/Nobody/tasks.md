@@ -45,7 +45,7 @@
     - 添加必要的 derive 宏（Clone, Debug, PartialEq）
     - _需求: 2.1, 2.3_
   
-  - [x]* 4.2 编写数据模型的属性测试
+  - [x] 4.2 编写数据模型的属性测试
     - **属性 26: 保存加载往返一致性**
     - 使用 proptest 生成任意数据模型实例
     - 验证序列化后反序列化能恢复原始数据
@@ -130,13 +130,13 @@
 
 ### 阶段 4: 游戏引擎和状态管理
 
-- [ ] 10. 实现游戏状态管理
-  - [ ] 10.1 创建游戏状态数据结构
+- [x] 10. 实现游戏状态管理
+  - [x] 10.1 创建游戏状态数据结构
     - 在 `src-tauri/src/game_state.rs` 中定义 `GameState`, `Character`, `WorldState`, `GameTime` 等结构体
     - 实现状态的序列化/反序列化
     - _需求: 9.1, 9.2_
   
-  - [ ] 10.2 实现游戏引擎核心
+  - [x] 10.2 实现游戏引擎核心
     - 在 `src-tauri/src/game_engine.rs` 中实现 `GameEngine` 结构体
     - 实现 `initialize_game` 方法（从剧本初始化游戏状态）
     - 实现 `get_current_state` 方法
