@@ -1,6 +1,7 @@
 use crate::game_state::{Character, GameState, GameTime, WorldState};
 use crate::models::{CharacterStats, Lifespan};
 use crate::numerical_system::NumericalSystem;
+use crate::save_load::{SaveData, SaveLoadSystem};
 use crate::script::Script;
 use crate::script_manager::ScriptManager;
 use anyhow::{anyhow, Result};
@@ -11,6 +12,7 @@ pub struct GameEngine {
     state: Arc<Mutex<Option<GameState>>>,
     script_manager: ScriptManager,
     numerical_system: NumericalSystem,
+    save_load_system: SaveLoadSystem,
 }
 
 impl GameEngine {
@@ -19,6 +21,7 @@ impl GameEngine {
             state: Arc::new(Mutex::new(None)),
             script_manager: ScriptManager::new(),
             numerical_system: NumericalSystem::new(),
+            save_load_system: SaveLoadSystem::new(),
         }
     }
 
@@ -92,6 +95,31 @@ impl GameEngine {
     pub fn is_initialized(&self) -> bool {
         let state_lock = self.state.lock().unwrap();
         state_lock.is_some()
+    }
+
+    /// Save game to a slot
+    pub fn save_game(&self, slot_id: u32) -> Result<()> {
+        let state_lock = self.state.lock().unwrap();
+        let game_state = state_lock
+            .as_ref()
+            .ok_or_else(|| anyhow!("Cannot save: game not initialized"))?;
+
+        let save_data = SaveData::from_game_state(game_state.clone());
+        self.save_load_system.save_game(slot_id, &save_data)?;
+
+        Ok(())
+    }
+
+    /// Load game from a slot
+    pub fn load_game(&mut self, slot_id: u32) -> Result<GameState> {
+        let save_data = self.save_load_system.load_game(slot_id)?;
+        let game_state = save_data.game_state;
+
+        // Store loaded state
+        let mut state_lock = self.state.lock().unwrap();
+        *state_lock = Some(game_state.clone());
+
+        Ok(game_state)
     }
 }
 
@@ -225,5 +253,86 @@ mod tests {
         assert!(game_state.world_state.locations.contains_key("sect"));
         assert!(game_state.world_state.locations.contains_key("city"));
         assert!(game_state.world_state.global_events.is_empty());
+    }
+
+    #[test]
+    fn test_save_game() {
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().unwrap();
+        let mut engine = GameEngine::new();
+        engine.save_load_system = SaveLoadSystem::with_directory(temp_dir.path().to_path_buf());
+
+        let script = create_test_script();
+        engine.initialize_game(script).unwrap();
+
+        // Save game
+        let result = engine.save_game(1);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_save_without_initialization() {
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().unwrap();
+        let engine = GameEngine::new();
+        let mut engine_with_dir = GameEngine::new();
+        engine_with_dir.save_load_system = SaveLoadSystem::with_directory(temp_dir.path().to_path_buf());
+
+        // Try to save without initializing
+        let result = engine_with_dir.save_game(1);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("not initialized"));
+    }
+
+    #[test]
+    fn test_load_game() {
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().unwrap();
+        let mut engine = GameEngine::new();
+        engine.save_load_system = SaveLoadSystem::with_directory(temp_dir.path().to_path_buf());
+
+        let script = create_test_script();
+        let original_state = engine.initialize_game(script).unwrap();
+
+        // Save game
+        engine.save_game(1).unwrap();
+
+        // Create new engine and load
+        let mut new_engine = GameEngine::new();
+        new_engine.save_load_system = SaveLoadSystem::with_directory(temp_dir.path().to_path_buf());
+
+        let loaded_state = new_engine.load_game(1).unwrap();
+
+        // Verify loaded state matches original
+        assert_eq!(loaded_state.player.name, original_state.player.name);
+        assert_eq!(loaded_state.player.location, original_state.player.location);
+        assert_eq!(
+            loaded_state.player.stats.lifespan.current_age,
+            original_state.player.stats.lifespan.current_age
+        );
+    }
+
+    #[test]
+    fn test_save_load_roundtrip() {
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().unwrap();
+        let mut engine = GameEngine::new();
+        engine.save_load_system = SaveLoadSystem::with_directory(temp_dir.path().to_path_buf());
+
+        let script = create_test_script();
+        engine.initialize_game(script).unwrap();
+
+        // Save and load
+        engine.save_game(1).unwrap();
+        let loaded_state = engine.load_game(1).unwrap();
+
+        // Verify state is preserved
+        let current_state = engine.get_current_state().unwrap();
+        assert_eq!(current_state.player.name, loaded_state.player.name);
+        assert_eq!(current_state.game_time.year, loaded_state.game_time.year);
     }
 }
