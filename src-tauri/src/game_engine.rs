@@ -7,7 +7,7 @@ use crate::script_manager::ScriptManager;
 use anyhow::{anyhow, Result};
 use std::sync::{Arc, Mutex};
 
-/// Main game engine managing game state and logic
+/// 管理游戏状态和逻辑的主游戏引擎
 pub struct GameEngine {
     state: Arc<Mutex<Option<GameState>>>,
     script_manager: ScriptManager,
@@ -25,19 +25,19 @@ impl GameEngine {
         }
     }
 
-    /// Initialize game from a script
+    /// 从剧本初始化游戏
     pub fn initialize_game(&mut self, script: Script) -> Result<GameState> {
-        // Validate script
+        // 验证剧本
         self.script_manager.validate_script(&script)?;
 
-        // Create player character from initial state
+        // 从初始状态创建玩家角色
         let player_stats = CharacterStats {
             spiritual_root: script.initial_state.player_spiritual_root.clone(),
             cultivation_realm: script
                 .world_setting
                 .cultivation_realms
                 .first()
-                .ok_or_else(|| anyhow!("No cultivation realms defined in script"))?
+                .ok_or_else(|| anyhow!("剧本中未定义修炼境界"))?
                 .clone(),
             techniques: Vec::new(),
             lifespan: Lifespan {
@@ -51,7 +51,7 @@ impl GameEngine {
                     .world_setting
                     .cultivation_realms
                     .first()
-                    .ok_or_else(|| anyhow!("No cultivation realms defined"))?,
+                    .ok_or_else(|| anyhow!("未定义修炼境界"))?,
             ),
         };
 
@@ -62,13 +62,13 @@ impl GameEngine {
             script.initial_state.starting_location.clone(),
         );
 
-        // Create world state from script
+        // 从剧本创建世界状态
         let world_state = WorldState::from_script(&script);
 
-        // Initialize game time
+        // 初始化游戏时间
         let game_time = GameTime::new(1, 1, 1);
 
-        // Create game state
+        // 创建游戏状态
         let game_state = GameState {
             script,
             player,
@@ -76,33 +76,33 @@ impl GameEngine {
             game_time,
         };
 
-        // Store state
+        // 存储状态
         let mut state_lock = self.state.lock().unwrap();
         *state_lock = Some(game_state.clone());
 
         Ok(game_state)
     }
 
-    /// Get current game state
+    /// 获取当前游戏状态
     pub fn get_current_state(&self) -> Result<GameState> {
         let state_lock = self.state.lock().unwrap();
         state_lock
             .clone()
-            .ok_or_else(|| anyhow!("Game not initialized"))
+            .ok_or_else(|| anyhow!("游戏未初始化"))
     }
 
-    /// Check if game is initialized
+    /// 检查游戏是否已初始化
     pub fn is_initialized(&self) -> bool {
         let state_lock = self.state.lock().unwrap();
         state_lock.is_some()
     }
 
-    /// Save game to a slot
+    /// 保存游戏到存档槽
     pub fn save_game(&self, slot_id: u32) -> Result<()> {
         let state_lock = self.state.lock().unwrap();
         let game_state = state_lock
             .as_ref()
-            .ok_or_else(|| anyhow!("Cannot save: game not initialized"))?;
+            .ok_or_else(|| anyhow!("无法保存：游戏未初始化"))?;
 
         let save_data = SaveData::from_game_state(game_state.clone());
         self.save_load_system.save_game(slot_id, &save_data)?;
@@ -110,12 +110,12 @@ impl GameEngine {
         Ok(())
     }
 
-    /// Load game from a slot
+    /// 从存档槽加载游戏
     pub fn load_game(&mut self, slot_id: u32) -> Result<GameState> {
         let save_data = self.save_load_system.load_game(slot_id)?;
         let game_state = save_data.game_state;
 
-        // Store loaded state
+        // 存储加载的状态
         let mut state_lock = self.state.lock().unwrap();
         *state_lock = Some(game_state.clone());
 
@@ -132,7 +132,7 @@ impl Default for GameEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{Element, Grade, SpiritualRoot};
+    use crate::models::{CultivationRealm, Element, Grade, SpiritualRoot};
     use crate::script::{InitialState, Location, ScriptType, WorldSetting};
 
     fn create_test_script() -> Script {
@@ -203,10 +203,10 @@ mod tests {
         let mut engine = GameEngine::new();
         let script = create_test_script();
 
-        // Before initialization
+        // 初始化之前
         assert!(engine.get_current_state().is_err());
 
-        // After initialization
+        // 初始化之后
         engine.initialize_game(script).unwrap();
         assert!(engine.get_current_state().is_ok());
         assert!(engine.is_initialized());
@@ -217,7 +217,7 @@ mod tests {
         let mut engine = GameEngine::new();
         let mut script = create_test_script();
 
-        // Remove cultivation realms to make script invalid
+        // 移除修炼境界使剧本无效
         script.world_setting.cultivation_realms.clear();
 
         let result = engine.initialize_game(script);
@@ -231,7 +231,7 @@ mod tests {
 
         let game_state = engine.initialize_game(script).unwrap();
 
-        // Verify player has correct initial stats
+        // 验证玩家具有正确的初始属性
         assert_eq!(
             game_state.player.stats.spiritual_root.element,
             Element::Fire
@@ -249,7 +249,7 @@ mod tests {
 
         let game_state = engine.initialize_game(script).unwrap();
 
-        // Verify world state is correctly initialized
+        // 验证世界状态正确初始化
         assert!(game_state.world_state.locations.contains_key("sect"));
         assert!(game_state.world_state.locations.contains_key("city"));
         assert!(game_state.world_state.global_events.is_empty());
@@ -266,7 +266,7 @@ mod tests {
         let script = create_test_script();
         engine.initialize_game(script).unwrap();
 
-        // Save game
+        // 保存游戏
         let result = engine.save_game(1);
         assert!(result.is_ok());
     }
@@ -280,10 +280,10 @@ mod tests {
         let mut engine_with_dir = GameEngine::new();
         engine_with_dir.save_load_system = SaveLoadSystem::with_directory(temp_dir.path().to_path_buf());
 
-        // Try to save without initializing
+        // 尝试在未初始化时保存
         let result = engine_with_dir.save_game(1);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("not initialized"));
+        assert!(result.unwrap_err().to_string().contains("未初始化"));
     }
 
     #[test]
@@ -297,16 +297,16 @@ mod tests {
         let script = create_test_script();
         let original_state = engine.initialize_game(script).unwrap();
 
-        // Save game
+        // 保存游戏
         engine.save_game(1).unwrap();
 
-        // Create new engine and load
+        // 创建新引擎并加载
         let mut new_engine = GameEngine::new();
         new_engine.save_load_system = SaveLoadSystem::with_directory(temp_dir.path().to_path_buf());
 
         let loaded_state = new_engine.load_game(1).unwrap();
 
-        // Verify loaded state matches original
+        // 验证加载的状态与原始状态匹配
         assert_eq!(loaded_state.player.name, original_state.player.name);
         assert_eq!(loaded_state.player.location, original_state.player.location);
         assert_eq!(
@@ -326,11 +326,11 @@ mod tests {
         let script = create_test_script();
         engine.initialize_game(script).unwrap();
 
-        // Save and load
+        // 保存并加载
         engine.save_game(1).unwrap();
         let loaded_state = engine.load_game(1).unwrap();
 
-        // Verify state is preserved
+        // 验证状态被保留
         let current_state = engine.get_current_state().unwrap();
         assert_eq!(current_state.player.name, loaded_state.player.name);
         assert_eq!(current_state.game_time.year, loaded_state.game_time.year);
