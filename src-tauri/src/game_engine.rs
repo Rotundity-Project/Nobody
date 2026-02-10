@@ -336,3 +336,251 @@ mod tests {
         assert_eq!(current_state.game_time.year, loaded_state.game_time.year);
     }
 }
+
+// 任务 12.2: 游戏引擎的集成测试
+// 测试完整的保存-加载流程和游戏继续运行
+#[cfg(test)]
+mod integration_tests {
+    use super::*;
+    use crate::models::{Element, Grade, SpiritualRoot};
+    use crate::script::{InitialState, Location, ScriptType, WorldSetting};
+    use tempfile::TempDir;
+
+    fn create_test_script() -> Script {
+        let mut world_setting = WorldSetting::new();
+        world_setting.cultivation_realms = vec![
+            CultivationRealm::new("练气".to_string(), 1, 0, 1.0),
+            CultivationRealm::new("筑基".to_string(), 2, 0, 2.0),
+        ];
+        world_setting.locations = vec![
+            Location {
+                id: "sect".to_string(),
+                name: "青云宗".to_string(),
+                description: "一个和平的修仙宗门".to_string(),
+                spiritual_energy: 1.0,
+            },
+            Location {
+                id: "city".to_string(),
+                name: "凡人城市".to_string(),
+                description: "繁华的凡人城市".to_string(),
+                spiritual_energy: 0.1,
+            },
+        ];
+
+        let initial_state = InitialState {
+            player_name: "测试玩家".to_string(),
+            player_spiritual_root: SpiritualRoot {
+                element: Element::Fire,
+                grade: Grade::Heavenly,
+                affinity: 0.9,
+            },
+            starting_location: "sect".to_string(),
+            starting_age: 16,
+        };
+
+        Script::new(
+            "test".to_string(),
+            "测试剧本".to_string(),
+            ScriptType::Custom,
+            world_setting,
+            initial_state,
+        )
+    }
+
+    #[test]
+    fn test_complete_save_load_workflow() {
+        // 测试完整的保存-加载流程
+        // 验证需求: 9.3, 9.4
+
+        let temp_dir = TempDir::new().unwrap();
+        let mut engine = GameEngine::new();
+        engine.save_load_system = SaveLoadSystem::with_directory(temp_dir.path().to_path_buf());
+
+        // 1. 初始化游戏
+        let script = create_test_script();
+        let initial_state = engine.initialize_game(script).unwrap();
+        
+        assert_eq!(initial_state.player.name, "测试玩家");
+        assert_eq!(initial_state.player.stats.lifespan.current_age, 16);
+        assert_eq!(initial_state.game_time.year, 1);
+
+        // 2. 修改游戏状态（模拟游戏进行）
+        {
+            let mut state_lock = engine.state.lock().unwrap();
+            if let Some(ref mut state) = *state_lock {
+                state.player.stats.lifespan.current_age = 20;
+                state.game_time.year = 2;
+            }
+        }
+
+        // 3. 保存游戏
+        let save_result = engine.save_game(1);
+        assert!(save_result.is_ok(), "保存游戏失败");
+
+        // 4. 创建新引擎并加载
+        let mut new_engine = GameEngine::new();
+        new_engine.save_load_system = SaveLoadSystem::with_directory(temp_dir.path().to_path_buf());
+
+        let loaded_state = new_engine.load_game(1).unwrap();
+
+        // 5. 验证加载的状态正确
+        assert_eq!(loaded_state.player.name, "测试玩家");
+        assert_eq!(loaded_state.player.stats.lifespan.current_age, 20);
+        assert_eq!(loaded_state.game_time.year, 2);
+
+        // 6. 验证加载后游戏可以继续运行
+        let current_state = new_engine.get_current_state().unwrap();
+        assert_eq!(current_state.player.name, loaded_state.player.name);
+        assert!(new_engine.is_initialized());
+    }
+
+    #[test]
+    fn test_game_continues_after_load() {
+        // 测试加载后游戏能继续运行
+        // 验证需求: 9.3, 9.4
+
+        let temp_dir = TempDir::new().unwrap();
+        let mut engine = GameEngine::new();
+        engine.save_load_system = SaveLoadSystem::with_directory(temp_dir.path().to_path_buf());
+
+        // 初始化并保存
+        let script = create_test_script();
+        engine.initialize_game(script).unwrap();
+        engine.save_game(1).unwrap();
+
+        // 加载游戏
+        let mut new_engine = GameEngine::new();
+        new_engine.save_load_system = SaveLoadSystem::with_directory(temp_dir.path().to_path_buf());
+        new_engine.load_game(1).unwrap();
+
+        // 验证可以获取当前状态
+        let state = new_engine.get_current_state();
+        assert!(state.is_ok(), "加载后无法获取游戏状态");
+
+        // 验证可以再次保存
+        let save_again = new_engine.save_game(2);
+        assert!(save_again.is_ok(), "加载后无法再次保存");
+
+        // 验证两个存档独立
+        let save1 = new_engine.save_load_system.load_game(1).unwrap();
+        let save2 = new_engine.save_load_system.load_game(2).unwrap();
+        assert_eq!(save1.game_state.player.name, save2.game_state.player.name);
+    }
+
+    #[test]
+    fn test_multiple_save_load_cycles() {
+        // 测试多次保存-加载循环
+        // 验证需求: 9.3, 9.4
+
+        let temp_dir = TempDir::new().unwrap();
+        let mut engine = GameEngine::new();
+        engine.save_load_system = SaveLoadSystem::with_directory(temp_dir.path().to_path_buf());
+
+        // 初始化游戏
+        let script = create_test_script();
+        engine.initialize_game(script).unwrap();
+
+        // 进行多次保存-加载循环
+        for i in 1..=5 {
+            // 修改状态
+            {
+                let mut state_lock = engine.state.lock().unwrap();
+                if let Some(ref mut state) = *state_lock {
+                    state.game_time.year = i;
+                }
+            }
+
+            // 保存
+            engine.save_game(i).unwrap();
+
+            // 加载
+            let loaded = engine.load_game(i).unwrap();
+            assert_eq!(loaded.game_time.year, i, "第 {} 次循环状态不一致", i);
+        }
+
+        // 验证所有存档都存在且独立
+        for i in 1..=5 {
+            let save = engine.save_load_system.load_game(i).unwrap();
+            assert_eq!(save.game_state.game_time.year, i);
+        }
+    }
+
+    #[test]
+    fn test_save_preserves_all_game_data() {
+        // 测试保存保留所有游戏数据
+        // 验证需求: 9.3
+
+        let temp_dir = TempDir::new().unwrap();
+        let mut engine = GameEngine::new();
+        engine.save_load_system = SaveLoadSystem::with_directory(temp_dir.path().to_path_buf());
+
+        // 初始化游戏
+        let script = create_test_script();
+        engine.initialize_game(script).unwrap();
+
+        // 修改多个方面的状态
+        {
+            let mut state_lock = engine.state.lock().unwrap();
+            if let Some(ref mut state) = *state_lock {
+                state.player.stats.lifespan.current_age = 25;
+                state.player.stats.techniques.push("火球术".to_string());
+                state.player.location = "city".to_string();
+                state.game_time.year = 3;
+                state.game_time.month = 6;
+                state.game_time.day = 15;
+            }
+        }
+
+        // 保存并加载
+        engine.save_game(1).unwrap();
+        let loaded = engine.load_game(1).unwrap();
+
+        // 验证所有数据都被保留
+        assert_eq!(loaded.player.stats.lifespan.current_age, 25);
+        assert_eq!(loaded.player.stats.techniques.len(), 1);
+        assert_eq!(loaded.player.stats.techniques[0], "火球术");
+        assert_eq!(loaded.player.location, "city");
+        assert_eq!(loaded.game_time.year, 3);
+        assert_eq!(loaded.game_time.month, 6);
+        assert_eq!(loaded.game_time.day, 15);
+    }
+
+    #[test]
+    fn test_load_updates_engine_state() {
+        // 测试加载正确更新引擎状态
+        // 验证需求: 9.2, 9.4
+
+        let temp_dir = TempDir::new().unwrap();
+        
+        // 第一个引擎：初始化并保存
+        let mut engine1 = GameEngine::new();
+        engine1.save_load_system = SaveLoadSystem::with_directory(temp_dir.path().to_path_buf());
+        let script = create_test_script();
+        engine1.initialize_game(script).unwrap();
+        
+        {
+            let mut state_lock = engine1.state.lock().unwrap();
+            if let Some(ref mut state) = *state_lock {
+                state.player.stats.lifespan.current_age = 30;
+            }
+        }
+        engine1.save_game(1).unwrap();
+
+        // 第二个引擎：加载
+        let mut engine2 = GameEngine::new();
+        engine2.save_load_system = SaveLoadSystem::with_directory(temp_dir.path().to_path_buf());
+        
+        // 加载前未初始化
+        assert!(!engine2.is_initialized());
+        
+        // 加载
+        engine2.load_game(1).unwrap();
+        
+        // 加载后已初始化
+        assert!(engine2.is_initialized());
+        
+        // 状态正确
+        let state = engine2.get_current_state().unwrap();
+        assert_eq!(state.player.stats.lifespan.current_age, 30);
+    }
+}
