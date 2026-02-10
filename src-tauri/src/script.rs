@@ -1,4 +1,4 @@
-use crate::models::{CultivationRealm, Element, Grade, SpiritualRoot};
+﻿use crate::models::{CultivationRealm, Element, Grade, SpiritualRoot};
 use serde::{Deserialize, Serialize};
 
 /// Script type

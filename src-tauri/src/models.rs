@@ -1,42 +1,42 @@
-use serde::{Deserialize, Serialize};
+﻿use serde::{Deserialize, Serialize};
 
-/// Spiritual root element type
+/// ���Ԫ������
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Element {
-    Metal,
-    Wood,
-    Water,
-    Fire,
-    Earth,
-    Thunder,
-    Wind,
-    Ice,
+    Metal,    // ��
+    Wood,     // ľ
+    Water,    // ˮ
+    Fire,     // ��
+    Earth,    // ��
+    Thunder,  // ��
+    Wind,     // ��
+    Ice,      // ��
 }
 
-/// Spiritual root grade
+/// ���Ʒ��
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Grade {
-    Heavenly,
-    Earth,
-    Human,
-    Mortal,
+    Heavenly,      // ��������������
+    Pseudo,        // α�������������������
+    Triple,        // �����
+    Double,        // �����
 }
 
-/// Spiritual root
+/// ���
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SpiritualRoot {
-    pub element: Element,
-    pub grade: Grade,
-    pub affinity: f32,
+    pub element: Element,  // Ԫ��
+    pub grade: Grade,      // Ʒ��
+    pub affinity: f32,     // �׺Ͷ� (0.0-1.0)
 }
 
-/// Cultivation realm
+/// ��������
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CultivationRealm {
-    pub name: String,
-    pub level: u32,
-    pub sub_level: u32,
-    pub power_multiplier: f32,
+    pub name: String,              // ��������
+    pub level: u32,                // ����ȼ�
+    pub sub_level: u32,            // �ӵȼ� (0=����, 1=����, 2=����, 3=��Բ��)
+    pub power_multiplier: f32,     // ս������
 }
 
 impl CultivationRealm {
@@ -51,21 +51,21 @@ impl CultivationRealm {
 
     pub fn sub_level_name(&self) -> &str {
         match self.sub_level {
-            0 => "Early",
-            1 => "Middle",
-            2 => "Late",
-            3 => "Peak",
-            _ => "Unknown",
+            0 => "����",
+            1 => "����",
+            2 => "����",
+            3 => "��Բ��",
+            _ => "δ֪",
         }
     }
 }
 
-/// Lifespan
+/// ��Ԫ
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Lifespan {
-    pub current_age: u32,
-    pub max_age: u32,
-    pub realm_bonus: u32,
+    pub current_age: u32,    // ��ǰ����
+    pub max_age: u32,        // ������Ԫ
+    pub realm_bonus: u32,    // ����ӳ�
 }
 
 impl Lifespan {
@@ -90,14 +90,14 @@ impl Lifespan {
     }
 }
 
-/// Character stats
+/// ��ɫ����
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CharacterStats {
-    pub spiritual_root: SpiritualRoot,
-    pub cultivation_realm: CultivationRealm,
-    pub techniques: Vec<String>,
-    pub lifespan: Lifespan,
-    pub combat_power: u64,
+    pub spiritual_root: SpiritualRoot,       // ���
+    pub cultivation_realm: CultivationRealm, // ��������
+    pub techniques: Vec<String>,             // ��ѧ����
+    pub lifespan: Lifespan,                  // ��Ԫ
+    pub combat_power: u64,                   // ս��
 }
 
 impl CharacterStats {
@@ -122,10 +122,10 @@ impl CharacterStats {
     ) -> u64 {
         let base = 100u64;
         let grade_multiplier = match spiritual_root.grade {
-            Grade::Heavenly => 2.0,
-            Grade::Earth => 1.5,
-            Grade::Human => 1.2,
-            Grade::Mortal => 1.0,
+            Grade::Heavenly => 3.0,  // �������ǿ
+            Grade::Double => 2.0,    // ˫�����֮
+            Grade::Triple => 1.5,    // �����һ��
+            Grade::Pseudo => 1.0,    // α�������
         };
         let affinity_bonus = 1.0 + spiritual_root.affinity;
         let realm_power = realm.power_multiplier;
@@ -160,11 +160,11 @@ mod tests {
 
     #[test]
     fn test_cultivation_realm_sub_level_name() {
-        let realm = CultivationRealm::new("Qi Condensation".to_string(), 1, 0, 1.0);
-        assert_eq!(realm.sub_level_name(), "Early");
+        let realm = CultivationRealm::new("����".to_string(), 1, 0, 1.0);
+        assert_eq!(realm.sub_level_name(), "����");
 
-        let realm = CultivationRealm::new("Qi Condensation".to_string(), 1, 3, 1.0);
-        assert_eq!(realm.sub_level_name(), "Peak");
+        let realm = CultivationRealm::new("����".to_string(), 1, 3, 1.0);
+        assert_eq!(realm.sub_level_name(), "��Բ��");
     }
 
     #[test]
@@ -174,7 +174,7 @@ mod tests {
             grade: Grade::Heavenly,
             affinity: 0.8,
         };
-        let realm = CultivationRealm::new("Qi Condensation".to_string(), 1, 0, 1.0);
+        let realm = CultivationRealm::new("����".to_string(), 1, 0, 1.0);
         let lifespan = Lifespan::new(20, 100, 0);
 
         let stats = CharacterStats::new(spiritual_root, realm, lifespan);
@@ -182,13 +182,13 @@ mod tests {
     }
 }
 
-// Property-based tests for data models
+// ����ģ�͵����Բ���
 #[cfg(test)]
 mod property_tests {
     use super::*;
     use proptest::prelude::*;
 
-    // Arbitrary generators for property testing
+    // ���Բ��Ե�����ֵ������
     fn arb_element() -> impl Strategy<Value = Element> {
         prop_oneof![
             Just(Element::Metal),
@@ -205,9 +205,9 @@ mod property_tests {
     fn arb_grade() -> impl Strategy<Value = Grade> {
         prop_oneof![
             Just(Grade::Heavenly),
-            Just(Grade::Earth),
-            Just(Grade::Human),
-            Just(Grade::Mortal),
+            Just(Grade::Pseudo),
+            Just(Grade::Triple),
+            Just(Grade::Double),
         ]
     }
 
@@ -247,22 +247,22 @@ mod property_tests {
         )
     }
 
-    // Task 4.2: Property 26 - Save/Load roundtrip consistency
-    // Feature: Nobody, Property 26: Save/Load roundtrip consistency
-    // For any game state, after saving and then loading, 
-    // the restored state should be equivalent to the original state
+    // ���� 4.2: ���� 26 - �����������һ����
+    // ����: Nobody, ���� 26: �����������һ����
+    // �����κ���Ϸ״̬��������������أ�
+    // �ָ���״̬Ӧ����ԭʼ״̬�ȼ�
     proptest! {
         #[test]
         fn test_property_26_spiritual_root_serialization_roundtrip(
             spiritual_root in arb_spiritual_root()
         ) {
-            // Serialize to JSON
+            // ���л�Ϊ JSON
             let json = serde_json::to_string(&spiritual_root).unwrap();
             
-            // Deserialize back
+            // �����л�����
             let restored: SpiritualRoot = serde_json::from_str(&json).unwrap();
             
-            // Should be equal to original
+            // Ӧ�õ���ԭʼֵ
             prop_assert_eq!(spiritual_root, restored);
         }
 
@@ -270,13 +270,13 @@ mod property_tests {
         fn test_property_26_cultivation_realm_serialization_roundtrip(
             realm in arb_cultivation_realm()
         ) {
-            // Serialize to JSON
+            // ���л�Ϊ JSON
             let json = serde_json::to_string(&realm).unwrap();
             
-            // Deserialize back
+            // �����л�����
             let restored: CultivationRealm = serde_json::from_str(&json).unwrap();
             
-            // Should be equal to original
+            // Ӧ�õ���ԭʼֵ
             prop_assert_eq!(realm, restored);
         }
 
@@ -284,13 +284,13 @@ mod property_tests {
         fn test_property_26_lifespan_serialization_roundtrip(
             lifespan in arb_lifespan()
         ) {
-            // Serialize to JSON
+            // ���л�Ϊ JSON
             let json = serde_json::to_string(&lifespan).unwrap();
             
-            // Deserialize back
+            // �����л�����
             let restored: Lifespan = serde_json::from_str(&json).unwrap();
             
-            // Should be equal to original
+            // Ӧ�õ���ԭʼֵ
             prop_assert_eq!(lifespan, restored);
         }
 
@@ -298,18 +298,18 @@ mod property_tests {
         fn test_property_26_character_stats_serialization_roundtrip(
             stats in arb_character_stats()
         ) {
-            // Serialize to JSON
+            // ���л�Ϊ JSON
             let json = serde_json::to_string(&stats).unwrap();
             
-            // Deserialize back
+            // �����л�����
             let restored: CharacterStats = serde_json::from_str(&json).unwrap();
             
-            // Should be equal to original
+            // Ӧ�õ���ԭʼֵ
             prop_assert_eq!(stats, restored);
         }
     }
 
-    // Additional unit tests for serialization edge cases
+    // ���л���Ե����Ķ��ⵥԪ����
     #[test]
     fn test_serialization_with_empty_techniques() {
         let stats = CharacterStats::new(
@@ -318,7 +318,7 @@ mod property_tests {
                 grade: Grade::Heavenly,
                 affinity: 0.8,
             },
-            CultivationRealm::new("Qi Condensation".to_string(), 1, 0, 1.0),
+            CultivationRealm::new("����".to_string(), 1, 0, 1.0),
             Lifespan::new(20, 100, 50),
         );
 
@@ -334,25 +334,25 @@ mod property_tests {
         let mut stats = CharacterStats::new(
             SpiritualRoot {
                 element: Element::Water,
-                grade: Grade::Earth,
+                grade: Grade::Double,
                 affinity: 0.6,
             },
-            CultivationRealm::new("Foundation".to_string(), 2, 2, 2.5),
+            CultivationRealm::new("����".to_string(), 2, 2, 2.5),
             Lifespan::new(50, 150, 100),
         );
 
-        stats.techniques.push("Water Shield".to_string());
-        stats.techniques.push("Ice Spear".to_string());
-        stats.techniques.push("Healing Wave".to_string());
+        stats.techniques.push("ˮ����".to_string());
+        stats.techniques.push("��ì��".to_string());
+        stats.techniques.push("������".to_string());
 
         let json = serde_json::to_string(&stats).unwrap();
         let restored: CharacterStats = serde_json::from_str(&json).unwrap();
 
         assert_eq!(stats, restored);
         assert_eq!(restored.techniques.len(), 3);
-        assert_eq!(restored.techniques[0], "Water Shield");
-        assert_eq!(restored.techniques[1], "Ice Spear");
-        assert_eq!(restored.techniques[2], "Healing Wave");
+        assert_eq!(restored.techniques[0], "ˮ����");
+        assert_eq!(restored.techniques[1], "��ì��");
+        assert_eq!(restored.techniques[2], "������");
     }
 
     #[test]
@@ -363,7 +363,7 @@ mod property_tests {
                 grade: Grade::Heavenly,
                 affinity: 0.95,
             },
-            CultivationRealm::new("Core Formation".to_string(), 3, 3, 5.0),
+            CultivationRealm::new("��".to_string(), 3, 3, 5.0),
             Lifespan::new(100, 200, 300),
         );
 
@@ -385,7 +385,7 @@ mod property_tests {
 
         let json = serde_json::to_string_pretty(&spiritual_root).unwrap();
         
-        // JSON should contain the field names
+        // JSON Ӧ�ð����ֶ���
         assert!(json.contains("element"));
         assert!(json.contains("grade"));
         assert!(json.contains("affinity"));
