@@ -181,3 +181,215 @@ mod tests {
         assert!(stats.combat_power > 0);
     }
 }
+
+// Property-based tests for data models
+#[cfg(test)]
+mod property_tests {
+    use super::*;
+    use proptest::prelude::*;
+
+    // Arbitrary generators for property testing
+    fn arb_element() -> impl Strategy<Value = Element> {
+        prop_oneof![
+            Just(Element::Metal),
+            Just(Element::Wood),
+            Just(Element::Water),
+            Just(Element::Fire),
+            Just(Element::Earth),
+            Just(Element::Thunder),
+            Just(Element::Wind),
+            Just(Element::Ice),
+        ]
+    }
+
+    fn arb_grade() -> impl Strategy<Value = Grade> {
+        prop_oneof![
+            Just(Grade::Heavenly),
+            Just(Grade::Earth),
+            Just(Grade::Human),
+            Just(Grade::Mortal),
+        ]
+    }
+
+    fn arb_spiritual_root() -> impl Strategy<Value = SpiritualRoot> {
+        (arb_element(), arb_grade(), 0.0f32..=1.0f32).prop_map(|(element, grade, affinity)| {
+            SpiritualRoot {
+                element,
+                grade,
+                affinity,
+            }
+        })
+    }
+
+    fn arb_cultivation_realm() -> impl Strategy<Value = CultivationRealm> {
+        (
+            "[A-Z][a-z]+ [A-Z][a-z]+",
+            1u32..=10,
+            0u32..=3,
+            0.5f32..=10.0f32,
+        )
+            .prop_map(|(name, level, sub_level, power_multiplier)| {
+                CultivationRealm::new(name, level, sub_level, power_multiplier)
+            })
+    }
+
+    fn arb_lifespan() -> impl Strategy<Value = Lifespan> {
+        (10u32..=100, 50u32..=200, 0u32..=500).prop_map(|(current_age, max_age, realm_bonus)| {
+            Lifespan::new(current_age, max_age, realm_bonus)
+        })
+    }
+
+    fn arb_character_stats() -> impl Strategy<Value = CharacterStats> {
+        (arb_spiritual_root(), arb_cultivation_realm(), arb_lifespan()).prop_map(
+            |(spiritual_root, cultivation_realm, lifespan)| {
+                CharacterStats::new(spiritual_root, cultivation_realm, lifespan)
+            },
+        )
+    }
+
+    // Task 4.2: Property 26 - Save/Load roundtrip consistency
+    // Feature: Nobody, Property 26: Save/Load roundtrip consistency
+    // For any game state, after saving and then loading, 
+    // the restored state should be equivalent to the original state
+    proptest! {
+        #[test]
+        fn test_property_26_spiritual_root_serialization_roundtrip(
+            spiritual_root in arb_spiritual_root()
+        ) {
+            // Serialize to JSON
+            let json = serde_json::to_string(&spiritual_root).unwrap();
+            
+            // Deserialize back
+            let restored: SpiritualRoot = serde_json::from_str(&json).unwrap();
+            
+            // Should be equal to original
+            prop_assert_eq!(spiritual_root, restored);
+        }
+
+        #[test]
+        fn test_property_26_cultivation_realm_serialization_roundtrip(
+            realm in arb_cultivation_realm()
+        ) {
+            // Serialize to JSON
+            let json = serde_json::to_string(&realm).unwrap();
+            
+            // Deserialize back
+            let restored: CultivationRealm = serde_json::from_str(&json).unwrap();
+            
+            // Should be equal to original
+            prop_assert_eq!(realm, restored);
+        }
+
+        #[test]
+        fn test_property_26_lifespan_serialization_roundtrip(
+            lifespan in arb_lifespan()
+        ) {
+            // Serialize to JSON
+            let json = serde_json::to_string(&lifespan).unwrap();
+            
+            // Deserialize back
+            let restored: Lifespan = serde_json::from_str(&json).unwrap();
+            
+            // Should be equal to original
+            prop_assert_eq!(lifespan, restored);
+        }
+
+        #[test]
+        fn test_property_26_character_stats_serialization_roundtrip(
+            stats in arb_character_stats()
+        ) {
+            // Serialize to JSON
+            let json = serde_json::to_string(&stats).unwrap();
+            
+            // Deserialize back
+            let restored: CharacterStats = serde_json::from_str(&json).unwrap();
+            
+            // Should be equal to original
+            prop_assert_eq!(stats, restored);
+        }
+    }
+
+    // Additional unit tests for serialization edge cases
+    #[test]
+    fn test_serialization_with_empty_techniques() {
+        let stats = CharacterStats::new(
+            SpiritualRoot {
+                element: Element::Fire,
+                grade: Grade::Heavenly,
+                affinity: 0.8,
+            },
+            CultivationRealm::new("Qi Condensation".to_string(), 1, 0, 1.0),
+            Lifespan::new(20, 100, 50),
+        );
+
+        let json = serde_json::to_string(&stats).unwrap();
+        let restored: CharacterStats = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(stats, restored);
+        assert_eq!(restored.techniques.len(), 0);
+    }
+
+    #[test]
+    fn test_serialization_with_multiple_techniques() {
+        let mut stats = CharacterStats::new(
+            SpiritualRoot {
+                element: Element::Water,
+                grade: Grade::Earth,
+                affinity: 0.6,
+            },
+            CultivationRealm::new("Foundation".to_string(), 2, 2, 2.5),
+            Lifespan::new(50, 150, 100),
+        );
+
+        stats.techniques.push("Water Shield".to_string());
+        stats.techniques.push("Ice Spear".to_string());
+        stats.techniques.push("Healing Wave".to_string());
+
+        let json = serde_json::to_string(&stats).unwrap();
+        let restored: CharacterStats = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(stats, restored);
+        assert_eq!(restored.techniques.len(), 3);
+        assert_eq!(restored.techniques[0], "Water Shield");
+        assert_eq!(restored.techniques[1], "Ice Spear");
+        assert_eq!(restored.techniques[2], "Healing Wave");
+    }
+
+    #[test]
+    fn test_serialization_preserves_combat_power() {
+        let stats = CharacterStats::new(
+            SpiritualRoot {
+                element: Element::Thunder,
+                grade: Grade::Heavenly,
+                affinity: 0.95,
+            },
+            CultivationRealm::new("Core Formation".to_string(), 3, 3, 5.0),
+            Lifespan::new(100, 200, 300),
+        );
+
+        let original_power = stats.combat_power;
+        
+        let json = serde_json::to_string(&stats).unwrap();
+        let restored: CharacterStats = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(restored.combat_power, original_power);
+    }
+
+    #[test]
+    fn test_json_format_is_readable() {
+        let spiritual_root = SpiritualRoot {
+            element: Element::Fire,
+            grade: Grade::Heavenly,
+            affinity: 0.8,
+        };
+
+        let json = serde_json::to_string_pretty(&spiritual_root).unwrap();
+        
+        // JSON should contain the field names
+        assert!(json.contains("element"));
+        assert!(json.contains("grade"));
+        assert!(json.contains("affinity"));
+        assert!(json.contains("Fire"));
+        assert!(json.contains("Heavenly"));
+    }
+}
