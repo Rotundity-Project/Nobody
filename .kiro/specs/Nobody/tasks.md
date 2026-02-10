@@ -38,8 +38,8 @@
 
 ### 阶段 2: 数值系统实现
 
-- [ ] 4. 实现核心数据模型
-  - [ ] 4.1 创建 Rust 数据结构
+- [x] 4. 实现核心数据模型
+  - [x] 4.1 创建 Rust 数据结构
     - 在 `src-tauri/src/models.rs` 中定义 `CharacterStats`, `SpiritualRoot`, `CultivationRealm`, `Lifespan` 等结构体
     - 实现 Serialize/Deserialize traits
     - 添加必要的 derive 宏（Clone, Debug, PartialEq）
@@ -51,8 +51,8 @@
     - 验证序列化后反序列化能恢复原始数据
     - **验证需求: 9.3, 9.4**
 
-- [ ] 5. 实现数值系统核心逻辑
-  - [ ] 5.1 创建 NumericalSystem 模块
+- [x] 5. 实现数值系统核心逻辑
+  - [x] 5.1 创建 NumericalSystem 模块
     - 在 `src-tauri/src/numerical_system.rs` 中实现 `NumericalSystem` 结构体
     - 实现 `calculate_action_result` 方法（基于角色属性和行动计算结果）
     - 实现 `validate_realm_breakthrough` 方法（验证境界突破的合理性）
@@ -80,7 +80,7 @@
     - 验证优先级规则正确应用
     - _需求: 2.7_
 
-- [ ] 6. Git 提交: 数值系统实现
+- [-] 6. Git 提交: 数值系统实现
   - 提交信息: `feat(numerical): 实现核心数值系统和修仙机制`
   - _需求: 7.3, 7.5_
 
