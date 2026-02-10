@@ -3,7 +3,7 @@ use crate::script::{Location, Script};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-/// Main game state containing all game data
+/// 包含所有游戏数据的主游戏状态
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct GameState {
     pub script: Script,
@@ -12,7 +12,7 @@ pub struct GameState {
     pub game_time: GameTime,
 }
 
-/// Character data structure
+/// 角色数据结构
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Character {
     pub id: String,
@@ -22,7 +22,7 @@ pub struct Character {
     pub location: String,
 }
 
-/// Item in character inventory
+/// 角色背包中的物品
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Item {
     pub id: String,
@@ -31,7 +31,7 @@ pub struct Item {
     pub item_type: ItemType,
 }
 
-/// Item type enumeration
+/// 物品类型枚举
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum ItemType {
     Technique,
@@ -40,14 +40,14 @@ pub enum ItemType {
     Material,
 }
 
-/// World state containing locations and global events
+/// 包含地点和全局事件的世界状态
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct WorldState {
     pub locations: HashMap<String, Location>,
     pub global_events: Vec<GlobalEvent>,
 }
 
-/// Global event affecting the world
+/// 影响世界的全局事件
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct GlobalEvent {
     pub id: String,
@@ -56,7 +56,7 @@ pub struct GlobalEvent {
     pub timestamp: u64,
 }
 
-/// Game time tracking
+/// 游戏时间追踪
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct GameTime {
     pub year: u32,
@@ -139,7 +139,7 @@ impl Default for WorldState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{CultivationRealm, Element, Grade, Lifespan};
+    use crate::models::{CultivationRealm, Element, Grade, Lifespan, SpiritualRoot};
     use crate::script::{InitialState, ScriptType, WorldSetting};
 
     fn create_test_character() -> Character {
@@ -296,11 +296,11 @@ mod tests {
             game_time,
         };
 
-        // Test serialization
+        // 测试序列化
         let json = serde_json::to_string(&game_state).unwrap();
         assert!(!json.is_empty());
 
-        // Test deserialization
+        // 测试反序列化
         let deserialized: GameState = serde_json::from_str(&json).unwrap();
         assert_eq!(game_state, deserialized);
     }

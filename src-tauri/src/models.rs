@@ -1,42 +1,42 @@
 ﻿use serde::{Deserialize, Serialize};
 
-/// ���Ԫ������
+/// 灵根元素类型
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Element {
-    Metal,    // ��
-    Wood,     // ľ
-    Water,    // ˮ
-    Fire,     // ��
-    Earth,    // ��
-    Thunder,  // ��
-    Wind,     // ��
-    Ice,      // ��
+    Metal,    // 金
+    Wood,     // 木
+    Water,    // 水
+    Fire,     // 火
+    Earth,    // 土
+    Thunder,  // 雷
+    Wind,     // 风
+    Ice,      // 冰
 }
 
-/// ���Ʒ��
+/// 灵根品质
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Grade {
-    Heavenly,      // ��������������
-    Pseudo,        // α�������������������
-    Triple,        // �����
-    Double,        // �����
+    Heavenly,      // 天灵根（单灵根）
+    Pseudo,        // 伪灵根（四灵根或五灵根）
+    Triple,        // 三灵根
+    Double,        // 双灵根
 }
 
-/// ���
+/// 灵根
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SpiritualRoot {
-    pub element: Element,  // Ԫ��
-    pub grade: Grade,      // Ʒ��
-    pub affinity: f32,     // �׺Ͷ� (0.0-1.0)
+    pub element: Element,  // 元素
+    pub grade: Grade,      // 品质
+    pub affinity: f32,     // 亲和度 (0.0-1.0)
 }
 
-/// ��������
+/// 修炼境界
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CultivationRealm {
-    pub name: String,              // ��������
-    pub level: u32,                // ����ȼ�
-    pub sub_level: u32,            // �ӵȼ� (0=����, 1=����, 2=����, 3=��Բ��)
-    pub power_multiplier: f32,     // ս������
+    pub name: String,              // 境界名称
+    pub level: u32,                // 境界等级
+    pub sub_level: u32,            // 子等级 (0=初期, 1=中期, 2=后期, 3=圆满期)
+    pub power_multiplier: f32,     // 战力倍数
 }
 
 impl CultivationRealm {
@@ -51,21 +51,21 @@ impl CultivationRealm {
 
     pub fn sub_level_name(&self) -> &str {
         match self.sub_level {
-            0 => "����",
-            1 => "����",
-            2 => "����",
-            3 => "��Բ��",
-            _ => "δ֪",
+            0 => "初期",
+            1 => "中期",
+            2 => "后期",
+            3 => "圆满期",
+            _ => "未知",
         }
     }
 }
 
-/// ��Ԫ
+/// 寿元
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Lifespan {
-    pub current_age: u32,    // ��ǰ����
-    pub max_age: u32,        // ������Ԫ
-    pub realm_bonus: u32,    // ����ӳ�
+    pub current_age: u32,    // 当前年龄
+    pub max_age: u32,        // 基础寿元
+    pub realm_bonus: u32,    // 境界增长
 }
 
 impl Lifespan {
@@ -90,14 +90,14 @@ impl Lifespan {
     }
 }
 
-/// ��ɫ����
+/// 角色属性
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CharacterStats {
-    pub spiritual_root: SpiritualRoot,       // ���
-    pub cultivation_realm: CultivationRealm, // ��������
-    pub techniques: Vec<String>,             // ��ѧ����
-    pub lifespan: Lifespan,                  // ��Ԫ
-    pub combat_power: u64,                   // ս��
+    pub spiritual_root: SpiritualRoot,       // 灵根
+    pub cultivation_realm: CultivationRealm, // 修炼境界
+    pub techniques: Vec<String>,             // 已学功法
+    pub lifespan: Lifespan,                  // 寿元
+    pub combat_power: u64,                   // 战力
 }
 
 impl CharacterStats {
@@ -122,10 +122,10 @@ impl CharacterStats {
     ) -> u64 {
         let base = 100u64;
         let grade_multiplier = match spiritual_root.grade {
-            Grade::Heavenly => 3.0,  // �������ǿ
-            Grade::Double => 2.0,    // ˫�����֮
-            Grade::Triple => 1.5,    // �����һ��
-            Grade::Pseudo => 1.0,    // α�������
+            Grade::Heavenly => 3.0,  // 天灵根
+            Grade::Double => 2.0,    // 双灵根
+            Grade::Triple => 1.5,    // 三灵根
+            Grade::Pseudo => 1.0,    // 伪灵根
         };
         let affinity_bonus = 1.0 + spiritual_root.affinity;
         let realm_power = realm.power_multiplier;
@@ -160,11 +160,11 @@ mod tests {
 
     #[test]
     fn test_cultivation_realm_sub_level_name() {
-        let realm = CultivationRealm::new("����".to_string(), 1, 0, 1.0);
-        assert_eq!(realm.sub_level_name(), "����");
+        let realm = CultivationRealm::new("练气".to_string(), 1, 0, 1.0);
+        assert_eq!(realm.sub_level_name(), "初期");
 
-        let realm = CultivationRealm::new("����".to_string(), 1, 3, 1.0);
-        assert_eq!(realm.sub_level_name(), "��Բ��");
+        let realm = CultivationRealm::new("练气".to_string(), 1, 3, 1.0);
+        assert_eq!(realm.sub_level_name(), "圆满期");
     }
 
     #[test]
@@ -174,7 +174,7 @@ mod tests {
             grade: Grade::Heavenly,
             affinity: 0.8,
         };
-        let realm = CultivationRealm::new("����".to_string(), 1, 0, 1.0);
+        let realm = CultivationRealm::new("练气".to_string(), 1, 0, 1.0);
         let lifespan = Lifespan::new(20, 100, 0);
 
         let stats = CharacterStats::new(spiritual_root, realm, lifespan);
@@ -182,13 +182,13 @@ mod tests {
     }
 }
 
-// ����ģ�͵����Բ���
+// 数据模型的属性测试
 #[cfg(test)]
 mod property_tests {
     use super::*;
     use proptest::prelude::*;
 
-    // ���Բ��Ե�����ֵ������
+    // 属性测试的生成器
     fn arb_element() -> impl Strategy<Value = Element> {
         prop_oneof![
             Just(Element::Metal),
@@ -247,22 +247,22 @@ mod property_tests {
         )
     }
 
-    // ���� 4.2: ���� 26 - �����������һ����
-    // ����: Nobody, ���� 26: �����������һ����
-    // �����κ���Ϸ״̬��������������أ�
-    // �ָ���״̬Ӧ����ԭʼ״̬�ȼ�
+    // 任务 4.2: 属性 26 - 序列化反序列化一致性
+    // 功能: Nobody, 属性 26: 序列化反序列化一致性
+    // 对任何游戏状态，经过序列化和反序列化后，
+    // 恢复的状态应该与原始状态等价
     proptest! {
         #[test]
         fn test_property_26_spiritual_root_serialization_roundtrip(
             spiritual_root in arb_spiritual_root()
         ) {
-            // ���л�Ϊ JSON
+            // 序列化为 JSON
             let json = serde_json::to_string(&spiritual_root).unwrap();
             
-            // �����л�����
+            // 反序列化回来
             let restored: SpiritualRoot = serde_json::from_str(&json).unwrap();
             
-            // Ӧ�õ���ԭʼֵ
+            // 应该等于原始值
             prop_assert_eq!(spiritual_root, restored);
         }
 
@@ -270,13 +270,13 @@ mod property_tests {
         fn test_property_26_cultivation_realm_serialization_roundtrip(
             realm in arb_cultivation_realm()
         ) {
-            // ���л�Ϊ JSON
+            // 序列化为 JSON
             let json = serde_json::to_string(&realm).unwrap();
             
-            // �����л�����
+            // 反序列化回来
             let restored: CultivationRealm = serde_json::from_str(&json).unwrap();
             
-            // Ӧ�õ���ԭʼֵ
+            // 应该等于原始值
             prop_assert_eq!(realm, restored);
         }
 
@@ -284,13 +284,13 @@ mod property_tests {
         fn test_property_26_lifespan_serialization_roundtrip(
             lifespan in arb_lifespan()
         ) {
-            // ���л�Ϊ JSON
+            // 序列化为 JSON
             let json = serde_json::to_string(&lifespan).unwrap();
             
-            // �����л�����
+            // 反序列化回来
             let restored: Lifespan = serde_json::from_str(&json).unwrap();
             
-            // Ӧ�õ���ԭʼֵ
+            // 应该等于原始值
             prop_assert_eq!(lifespan, restored);
         }
 
@@ -298,18 +298,18 @@ mod property_tests {
         fn test_property_26_character_stats_serialization_roundtrip(
             stats in arb_character_stats()
         ) {
-            // ���л�Ϊ JSON
+            // 序列化为 JSON
             let json = serde_json::to_string(&stats).unwrap();
             
-            // �����л�����
+            // 反序列化回来
             let restored: CharacterStats = serde_json::from_str(&json).unwrap();
             
-            // Ӧ�õ���ԭʼֵ
+            // 应该等于原始值
             prop_assert_eq!(stats, restored);
         }
     }
 
-    // ���л���Ե����Ķ��ⵥԪ����
+    // 序列化特性的额外单元测试
     #[test]
     fn test_serialization_with_empty_techniques() {
         let stats = CharacterStats::new(
@@ -318,7 +318,7 @@ mod property_tests {
                 grade: Grade::Heavenly,
                 affinity: 0.8,
             },
-            CultivationRealm::new("����".to_string(), 1, 0, 1.0),
+            CultivationRealm::new("练气".to_string(), 1, 0, 1.0),
             Lifespan::new(20, 100, 50),
         );
 
@@ -337,22 +337,22 @@ mod property_tests {
                 grade: Grade::Double,
                 affinity: 0.6,
             },
-            CultivationRealm::new("����".to_string(), 2, 2, 2.5),
+            CultivationRealm::new("筑基".to_string(), 2, 2, 2.5),
             Lifespan::new(50, 150, 100),
         );
 
-        stats.techniques.push("ˮ����".to_string());
-        stats.techniques.push("��ì��".to_string());
-        stats.techniques.push("������".to_string());
+        stats.techniques.push("水龙吟".to_string());
+        stats.techniques.push("冰魄术".to_string());
+        stats.techniques.push("寒冰诀".to_string());
 
         let json = serde_json::to_string(&stats).unwrap();
         let restored: CharacterStats = serde_json::from_str(&json).unwrap();
 
         assert_eq!(stats, restored);
         assert_eq!(restored.techniques.len(), 3);
-        assert_eq!(restored.techniques[0], "ˮ����");
-        assert_eq!(restored.techniques[1], "��ì��");
-        assert_eq!(restored.techniques[2], "������");
+        assert_eq!(restored.techniques[0], "水龙吟");
+        assert_eq!(restored.techniques[1], "冰魄术");
+        assert_eq!(restored.techniques[2], "寒冰诀");
     }
 
     #[test]
@@ -363,7 +363,7 @@ mod property_tests {
                 grade: Grade::Heavenly,
                 affinity: 0.95,
             },
-            CultivationRealm::new("��".to_string(), 3, 3, 5.0),
+            CultivationRealm::new("金丹".to_string(), 3, 3, 5.0),
             Lifespan::new(100, 200, 300),
         );
 
@@ -385,7 +385,7 @@ mod property_tests {
 
         let json = serde_json::to_string_pretty(&spiritual_root).unwrap();
         
-        // JSON Ӧ�ð����ֶ���
+        // JSON 应该包含字段名
         assert!(json.contains("element"));
         assert!(json.contains("grade"));
         assert!(json.contains("affinity"));

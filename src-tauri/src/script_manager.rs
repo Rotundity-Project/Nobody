@@ -1,8 +1,8 @@
-﻿use crate::script::Script;
+use crate::script::Script;
 use anyhow::{anyhow, Result};
 use std::path::Path;
 
-/// Script manager for loading and validating scripts
+/// �ű������������ڼ��غ���֤�ű�
 pub struct ScriptManager {}
 
 impl ScriptManager {
@@ -10,42 +10,42 @@ impl ScriptManager {
         Self {}
     }
 
-    /// Load custom script from file
+    /// ���ļ������Զ���ű�
     pub fn load_custom_script(&self, file_path: &str) -> Result<Script> {
         let path = Path::new(file_path);
         
         if !path.exists() {
-            return Err(anyhow!("Script file not found: {}", file_path));
+            return Err(anyhow!("δ�ҵ��ű��ļ�: {}", file_path));
         }
 
         let content = std::fs::read_to_string(path)
-            .map_err(|e| anyhow!("Failed to read script file: {}", e))?;
+            .map_err(|e| anyhow!("��ȡ�ű��ļ�ʧ��: {}", e))?;
 
         let script: Script = serde_json::from_str(&content)
-            .map_err(|e| anyhow!("Failed to parse script JSON: {}", e))?;
+            .map_err(|e| anyhow!("�����ű�JSONʧ��: {}", e))?;
 
         self.validate_script(&script)?;
 
         Ok(script)
     }
 
-    /// Validate script has all required fields
+    /// ��֤�ű��Ƿ�������б����ֶ�
     pub fn validate_script(&self, script: &Script) -> Result<()> {
-        // Check world setting has cultivation realms
+        // �������������Ƿ�����������
         if script.world_setting.cultivation_realms.is_empty() {
             return Err(anyhow!(
-                "Script validation failed: No cultivation realms defined"
+                "�ű���֤ʧ��: δ������������"
             ));
         }
 
-        // Check world setting has at least one location
+        // �������������Ƿ�������һ���ص�
         if script.world_setting.locations.is_empty() {
             return Err(anyhow!(
-                "Script validation failed: No locations defined"
+                "�ű���֤ʧ��: δ����ص�"
             ));
         }
 
-        // Check initial state has valid starting location
+        // ����ʼ״̬�Ƿ�����Ч����ʼ�ص�
         let location_exists = script
             .world_setting
             .locations
@@ -54,15 +54,15 @@ impl ScriptManager {
 
         if !location_exists {
             return Err(anyhow!(
-                "Script validation failed: Starting location '{}' not found in world setting",
+                "�ű���֤ʧ��: ��ʼ�ص� '{}' �������������������",
                 script.initial_state.starting_location
             ));
         }
 
-        // Check player age is reasonable
+        // �����������Ƿ����
         if script.initial_state.starting_age < 10 || script.initial_state.starting_age > 100 {
             return Err(anyhow!(
-                "Script validation failed: Starting age {} is not reasonable (should be 10-100)",
+                "�ű���֤ʧ��: ��ʼ���� {} ������ (Ӧ��10-100��֮��)",
                 script.initial_state.starting_age
             ));
         }
@@ -86,17 +86,17 @@ mod tests {
     fn create_valid_script() -> Script {
         let mut world_setting = WorldSetting::new();
         world_setting.cultivation_realms = vec![
-            CultivationRealm::new("Qi Condensation".to_string(), 1, 0, 1.0),
+            CultivationRealm::new("������".to_string(), 1, 0, 1.0),
         ];
         world_setting.locations = vec![Location {
             id: "sect".to_string(),
-            name: "Azure Cloud Sect".to_string(),
-            description: "A peaceful cultivation sect".to_string(),
+            name: "������".to_string(),
+            description: "һ����ƽ����������".to_string(),
             spiritual_energy: 1.0,
         }];
 
         let initial_state = InitialState {
-            player_name: "Test Player".to_string(),
+            player_name: "�������".to_string(),
             player_spiritual_root: SpiritualRoot {
                 element: Element::Fire,
                 grade: Grade::Heavenly,
@@ -108,7 +108,7 @@ mod tests {
 
         Script::new(
             "test".to_string(),
-            "Test Script".to_string(),
+            "���Խű�".to_string(),
             ScriptType::Custom,
             world_setting,
             initial_state,
@@ -134,7 +134,7 @@ mod tests {
         assert!(result
             .unwrap_err()
             .to_string()
-            .contains("No cultivation realms"));
+            .contains("δ������������"));
     }
 
     #[test]
@@ -145,7 +145,7 @@ mod tests {
 
         let result = manager.validate_script(&script);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("No locations"));
+        assert!(result.unwrap_err().to_string().contains("δ����ص�"));
     }
 
     #[test]
@@ -159,7 +159,7 @@ mod tests {
         assert!(result
             .unwrap_err()
             .to_string()
-            .contains("Starting location"));
+            .contains("��ʼ�ص�"));
     }
 
     #[test]
@@ -170,7 +170,7 @@ mod tests {
 
         let result = manager.validate_script(&script);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Starting age"));
+        assert!(result.unwrap_err().to_string().contains("��ʼ����"));
     }
 
     #[test]
@@ -179,7 +179,33 @@ mod tests {
         let result = manager.load_custom_script("nonexistent.json");
 
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("not found"));
+        assert!(result.unwrap_err().to_string().contains("δ�ҵ�"));
+    }
+
+    #[test]
+    fn test_load_custom_script_valid_file() {
+        use std::io::Write;
+        use tempfile::NamedTempFile;
+
+        let manager = ScriptManager::new();
+        let script = create_valid_script();
+
+        // ����һ��������Ч�ű�JSON����ʱ�ļ�
+        let mut temp_file = NamedTempFile::new().unwrap();
+        let json = serde_json::to_string_pretty(&script).unwrap();
+        temp_file.write_all(json.as_bytes()).unwrap();
+        temp_file.flush().unwrap();
+
+        // ���ļ����ؽű�
+        let result = manager.load_custom_script(temp_file.path().to_str().unwrap());
+
+        assert!(result.is_ok());
+        let loaded_script = result.unwrap();
+        assert_eq!(loaded_script.id, script.id);
+        assert_eq!(loaded_script.name, script.name);
+        assert_eq!(loaded_script.script_type, script.script_type);
+        assert_eq!(loaded_script.world_setting.cultivation_realms.len(), 1);
+        assert_eq!(loaded_script.world_setting.locations.len(), 1);
     }
 }
 
@@ -190,7 +216,7 @@ mod property_tests {
     use crate::script::{Faction, InitialState, Location, ScriptType, Technique, WorldSetting};
     use proptest::prelude::*;
 
-    // Arbitrary generators for script components
+    // �ű����������ֵ������
     fn arb_element() -> impl Strategy<Value = Element> {
         prop_oneof![
             Just(Element::Fire),
@@ -282,30 +308,30 @@ mod property_tests {
         ]
     }
 
-    // Strategy for generating scripts with missing required fields
+    // ����ȱ�ٱ����ֶεĽű��Ĳ���
     fn arb_invalid_script() -> impl Strategy<Value = Script> {
         prop_oneof![
-            // Script with no cultivation realms
+            // û����������Ľű�
             arb_valid_script_base().prop_map(|mut script| {
                 script.world_setting.cultivation_realms.clear();
                 script
             }),
-            // Script with no locations
+            // û�еص�Ľű�
             arb_valid_script_base().prop_map(|mut script| {
                 script.world_setting.locations.clear();
                 script
             }),
-            // Script with invalid starting location
+            // ��Ч��ʼ�ص�Ľű�
             arb_valid_script_base().prop_map(|mut script| {
                 script.initial_state.starting_location = "nonexistent_location".to_string();
                 script
             }),
-            // Script with invalid age (too young)
+            // �����С�Ľű�
             arb_valid_script_base().prop_map(|mut script| {
                 script.initial_state.starting_age = 5;
                 script
             }),
-            // Script with invalid age (too old)
+            // �������Ľű�
             arb_valid_script_base().prop_map(|mut script| {
                 script.initial_state.starting_age = 150;
                 script
@@ -319,10 +345,9 @@ mod property_tests {
             "[a-zA-Z ]{3,20}",
             arb_script_type(),
             prop::collection::vec(arb_cultivation_realm(), 1..5),
-            prop::collection::vec(arb_spiritual_root(), 0..5),
-            prop::collection::vec(arb_technique(), 0..10),
             prop::collection::vec(arb_location(), 1..5),
             prop::collection::vec(arb_faction(), 0..5),
+            prop::collection::vec(arb_technique(), 0..10),
             "[a-zA-Z ]{3,20}",
             arb_spiritual_root(),
             10u32..=100,
@@ -333,22 +358,24 @@ mod property_tests {
                     name,
                     script_type,
                     cultivation_realms,
-                    spiritual_roots,
-                    techniques,
                     locations,
                     factions,
+                    techniques,
                     player_name,
                     player_spiritual_root,
                     starting_age,
                 )| {
-                    let starting_location = locations[0].id.clone();
+                    let starting_location = if locations.is_empty() {
+                        "sect".to_string() // ����ֵ
+                    } else {
+                        locations[0].id.clone()
+                    };
 
                     let world_setting = WorldSetting {
                         cultivation_realms,
-                        spiritual_roots,
-                        techniques,
                         locations,
                         factions,
+                        techniques,
                     };
 
                     let initial_state = InitialState {
@@ -363,10 +390,10 @@ mod property_tests {
             )
     }
 
-    // Feature: Nobody, Property 3: Script validation consistency
-    // For any script, if it lacks necessary world settings or numerical system parameters,
-    // the system should reject loading and return a descriptive error message
-    // Validates Requirements: 1.6, 1.7
+    // ����: ����֮��, ����3: �ű���֤һ����
+    // �����κνű������ȱ�ٱ�Ҫ���������û���ֵϵͳ������
+    // ϵͳӦ�þܾ����ز����������Դ�����Ϣ
+    // ��֤����: 1.6, 1.7
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(100))]
 
@@ -377,21 +404,21 @@ mod property_tests {
             let manager = ScriptManager::new();
             let result = manager.validate_script(&invalid_script);
 
-            // Property: All invalid scripts should be rejected
+            // ����: ������Ч�ű���Ӧ�ñ��ܾ�
             prop_assert!(
                 result.is_err(),
-                "Script with missing required fields should be rejected"
+                "ȱ�ٱ����ֶεĽű�Ӧ�ñ��ܾ�"
             );
 
-            // Verify error message is descriptive
+            // ��֤������Ϣ�������Ե�
             let error_msg = result.unwrap_err().to_string();
             prop_assert!(
                 !error_msg.is_empty(),
-                "Error message should not be empty"
+                "������Ϣ��ӦΪ��"
             );
             prop_assert!(
-                error_msg.contains("Script validation failed"),
-                "Error message should indicate validation failure: {}",
+                error_msg.contains("�ű���֤ʧ��"),
+                "������ϢӦָʾ��֤ʧ��: {}",
                 error_msg
             );
         }

@@ -4,12 +4,12 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
-/// Save/Load system for game persistence
+/// 游戏持久化的存档/加载系统
 pub struct SaveLoadSystem {
     save_directory: PathBuf,
 }
 
-/// Save data structure containing version and game state
+/// 包含版本和游戏状态的存档数据结构
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SaveData {
     pub version: String,
@@ -17,7 +17,7 @@ pub struct SaveData {
     pub game_state: GameState,
 }
 
-/// Save file metadata
+/// 存档文件元数据
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SaveInfo {
     pub slot_id: u32,
@@ -29,20 +29,20 @@ pub struct SaveInfo {
 }
 
 impl SaveLoadSystem {
-    /// Create new SaveLoadSystem with default save directory
+    /// 使用默认存档目录创建新的SaveLoadSystem
     pub fn new() -> Self {
         let save_directory = Self::get_default_save_directory();
         Self { save_directory }
     }
 
-    /// Create SaveLoadSystem with custom directory
+    /// 使用自定义目录创建SaveLoadSystem
     pub fn with_directory(directory: PathBuf) -> Self {
         Self {
             save_directory: directory,
         }
     }
 
-    /// Get default save directory (user's documents folder)
+    /// 获取默认存档目录（用户的文档文件夹）
     fn get_default_save_directory() -> PathBuf {
         #[cfg(target_os = "windows")]
         {
@@ -62,7 +62,7 @@ impl SaveLoadSystem {
         }
     }
 
-    /// Ensure save directory exists
+    /// 确保存档目录存在
     fn ensure_save_directory(&self) -> Result<()> {
         if !self.save_directory.exists() {
             fs::create_dir_all(&self.save_directory)?;
@@ -70,18 +70,18 @@ impl SaveLoadSystem {
         Ok(())
     }
 
-    /// Get save file path for a slot
+    /// 获取存档槽的存档文件路径
     fn get_save_path(&self, slot_id: u32) -> PathBuf {
         let mut path = self.save_directory.clone();
         path.push(format!("save_{}.json", slot_id));
         path
     }
 
-    /// Save game to a slot
+    /// 保存游戏到存档槽
     pub fn save_game(&self, slot_id: u32, save_data: &SaveData) -> Result<()> {
         self.ensure_save_directory()?;
 
-        // Validate save data
+        // 验证存档数据
         self.validate_save_data(save_data)?;
 
         let save_path = self.get_save_path(slot_id);
@@ -91,24 +91,24 @@ impl SaveLoadSystem {
         Ok(())
     }
 
-    /// Load game from a slot
+    /// 从存档槽加载游戏
     pub fn load_game(&self, slot_id: u32) -> Result<SaveData> {
         let save_path = self.get_save_path(slot_id);
 
         if !save_path.exists() {
-            return Err(anyhow!("Save file not found for slot {}", slot_id));
+            return Err(anyhow!("未找到存档槽 {} 的存档文件", slot_id));
         }
 
         let json = fs::read_to_string(save_path)?;
         let save_data: SaveData = serde_json::from_str(&json)?;
 
-        // Validate loaded data
+        // 验证加载的数据
         self.validate_save_data(&save_data)?;
 
         Ok(save_data)
     }
 
-    /// List all available saves
+    /// 列出所有可用的存档
     pub fn list_saves(&self) -> Result<Vec<SaveInfo>> {
         if !self.save_directory.exists() {
             return Ok(Vec::new());
@@ -132,7 +132,7 @@ impl SaveLoadSystem {
                                     player_name: save_data.game_state.player.name.clone(),
                                     player_age: save_data.game_state.player.stats.lifespan.current_age,
                                     game_time: format!(
-                                        "Year {}, Month {}, Day {}",
+                                        "第 {} 年，第 {} 月，第 {} 日",
                                         save_data.game_state.game_time.year,
                                         save_data.game_state.game_time.month,
                                         save_data.game_state.game_time.day
@@ -150,41 +150,41 @@ impl SaveLoadSystem {
         Ok(saves)
     }
 
-    /// Delete a save file
+    /// 删除存档文件
     pub fn delete_save(&self, slot_id: u32) -> Result<()> {
         let save_path = self.get_save_path(slot_id);
 
         if !save_path.exists() {
-            return Err(anyhow!("Save file not found for slot {}", slot_id));
+            return Err(anyhow!("未找到存档槽 {} 的存档文件", slot_id));
         }
 
         fs::remove_file(save_path)?;
         Ok(())
     }
 
-    /// Validate save data
+    /// 验证存档数据
     pub fn validate_save_data(&self, save_data: &SaveData) -> Result<()> {
-        // Check version format
+        // 检查版本格式
         if save_data.version.is_empty() {
-            return Err(anyhow!("Save data version is empty"));
+            return Err(anyhow!("存档数据版本为空"));
         }
 
-        // Check version compatibility (currently only support 1.0.0)
+        // 检查版本兼容性（当前仅支持 1.0.0）
         if !save_data.version.starts_with("1.") {
             return Err(anyhow!(
-                "Incompatible save version: {}. Expected version 1.x",
+                "不兼容的存档版本: {}。期望版本 1.x",
                 save_data.version
             ));
         }
 
-        // Check timestamp is reasonable
+        // 检查时间戳是否合理
         if save_data.timestamp == 0 {
-            return Err(anyhow!("Invalid timestamp in save data"));
+            return Err(anyhow!("存档数据中的时间戳无效"));
         }
 
-        // Check game state has required data
+        // 检查游戏状态是否有必需的数据
         if save_data.game_state.player.name.is_empty() {
-            return Err(anyhow!("Player name is empty in save data"));
+            return Err(anyhow!("存档数据中的玩家名称为空"));
         }
 
         Ok(())
@@ -198,7 +198,7 @@ impl Default for SaveLoadSystem {
 }
 
 impl SaveData {
-    /// Create new save data from game state
+    /// 从游戏状态创建新的存档数据
     pub fn from_game_state(game_state: GameState) -> Self {
         Self {
             version: "1.0.0".to_string(),
@@ -298,11 +298,11 @@ mod tests {
         let game_state = create_test_game_state();
         let save_data = SaveData::from_game_state(game_state.clone());
 
-        // Save game
+        // 保存游戏
         let result = system.save_game(1, &save_data);
         assert!(result.is_ok());
 
-        // Load game
+        // 加载游戏
         let loaded = system.load_game(1).unwrap();
         assert_eq!(loaded.version, save_data.version);
         assert_eq!(loaded.game_state.player.name, game_state.player.name);
@@ -315,7 +315,7 @@ mod tests {
 
         let result = system.load_game(999);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("not found"));
+        assert!(result.unwrap_err().to_string().contains("未找到"));
     }
 
     #[test]
@@ -326,12 +326,12 @@ mod tests {
         let game_state = create_test_game_state();
         let save_data = SaveData::from_game_state(game_state);
 
-        // Save to multiple slots
+        // 保存到多个槽位
         system.save_game(1, &save_data).unwrap();
         system.save_game(2, &save_data).unwrap();
         system.save_game(3, &save_data).unwrap();
 
-        // List saves
+        // 列出存档
         let saves = system.list_saves().unwrap();
         assert_eq!(saves.len(), 3);
         assert_eq!(saves[0].slot_id, 1);
@@ -347,7 +347,7 @@ mod tests {
         let game_state = create_test_game_state();
         let save_data = SaveData::from_game_state(game_state);
 
-        // Save and delete
+        // 保存并删除
         system.save_game(1, &save_data).unwrap();
         assert!(system.load_game(1).is_ok());
 
@@ -361,25 +361,25 @@ mod tests {
         let game_state = create_test_game_state();
         let save_data = SaveData::from_game_state(game_state);
 
-        // Valid save data
+        // 有效的存档数据
         assert!(system.validate_save_data(&save_data).is_ok());
 
-        // Invalid version
+        // 无效版本
         let mut invalid_save = save_data.clone();
         invalid_save.version = "".to_string();
         assert!(system.validate_save_data(&invalid_save).is_err());
 
-        // Incompatible version
+        // 不兼容的版本
         let mut incompatible_save = save_data.clone();
         incompatible_save.version = "2.0.0".to_string();
         assert!(system.validate_save_data(&incompatible_save).is_err());
 
-        // Invalid timestamp
+        // 无效时间戳
         let mut invalid_timestamp = save_data.clone();
         invalid_timestamp.timestamp = 0;
         assert!(system.validate_save_data(&invalid_timestamp).is_err());
 
-        // Empty player name
+        // 空玩家名称
         let mut empty_name = save_data;
         empty_name.game_state.player.name = "".to_string();
         assert!(system.validate_save_data(&empty_name).is_err());
@@ -398,11 +398,11 @@ mod tests {
         game_state2.player.name = "Player 2".to_string();
         let save_data2 = SaveData::from_game_state(game_state2);
 
-        // Save to different slots
+        // 保存到不同槽位
         system.save_game(1, &save_data1).unwrap();
         system.save_game(2, &save_data2).unwrap();
 
-        // Load and verify isolation
+        // 加载并验证隔离
         let loaded1 = system.load_game(1).unwrap();
         let loaded2 = system.load_game(2).unwrap();
 
