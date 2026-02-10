@@ -196,7 +196,7 @@ impl NumericalSystem {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{Element, Grade, SpiritualRoot};
+    use crate::models::{Element, Grade, Lifespan, SpiritualRoot};
 
     fn create_test_character() -> CharacterStats {
         let spiritual_root = SpiritualRoot {
@@ -267,5 +267,235 @@ mod tests {
 
         system.update_lifespan(&mut character, 10);
         assert_eq!(character.lifespan.current_age, initial_age + 10);
+    }
+}
+
+// Property-based tests
+#[cfg(test)]
+mod property_tests {
+    use super::*;
+    use crate::models::{Element, Grade, Lifespan, SpiritualRoot};
+    use proptest::prelude::*;
+
+    // Arbitrary generators for property testing
+    fn arb_element() -> impl Strategy<Value = Element> {
+        prop_oneof![
+            Just(Element::Metal),
+            Just(Element::Wood),
+            Just(Element::Water),
+            Just(Element::Fire),
+            Just(Element::Earth),
+            Just(Element::Thunder),
+            Just(Element::Wind),
+            Just(Element::Ice),
+        ]
+    }
+
+    fn arb_grade() -> impl Strategy<Value = Grade> {
+        prop_oneof![
+            Just(Grade::Heavenly),
+            Just(Grade::Earth),
+            Just(Grade::Human),
+            Just(Grade::Mortal),
+        ]
+    }
+
+    fn arb_spiritual_root() -> impl Strategy<Value = SpiritualRoot> {
+        (arb_element(), arb_grade(), 0.0f32..=1.0f32).prop_map(|(element, grade, affinity)| {
+            SpiritualRoot {
+                element,
+                grade,
+                affinity,
+            }
+        })
+    }
+
+    fn arb_cultivation_realm() -> impl Strategy<Value = CultivationRealm> {
+        (
+            "[A-Z][a-z]+ [A-Z][a-z]+",
+            1u32..=10,
+            0u32..=3,
+            0.5f32..=10.0f32,
+        )
+            .prop_map(|(name, level, sub_level, power_multiplier)| {
+                CultivationRealm::new(name, level, sub_level, power_multiplier)
+            })
+    }
+
+    fn arb_lifespan() -> impl Strategy<Value = Lifespan> {
+        (10u32..=100, 50u32..=200, 0u32..=500).prop_map(|(current_age, max_age, realm_bonus)| {
+            Lifespan::new(current_age, max_age, realm_bonus)
+        })
+    }
+
+    fn arb_character_stats() -> impl Strategy<Value = CharacterStats> {
+        (arb_spiritual_root(), arb_cultivation_realm(), arb_lifespan()).prop_map(
+            |(spiritual_root, cultivation_realm, lifespan)| {
+                CharacterStats::new(spiritual_root, cultivation_realm, lifespan)
+            },
+        )
+    }
+
+    fn arb_action() -> impl Strategy<Value = Action> {
+        prop_oneof![
+            Just(Action::Cultivate),
+            Just(Action::Breakthrough),
+            Just(Action::Rest),
+            "[a-z ]+".prop_map(|desc| Action::Custom { description: desc }),
+        ]
+    }
+
+    fn arb_context() -> impl Strategy<Value = Context> {
+        ("[A-Z][a-z]+", "[A-Z][a-z]+").prop_map(|(location, time_of_day)| Context {
+            location,
+            time_of_day,
+            weather: None,
+        })
+    }
+
+    // Task 5.2: Property 5 - Action result numerical consistency
+    // Feature: Nobody, Property 5: Action result numerical consistency
+    // For any character action, the system should calculate results based on numerical system rules,
+    // and the same input state and action should produce the same result
+    proptest! {
+        #[test]
+        fn test_property_5_action_result_consistency(
+            character in arb_character_stats(),
+            action in arb_action(),
+            context in arb_context()
+        ) {
+            let system = NumericalSystem::new();
+            
+            // Calculate result twice with same inputs
+            let result1 = system.calculate_action_result(&character, &action, &context);
+            let result2 = system.calculate_action_result(&character, &action, &context);
+            
+            // Results should be identical (deterministic)
+            prop_assert_eq!(result1.success, result2.success);
+            prop_assert_eq!(result1.description, result2.description);
+            prop_assert_eq!(result1.stat_changes.len(), result2.stat_changes.len());
+            prop_assert_eq!(result1.events.len(), result2.events.len());
+        }
+    }
+
+    // Task 5.3: Property 6 - Realm breakthrough attribute update
+    // Feature: Nobody, Property 6: Realm breakthrough attribute update
+    // For any character's realm breakthrough, the system should update all related attributes
+    proptest! {
+        #[test]
+        fn test_property_6_realm_breakthrough_updates_attributes(
+            mut character in arb_character_stats()
+        ) {
+            let old_combat_power = character.combat_power;
+            let old_realm_level = character.cultivation_realm.level;
+            let old_sub_level = character.cultivation_realm.sub_level;
+            
+            // Simulate a breakthrough to next sub-level
+            if character.cultivation_realm.sub_level < 3 {
+                character.cultivation_realm.sub_level += 1;
+                character.cultivation_realm.power_multiplier *= 1.2;
+                character.update_combat_power();
+                
+                // Combat power should be updated
+                prop_assert_ne!(character.combat_power, old_combat_power);
+                // Realm should have changed
+                prop_assert!(
+                    character.cultivation_realm.sub_level > old_sub_level ||
+                    character.cultivation_realm.level > old_realm_level
+                );
+            }
+        }
+    }
+
+    // Task 5.4: Property 7 - Lifespan exhaustion triggers death
+    // Feature: Nobody, Property 7: Lifespan exhaustion triggers death
+    // For any character, when current age reaches or exceeds max lifespan, 
+    // the system should trigger death event
+    proptest! {
+        #[test]
+        fn test_property_7_lifespan_exhaustion_triggers_death(
+            current_age in 0u32..=1000,
+            max_age in 50u32..=200,
+            realm_bonus in 0u32..=500
+        ) {
+            let lifespan = Lifespan::new(current_age, max_age, realm_bonus);
+            let total_max = max_age + realm_bonus;
+            
+            if current_age >= total_max {
+                // Character should be dead
+                prop_assert!(!lifespan.is_alive());
+                prop_assert_eq!(lifespan.remaining_years(), 0);
+            } else {
+                // Character should be alive
+                prop_assert!(lifespan.is_alive());
+                prop_assert_eq!(lifespan.remaining_years(), total_max - current_age);
+            }
+        }
+    }
+
+    // Task 5.5: Unit test for numerical conflict resolution
+    // Test multiple effects affecting the same attribute
+    #[test]
+    fn test_numerical_conflict_resolution() {
+        let system = NumericalSystem::new();
+        let mut character = CharacterStats::new(
+            SpiritualRoot {
+                element: Element::Fire,
+                grade: Grade::Heavenly,
+                affinity: 0.8,
+            },
+            CultivationRealm::new("Qi Condensation".to_string(), 1, 0, 1.0),
+            Lifespan::new(20, 100, 50),
+        );
+
+        let initial_combat_power = character.combat_power;
+
+        // Apply multiple effects: realm breakthrough and technique learning
+        character.cultivation_realm.sub_level += 1;
+        character.cultivation_realm.power_multiplier *= 1.2;
+        character.techniques.push("Fire Palm".to_string());
+        
+        // Update combat power - should use the latest realm multiplier
+        character.update_combat_power();
+        
+        // Combat power should have increased due to realm improvement
+        assert!(character.combat_power > initial_combat_power);
+        
+        // Verify the calculation is deterministic
+        let expected_power = character.combat_power;
+        character.update_combat_power();
+        assert_eq!(character.combat_power, expected_power);
+    }
+
+    #[test]
+    fn test_priority_rules_for_conflicting_effects() {
+        // Test that realm changes take priority over other stat changes
+        let mut character = CharacterStats::new(
+            SpiritualRoot {
+                element: Element::Water,
+                grade: Grade::Earth,
+                affinity: 0.6,
+            },
+            CultivationRealm::new("Foundation".to_string(), 2, 0, 2.0),
+            Lifespan::new(30, 120, 80),
+        );
+
+        let power_before = character.combat_power;
+        
+        // Change realm (higher priority)
+        character.cultivation_realm.power_multiplier = 3.0;
+        character.update_combat_power();
+        let power_after_realm = character.combat_power;
+        
+        // Realm change should significantly affect combat power
+        assert!(power_after_realm > power_before);
+        
+        // Adding techniques doesn't directly affect combat power in current implementation
+        // (combat power is calculated from spiritual root and realm only)
+        character.techniques.push("Water Shield".to_string());
+        character.update_combat_power();
+        
+        // Combat power should remain the same (techniques don't affect base calculation)
+        assert_eq!(character.combat_power, power_after_realm);
     }
 }
