@@ -1,4 +1,4 @@
-use crate::models::{CharacterStats, CultivationRealm};
+use crate::models::{CharacterStats, CultivationRealm, Grade, SpiritualRoot};
 use serde::{Deserialize, Serialize};
 
 /// Action types that characters can perform
@@ -190,6 +190,25 @@ impl NumericalSystem {
     /// Update character lifespan
     pub fn update_lifespan(&self, character: &mut CharacterStats, time_passed: u32) {
         character.lifespan.current_age += time_passed;
+    }
+
+    /// Calculate initial combat power based on spiritual root and realm
+    pub fn calculate_initial_combat_power(
+        &self,
+        spiritual_root: &SpiritualRoot,
+        realm: &CultivationRealm,
+    ) -> u64 {
+        let base_power = 100;
+        let affinity_multiplier = spiritual_root.affinity as u64;
+        let grade_multiplier = match spiritual_root.grade {
+            Grade::Heavenly => 3,
+            Grade::Earth => 2,
+            Grade::Human => 1,
+            Grade::Mortal => 1,
+        };
+        let realm_multiplier = realm.power_multiplier as u64;
+
+        base_power * affinity_multiplier * grade_multiplier * realm_multiplier
     }
 }
 
