@@ -7,7 +7,7 @@
     <div class="bg-slate-800 rounded-lg shadow-2xl p-8 max-w-2xl w-full max-h-[80vh] overflow-y-auto">
       <div class="flex items-center justify-between mb-6">
         <h2 class="text-2xl font-bold text-white">
-          {{ mode === 'save' ? '保存游戏' : '加载游戏' }}
+          {{ mode === 'save' ? 'Save Game' : 'Load Game' }}
         </h2>
         <button
           @click="handleClose"
@@ -34,20 +34,20 @@
           <div class="flex items-center justify-between">
             <div class="flex-1">
               <h3 class="text-lg font-semibold text-white mb-1">
-                存档槽 {{ slot.id }}
+                Slot {{ slot.id }}
               </h3>
               
               <div v-if="slot.data" class="text-sm text-gray-300 space-y-1">
-                <p>角色: {{ slot.data.characterName }}</p>
-                <p>境界: {{ slot.data.realm }}</p>
-                <p>位置: {{ slot.data.location }}</p>
+                <p>Character: {{ slot.data.characterName }}</p>
+                <p>Realm: {{ slot.data.realm }}</p>
+                <p>Location: {{ slot.data.location }}</p>
                 <p class="text-gray-400 text-xs">
-                  保存时间: {{ formatDate(slot.data.timestamp) }}
+                  Saved: {{ formatDate(slot.data.timestamp) }}
                 </p>
               </div>
               
               <div v-else class="text-sm text-gray-500">
-                空存档槽
+                Empty Slot
               </div>
             </div>
 
@@ -66,7 +66,7 @@
 
       <div v-if="isLoading" class="mt-4 text-center">
         <div class="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-purple-500"></div>
-        <p class="text-gray-300 text-sm mt-2">处理中...</p>
+        <p class="text-gray-300 text-sm mt-2">Processing...</p>
       </div>
 
       <div class="flex gap-3 mt-6">
@@ -80,7 +80,7 @@
               : 'bg-gray-600 text-gray-400 cursor-not-allowed'
           ]"
         >
-          {{ mode === 'save' ? '保存' : '加载' }}
+          {{ mode === 'save' ? 'Save' : 'Load' }}
         </button>
         
         <button
@@ -88,7 +88,7 @@
           :disabled="isLoading"
           class="px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors duration-200"
         >
-          取消
+          Cancel
         </button>
       </div>
     </div>
