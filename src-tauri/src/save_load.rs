@@ -25,6 +25,8 @@ pub struct SaveInfo {
     pub timestamp: u64,
     pub player_name: String,
     pub player_age: u32,
+    pub realm: String,
+    pub location: String,
     pub game_time: String,
 }
 
@@ -131,6 +133,14 @@ impl SaveLoadSystem {
                                     timestamp: save_data.timestamp,
                                     player_name: save_data.game_state.player.name.clone(),
                                     player_age: save_data.game_state.player.stats.lifespan.current_age,
+                                    realm: save_data
+                                        .game_state
+                                        .player
+                                        .stats
+                                        .cultivation_realm
+                                        .name
+                                        .clone(),
+                                    location: save_data.game_state.player.location.clone(),
                                     game_time: format!(
                                         "第 {} 年，第 {} 月，第 {} 日",
                                         save_data.game_state.game_time.year,
@@ -281,6 +291,7 @@ mod tests {
             player,
             world_state,
             game_time,
+            event_history: Vec::new(),
         }
     }
 
@@ -490,6 +501,7 @@ mod property_tests {
                 player,
                 world_state,
                 game_time,
+                event_history: Vec::new(),
             }
         })
     }

@@ -1,4 +1,5 @@
-﻿use crate::models::CharacterStats;
+﻿use crate::event_log::GameEvent;
+use crate::models::CharacterStats;
 use crate::script::{Location, Script};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -10,6 +11,7 @@ pub struct GameState {
     pub player: Character,
     pub world_state: WorldState,
     pub game_time: GameTime,
+    pub event_history: Vec<GameEvent>,
 }
 
 /// 角色数据结构
@@ -294,6 +296,7 @@ mod tests {
             player: character,
             world_state,
             game_time,
+            event_history: Vec::new(),
         };
 
         // 测试序列化
@@ -305,3 +308,5 @@ mod tests {
         assert_eq!(game_state, deserialized);
     }
 }
+
+

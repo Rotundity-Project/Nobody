@@ -1,10 +1,12 @@
 ﻿pub mod game_engine;
 pub mod game_state;
+pub mod event_log;
 pub mod llm_service;
 pub mod memory_manager;
 pub mod models;
 pub mod npc;
 pub mod npc_engine;
+pub mod novel_generator;
 pub mod numerical_system;
 pub mod plot_engine;
 pub mod prompt_builder;
@@ -38,7 +40,11 @@ pub fn run() {
             tauri_commands::get_player_options,
             tauri_commands::initialize_plot,
             tauri_commands::get_plot_state,
+            tauri_commands::generate_novel,
+            tauri_commands::export_novel,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+
+
