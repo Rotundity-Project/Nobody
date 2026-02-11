@@ -104,6 +104,7 @@ const loadCustomScript = async () => {
     isLoading.value = true;
     error.value = null;
     
+    console.log('Opening file dialog...');
     const selected = await open({
       multiple: false,
       filters: [{
@@ -115,22 +116,41 @@ const loadCustomScript = async () => {
     if (selected) {
       console.log('Selected file:', selected);
       
-      // Load script from backend
-      const script = await invoke<Script>('load_script', { 
-        scriptPath: selected 
-      });
-      
-      console.log('Loaded script:', script);
-      
-      // Initialize game with the loaded script
-      await gameStore.initializeGame(script);
-      
-      // Navigate to game view
-      router.push('/game');
+      try {
+        // Load script from backend
+        console.log('Calling load_script command...');
+        const script = await invoke<Script>('load_script', { 
+          scriptPath: selected 
+        });
+        
+        console.log('Loaded script:', script);
+        
+        // Initialize game with the loaded script
+        console.log('Initializing game...');
+        await gameStore.initializeGame(script);
+        
+        console.log('Game initialized successfully');
+        
+        // Navigate to game view
+        router.push('/game');
+      } catch (loadError) {
+        console.error('Error during script loading or game initialization:', loadError);
+        // Show detailed error message
+        if (loadError instanceof Error) {
+          error.value = `加载失败: ${loadError.message}`;
+        } else if (typeof loadError === 'string') {
+          error.value = `加载失败: ${loadError}`;
+        } else {
+          error.value = `加载失败: ${JSON.stringify(loadError)}`;
+        }
+        throw loadError;
+      }
     }
   } catch (err) {
     console.error('Failed to load script:', err);
-    error.value = err instanceof Error ? err.message : '加载剧本失败';
+    if (!error.value) {
+      error.value = err instanceof Error ? err.message : '加载剧本失败';
+    }
   } finally {
     isLoading.value = false;
   }
