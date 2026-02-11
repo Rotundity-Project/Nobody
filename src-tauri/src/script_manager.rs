@@ -1,13 +1,57 @@
+use crate::llm_service::{LLMConfig, LLMRequest, LLMService};
+use crate::prompt_builder::{PromptBuilder, PromptConstraints, PromptContext, PromptTemplate};
+use crate::response_validator::{ResponseValidator, ValidationConstraints};
 use crate::script::Script;
 use anyhow::{anyhow, Result};
 use std::path::Path;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 // Script manager for loading and validating scripts
-pub struct ScriptManager {}
+pub struct ScriptManager {
+    llm_service: Option<LLMService>,
+    prompt_builder: PromptBuilder,
+    response_validator: ResponseValidator,
+}
 
 impl ScriptManager {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            llm_service: Self::initialize_llm_service_from_env(),
+            prompt_builder: PromptBuilder::default(),
+            response_validator: ResponseValidator::default(),
+        }
+    }
+
+    fn initialize_llm_service_from_env() -> Option<LLMService> {
+        let endpoint = std::env::var("NOBODY_LLM_ENDPOINT").ok()?;
+        let api_key = std::env::var("NOBODY_LLM_API_KEY").ok()?;
+        let model = std::env::var("NOBODY_LLM_MODEL").unwrap_or_else(|_| "gpt-4o-mini".to_string());
+        let max_tokens = std::env::var("NOBODY_LLM_MAX_TOKENS")
+            .ok()
+            .and_then(|v| v.parse::<u32>().ok())
+            .unwrap_or(1024);
+        let temperature = std::env::var("NOBODY_LLM_TEMPERATURE")
+            .ok()
+            .and_then(|v| v.parse::<f32>().ok())
+            .unwrap_or(0.7);
+
+        let cfg = LLMConfig {
+            endpoint,
+            api_key,
+            model,
+            max_tokens,
+            temperature,
+        };
+
+        LLMService::new(cfg).ok()
+    }
+
+    pub fn with_llm_service(llm_service: LLMService) -> Self {
+        Self {
+            llm_service: Some(llm_service),
+            prompt_builder: PromptBuilder::default(),
+            response_validator: ResponseValidator::default(),
+        }
     }
 
     // Load custom script from file
@@ -68,6 +112,164 @@ impl ScriptManager {
         }
 
         Ok(())
+    }
+
+    pub async fn generate_random_script(&self) -> Result<Script> {
+        let generated = if let Some(llm_service) = &self.llm_service {
+            self.generate_random_script_with_llm(llm_service).await
+        } else {
+            Err(anyhow!(
+                "LLM service is not configured, falling back to local random script template"
+            ))
+        };
+
+        match generated {
+            Ok(script) => Ok(script),
+            Err(_) => self.generate_fallback_random_script(),
+        }
+    }
+
+    async fn generate_random_script_with_llm(&self, llm_service: &LLMService) -> Result<Script> {
+        let constraints = PromptConstraints {
+            numerical_rules: vec![
+                "realm_level progression must be sequential".to_string(),
+                "starting_age must be between 10 and 100".to_string(),
+            ],
+            world_rules: vec![
+                "script must include at least one cultivation realm and one location".to_string(),
+                "initial_state.starting_location must exist in world_setting.locations".to_string(),
+            ],
+            output_schema_hint: Some(
+                "Return strict JSON matching Script schema. No markdown fences.".to_string(),
+            ),
+        };
+        let context = PromptContext {
+            scene: Some("Generate a random cultivation world script".to_string()),
+            location: None,
+            actor_name: None,
+            actor_realm: None,
+            actor_combat_power: None,
+            history_events: Vec::new(),
+            world_setting_summary: Some(
+                "Need a playable beginner scenario with coherent world settings".to_string(),
+            ),
+        };
+
+        let prompt = self.prompt_builder.build_prompt_with_token_limit(
+            PromptTemplate::ScriptGeneration,
+            &context,
+            &constraints,
+            700,
+        );
+
+        let llm_response = llm_service
+            .generate(LLMRequest {
+                prompt,
+                max_tokens: Some(700),
+                temperature: Some(0.7),
+            })
+            .await
+            .map_err(|e| anyhow!("Failed to generate random script with LLM: {}", e))?;
+
+        let validation_constraints = ValidationConstraints {
+            require_json: true,
+            max_realm_level: None,
+            min_combat_power: None,
+            max_combat_power: None,
+            max_current_age: Some(120),
+        };
+        self.response_validator
+            .validate_response(&llm_response, &validation_constraints)
+            .map_err(|e| anyhow!("Generated script response failed validation: {}", e))?;
+
+        let script = self.parse_generated_script_response(&llm_response.text)?;
+        self.validate_script(&script)?;
+        Ok(script)
+    }
+
+    fn parse_generated_script_response(&self, raw_text: &str) -> Result<Script> {
+        if let Ok(script) = serde_json::from_str::<Script>(raw_text) {
+            return Ok(script);
+        }
+
+        let json_start = raw_text
+            .find('{')
+            .ok_or_else(|| anyhow!("Generated response does not contain JSON object"))?;
+        let json_end = raw_text
+            .rfind('}')
+            .ok_or_else(|| anyhow!("Generated response does not contain JSON object end"))?;
+
+        let json_slice = &raw_text[json_start..=json_end];
+        let script: Script = serde_json::from_str(json_slice)
+            .map_err(|e| anyhow!("Failed to parse generated script JSON: {}", e))?;
+        Ok(script)
+    }
+
+    fn generate_fallback_random_script(&self) -> Result<Script> {
+        let seed = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|e| anyhow!("System clock error: {}", e))?
+            .as_secs();
+        let id = format!("random_{}", seed);
+
+        let script = serde_json::from_value::<Script>(serde_json::json!({
+            "id": id,
+            "name": "Random Cultivation Start",
+            "script_type": "RandomGenerated",
+            "world_setting": {
+                "cultivation_realms": [
+                    { "name": "Qi Condensation", "level": 1, "sub_level": 0, "power_multiplier": 1.0 },
+                    { "name": "Foundation Establishment", "level": 2, "sub_level": 0, "power_multiplier": 2.0 },
+                    { "name": "Golden Core", "level": 3, "sub_level": 0, "power_multiplier": 4.0 }
+                ],
+                "spiritual_roots": [
+                    { "element": "Fire", "grade": "Double", "affinity": 0.75 },
+                    { "element": "Water", "grade": "Triple", "affinity": 0.62 },
+                    { "element": "Wood", "grade": "Pseudo", "affinity": 0.58 }
+                ],
+                "techniques": [
+                    {
+                        "id": "breathing_technique",
+                        "name": "Basic Breathing Technique",
+                        "description": "A basic cultivation method for beginners.",
+                        "required_realm_level": 1,
+                        "element": null
+                    }
+                ],
+                "locations": [
+                    {
+                        "id": "sect_valley",
+                        "name": "Sect Valley",
+                        "description": "A valley with mild spiritual energy where outer disciples train.",
+                        "spiritual_energy": 1.2
+                    },
+                    {
+                        "id": "stone_forest",
+                        "name": "Stone Forest",
+                        "description": "Rock formations filled with hidden dangers and minor spirit beasts.",
+                        "spiritual_energy": 1.5
+                    }
+                ],
+                "factions": [
+                    {
+                        "id": "qingyun_sect",
+                        "name": "Qingyun Sect",
+                        "description": "A medium-sized righteous sect known for strict discipline.",
+                        "power_level": 65
+                    }
+                ]
+            },
+            "initial_state": {
+                "player_name": "Wanderer",
+                "player_spiritual_root": { "element": "Fire", "grade": "Double", "affinity": 0.75 },
+                "starting_location": "sect_valley",
+                "starting_age": 16
+            }
+        }))
+        .map_err(|e| anyhow!("Failed to build fallback random script: {}", e))?;
+
+        self.validate_script(&script)?;
+        Ok(script)
     }
 }
 
@@ -171,6 +373,28 @@ mod tests {
         let result = manager.validate_script(&script);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("Starting age"));
+    }
+
+    #[test]
+    fn test_parse_generated_script_from_embedded_json() {
+        let manager = ScriptManager::new();
+        let script = create_valid_script();
+        let raw = format!("Here is script:\n```json\n{}\n```", serde_json::to_string(&script).unwrap());
+
+        let parsed = manager.parse_generated_script_response(&raw).unwrap();
+        assert_eq!(parsed.id, script.id);
+        assert_eq!(parsed.initial_state.starting_location, script.initial_state.starting_location);
+    }
+
+    #[tokio::test]
+    async fn test_generate_random_script_fallback_when_llm_missing() {
+        let manager = ScriptManager::new();
+        let script = manager.generate_random_script().await.unwrap();
+
+        assert_eq!(script.script_type, ScriptType::RandomGenerated);
+        assert!(!script.world_setting.cultivation_realms.is_empty());
+        assert!(!script.world_setting.locations.is_empty());
+        assert!(manager.validate_script(&script).is_ok());
     }
 }
 
@@ -362,6 +586,24 @@ mod proptests {
             let manager = ScriptManager::new();
             let result = manager.validate_script(&script);
             prop_assert!(result.is_err(), "Script with invalid age should be rejected");
+        }
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(100))]
+
+        // Feature: Nobody, Property 2: Random script generation completeness
+        #[test]
+        fn prop_fallback_random_script_has_required_elements(_seed in 0u32..=1000) {
+            let manager = ScriptManager::new();
+            let script = manager.generate_fallback_random_script().unwrap();
+
+            prop_assert!(!script.id.is_empty());
+            prop_assert!(!script.name.is_empty());
+            prop_assert!(!script.world_setting.cultivation_realms.is_empty());
+            prop_assert!(!script.world_setting.locations.is_empty());
+            prop_assert!(!script.initial_state.starting_location.is_empty());
+            prop_assert!(manager.validate_script(&script).is_ok());
         }
     }
 }

@@ -31,6 +31,7 @@ pub fn run() {
             tauri_commands::save_game,
             tauri_commands::load_game,
             tauri_commands::load_script,
+            tauri_commands::generate_random_script,
             tauri_commands::get_player_options,
             tauri_commands::initialize_plot,
             tauri_commands::get_plot_state,

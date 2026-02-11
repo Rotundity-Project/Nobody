@@ -1,6 +1,8 @@
 use crate::game_engine::GameEngine;
 use crate::game_state::GameState;
+use crate::numerical_system::{Action, StatChange};
 use crate::plot_engine::{PlayerAction, PlayerOption, PlotState};
+use crate::save_load::SaveInfo;
 use crate::script::Script;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -39,7 +41,7 @@ pub async fn execute_player_action(
 ) -> Result<String, String> {
     let engine = engine.lock().map_err(|e| e.to_string())?;
 
-    let game_state = engine.get_current_state().map_err(|e| e.to_string())?;
+    let mut game_state = engine.get_current_state().map_err(|e| e.to_string())?;
     let mut plot_state = engine.get_plot_state().map_err(|e| e.to_string())?;
 
     let plot_engine = crate::plot_engine::PlotEngine::new();
@@ -49,7 +51,7 @@ pub async fn execute_player_action(
         weather: None,
     };
 
-    let action_result = plot_engine
+    let mut action_result = plot_engine
         .process_player_action(
             &action,
             &game_state.player.stats,
@@ -58,10 +60,51 @@ pub async fn execute_player_action(
         )
         .map_err(|e| e.to_string())?;
 
+    // 应用行动带来的实际状态变化，避免“有提示但状态不变”
+    if let Some(selected_option_id) = action.selected_option_id {
+        if let Some(selected_option) = plot_state.current_scene.available_options.get(selected_option_id) {
+            match &selected_option.action {
+                Action::Cultivate => {
+                    let old_power = game_state.player.stats.combat_power;
+                    let gain = ((old_power as f32 * 0.03).round() as u64).max(1);
+                    let new_power = old_power.saturating_add(gain);
+                    game_state.player.stats.combat_power = new_power;
+                    action_result.stat_changes.push(StatChange {
+                        stat_name: "战力".to_string(),
+                        old_value: old_power.to_string(),
+                        new_value: new_power.to_string(),
+                    });
+                    action_result.description = format!("{} 战力提升 {} 点。", action_result.description, gain);
+                }
+                Action::Breakthrough => {
+                    if action_result.success && game_state.player.stats.cultivation_realm.sub_level < 3 {
+                        let old_sub = game_state.player.stats.cultivation_realm.sub_level;
+                        game_state.player.stats.cultivation_realm.sub_level += 1;
+                        game_state.player.stats.cultivation_realm.power_multiplier *= 1.2;
+                        game_state.player.stats.update_combat_power();
+                        action_result.stat_changes.push(StatChange {
+                            stat_name: "小境界".to_string(),
+                            old_value: format!("第{}层", old_sub),
+                            new_value: format!("第{}层", game_state.player.stats.cultivation_realm.sub_level),
+                        });
+                    }
+                }
+                Action::Rest | Action::Custom { .. } | Action::Combat { .. } => {}
+            }
+        }
+    }
+
+    // 每次行动推进一天，确保状态持续向前
+    game_state.game_time.advance_days(1);
+
     let plot_update = plot_engine.advance_plot(&plot_state, &action_result);
 
     plot_state.last_action_result = Some(action_result.clone());
     plot_state.add_to_history(plot_update.plot_text.clone());
+    // 将最新行动结果写回当前场景，前端主视图可直接看到反馈
+    plot_state.current_scene.description = plot_update.plot_text.clone();
+    // 清空旧选项后重新生成，避免始终复用初始选项集合
+    plot_state.current_scene.available_options.clear();
 
     let new_options = plot_engine.generate_player_options(
         &plot_state.current_scene,
@@ -69,6 +112,9 @@ pub async fn execute_player_action(
     );
     plot_state.current_scene.available_options = new_options;
 
+    engine
+        .update_current_state(game_state)
+        .map_err(|e| e.to_string())?;
     engine.update_plot_state(plot_state).map_err(|e| e.to_string())?;
 
     Ok(plot_update.plot_text)
@@ -123,6 +169,17 @@ pub async fn load_script(
 }
 
 #[tauri::command]
+pub async fn generate_random_script() -> Result<Script, String> {
+    use crate::script_manager::ScriptManager;
+
+    let manager = ScriptManager::new();
+    manager
+        .generate_random_script()
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn get_player_options(
     engine: State<'_, Mutex<GameEngine>>,
 ) -> Result<Vec<PlayerOption>, String> {
@@ -154,6 +211,17 @@ pub async fn get_plot_state(
 
     engine
         .get_plot_state()
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn list_save_slots(
+    engine: State<'_, Mutex<GameEngine>>,
+) -> Result<Vec<SaveInfo>, String> {
+    let engine = engine.lock().map_err(|e| e.to_string())?;
+
+    engine
+        .list_saves()
         .map_err(|e| e.to_string())
 }
 
