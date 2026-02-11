@@ -1,16 +1,16 @@
-<template>
+﻿<template>
   <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-8">
     <div class="max-w-2xl w-full bg-slate-800 rounded-lg shadow-2xl p-8">
       <h2 class="text-3xl font-bold text-white mb-6">选择剧本类型</h2>
-      
+
       <div class="space-y-4">
         <div
           v-for="scriptType in scriptTypes"
           :key="scriptType.type"
           class="p-6 rounded-lg border-2 transition-all duration-200"
           :class="[
-            scriptType.available 
-              ? 'border-purple-500 bg-slate-700 hover:bg-slate-600 cursor-pointer' 
+            scriptType.available
+              ? 'border-purple-500 bg-slate-700 hover:bg-slate-600 cursor-pointer'
               : 'border-gray-600 bg-slate-800 opacity-50 cursor-not-allowed'
           ]"
           @click="scriptType.available && selectScriptType(scriptType.type)"
@@ -31,7 +31,7 @@
 
       <div v-if="isLoading" class="mt-6 text-center">
         <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
-        <p class="text-gray-300 mt-2">加载中...</p>
+        <p class="text-gray-300 mt-2">{{ loadingMessage }}</p>
       </div>
 
       <div v-if="error" class="mt-6 p-4 bg-red-900 bg-opacity-50 border border-red-500 rounded-lg">
@@ -59,6 +59,7 @@ import type { ScriptType, Script } from '../types/game';
 const router = useRouter();
 const gameStore = useGameStore();
 const isLoading = ref(false);
+const loadingMessage = ref('加载中...');
 const error = ref<string | null>(null);
 
 interface ScriptTypeOption {
@@ -79,7 +80,7 @@ const scriptTypes = ref<ScriptTypeOption[]>([
     type: 'random_generated' as ScriptType,
     title: '随机生成',
     description: '使用 AI 生成随机修仙世界',
-    available: false,
+    available: true,
   },
   {
     type: 'existing_novel' as ScriptType,
@@ -94,65 +95,64 @@ const selectScriptType = async (type: ScriptType) => {
 
   if (type === 'custom') {
     await loadCustomScript();
-  } else {
-    error.value = '此功能尚未实现';
+    return;
+  }
+
+  if (type === 'random_generated') {
+    await loadRandomScript();
+    return;
+  }
+
+  error.value = '此功能尚未实现';
+};
+
+const loadRandomScript = async () => {
+  try {
+    isLoading.value = true;
+    loadingMessage.value = '正在生成随机剧本...';
+    error.value = null;
+
+    await gameStore.initializeRandomGame();
+    router.push('/game');
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '随机剧本生成失败';
+  } finally {
+    isLoading.value = false;
+    loadingMessage.value = '加载中...';
   }
 };
 
 const loadCustomScript = async () => {
   try {
     isLoading.value = true;
+    loadingMessage.value = '正在加载自定义剧本...';
     error.value = null;
-    
-    console.log('Opening file dialog...');
+
     const selected = await open({
       multiple: false,
-      filters: [{
-        name: 'JSON',
-        extensions: ['json']
-      }]
+      filters: [
+        {
+          name: 'JSON',
+          extensions: ['json'],
+        },
+      ],
     });
 
-    if (selected) {
-      console.log('Selected file:', selected);
-      
-      try {
-        // Load script from backend
-        console.log('Calling load_script command...');
-        const script = await invoke<Script>('load_script', { 
-          scriptPath: selected 
-        });
-        
-        console.log('Loaded script:', script);
-        
-        // Initialize game with the loaded script
-        console.log('Initializing game...');
-        await gameStore.initializeGame(script);
-        
-        console.log('Game initialized successfully');
-        
-        // Navigate to game view
-        router.push('/game');
-      } catch (loadError) {
-        console.error('Error during script loading or game initialization:', loadError);
-        // Show detailed error message
-        if (loadError instanceof Error) {
-          error.value = `加载失败: ${loadError.message}`;
-        } else if (typeof loadError === 'string') {
-          error.value = `加载失败: ${loadError}`;
-        } else {
-          error.value = `加载失败: ${JSON.stringify(loadError)}`;
-        }
-        throw loadError;
-      }
+    if (!selected) {
+      return;
     }
+
+    const script = await invoke<Script>('load_script', {
+      scriptPath: selected,
+    });
+
+    await gameStore.initializeGame(script);
+    router.push('/game');
   } catch (err) {
-    console.error('Failed to load script:', err);
-    if (!error.value) {
-      error.value = err instanceof Error ? err.message : '加载剧本失败';
-    }
+    error.value = err instanceof Error ? err.message : '加载剧本失败';
   } finally {
     isLoading.value = false;
+    loadingMessage.value = '加载中...';
   }
 };
 

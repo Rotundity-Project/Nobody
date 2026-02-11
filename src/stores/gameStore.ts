@@ -6,6 +6,7 @@ import type {
   PlotState,
   PlayerAction,
   PlayerOption,
+  SaveInfo,
 } from '../types/game';
 
 interface GameStoreState {
@@ -95,7 +96,7 @@ export const useGameStore = defineStore('game', {
       try {
         const gameState = await invoke<GameState>('load_game', { slotId });
         this.gameState = gameState;
-        
+
         const plotState = await invoke<PlotState>('get_plot_state');
         this.plotState = plotState;
       } catch (error) {
@@ -113,6 +114,35 @@ export const useGameStore = defineStore('game', {
           this.plotState.current_scene.available_options = options;
         }
         return options;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : String(error);
+        throw error;
+      }
+    },
+
+    async initializeRandomGame() {
+      this.isLoading = true;
+      this.error = null;
+
+      try {
+        const script = await invoke<Script>('generate_random_script');
+        const gameState = await invoke<GameState>('initialize_game', { script });
+        this.currentScript = script;
+        this.gameState = gameState;
+
+        const plotState = await invoke<PlotState>('initialize_plot');
+        this.plotState = plotState;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : String(error);
+        throw error;
+      } finally {
+        this.isLoading = false;
+      }
+    },
+
+    async listSaveSlots() {
+      try {
+        return await invoke<SaveInfo[]>('list_save_slots');
       } catch (error) {
         this.error = error instanceof Error ? error.message : String(error);
         throw error;
