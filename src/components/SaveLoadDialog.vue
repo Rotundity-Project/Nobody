@@ -7,7 +7,7 @@
     <div class="bg-slate-800 rounded-lg shadow-2xl p-8 max-w-2xl w-full max-h-[80vh] overflow-y-auto">
       <div class="flex items-center justify-between mb-6">
         <h2 class="text-2xl font-bold text-white">
-          {{ mode === 'save' ? 'Save Game' : 'Load Game' }}
+          {{ mode === 'save' ? '保存游戏' : '加载游戏' }}
         </h2>
         <button
           @click="handleClose"
@@ -34,20 +34,20 @@
           <div class="flex items-center justify-between">
             <div class="flex-1">
               <h3 class="text-lg font-semibold text-white mb-1">
-                Slot {{ slot.id }}
+                存档槽 {{ slot.id }}
               </h3>
               
               <div v-if="slot.data" class="text-sm text-gray-300 space-y-1">
-                <p>Character: {{ slot.data.characterName }}</p>
-                <p>Realm: {{ slot.data.realm }}</p>
-                <p>Location: {{ slot.data.location }}</p>
+                <p>角色: {{ slot.data.characterName }}</p>
+                <p>境界: {{ slot.data.realm }}</p>
+                <p>位置: {{ slot.data.location }}</p>
                 <p class="text-gray-400 text-xs">
-                  Saved: {{ formatDate(slot.data.timestamp) }}
+                  保存时间: {{ formatDate(slot.data.timestamp) }}
                 </p>
               </div>
               
               <div v-else class="text-sm text-gray-500">
-                Empty Slot
+                空存档
               </div>
             </div>
 
@@ -66,7 +66,7 @@
 
       <div v-if="isLoading" class="mt-4 text-center">
         <div class="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-purple-500"></div>
-        <p class="text-gray-300 text-sm mt-2">Processing...</p>
+        <p class="text-gray-300 text-sm mt-2">处理中...</p>
       </div>
 
       <div class="flex gap-3 mt-6">
@@ -80,7 +80,7 @@
               : 'bg-gray-600 text-gray-400 cursor-not-allowed'
           ]"
         >
-          {{ mode === 'save' ? 'Save' : 'Load' }}
+          {{ mode === 'save' ? '保存' : '加载' }}
         </button>
         
         <button
@@ -88,7 +88,7 @@
           :disabled="isLoading"
           class="px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors duration-200"
         >
-          Cancel
+          取消
         </button>
       </div>
     </div>
@@ -172,7 +172,7 @@ const handleConfirm = async () => {
 
     handleClose();
   } catch (err) {
-    error.value = err instanceof Error ? err.message : `Failed to ${props.mode} game`;
+    error.value = err instanceof Error ? err.message : `${props.mode === 'save' ? '保存' : '加载'}游戏失败`;
   } finally {
     isLoading.value = false;
   }
