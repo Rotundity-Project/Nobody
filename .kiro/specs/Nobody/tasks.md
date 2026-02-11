@@ -286,7 +286,7 @@
 ### 阶段 7: 前端基础框架
 
 - [ ] 20. 设置前端状态管理
-  - [ ] 20.1 创建 Pinia Store
+  - [x] 20.1 创建 Pinia Store
     - 在 `src/stores/gameStore.ts` 中创建 `useGameStore`
     - 定义状态：currentScript, playerCharacter, npcs, currentPlot, gameHistory
     - 实现 actions：initializeGame, executePlayerAction, saveGame, loadGame
