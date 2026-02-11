@@ -497,6 +497,235 @@ mod tests {
         assert!(update.plot_text.contains("Cultivation successful"));
         assert_eq!(update.triggered_events.len(), 1);
     }
+
+    #[test]
+    fn test_validate_action_with_no_option_id() {
+        let engine = PlotEngine::new();
+        let scene = create_test_scene();
+        
+        let action = PlayerAction {
+            action_type: ActionType::SelectedOption,
+            content: "test".to_string(),
+            selected_option_id: None,
+        };
+
+        let result = engine.validate_player_action(&action, &scene.available_options);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Option ID must be provided"));
+    }
+
+    #[test]
+    fn test_validate_action_with_valid_free_text() {
+        let engine = PlotEngine::new();
+        let scene = create_test_scene();
+        
+        let action = PlayerAction {
+            action_type: ActionType::FreeText,
+            content: "I want to explore the forest".to_string(),
+            selected_option_id: None,
+        };
+
+        let result = engine.validate_player_action(&action, &scene.available_options);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_process_action_calculates_result_correctly() {
+        let engine = PlotEngine::new();
+        let character = create_test_character();
+        let scene = create_test_scene();
+        let context = Context {
+            location: "sect".to_string(),
+            time_of_day: "morning".to_string(),
+            weather: None,
+        };
+
+        let action = PlayerAction {
+            action_type: ActionType::SelectedOption,
+            content: "0".to_string(),
+            selected_option_id: Some(0),
+        };
+
+        let result = engine.process_player_action(
+            &action,
+            &character,
+            &scene.available_options,
+            &context,
+        );
+
+        assert!(result.is_ok());
+        let action_result = result.unwrap();
+        assert!(action_result.success);
+        assert!(!action_result.description.is_empty());
+    }
+
+    #[test]
+    fn test_process_action_rejects_invalid_option() {
+        let engine = PlotEngine::new();
+        let character = create_test_character();
+        let scene = create_test_scene();
+        let context = Context {
+            location: "sect".to_string(),
+            time_of_day: "morning".to_string(),
+            weather: None,
+        };
+
+        let action = PlayerAction {
+            action_type: ActionType::SelectedOption,
+            content: "999".to_string(),
+            selected_option_id: Some(999),
+        };
+
+        let result = engine.process_player_action(
+            &action,
+            &character,
+            &scene.available_options,
+            &context,
+        );
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Invalid option ID"));
+    }
+
+    #[test]
+    fn test_process_action_rejects_free_text() {
+        let engine = PlotEngine::new();
+        let character = create_test_character();
+        let scene = create_test_scene();
+        let context = Context {
+            location: "sect".to_string(),
+            time_of_day: "morning".to_string(),
+            weather: None,
+        };
+
+        let action = PlayerAction {
+            action_type: ActionType::FreeText,
+            content: "I want to explore".to_string(),
+            selected_option_id: None,
+        };
+
+        let result = engine.process_player_action(
+            &action,
+            &character,
+            &scene.available_options,
+            &context,
+        );
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("not supported"));
+    }
+
+    #[test]
+    fn test_process_different_actions() {
+        let engine = PlotEngine::new();
+        let character = create_test_character();
+        let context = Context {
+            location: "sect".to_string(),
+            time_of_day: "morning".to_string(),
+            weather: None,
+        };
+
+        let mut scene = Scene::new(
+            "test".to_string(),
+            "Test".to_string(),
+            "Test scene".to_string(),
+            "sect".to_string(),
+        );
+
+        scene.add_option(PlayerOption {
+            id: 0,
+            description: "Cultivate".to_string(),
+            requirements: vec![],
+            action: Action::Cultivate,
+        });
+
+        scene.add_option(PlayerOption {
+            id: 1,
+            description: "Rest".to_string(),
+            requirements: vec![],
+            action: Action::Rest,
+        });
+
+        scene.add_option(PlayerOption {
+            id: 2,
+            description: "Breakthrough".to_string(),
+            requirements: vec![],
+            action: Action::Breakthrough,
+        });
+
+        let cultivate_action = PlayerAction {
+            action_type: ActionType::SelectedOption,
+            content: "0".to_string(),
+            selected_option_id: Some(0),
+        };
+
+        let cultivate_result = engine.process_player_action(
+            &cultivate_action,
+            &character,
+            &scene.available_options,
+            &context,
+        );
+        assert!(cultivate_result.is_ok());
+        assert!(cultivate_result.unwrap().description.contains("Cultivation"));
+
+        let rest_action = PlayerAction {
+            action_type: ActionType::SelectedOption,
+            content: "1".to_string(),
+            selected_option_id: Some(1),
+        };
+
+        let rest_result = engine.process_player_action(
+            &rest_action,
+            &character,
+            &scene.available_options,
+            &context,
+        );
+        assert!(rest_result.is_ok());
+        assert!(rest_result.unwrap().description.contains("rest"));
+
+        let breakthrough_action = PlayerAction {
+            action_type: ActionType::SelectedOption,
+            content: "2".to_string(),
+            selected_option_id: Some(2),
+        };
+
+        let breakthrough_result = engine.process_player_action(
+            &breakthrough_action,
+            &character,
+            &scene.available_options,
+            &context,
+        );
+        assert!(breakthrough_result.is_ok());
+    }
+
+    #[test]
+    fn test_action_result_includes_events() {
+        let engine = PlotEngine::new();
+        let character = create_test_character();
+        let scene = create_test_scene();
+        let context = Context {
+            location: "sect".to_string(),
+            time_of_day: "morning".to_string(),
+            weather: None,
+        };
+
+        let action = PlayerAction {
+            action_type: ActionType::SelectedOption,
+            content: "0".to_string(),
+            selected_option_id: Some(0),
+        };
+
+        let result = engine.process_player_action(
+            &action,
+            &character,
+            &scene.available_options,
+            &context,
+        );
+
+        assert!(result.is_ok());
+        let action_result = result.unwrap();
+        assert!(!action_result.events.is_empty());
+    }
 }
 
 #[cfg(test)]
