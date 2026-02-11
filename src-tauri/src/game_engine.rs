@@ -340,7 +340,7 @@ mod tests {
         use tempfile::TempDir;
 
         let temp_dir = TempDir::new().unwrap();
-        let engine = GameEngine::new();
+        let _engine = GameEngine::new();
         let mut engine_with_dir = GameEngine::new();
         engine_with_dir.save_load_system = SaveLoadSystem::with_directory(temp_dir.path().to_path_buf());
 
@@ -406,7 +406,7 @@ mod tests {
 #[cfg(test)]
 mod integration_tests {
     use super::*;
-    use crate::models::{Element, Grade, SpiritualRoot};
+    use crate::models::{CultivationRealm, Element, Grade, SpiritualRoot};
     use crate::script::{InitialState, Location, ScriptType, WorldSetting};
     use tempfile::TempDir;
 

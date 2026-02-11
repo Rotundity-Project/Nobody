@@ -664,23 +664,23 @@ mod property_tests {
 
             // 验证槽位1的数据与原始数据1一致
             prop_assert_eq!(
-                loaded1.game_state.player.name,
-                game_state1.player.name,
+                &loaded1.game_state.player.name,
+                &game_state1.player.name,
                 "槽位1的玩家名称应该与原始数据1一致"
             );
 
             // 验证槽位2的数据与原始数据2一致
             prop_assert_eq!(
-                loaded2.game_state.player.name,
-                game_state2.player.name,
+                &loaded2.game_state.player.name,
+                &game_state2.player.name,
                 "槽位2的玩家名称应该与原始数据2一致"
             );
 
             // 验证两个槽位的数据不同（如果原始数据不同）
             if game_state1.player.name != game_state2.player.name {
                 prop_assert_ne!(
-                    loaded1.game_state.player.name,
-                    loaded2.game_state.player.name,
+                    &loaded1.game_state.player.name,
+                    &loaded2.game_state.player.name,
                     "不同槽位的数据应该相互独立"
                 );
             }

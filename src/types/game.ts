@@ -45,8 +45,9 @@ export enum Element {
 
 export enum Grade {
   Heavenly = "Heavenly",
-  Earthly = "Earthly",
-  Mortal = "Mortal"
+  Pseudo = "Pseudo",
+  Triple = "Triple",
+  Double = "Double"
 }
 
 export interface Location {
