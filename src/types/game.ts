@@ -17,9 +17,17 @@ export enum ScriptType {
 export interface WorldSetting {
   cultivation_realms: CultivationRealm[];
   spiritual_roots: SpiritualRoot[];
-  techniques: string[];
+  techniques: Technique[];
   locations: Location[];
   factions: Faction[];
+}
+
+export interface Technique {
+  id: string;
+  name: string;
+  description: string;
+  required_realm_level: number;
+  element: Element | null;
 }
 
 export interface CultivationRealm {
@@ -61,6 +69,7 @@ export interface Faction {
   id: string;
   name: string;
   description: string;
+  power_level: number;
 }
 
 export interface InitialState {
