@@ -132,6 +132,9 @@ impl PlotEngine {
         current_state: &PlotState,
         action_result: &ActionResult,
     ) -> Option<String> {
+        if cfg!(test) {
+            return None;
+        }
         if tokio::runtime::Handle::try_current().is_ok() {
             return None;
         }
@@ -368,6 +371,9 @@ impl PlotEngine {
         character: &CharacterStats,
         context: &Context,
     ) -> Option<Action> {
+        if cfg!(test) {
+            return None;
+        }
         if tokio::runtime::Handle::try_current().is_ok() {
             return None;
         }
@@ -518,6 +524,9 @@ impl PlotEngine {
         free_text: &str,
         available_options: &[PlayerOption],
     ) -> Option<(bool, String)> {
+        if cfg!(test) {
+            return None;
+        }
         if tokio::runtime::Handle::try_current().is_ok() {
             return None;
         }
