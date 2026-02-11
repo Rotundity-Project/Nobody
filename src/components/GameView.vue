@@ -11,7 +11,7 @@
           <button
             @click="router.push('/')"
             class="text-gray-400 hover:text-white transition-colors"
-            title="Back to Main Menu"
+            title="返回主菜单"
           >
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -30,13 +30,13 @@
                 : 'bg-gray-600 text-gray-400 cursor-not-allowed'
             ]"
           >
-            Save
+            保存
           </button>
           <button
             @click="showLoadDialog = true"
             class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors duration-200"
           >
-            Load
+            加载
           </button>
         </div>
       </div>
@@ -50,7 +50,7 @@
           </div>
           
           <div v-if="!gameStore.isGameInitialized" class="text-center text-gray-400">
-            <p>No game in progress. Please start a new game.</p>
+            <p>暂无游戏进行中，请开始新游戏</p>
           </div>
         </div>
       </div>
@@ -59,7 +59,7 @@
       <div class="border-t border-slate-700 bg-slate-800 p-6">
         <div class="max-w-3xl mx-auto">
           <div v-if="gameStore.isWaitingForInput && gameStore.availableOptions.length > 0">
-            <h3 class="text-lg font-semibold mb-4 text-purple-400">Choose your action:</h3>
+            <h3 class="text-lg font-semibold mb-4 text-purple-400">选择你的行动：</h3>
             <div class="space-y-2">
               <button
                 v-for="(option, index) in gameStore.availableOptions"
@@ -75,7 +75,7 @@
               >
                 <p class="text-white">{{ option.description }}</p>
                 <p v-if="option.requirements" class="text-sm text-gray-400 mt-1">
-                  Requirements: {{ option.requirements }}
+                  需求: {{ option.requirements }}
                 </p>
               </button>
             </div>
@@ -83,11 +83,11 @@
 
           <div v-else-if="isLoading" class="text-center">
             <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
-            <p class="text-gray-300 mt-2">Processing...</p>
+            <p class="text-gray-300 mt-2">处理中...</p>
           </div>
 
           <div v-else-if="gameStore.isGameInitialized && !gameStore.isWaitingForInput" class="text-center text-gray-400">
-            <p>Story continues...</p>
+            <p>剧情继续...</p>
           </div>
         </div>
       </div>
