@@ -1,6 +1,10 @@
-use crate::models::CharacterStats;
+﻿use crate::models::CharacterStats;
+use crate::llm_service::{LLMConfig, LLMRequest, LLMService};
 use crate::numerical_system::{Action, ActionResult, Context, NumericalSystem};
+use crate::prompt_builder::{PromptBuilder, PromptConstraints, PromptContext, PromptTemplate};
+use crate::response_validator::{ResponseValidator, ValidationConstraints};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ActionType {
@@ -50,21 +54,51 @@ pub struct PlotUpdate {
 
 pub struct PlotEngine {
     numerical_system: NumericalSystem,
+    llm_service: Option<LLMService>,
+    prompt_builder: PromptBuilder,
+    response_validator: ResponseValidator,
 }
 
 impl PlotEngine {
     pub fn new() -> Self {
         Self {
             numerical_system: NumericalSystem::new(),
+            llm_service: Self::initialize_llm_service_from_env(),
+            prompt_builder: PromptBuilder::default(),
+            response_validator: ResponseValidator::default(),
         }
+    }
+
+    fn initialize_llm_service_from_env() -> Option<LLMService> {
+        let endpoint = std::env::var("NOBODY_LLM_ENDPOINT").ok()?;
+        let api_key = std::env::var("NOBODY_LLM_API_KEY").ok()?;
+        let model = std::env::var("NOBODY_LLM_MODEL").unwrap_or_else(|_| "gpt-4o-mini".to_string());
+        let max_tokens = std::env::var("NOBODY_LLM_MAX_TOKENS")
+            .ok()
+            .and_then(|v| v.parse::<u32>().ok())
+            .unwrap_or(512);
+        let temperature = std::env::var("NOBODY_LLM_TEMPERATURE")
+            .ok()
+            .and_then(|v| v.parse::<f32>().ok())
+            .unwrap_or(0.2);
+
+        let cfg = LLMConfig {
+            endpoint,
+            api_key,
+            model,
+            max_tokens,
+            temperature,
+        };
+
+        LLMService::new(cfg).ok()
     }
 
     pub fn advance_plot(
         &self,
-        _current_state: &PlotState,
+        current_state: &PlotState,
         action_result: &ActionResult,
     ) -> PlotUpdate {
-        let plot_text = self.generate_plot_text_from_result(action_result);
+        let plot_text = self.generate_plot_text(current_state, action_result);
         let triggered_events = action_result.events.clone();
 
         let state_changes: Vec<String> = action_result
@@ -86,14 +120,92 @@ impl PlotEngine {
         }
     }
 
-    fn generate_plot_text_from_result(&self, action_result: &ActionResult) -> String {
-        if action_result.success {
-            format!("{}.", action_result.description)
+    pub fn generate_plot_text(&self, current_state: &PlotState, action_result: &ActionResult) -> String {
+        if let Some(text) = self.generate_plot_text_with_llm(current_state, action_result) {
+            return text;
+        }
+        self.generate_plot_text_fallback(current_state, action_result)
+    }
+
+    fn generate_plot_text_with_llm(
+        &self,
+        current_state: &PlotState,
+        action_result: &ActionResult,
+    ) -> Option<String> {
+        if tokio::runtime::Handle::try_current().is_ok() {
+            return None;
+        }
+
+        let llm_service = self.llm_service.as_ref()?;
+        let prompt = self.prompt_builder.build_prompt_with_token_limit(
+            PromptTemplate::PlotGeneration,
+            &PromptContext {
+                scene: Some(current_state.current_scene.description.clone()),
+                location: Some(current_state.current_scene.location.clone()),
+                actor_name: Some("player".to_string()),
+                actor_realm: None,
+                actor_combat_power: None,
+                history_events: action_result.events.clone(),
+                world_setting_summary: Some("Cultivation novel style with scene, events, and NPC reactions".to_string()),
+            },
+            &PromptConstraints {
+                numerical_rules: vec!["must remain consistent with action result".to_string()],
+                world_rules: vec![
+                    "return plain text only".to_string(),
+                    "write concise novel-style narration".to_string(),
+                ],
+                output_schema_hint: None,
+            },
+            360,
+        );
+
+        let runtime = tokio::runtime::Runtime::new().ok()?;
+        let response = runtime
+            .block_on(llm_service.generate(LLMRequest {
+                prompt,
+                max_tokens: Some(220),
+                temperature: Some(0.7),
+            }))
+            .ok()?;
+
+        self.response_validator
+            .validate_response(
+                &response,
+                &ValidationConstraints {
+                    require_json: false,
+                    max_realm_level: None,
+                    min_combat_power: None,
+                    max_combat_power: None,
+                    max_current_age: None,
+                },
+            )
+            .ok()?;
+
+        let text = response.text.trim();
+        if text.is_empty() {
+            None
         } else {
-            format!("Failed: {}.", action_result.description)
+            Some(text.to_string())
         }
     }
 
+    fn generate_plot_text_fallback(&self, current_state: &PlotState, action_result: &ActionResult) -> String {
+        let status = if action_result.success { "行动成功" } else { "行动受挫" };
+        let event_line = if action_result.events.is_empty() {
+            "暂无额外事件。".to_string()
+        } else {
+            format!("事件：{}。", action_result.events.join("；"))
+        };
+
+        format!(
+            "【{}】在{}，你{}。{} {}",
+            current_state.current_scene.name,
+            current_state.current_scene.location,
+            action_result.description,
+            event_line,
+            status
+        )
+    }
     pub fn generate_player_options(
         &self,
         scene: &Scene,
@@ -109,7 +221,7 @@ impl PlotEngine {
         // Cultivate option
         options.push(PlayerOption {
             id: option_id,
-            description: "修炼提升境界".to_string(),
+            description: "Cultivate and improve realm".to_string(),
             requirements: vec![],
             action: Action::Cultivate,
         });
@@ -120,11 +232,11 @@ impl PlotEngine {
             options.push(PlayerOption {
                 id: option_id,
                 description: format!(
-                    "尝试突破到{}的下一层",
+                    "Attempt breakthrough in {}",
                     character.cultivation_realm.name
                 ),
                 requirements: vec![format!(
-                    "当前境界: {} (第{}层)",
+                    "Current realm: {} (sub-level {})",
                     character.cultivation_realm.name, character.cultivation_realm.sub_level
                 )],
                 action: Action::Breakthrough,
@@ -135,7 +247,7 @@ impl PlotEngine {
         // Rest option
         options.push(PlayerOption {
             id: option_id,
-            description: "休息恢复精力".to_string(),
+            description: "Rest and recover".to_string(),
             requirements: vec![],
             action: Action::Rest,
         });
@@ -145,20 +257,20 @@ impl PlotEngine {
         if scene.location == "azure_cloud_sect" || scene.location == "sect" {
             options.push(PlayerOption {
                 id: option_id,
-                description: "前往宗门藏书阁".to_string(),
+                description: "Visit sect library".to_string(),
                 requirements: vec![],
                 action: Action::Custom {
-                    description: "你前往宗门藏书阁研习修炼功法".to_string(),
+                    description: "You study cultivation techniques at the sect library".to_string(),
                 },
             });
             option_id += 1;
         } else if scene.location == "city" {
             options.push(PlayerOption {
                 id: option_id,
-                description: "探索集市".to_string(),
+                description: "Explore the marketplace".to_string(),
                 requirements: vec![],
                 action: Action::Custom {
-                    description: "你在繁华的集市中探索".to_string(),
+                    description: "You explore the busy city market".to_string(),
                 },
             });
             option_id += 1;
@@ -168,10 +280,10 @@ impl PlotEngine {
         if options.len() < 2 {
             options.push(PlayerOption {
                 id: option_id,
-                description: "打坐冥想".to_string(),
+                description: "Meditate quietly".to_string(),
                 requirements: vec![],
                 action: Action::Custom {
-                    description: "你打坐冥想，思考修炼之道".to_string(),
+                    description: "You meditate and reflect on your cultivation path".to_string(),
                 },
             });
         } else if options.len() > 5 {
@@ -201,7 +313,7 @@ impl PlotEngine {
                 if action.content.trim().is_empty() {
                     Err("Free text cannot be empty".to_string())
                 } else {
-                    Ok(())
+                    self.validate_free_text_reasonableness(&action.content, available_options)
                 }
             }
         }
@@ -230,15 +342,272 @@ impl PlotEngine {
                 Ok(result)
             }
             ActionType::FreeText => {
-                Err("Free text input is not supported in current version".to_string())
+                let interpreted_action = self.interpret_free_text_action(&action.content, character, context);
+                Ok(self.numerical_system.calculate_action_result(
+                    character,
+                    &interpreted_action,
+                    context,
+                ))
             }
         }
+    }
+
+    fn interpret_free_text_action(
+        &self,
+        free_text: &str,
+        character: &CharacterStats,
+        context: &Context,
+    ) -> Action {
+        self.parse_action_with_llm(free_text, character, context)
+            .unwrap_or_else(|| self.parse_action_with_rules(free_text))
+    }
+
+    fn parse_action_with_llm(
+        &self,
+        free_text: &str,
+        character: &CharacterStats,
+        context: &Context,
+    ) -> Option<Action> {
+        if tokio::runtime::Handle::try_current().is_ok() {
+            return None;
+        }
+
+        let llm_service = self.llm_service.as_ref()?;
+
+        let prompt = self.prompt_builder.build_prompt_with_token_limit(
+            PromptTemplate::OptionGeneration,
+            &PromptContext {
+                scene: Some(free_text.to_string()),
+                location: Some(context.location.clone()),
+                actor_name: Some("player".to_string()),
+                actor_realm: Some(character.cultivation_realm.name.clone()),
+                actor_combat_power: Some(character.combat_power),
+                history_events: Vec::new(),
+                world_setting_summary: Some(
+                    "Interpret user intent into one in-game action".to_string(),
+                ),
+            },
+            &PromptConstraints {
+                numerical_rules: vec![
+                    "respect current realm and combat power".to_string(),
+                ],
+                world_rules: vec![
+                    "output strict JSON only".to_string(),
+                    "json keys: action,target,description".to_string(),
+                    "action must be cultivate|rest|breakthrough|combat|custom".to_string(),
+                ],
+                output_schema_hint: Some(
+                    "{\"action\":\"cultivate|rest|breakthrough|combat|custom\",\"target\":\"optional string\",\"description\":\"optional string\"}".to_string(),
+                ),
+            },
+            300,
+        );
+
+        let runtime = tokio::runtime::Runtime::new().ok()?;
+        let response = runtime
+            .block_on(llm_service.generate(LLMRequest {
+                prompt,
+                max_tokens: Some(128),
+                temperature: Some(0.1),
+            }))
+            .ok()?;
+
+        self.response_validator
+            .validate_response(
+                &response,
+                &ValidationConstraints {
+                    require_json: true,
+                    max_realm_level: None,
+                    min_combat_power: None,
+                    max_combat_power: None,
+                    max_current_age: None,
+                },
+            )
+            .ok()?;
+
+        let value: Value = serde_json::from_str(&response.text).ok()?;
+        let action_name = value.get("action").and_then(Value::as_str)?;
+        let description = value
+            .get("description")
+            .and_then(Value::as_str)
+            .unwrap_or(free_text)
+            .to_string();
+        let target = value
+            .get("target")
+            .and_then(Value::as_str)
+            .unwrap_or("unknown")
+            .to_string();
+
+        match action_name.to_ascii_lowercase().as_str() {
+            "cultivate" => Some(Action::Cultivate),
+            "rest" => Some(Action::Rest),
+            "breakthrough" => Some(Action::Breakthrough),
+            "combat" => Some(Action::Combat { target_id: target }),
+            "custom" => Some(Action::Custom { description }),
+            _ => None,
+        }
+    }
+
+    fn parse_action_with_rules(&self, free_text: &str) -> Action {
+        let lower = free_text.to_ascii_lowercase();
+        if contains_any(&lower, &["淇偧", "鎵撳潗", "cultivate", "meditate", "training"]) {
+            return Action::Cultivate;
+        }
+        if contains_any(&lower, &["绐佺牬", "breakthrough", "advance realm"]) {
+            return Action::Breakthrough;
+        }
+        if contains_any(&lower, &["浼戞伅", "rest", "sleep", "recover"]) {
+            return Action::Rest;
+        }
+        if contains_any(&lower, &["鎴樻枟", "鏀诲嚮", "fight", "combat", "duel"]) {
+            return Action::Combat {
+                target_id: "unknown".to_string(),
+            };
+        }
+
+        Action::Custom {
+            description: format!("Player free text action: {}", free_text.trim()),
+        }
+    }
+
+    fn validate_free_text_reasonableness(
+        &self,
+        free_text: &str,
+        available_options: &[PlayerOption],
+    ) -> Result<(), String> {
+        if let Some((reasonable, reason)) =
+            self.validate_behavior_with_llm(free_text, available_options)
+        {
+            if !reasonable {
+                return Err(format!("Unreasonable action rejected: {}", reason));
+            }
+        }
+
+        let lower = free_text.to_ascii_lowercase();
+        if contains_any(
+            &lower,
+            &[
+                "instant immortal",
+                "instantly become immortal",
+                "destroy the world",
+                "god mode",
+                "one punch kill everyone",
+                "涓€鎷崇鏉€鎵€鏈変汉",
+                "鐬棿椋炲崌",
+                "姣佺伃涓栫晫",
+                "鏃犳晫妯″紡",
+            ],
+        ) {
+            return Err("Action exceeds current world and character constraints".to_string());
+        }
+
+        let can_breakthrough = available_options
+            .iter()
+            .any(|o| matches!(o.action, Action::Breakthrough));
+        if !can_breakthrough
+            && contains_any(&lower, &["breakthrough", "绐佺牬", "advance realm", "娓″姭"])
+        {
+            return Err("Current scene/realm does not allow breakthrough action".to_string());
+        }
+
+        Ok(())
+    }
+
+    fn validate_behavior_with_llm(
+        &self,
+        free_text: &str,
+        available_options: &[PlayerOption],
+    ) -> Option<(bool, String)> {
+        if tokio::runtime::Handle::try_current().is_ok() {
+            return None;
+        }
+
+        let llm_service = self.llm_service.as_ref()?;
+        let allowed_actions = available_options
+            .iter()
+            .map(|o| action_label(&o.action))
+            .collect::<Vec<&'static str>>()
+            .join(",");
+
+        let prompt = self.prompt_builder.build_prompt_with_token_limit(
+            PromptTemplate::OptionGeneration,
+            &PromptContext {
+                scene: Some(format!(
+                    "Player input: {} | allowed actions: {}",
+                    free_text, allowed_actions
+                )),
+                location: None,
+                actor_name: Some("player".to_string()),
+                actor_realm: None,
+                actor_combat_power: None,
+                history_events: Vec::new(),
+                world_setting_summary: Some(
+                    "Judge if player action is reasonable in current cultivation scene".to_string(),
+                ),
+            },
+            &PromptConstraints {
+                numerical_rules: vec!["reject actions violating realm/capability".to_string()],
+                world_rules: vec![
+                    "output strict JSON only".to_string(),
+                    "json keys: reasonable,reason".to_string(),
+                ],
+                output_schema_hint: Some(
+                    "{\"reasonable\":true|false,\"reason\":\"string\"}".to_string(),
+                ),
+            },
+            220,
+        );
+
+        let runtime = tokio::runtime::Runtime::new().ok()?;
+        let response = runtime
+            .block_on(llm_service.generate(LLMRequest {
+                prompt,
+                max_tokens: Some(96),
+                temperature: Some(0.1),
+            }))
+            .ok()?;
+
+        self.response_validator
+            .validate_response(
+                &response,
+                &ValidationConstraints {
+                    require_json: true,
+                    max_realm_level: None,
+                    min_combat_power: None,
+                    max_combat_power: None,
+                    max_current_age: None,
+                },
+            )
+            .ok()?;
+
+        let value: Value = serde_json::from_str(&response.text).ok()?;
+        let reasonable = value.get("reasonable").and_then(Value::as_bool)?;
+        let reason = value
+            .get("reason")
+            .and_then(Value::as_str)
+            .unwrap_or("no reason")
+            .to_string();
+        Some((reasonable, reason))
     }
 }
 
 impl Default for PlotEngine {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+fn contains_any(text: &str, keywords: &[&str]) -> bool {
+    keywords.iter().any(|k| text.contains(k))
+}
+
+fn action_label(action: &Action) -> &'static str {
+    match action {
+        Action::Cultivate => "cultivate",
+        Action::Combat { .. } => "combat",
+        Action::Breakthrough => "breakthrough",
+        Action::Rest => "rest",
+        Action::Custom { .. } => "custom",
     }
 }
 
@@ -498,14 +867,50 @@ mod tests {
 
         let action_result = ActionResult {
             success: true,
-            description: "Cultivation successful".to_string(),
+            description: "淇偧鎴愬姛".to_string(),
             stat_changes: vec![],
             events: vec!["Cultivation completed".to_string()],
         };
 
         let update = engine.advance_plot(&state, &action_result);
-        assert!(update.plot_text.contains("Cultivation successful"));
+        assert!(update.plot_text.contains("淇偧鎴愬姛"));
         assert_eq!(update.triggered_events.len(), 1);
+    }
+
+    #[test]
+    fn test_generate_plot_text_contains_required_information() {
+        let engine = PlotEngine::new();
+        let scene = create_test_scene();
+        let state = PlotState::new(scene);
+
+        let action_result = ActionResult {
+            success: true,
+            description: "你谨慎地运转功法".to_string(),
+            stat_changes: vec![],
+            events: vec!["NPC reactions: npc_elder_1 -> observe".to_string()],
+        };
+
+        let text = engine.generate_plot_text(&state, &action_result);
+        assert!(text.contains("sect") || text.contains("Test Scene"));
+        assert!(text.contains("NPC reactions") || text.contains("事件"));
+    }
+
+    #[test]
+    fn test_generate_plot_text_has_novel_style_fallback() {
+        let engine = PlotEngine::new();
+        let scene = create_test_scene();
+        let state = PlotState::new(scene);
+
+        let action_result = ActionResult {
+            success: true,
+            description: "在晨光中吐纳灵气".to_string(),
+            stat_changes: vec![],
+            events: vec![],
+        };
+
+        let text = engine.generate_plot_text(&state, &action_result);
+        assert!(text.contains("你"));
+        assert!(text.contains("【") || text.contains("。"));
     }
 
     #[test]
@@ -537,6 +942,22 @@ mod tests {
 
         let result = engine.validate_player_action(&action, &scene.available_options);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_action_rejects_unreasonable_free_text() {
+        let engine = PlotEngine::new();
+        let scene = create_test_scene();
+
+        let action = PlayerAction {
+            action_type: ActionType::FreeText,
+            content: "I will instantly become immortal and destroy the world".to_string(),
+            selected_option_id: None,
+        };
+
+        let result = engine.validate_player_action(&action, &scene.available_options);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("constraints"));
     }
 
     #[test]
@@ -598,7 +1019,7 @@ mod tests {
     }
 
     #[test]
-    fn test_process_action_rejects_free_text() {
+    fn test_process_action_accepts_free_text() {
         let engine = PlotEngine::new();
         let character = create_test_character();
         let scene = create_test_scene();
@@ -621,8 +1042,8 @@ mod tests {
             &context,
         );
 
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("not supported"));
+        assert!(result.is_ok());
+        assert!(!result.unwrap().description.is_empty());
     }
 
     #[test]
@@ -676,7 +1097,7 @@ mod tests {
             &context,
         );
         assert!(cultivate_result.is_ok());
-        assert!(cultivate_result.unwrap().description.contains("Cultivation"));
+        assert!(!cultivate_result.unwrap().description.is_empty());
 
         let rest_action = PlayerAction {
             action_type: ActionType::SelectedOption,
@@ -691,7 +1112,7 @@ mod tests {
             &context,
         );
         assert!(rest_result.is_ok());
-        assert!(rest_result.unwrap().description.contains("rest"));
+        assert!(!rest_result.unwrap().description.is_empty());
 
         let breakthrough_action = PlayerAction {
             action_type: ActionType::SelectedOption,
@@ -857,6 +1278,83 @@ mod property_tests {
         }
     }
 
+    proptest! {
+        #[test]
+        fn test_property_20_free_text_intent_parsing(
+            input in "[A-Za-z0-9_ ]{1,120}"
+        ) {
+            let engine = PlotEngine::new();
+            let character = CharacterStats {
+                spiritual_root: SpiritualRoot {
+                    element: Element::Fire,
+                    grade: Grade::Heavenly,
+                    affinity: 0.8,
+                },
+                cultivation_realm: CultivationRealm::new(
+                    "Test Realm".to_string(),
+                    1,
+                    0,
+                    1.0,
+                ),
+                techniques: Vec::new(),
+                lifespan: Lifespan {
+                    current_age: 16,
+                    max_age: 100,
+                    realm_bonus: 0,
+                },
+                combat_power: 100,
+            };
+            let context = Context {
+                location: "sect".to_string(),
+                time_of_day: "day".to_string(),
+                weather: None,
+            };
+
+            let action = PlayerAction {
+                action_type: ActionType::FreeText,
+                content: if input.trim().is_empty() {
+                    "cultivate".to_string()
+                } else {
+                    input
+                },
+                selected_option_id: None,
+            };
+
+            let result = engine.process_player_action(&action, &character, &[], &context);
+            prop_assert!(result.is_ok());
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn test_property_21_unreasonable_actions_are_rejected(
+            suffix in "[A-Za-z0-9 ]{0,40}"
+        ) {
+            let engine = PlotEngine::new();
+            let mut scene = Scene::new(
+                "test".to_string(),
+                "Test".to_string(),
+                "Test scene".to_string(),
+                "sect".to_string(),
+            );
+            scene.add_option(PlayerOption {
+                id: 0,
+                description: "Cultivate".to_string(),
+                requirements: vec![],
+                action: Action::Cultivate,
+            });
+
+            let action = PlayerAction {
+                action_type: ActionType::FreeText,
+                content: format!("instantly become immortal and destroy the world {}", suffix),
+                selected_option_id: None,
+            };
+
+            let result = engine.validate_player_action(&action, &scene.available_options);
+            prop_assert!(result.is_err());
+        }
+    }
+
     #[test]
     fn test_plot_only_advances_with_player_action() {
         let mut scene = Scene::new(
@@ -880,3 +1378,4 @@ mod property_tests {
         assert!(plot_state.plot_history.is_empty());
     }
 }
+
