@@ -248,7 +248,7 @@
     - 测试行动结果正确计算
     - _需求: 5.6, 5.7_
 
-- [-] 17. Git 提交: 基础剧情引擎
+- [x] 17. Git 提交: 基础剧情引擎
   - 提交信息: `feat(plot): 实现基础剧情引擎和选项式交互`
   - _需求: 7.3, 7.5_
 
@@ -256,7 +256,7 @@
 ### 阶段 6: Tauri API 层
 
 - [ ] 18. 实现 Tauri 命令接口
-  - [ ] 18.1 创建 Tauri 命令
+  - [x] 18.1 创建 Tauri 命令
     - 在 `src-tauri/src/tauri_commands.rs` 中实现所有 Tauri 命令
     - `initialize_game`: 初始化游戏
     - `execute_player_action`: 执行玩家行动
@@ -268,7 +268,7 @@
     - 使用 `tauri::State` 管理 GameEngine 实例
     - _需求: 1.1, 5.2, 9.1, 9.2_
   
-  - [ ] 18.2 配置 Tauri 应用
+  - [x] 18.2 配置 Tauri 应用
     - 在 `src-tauri/src/main.rs` 中注册所有命令
     - 初始化 GameEngine 状态
     - 配置窗口属性
