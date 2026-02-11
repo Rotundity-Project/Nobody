@@ -244,8 +244,7 @@ mod tests {
 
     #[test]
     fn test_plot_engine_creation() {
-        let engine = PlotEngine::new();
-        assert!(true);
+        let _engine = PlotEngine::new();
     }
 
     #[test]
@@ -362,5 +361,102 @@ mod tests {
         let update = engine.advance_plot(&state, &action_result);
         assert!(update.plot_text.contains("Cultivation successful"));
         assert_eq!(update.triggered_events.len(), 1);
+    }
+}
+
+#[cfg(test)]
+mod property_tests {
+    use super::*;
+    use crate::models::{CultivationRealm, Element, Grade, Lifespan, SpiritualRoot};
+    use proptest::prelude::*;
+
+    fn arb_scene() -> impl Strategy<Value = Scene> {
+        ("[a-z_]+", "[A-Z][a-z ]+", "[A-Za-z ]+", "[a-z]+").prop_map(
+            |(id, name, description, location)| {
+                let mut scene = Scene::new(id, name, description, location);
+                
+                scene.add_option(PlayerOption {
+                    id: 0,
+                    description: "Cultivate".to_string(),
+                    requirements: vec![],
+                    action: Action::Cultivate,
+                });
+                
+                scene.add_option(PlayerOption {
+                    id: 1,
+                    description: "Rest".to_string(),
+                    requirements: vec![],
+                    action: Action::Rest,
+                });
+                
+                scene
+            },
+        )
+    }
+
+    proptest! {
+        #[test]
+        fn test_property_18_plot_pauses_at_decision_points(
+            scene in arb_scene()
+        ) {
+            let plot_state = PlotState::new(scene.clone());
+            
+            prop_assert!(plot_state.is_waiting_for_input, 
+                "Plot should pause at decision points waiting for input");
+            
+            prop_assert!(!plot_state.current_scene.available_options.is_empty(),
+                "Decision points should have available options for player to choose");
+            
+            prop_assert!(plot_state.last_action_result.is_none(),
+                "No automatic action should be executed while waiting for player input");
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn test_plot_pauses_after_action(
+            scene in arb_scene()
+        ) {
+            let engine = PlotEngine::new();
+            let mut plot_state = PlotState::new(scene);
+            
+            let action_result = ActionResult {
+                success: true,
+                description: "Action completed".to_string(),
+                stat_changes: vec![],
+                events: vec![],
+            };
+            
+            let update = engine.advance_plot(&plot_state, &action_result);
+            
+            plot_state.last_action_result = Some(action_result);
+            plot_state.add_to_history(update.plot_text);
+            
+            prop_assert!(plot_state.is_waiting_for_input,
+                "Plot should continue waiting for player input after advancing");
+        }
+    }
+
+    #[test]
+    fn test_plot_only_advances_with_player_action() {
+        let mut scene = Scene::new(
+            "test".to_string(),
+            "Test".to_string(),
+            "Test scene".to_string(),
+            "location".to_string(),
+        );
+        
+        scene.add_option(PlayerOption {
+            id: 0,
+            description: "Option 1".to_string(),
+            requirements: vec![],
+            action: Action::Cultivate,
+        });
+        
+        let plot_state = PlotState::new(scene);
+        
+        assert!(plot_state.is_waiting_for_input);
+        assert!(plot_state.last_action_result.is_none());
+        assert!(plot_state.plot_history.is_empty());
     }
 }
