@@ -1,6 +1,7 @@
 ﻿use crate::game_state::{Character, GameState, GameTime, WorldState};
 use crate::models::{CharacterStats, Lifespan};
 use crate::numerical_system::NumericalSystem;
+use crate::plot_engine::{PlotEngine, PlotState, Scene};
 use crate::save_load::{SaveData, SaveLoadSystem};
 use crate::script::Script;
 use crate::script_manager::ScriptManager;
@@ -10,8 +11,10 @@ use std::sync::{Arc, Mutex};
 /// 管理游戏状态和逻辑的主游戏引擎
 pub struct GameEngine {
     state: Arc<Mutex<Option<GameState>>>,
+    plot_state: Arc<Mutex<Option<PlotState>>>,
     script_manager: ScriptManager,
     numerical_system: NumericalSystem,
+    plot_engine: PlotEngine,
     save_load_system: SaveLoadSystem,
 }
 
@@ -19,8 +22,10 @@ impl GameEngine {
     pub fn new() -> Self {
         Self {
             state: Arc::new(Mutex::new(None)),
+            plot_state: Arc::new(Mutex::new(None)),
             script_manager: ScriptManager::new(),
             numerical_system: NumericalSystem::new(),
+            plot_engine: PlotEngine::new(),
             save_load_system: SaveLoadSystem::new(),
         }
     }
@@ -120,6 +125,43 @@ impl GameEngine {
         *state_lock = Some(game_state.clone());
 
         Ok(game_state)
+    }
+
+    /// 初始化剧情状态
+    pub fn initialize_plot(&mut self) -> Result<PlotState> {
+        let state_lock = self.state.lock().unwrap();
+        let game_state = state_lock
+            .as_ref()
+            .ok_or_else(|| anyhow!("无法初始化剧情：游戏未初始化"))?;
+
+        // 创建初始场景
+        let initial_scene = Scene::new(
+            "start".to_string(),
+            "开始".to_string(),
+            format!(
+                "你是{}，刚刚踏入修仙之路。你的灵根是{:?}，当前境界是{}。",
+                game_state.player.name,
+                game_state.player.stats.spiritual_root.element,
+                game_state.player.stats.cultivation_realm.name
+            ),
+            game_state.player.location.clone(),
+        );
+
+        let plot_state = PlotState::new(initial_scene);
+
+        // 存储剧情状态
+        let mut plot_lock = self.plot_state.lock().unwrap();
+        *plot_lock = Some(plot_state.clone());
+
+        Ok(plot_state)
+    }
+
+    /// 获取当前剧情状态
+    pub fn get_plot_state(&self) -> Result<PlotState> {
+        let plot_lock = self.plot_state.lock().unwrap();
+        plot_lock
+            .clone()
+            .ok_or_else(|| anyhow!("剧情未初始化"))
     }
 }
 
@@ -253,6 +295,28 @@ mod tests {
         assert!(game_state.world_state.locations.contains_key("sect"));
         assert!(game_state.world_state.locations.contains_key("city"));
         assert!(game_state.world_state.global_events.is_empty());
+    }
+
+    #[test]
+    fn test_plot_initialization() {
+        let mut engine = GameEngine::new();
+        let script = create_test_script();
+
+        // 初始化游戏
+        engine.initialize_game(script).unwrap();
+
+        // 初始化剧情
+        let plot_state = engine.initialize_plot().unwrap();
+
+        // 验证剧情状态正确初始化
+        assert_eq!(plot_state.current_scene.id, "start");
+        assert!(plot_state.is_waiting_for_input);
+        assert!(plot_state.plot_history.is_empty());
+        assert!(plot_state.last_action_result.is_none());
+
+        // 验证可以获取剧情状态
+        let retrieved_plot = engine.get_plot_state().unwrap();
+        assert_eq!(retrieved_plot.current_scene.id, "start");
     }
 
     #[test]
