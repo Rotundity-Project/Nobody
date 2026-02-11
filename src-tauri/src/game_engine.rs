@@ -135,7 +135,7 @@ impl GameEngine {
             .ok_or_else(|| anyhow!("无法初始化剧情：游戏未初始化"))?;
 
         // 创建初始场景
-        let initial_scene = Scene::new(
+        let mut initial_scene = Scene::new(
             "start".to_string(),
             "开始".to_string(),
             format!(
@@ -146,6 +146,12 @@ impl GameEngine {
             ),
             game_state.player.location.clone(),
         );
+
+        // 生成初始玩家选项
+        let options = self.plot_engine.generate_player_options(&initial_scene, &game_state.player.stats);
+        for option in options {
+            initial_scene.add_option(option);
+        }
 
         let plot_state = PlotState::new(initial_scene);
 
@@ -162,6 +168,13 @@ impl GameEngine {
         plot_lock
             .clone()
             .ok_or_else(|| anyhow!("剧情未初始化"))
+    }
+
+    /// 更新剧情状态
+    pub fn update_plot_state(&self, new_plot_state: PlotState) -> Result<()> {
+        let mut plot_lock = self.plot_state.lock().unwrap();
+        *plot_lock = Some(new_plot_state);
+        Ok(())
     }
 }
 

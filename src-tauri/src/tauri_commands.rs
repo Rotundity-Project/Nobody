@@ -26,7 +26,7 @@ pub async fn initialize_game(
     engine: State<'_, Mutex<GameEngine>>,
 ) -> Result<GameState, String> {
     let mut engine = engine.lock().map_err(|e| e.to_string())?;
-    
+
     engine
         .initialize_game(script)
         .map_err(|e| e.to_string())
@@ -35,9 +35,43 @@ pub async fn initialize_game(
 #[tauri::command]
 pub async fn execute_player_action(
     action: PlayerAction,
-    _engine: State<'_, Mutex<GameEngine>>,
+    engine: State<'_, Mutex<GameEngine>>,
 ) -> Result<String, String> {
-    Ok(format!("Action received: {:?}", action.action_type))
+    let engine = engine.lock().map_err(|e| e.to_string())?;
+
+    let game_state = engine.get_current_state().map_err(|e| e.to_string())?;
+    let mut plot_state = engine.get_plot_state().map_err(|e| e.to_string())?;
+
+    let plot_engine = crate::plot_engine::PlotEngine::new();
+    let context = crate::numerical_system::Context {
+        location: game_state.player.location.clone(),
+        time_of_day: "day".to_string(),
+        weather: None,
+    };
+
+    let action_result = plot_engine
+        .process_player_action(
+            &action,
+            &game_state.player.stats,
+            &plot_state.current_scene.available_options,
+            &context,
+        )
+        .map_err(|e| e.to_string())?;
+
+    let plot_update = plot_engine.advance_plot(&plot_state, &action_result);
+
+    plot_state.last_action_result = Some(action_result.clone());
+    plot_state.add_to_history(plot_update.plot_text.clone());
+
+    let new_options = plot_engine.generate_player_options(
+        &plot_state.current_scene,
+        &game_state.player.stats,
+    );
+    plot_state.current_scene.available_options = new_options;
+
+    engine.update_plot_state(plot_state).map_err(|e| e.to_string())?;
+
+    Ok(plot_update.plot_text)
 }
 
 #[tauri::command]
@@ -45,7 +79,7 @@ pub async fn get_game_state(
     engine: State<'_, Mutex<GameEngine>>,
 ) -> Result<GameState, String> {
     let engine = engine.lock().map_err(|e| e.to_string())?;
-    
+
     engine
         .get_current_state()
         .map_err(|e| e.to_string())
@@ -57,7 +91,7 @@ pub async fn save_game(
     engine: State<'_, Mutex<GameEngine>>,
 ) -> Result<(), String> {
     let engine = engine.lock().map_err(|e| e.to_string())?;
-    
+
     engine
         .save_game(slot_id)
         .map_err(|e| e.to_string())
@@ -69,7 +103,7 @@ pub async fn load_game(
     engine: State<'_, Mutex<GameEngine>>,
 ) -> Result<GameState, String> {
     let mut engine = engine.lock().map_err(|e| e.to_string())?;
-    
+
     engine
         .load_game(slot_id)
         .map_err(|e| e.to_string())
@@ -81,7 +115,7 @@ pub async fn load_script(
     _engine: State<'_, Mutex<GameEngine>>,
 ) -> Result<Script, String> {
     use crate::script_manager::ScriptManager;
-    
+
     let manager = ScriptManager::new();
     manager
         .load_custom_script(&script_path)
@@ -93,11 +127,11 @@ pub async fn get_player_options(
     engine: State<'_, Mutex<GameEngine>>,
 ) -> Result<Vec<PlayerOption>, String> {
     let engine = engine.lock().map_err(|e| e.to_string())?;
-    
+
     let plot_state = engine
         .get_plot_state()
         .map_err(|e| e.to_string())?;
-    
+
     Ok(plot_state.current_scene.available_options)
 }
 
@@ -106,7 +140,7 @@ pub async fn initialize_plot(
     engine: State<'_, Mutex<GameEngine>>,
 ) -> Result<PlotState, String> {
     let mut engine = engine.lock().map_err(|e| e.to_string())?;
-    
+
     engine
         .initialize_plot()
         .map_err(|e| e.to_string())
@@ -117,7 +151,7 @@ pub async fn get_plot_state(
     engine: State<'_, Mutex<GameEngine>>,
 ) -> Result<PlotState, String> {
     let engine = engine.lock().map_err(|e| e.to_string())?;
-    
+
     engine
         .get_plot_state()
         .map_err(|e| e.to_string())

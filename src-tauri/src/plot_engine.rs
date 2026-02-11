@@ -106,23 +106,25 @@ impl PlotEngine {
         let mut options = Vec::new();
         let mut option_id = 0;
 
+        // Cultivate option
         options.push(PlayerOption {
             id: option_id,
-            description: "Cultivate to improve your realm".to_string(),
+            description: "修炼提升境界".to_string(),
             requirements: vec![],
             action: Action::Cultivate,
         });
         option_id += 1;
 
+        // Breakthrough option if sub-level is less than 3
         if character.cultivation_realm.sub_level < 3 {
             options.push(PlayerOption {
                 id: option_id,
                 description: format!(
-                    "Attempt breakthrough to next sub-level of {}",
+                    "尝试突破到{}的下一层",
                     character.cultivation_realm.name
                 ),
                 requirements: vec![format!(
-                    "Current realm: {} (sub-level {})",
+                    "当前境界: {} (第{}层)",
                     character.cultivation_realm.name, character.cultivation_realm.sub_level
                 )],
                 action: Action::Breakthrough,
@@ -130,42 +132,46 @@ impl PlotEngine {
             option_id += 1;
         }
 
+        // Rest option
         options.push(PlayerOption {
             id: option_id,
-            description: "Rest and recover energy".to_string(),
+            description: "休息恢复精力".to_string(),
             requirements: vec![],
             action: Action::Rest,
         });
         option_id += 1;
 
-        if scene.location == "sect" {
+        // Location-specific options
+        if scene.location == "azure_cloud_sect" || scene.location == "sect" {
             options.push(PlayerOption {
                 id: option_id,
-                description: "Visit the sect library".to_string(),
+                description: "前往宗门藏书阁".to_string(),
                 requirements: vec![],
                 action: Action::Custom {
-                    description: "You visit the sect library to study cultivation techniques".to_string(),
+                    description: "你前往宗门藏书阁研习修炼功法".to_string(),
                 },
             });
             option_id += 1;
         } else if scene.location == "city" {
             options.push(PlayerOption {
                 id: option_id,
-                description: "Explore the marketplace".to_string(),
+                description: "探索集市".to_string(),
                 requirements: vec![],
                 action: Action::Custom {
-                    description: "You explore the bustling marketplace".to_string(),
+                    description: "你在繁华的集市中探索".to_string(),
                 },
             });
+            option_id += 1;
         }
 
+        // Ensure minimum 2 options and maximum 5 options
         if options.len() < 2 {
             options.push(PlayerOption {
                 id: option_id,
-                description: "Meditate and reflect".to_string(),
+                description: "打坐冥想".to_string(),
                 requirements: vec![],
                 action: Action::Custom {
-                    description: "You meditate and reflect on your cultivation path".to_string(),
+                    description: "你打坐冥想，思考修炼之道".to_string(),
                 },
             });
         } else if options.len() > 5 {
@@ -432,8 +438,8 @@ mod tests {
         let options = engine.generate_player_options(&scene, &character);
         
         assert!(options.len() >= 2 && options.len() <= 5);
-        assert!(options.iter().any(|o| o.description.contains("Cultivate")));
-        assert!(options.iter().any(|o| o.description.contains("Rest")));
+        assert!(options.iter().any(|o| matches!(o.action, Action::Cultivate)));
+        assert!(options.iter().any(|o| matches!(o.action, Action::Rest)));
     }
 
     #[test]
@@ -451,7 +457,7 @@ mod tests {
 
         let options = engine.generate_player_options(&scene, &character);
         
-        assert!(options.iter().any(|o| o.description.contains("breakthrough")));
+        assert!(options.iter().any(|o| matches!(o.action, Action::Breakthrough)));
     }
 
     #[test]
@@ -467,7 +473,9 @@ mod tests {
         );
 
         let sect_options = engine.generate_player_options(&sect_scene, &character);
-        assert!(sect_options.iter().any(|o| o.description.contains("library")));
+        assert!(sect_options
+            .iter()
+            .any(|o| matches!(o.action, Action::Custom { .. })));
 
         let city_scene = Scene::new(
             "city_scene".to_string(),
@@ -477,7 +485,9 @@ mod tests {
         );
 
         let city_options = engine.generate_player_options(&city_scene, &character);
-        assert!(city_options.iter().any(|o| o.description.contains("marketplace")));
+        assert!(city_options
+            .iter()
+            .any(|o| matches!(o.action, Action::Custom { .. })));
     }
 
     #[test]

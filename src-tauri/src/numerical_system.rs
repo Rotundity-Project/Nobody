@@ -184,17 +184,17 @@ impl NumericalSystem {
         spiritual_root: &SpiritualRoot,
         realm: &CultivationRealm,
     ) -> u64 {
-        let base_power = 100;
-        let affinity_multiplier = spiritual_root.affinity as u64;
+        let base_power = 100.0f32;
+        let affinity_multiplier = spiritual_root.affinity.max(0.1);
         let grade_multiplier = match spiritual_root.grade {
-            Grade::Heavenly => 3,
-            Grade::Double => 2,
-            Grade::Triple => 1,
-            Grade::Pseudo => 1,
+            Grade::Heavenly => 3.0,
+            Grade::Double => 2.0,
+            Grade::Triple => 1.5,
+            Grade::Pseudo => 1.0,
         };
-        let realm_multiplier = realm.power_multiplier as u64;
+        let realm_multiplier = realm.power_multiplier.max(0.1);
 
-        base_power * affinity_multiplier * grade_multiplier * realm_multiplier
+        (base_power * affinity_multiplier * grade_multiplier * realm_multiplier) as u64
     }
 }
 
