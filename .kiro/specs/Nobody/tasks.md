@@ -206,7 +206,7 @@
     - 定义 `ActionType` 枚举（FreeText, SelectedOption）
     - _需求: 5.2, 5.3_
   
-  - [ ] 14.2 实现 PlotEngine 基础功能
+  - [x] 14.2 实现 PlotEngine 基础功能
     - 实现 `PlotEngine` 结构体
     - 实现 `advance_plot` 方法（根据行动结果推进剧情）
     - 实现场景切换逻辑
