@@ -10,7 +10,7 @@ impl ScriptManager {
         Self {}
     }
 
-    /// ���ļ������Զ���ű�
+    /// ���ļ������Զ���ű�?
     pub fn load_custom_script(&self, file_path: &str) -> Result<Script> {
         let path = Path::new(file_path);
         
@@ -29,7 +29,7 @@ impl ScriptManager {
         Ok(script)
     }
 
-    /// ��֤�ű��Ƿ�������б����ֶ�
+    /// ��֤�ű��Ƿ�������б����ֶ�?
     pub fn validate_script(&self, script: &Script) -> Result<()> {
         // �������������Ƿ�����������
         if script.world_setting.cultivation_realms.is_empty() {
@@ -41,7 +41,7 @@ impl ScriptManager {
         // �������������Ƿ�������һ���ص�
         if script.world_setting.locations.is_empty() {
             return Err(anyhow!(
-                "�ű���֤ʧ��: δ����ص�"
+                "�ű���֤ʧ��: δ����ص�?"
             ));
         }
 
@@ -54,12 +54,12 @@ impl ScriptManager {
 
         if !location_exists {
             return Err(anyhow!(
-                "�ű���֤ʧ��: ��ʼ�ص� '{}' �������������������",
+                "�ű���֤ʧ��: ��ʼ�ص� '{}' �������������������?",
                 script.initial_state.starting_location
             ));
         }
 
-        // �����������Ƿ����
+        // �����������Ƿ����?
         if script.initial_state.starting_age < 10 || script.initial_state.starting_age > 100 {
             return Err(anyhow!(
                 "�ű���֤ʧ��: ��ʼ���� {} ������ (Ӧ��10-100��֮��)",
@@ -96,7 +96,7 @@ mod tests {
         }];
 
         let initial_state = InitialState {
-            player_name: "�������".to_string(),
+            player_name: "�������?".to_string(),
             player_spiritual_root: SpiritualRoot {
                 element: Element::Fire,
                 grade: Grade::Heavenly,
@@ -145,7 +145,7 @@ mod tests {
 
         let result = manager.validate_script(&script);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("δ����ص�"));
+        assert!(result.unwrap_err().to_string().contains("δ����ص�?"));
     }
 
     #[test]
@@ -216,7 +216,7 @@ mod property_tests {
     use crate::script::{Faction, InitialState, Location, ScriptType, Technique, WorldSetting};
     use proptest::prelude::*;
 
-    // �ű����������ֵ������
+    // �ű����������ֵ������?
     fn arb_element() -> impl Strategy<Value = Element> {
         prop_oneof![
             Just(Element::Fire),
@@ -230,8 +230,8 @@ mod property_tests {
     fn arb_grade() -> impl Strategy<Value = Grade> {
         prop_oneof![
             Just(Grade::Heavenly),
-            Just(Grade::Earth),
-            Just(Grade::Human),
+            Just(Grade::Earthly),
+            Just(Grade::Mortal),
         ]
     }
 
@@ -311,22 +311,22 @@ mod property_tests {
     // ����ȱ�ٱ����ֶεĽű��Ĳ���
     fn arb_invalid_script() -> impl Strategy<Value = Script> {
         prop_oneof![
-            // û����������Ľű�
+            // û����������Ľű�?
             arb_valid_script_base().prop_map(|mut script| {
                 script.world_setting.cultivation_realms.clear();
                 script
             }),
-            // û�еص�Ľű�
+            // û�еص�Ľű�?
             arb_valid_script_base().prop_map(|mut script| {
                 script.world_setting.locations.clear();
                 script
             }),
-            // ��Ч��ʼ�ص�Ľű�
+            // ��Ч��ʼ�ص�Ľű�?
             arb_valid_script_base().prop_map(|mut script| {
                 script.initial_state.starting_location = "nonexistent_location".to_string();
                 script
             }),
-            // �����С�Ľű�
+            // �����С�Ľű�?
             arb_valid_script_base().prop_map(|mut script| {
                 script.initial_state.starting_age = 5;
                 script
@@ -373,6 +373,7 @@ mod property_tests {
 
                     let world_setting = WorldSetting {
                         cultivation_realms,
+                        spiritual_roots: vec![player_spiritual_root.clone()],
                         locations,
                         factions,
                         techniques,
@@ -391,7 +392,7 @@ mod property_tests {
     }
 
     // ����: ����֮��, ����3: �ű���֤һ����
-    // �����κνű������ȱ�ٱ�Ҫ���������û���ֵϵͳ������
+    // �����κνű������ȱ�ٱ�Ҫ���������û���ֵϵͳ������?
     // ϵͳӦ�þܾ����ز����������Դ�����Ϣ
     // ��֤����: 1.6, 1.7
     proptest! {

@@ -1,7 +1,7 @@
-﻿use crate::models::{CultivationRealm, Element, Grade, SpiritualRoot};
+use crate::models::{CultivationRealm, Element, Grade, SpiritualRoot};
 use serde::{Deserialize, Serialize};
 
-/// 剧本类型
+// Script type enum
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ScriptType {
     ExistingNovel,
@@ -9,7 +9,7 @@ pub enum ScriptType {
     Custom,
 }
 
-/// 世界中的地点
+// Location in the world
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Location {
     pub id: String,
@@ -18,7 +18,7 @@ pub struct Location {
     pub spiritual_energy: f32,
 }
 
-/// 势力/宗门
+// Faction/Sect
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Faction {
     pub id: String,
@@ -27,7 +27,7 @@ pub struct Faction {
     pub power_level: u32,
 }
 
-/// 功法/技能
+// Technique/Skill
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Technique {
     pub id: String,
@@ -37,7 +37,7 @@ pub struct Technique {
     pub element: Option<Element>,
 }
 
-/// 世界设定
+// World setting
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct WorldSetting {
     pub cultivation_realms: Vec<CultivationRealm>,
@@ -61,10 +61,10 @@ impl WorldSetting {
     pub fn with_default_realms() -> Self {
         let mut setting = Self::new();
         setting.cultivation_realms = vec![
-            CultivationRealm::new("练气".to_string(), 1, 0, 1.0),
-            CultivationRealm::new("筑基".to_string(), 2, 0, 2.0),
-            CultivationRealm::new("金丹".to_string(), 3, 0, 4.0),
-            CultivationRealm::new("元婴".to_string(), 4, 0, 8.0),
+            CultivationRealm::new("Qi Condensation".to_string(), 1, 0, 1.0),
+            CultivationRealm::new("Foundation Establishment".to_string(), 2, 0, 2.0),
+            CultivationRealm::new("Golden Core".to_string(), 3, 0, 4.0),
+            CultivationRealm::new("Nascent Soul".to_string(), 4, 0, 8.0),
         ];
         setting
     }
@@ -98,7 +98,7 @@ impl Default for WorldSetting {
     }
 }
 
-/// 游戏的初始状态
+// Initial game state
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct InitialState {
     pub player_name: String,
@@ -107,7 +107,7 @@ pub struct InitialState {
     pub starting_age: u32,
 }
 
-/// 剧本定义
+// Script definition
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Script {
     pub id: String,
@@ -150,7 +150,7 @@ mod tests {
     fn test_world_setting_with_default_realms() {
         let setting = WorldSetting::with_default_realms();
         assert_eq!(setting.cultivation_realms.len(), 4);
-        assert_eq!(setting.cultivation_realms[0].name, "练气");
+        assert_eq!(setting.cultivation_realms[0].name, "Qi Condensation");
     }
 
     #[test]

@@ -420,7 +420,7 @@ mod property_tests {
 
     #[test]
     fn test_numerical_conflict_resolution() {
-        let system = NumericalSystem::new();
+        let _system = NumericalSystem::new();
         let mut character = CharacterStats::new(
             SpiritualRoot {
                 element: Element::Fire,
