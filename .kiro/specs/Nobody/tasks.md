@@ -255,7 +255,7 @@
 
 ### 阶段 6: Tauri API 层
 
-- [ ] 18. 实现 Tauri 命令接口
+- [x] 18. 实现 Tauri 命令接口
   - [x] 18.1 创建 Tauri 命令
     - 在 `src-tauri/src/tauri_commands.rs` 中实现所有 Tauri 命令
     - `initialize_game`: 初始化游戏
@@ -285,7 +285,7 @@
 
 ### 阶段 7: 前端基础框架
 
-- [ ] 20. 设置前端状态管理
+- [x] 20. 设置前端状态管理
   - [x] 20.1 创建 Pinia Store
     - 在 `src/stores/gameStore.ts` 中创建 `useGameStore`
     - 定义状态：currentScript, playerCharacter, npcs, currentPlot, gameHistory
@@ -299,7 +299,7 @@
     - 验证状态正确更新
     - _需求: 1.1, 9.1_
 
-- [ ] 21. 实现主菜单组件
+- [x] 21. 实现主菜单组件
   - [x] 21.1 创建 MainMenu.vue 组件
     - 在 `src/components/MainMenu.vue` 中实现主菜单
     - 提供"新游戏"、"加载游戏"、"设置"按钮
@@ -311,7 +311,7 @@
     - 测试按钮点击事件
     - _需求: 1.1_
 
-- [ ] 22. 实现剧本选择器组件
+- [x] 22. 实现剧本选择器组件
   - [x] 22.1 创建 ScriptSelector.vue 组件
     - 在 `src/components/ScriptSelector.vue` 中实现剧本选择器
     - 显示三种剧本类型（当前仅自定义可用）
@@ -324,15 +324,15 @@
     - 测试文件选择和剧本加载
     - _需求: 1.1, 1.5_
 
-- [ ] 23. Git 提交: 前端基础框架
+- [x] 23. Git 提交: 前端基础框架
   - 提交信息: `feat(frontend): 实现 Pinia 状态管理和主菜单组件`
   - _需求: 7.3, 7.5_
 
 
 ### 阶段 8: 游戏主界面
 
-- [ ] 24. 实现游戏视图组件
-  - [ ] 24.1 创建 GameView.vue 组件
+- [x] 24. 实现游戏视图组件
+  - [x] 24.1 创建 GameView.vue 组件
     - 在 `src/components/GameView.vue` 中实现游戏主视图
     - 显示剧情文本（使用滚动容器）
     - 显示玩家选项（按钮列表）
@@ -350,8 +350,8 @@
     - 测试长文本时滚动功能存在
     - **验证需求: 8.7**
 
-- [ ] 25. 实现角色信息面板
-  - [ ] 25.1 创建 CharacterPanel.vue 组件
+- [x] 25. 实现角色信息面板
+  - [x] 25.1 创建 CharacterPanel.vue 组件
     - 在 `src/components/CharacterPanel.vue` 中实现角色面板
     - 显示角色名称、境界、灵根、寿元等信息
     - 实时更新角色状态
@@ -363,8 +363,8 @@
     - 测试状态更新
     - _需求: 2.3_
 
-- [ ] 26. 实现存档管理界面
-  - [ ] 26.1 创建 SaveLoadDialog.vue 组件
+- [x] 26. 实现存档管理界面
+  - [x] 26.1 创建 SaveLoadDialog.vue 组件
     - 在 `src/components/SaveLoadDialog.vue` 中实现存档对话框
     - 显示多个存档槽位
     - 提供保存和加载按钮
@@ -377,8 +377,8 @@
     - 测试保存和加载操作
     - _需求: 9.1, 9.2, 9.7_
 
-- [ ] 27. 实现路由和页面切换
-  - [ ] 27.1 配置 Vue Router
+- [x] 27. 实现路由和页面切换
+  - [x] 27.1 配置 Vue Router
     - 在 `src/router/index.ts` 中配置路由
     - 路由：/ (主菜单), /script-select (剧本选择), /game (游戏界面)
     - 实现页面切换逻辑
@@ -389,7 +389,7 @@
     - 测试页面组件正确加载
     - _需求: 1.1_
 
-- [ ] 28. Git 提交: 游戏主界面
+- [-] 28. Git 提交: 游戏主界面
   - 提交信息: `feat(frontend): 实现游戏视图、角色面板和存档界面`
   - _需求: 7.3, 7.5_
 
