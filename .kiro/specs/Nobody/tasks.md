@@ -300,7 +300,7 @@
     - _需求: 1.1, 9.1_
 
 - [ ] 21. 实现主菜单组件
-  - [ ] 21.1 创建 MainMenu.vue 组件
+  - [x] 21.1 创建 MainMenu.vue 组件
     - 在 `src/components/MainMenu.vue` 中实现主菜单
     - 提供"新游戏"、"加载游戏"、"设置"按钮
     - 使用 TailwindCSS 样式
@@ -312,7 +312,7 @@
     - _需求: 1.1_
 
 - [ ] 22. 实现剧本选择器组件
-  - [ ] 22.1 创建 ScriptSelector.vue 组件
+  - [x] 22.1 创建 ScriptSelector.vue 组件
     - 在 `src/components/ScriptSelector.vue` 中实现剧本选择器
     - 显示三种剧本类型（当前仅自定义可用）
     - 提供文件选择对话框（使用 Tauri dialog API）
