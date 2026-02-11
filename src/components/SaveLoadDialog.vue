@@ -1,10 +1,12 @@
 <template>
   <div 
     v-if="isOpen"
-    class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50"
+    class="fixed inset-0 flex items-center justify-center"
+    style="z-index: 50; background-color: rgba(0, 0, 0, 0.75);"
     @click.self="handleClose"
   >
-    <div class="bg-slate-800 rounded-lg shadow-2xl p-8 max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+    <div class="bg-slate-800 rounded-lg shadow-2xl p-8 max-w-2xl w-full max-h-[80vh] overflow-y-auto relative"
+         style="z-index: 51;">
       <div class="flex items-center justify-between mb-6">
         <h2 class="text-2xl font-bold text-white">
           {{ mode === 'save' ? '保存游戏' : '加载游戏' }}

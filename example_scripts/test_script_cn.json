@@ -1,35 +1,35 @@
 {
-  "id": "test_cultivation_world",
-  "name": "Test Cultivation World",
+  "id": "test_cultivation_world_cn",
+  "name": "测试修仙世界",
   "script_type": "Custom",
   "world_setting": {
     "cultivation_realms": [
       {
-        "name": "Qi Condensation",
+        "name": "练气期",
         "level": 1,
         "sub_level": 0,
         "power_multiplier": 1.0
       },
       {
-        "name": "Foundation Establishment",
+        "name": "筑基期",
         "level": 2,
         "sub_level": 0,
         "power_multiplier": 2.5
       },
       {
-        "name": "Golden Core",
+        "name": "金丹期",
         "level": 3,
         "sub_level": 0,
         "power_multiplier": 5.0
       },
       {
-        "name": "Nascent Soul",
+        "name": "元婴期",
         "level": 4,
         "sub_level": 0,
         "power_multiplier": 10.0
       },
       {
-        "name": "Spirit Transformation",
+        "name": "化神期",
         "level": 5,
         "sub_level": 0,
         "power_multiplier": 20.0
@@ -65,29 +65,29 @@
     "techniques": [
       {
         "id": "basic_qi_gathering",
-        "name": "Basic Qi Gathering",
-        "description": "The most basic cultivation method for Qi Condensation cultivators",
+        "name": "基础聚气诀",
+        "description": "最基础的修炼功法，适合练气期修士",
         "required_realm_level": 1,
         "element": "Fire"
       },
       {
         "id": "flame_palm",
-        "name": "Flame Palm",
-        "description": "Fire element attack technique",
+        "name": "烈焰掌",
+        "description": "火系攻击功法，掌中生火",
         "required_realm_level": 1,
         "element": "Fire"
       },
       {
         "id": "water_shield",
-        "name": "Water Shield",
-        "description": "Water element defensive technique",
+        "name": "水盾术",
+        "description": "水系防御功法，凝水成盾",
         "required_realm_level": 1,
         "element": "Water"
       },
       {
         "id": "golden_core_method",
-        "name": "Golden Core Formation Method",
-        "description": "Core technique for breaking through to Golden Core",
+        "name": "金丹凝练法",
+        "description": "突破金丹期的核心功法",
         "required_realm_level": 3,
         "element": null
       }
@@ -95,52 +95,52 @@
     "locations": [
       {
         "id": "azure_cloud_sect",
-        "name": "Azure Cloud Sect",
-        "description": "A medium-sized cultivation sect located on Azure Cloud Mountain, famous for fire element techniques",
+        "name": "青云宗",
+        "description": "一个位于青云山的中型修仙宗门，以火系功法闻名",
         "spiritual_energy": 1.5
       },
       {
         "id": "misty_forest",
-        "name": "Misty Forest",
-        "description": "An ancient forest filled with spiritual energy and spirit beasts",
+        "name": "迷雾森林",
+        "description": "充满灵气的古老森林，有许多灵兽出没",
         "spiritual_energy": 2.0
       },
       {
         "id": "mortal_town",
-        "name": "Mortal Town",
-        "description": "An ordinary mortal town with sparse spiritual energy",
+        "name": "凡人镇",
+        "description": "一个普通的凡人城镇，灵气稀薄",
         "spiritual_energy": 0.3
       },
       {
         "id": "spirit_stone_mine",
-        "name": "Spirit Stone Mine",
-        "description": "A mine rich in spirit stones, contested by various sects",
+        "name": "灵石矿",
+        "description": "蕴含丰富灵石的矿脉，是各大宗门争夺的资源",
         "spiritual_energy": 3.0
       }
     ],
     "factions": [
       {
         "id": "azure_cloud_sect",
-        "name": "Azure Cloud Sect",
-        "description": "Righteous sect known for fire techniques and alchemy",
+        "name": "青云宗",
+        "description": "正道宗门，以火系功法和炼丹术闻名",
         "power_level": 75
       },
       {
         "id": "shadow_pavilion",
-        "name": "Shadow Pavilion",
-        "description": "Mysterious intelligence organization, neutral faction",
+        "name": "暗影阁",
+        "description": "神秘的情报组织，中立势力",
         "power_level": 60
       },
       {
         "id": "blood_demon_sect",
-        "name": "Blood Demon Sect",
-        "description": "Demonic sect practicing blood cultivation methods",
+        "name": "血魔宗",
+        "description": "邪道宗门，修炼血系功法",
         "power_level": 80
       }
     ]
   },
   "initial_state": {
-    "player_name": "Lin Fan",
+    "player_name": "林凡",
     "player_spiritual_root": {
       "element": "Fire",
       "grade": "Heavenly",

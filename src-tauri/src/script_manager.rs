@@ -195,8 +195,8 @@ mod proptests {
     fn arb_grade() -> impl Strategy<Value = Grade> {
         prop_oneof![
             Just(Grade::Heavenly),
-            Just(Grade::Earthly),
-            Just(Grade::Mortal),
+            Just(Grade::Pseudo),
+            Just(Grade::Double),
         ]
     }
 
@@ -286,7 +286,7 @@ mod proptests {
             .collect();
 
         let starting_location = if !location_ids.is_empty() {
-            prop::sample::select(location_ids)
+            prop::sample::select(location_ids).boxed()
         } else {
             Just("default".to_string()).boxed()
         };
