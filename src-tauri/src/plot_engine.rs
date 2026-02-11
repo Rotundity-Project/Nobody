@@ -97,9 +97,82 @@ impl PlotEngine {
     pub fn generate_player_options(
         &self,
         scene: &Scene,
-        _character: &CharacterStats,
+        character: &CharacterStats,
     ) -> Vec<PlayerOption> {
-        scene.available_options.clone()
+        if !scene.available_options.is_empty() {
+            return scene.available_options.clone();
+        }
+
+        let mut options = Vec::new();
+        let mut option_id = 0;
+
+        options.push(PlayerOption {
+            id: option_id,
+            description: "Cultivate to improve your realm".to_string(),
+            requirements: vec![],
+            action: Action::Cultivate,
+        });
+        option_id += 1;
+
+        if character.cultivation_realm.sub_level < 3 {
+            options.push(PlayerOption {
+                id: option_id,
+                description: format!(
+                    "Attempt breakthrough to next sub-level of {}",
+                    character.cultivation_realm.name
+                ),
+                requirements: vec![format!(
+                    "Current realm: {} (sub-level {})",
+                    character.cultivation_realm.name, character.cultivation_realm.sub_level
+                )],
+                action: Action::Breakthrough,
+            });
+            option_id += 1;
+        }
+
+        options.push(PlayerOption {
+            id: option_id,
+            description: "Rest and recover energy".to_string(),
+            requirements: vec![],
+            action: Action::Rest,
+        });
+        option_id += 1;
+
+        if scene.location == "sect" {
+            options.push(PlayerOption {
+                id: option_id,
+                description: "Visit the sect library".to_string(),
+                requirements: vec![],
+                action: Action::Custom {
+                    description: "You visit the sect library to study cultivation techniques".to_string(),
+                },
+            });
+            option_id += 1;
+        } else if scene.location == "city" {
+            options.push(PlayerOption {
+                id: option_id,
+                description: "Explore the marketplace".to_string(),
+                requirements: vec![],
+                action: Action::Custom {
+                    description: "You explore the bustling marketplace".to_string(),
+                },
+            });
+        }
+
+        if options.len() < 2 {
+            options.push(PlayerOption {
+                id: option_id,
+                description: "Meditate and reflect".to_string(),
+                requirements: vec![],
+                action: Action::Custom {
+                    description: "You meditate and reflect on your cultivation path".to_string(),
+                },
+            });
+        } else if options.len() > 5 {
+            options.truncate(5);
+        }
+
+        options
     }
 
     pub fn validate_player_action(
@@ -346,6 +419,68 @@ mod tests {
     }
 
     #[test]
+    fn test_generate_player_options_empty_scene() {
+        let engine = PlotEngine::new();
+        let character = create_test_character();
+        let scene = Scene::new(
+            "empty".to_string(),
+            "Empty Scene".to_string(),
+            "Scene with no predefined options".to_string(),
+            "sect".to_string(),
+        );
+
+        let options = engine.generate_player_options(&scene, &character);
+        
+        assert!(options.len() >= 2 && options.len() <= 5);
+        assert!(options.iter().any(|o| o.description.contains("Cultivate")));
+        assert!(options.iter().any(|o| o.description.contains("Rest")));
+    }
+
+    #[test]
+    fn test_generate_options_with_breakthrough() {
+        let engine = PlotEngine::new();
+        let mut character = create_test_character();
+        character.cultivation_realm.sub_level = 1;
+        
+        let scene = Scene::new(
+            "test".to_string(),
+            "Test".to_string(),
+            "Test scene".to_string(),
+            "sect".to_string(),
+        );
+
+        let options = engine.generate_player_options(&scene, &character);
+        
+        assert!(options.iter().any(|o| o.description.contains("breakthrough")));
+    }
+
+    #[test]
+    fn test_generate_options_location_specific() {
+        let engine = PlotEngine::new();
+        let character = create_test_character();
+        
+        let sect_scene = Scene::new(
+            "sect_scene".to_string(),
+            "Sect".to_string(),
+            "At the sect".to_string(),
+            "sect".to_string(),
+        );
+
+        let sect_options = engine.generate_player_options(&sect_scene, &character);
+        assert!(sect_options.iter().any(|o| o.description.contains("library")));
+
+        let city_scene = Scene::new(
+            "city_scene".to_string(),
+            "City".to_string(),
+            "In the city".to_string(),
+            "city".to_string(),
+        );
+
+        let city_options = engine.generate_player_options(&city_scene, &character);
+        assert!(city_options.iter().any(|o| o.description.contains("marketplace")));
+    }
+
+    #[test]
     fn test_advance_plot() {
         let engine = PlotEngine::new();
         let scene = create_test_scene();
@@ -394,6 +529,31 @@ mod property_tests {
         )
     }
 
+    fn arb_character() -> impl Strategy<Value = CharacterStats> {
+        (0u32..=3, 0u32..=3).prop_map(|(level, sub_level)| {
+            CharacterStats {
+                spiritual_root: SpiritualRoot {
+                    element: Element::Fire,
+                    grade: Grade::Heavenly,
+                    affinity: 0.8,
+                },
+                cultivation_realm: CultivationRealm::new(
+                    "Test Realm".to_string(),
+                    level,
+                    sub_level,
+                    1.0,
+                ),
+                techniques: Vec::new(),
+                lifespan: Lifespan {
+                    current_age: 16,
+                    max_age: 100,
+                    realm_bonus: 0,
+                },
+                combat_power: 100,
+            }
+        })
+    }
+
     proptest! {
         #[test]
         fn test_property_18_plot_pauses_at_decision_points(
@@ -434,6 +594,27 @@ mod property_tests {
             
             prop_assert!(plot_state.is_waiting_for_input,
                 "Plot should continue waiting for player input after advancing");
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn test_property_19_option_count_constraint(
+            character in arb_character()
+        ) {
+            let engine = PlotEngine::new();
+            
+            let scene = Scene::new(
+                "test".to_string(),
+                "Test".to_string(),
+                "Test scene".to_string(),
+                "sect".to_string(),
+            );
+            
+            let options = engine.generate_player_options(&scene, &character);
+            
+            prop_assert!(options.len() >= 2 && options.len() <= 5,
+                "Generated options count should be between 2 and 5, got {}", options.len());
         }
     }
 
