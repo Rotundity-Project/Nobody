@@ -77,10 +77,15 @@ pub async fn load_game(
 
 #[tauri::command]
 pub async fn load_script(
-    _file_path: String,
+    script_path: String,
     _engine: State<'_, Mutex<GameEngine>>,
 ) -> Result<Script, String> {
-    Err("Script loading will be implemented in future version".to_string())
+    use crate::script_manager::ScriptManager;
+    
+    let manager = ScriptManager::new();
+    manager
+        .load_custom_script(&script_path)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]

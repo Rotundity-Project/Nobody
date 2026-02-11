@@ -52,9 +52,12 @@
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { open } from '@tauri-apps/plugin-dialog';
-import type { ScriptType } from '../types/game';
+import { invoke } from '@tauri-apps/api/core';
+import { useGameStore } from '../stores/gameStore';
+import type { ScriptType, Script } from '../types/game';
 
 const router = useRouter();
+const gameStore = useGameStore();
 const isLoading = ref(false);
 const error = ref<string | null>(null);
 
@@ -99,6 +102,7 @@ const selectScriptType = async (type: ScriptType) => {
 const loadCustomScript = async () => {
   try {
     isLoading.value = true;
+    error.value = null;
     
     const selected = await open({
       multiple: false,
@@ -109,11 +113,23 @@ const loadCustomScript = async () => {
     });
 
     if (selected) {
-      // TODO: Load script and initialize game
-      // For now, just navigate to game view
+      console.log('Selected file:', selected);
+      
+      // Load script from backend
+      const script = await invoke<Script>('load_script', { 
+        scriptPath: selected 
+      });
+      
+      console.log('Loaded script:', script);
+      
+      // Initialize game with the loaded script
+      await gameStore.initializeGame(script);
+      
+      // Navigate to game view
       router.push('/game');
     }
   } catch (err) {
+    console.error('Failed to load script:', err);
     error.value = err instanceof Error ? err.message : '加载剧本失败';
   } finally {
     isLoading.value = false;
