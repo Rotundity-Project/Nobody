@@ -1,8 +1,11 @@
 ﻿pub mod game_engine;
 pub mod game_state;
+pub mod llm_service;
 pub mod models;
 pub mod numerical_system;
 pub mod plot_engine;
+pub mod prompt_builder;
+pub mod response_validator;
 pub mod save_load;
 pub mod script;
 pub mod script_manager;
