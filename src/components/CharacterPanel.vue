@@ -107,9 +107,11 @@ const getRootGradeClass = (grade: Grade): string => {
   switch (grade) {
     case Grade.Heavenly:
       return 'bg-purple-600 text-white';
-    case Grade.Earthly:
+    case Grade.Double:
       return 'bg-blue-600 text-white';
-    case Grade.Mortal:
+    case Grade.Triple:
+      return 'bg-green-600 text-white';
+    case Grade.Pseudo:
       return 'bg-gray-600 text-white';
     default:
       return 'bg-gray-600 text-white';
