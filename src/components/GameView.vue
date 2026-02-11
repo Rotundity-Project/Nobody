@@ -125,6 +125,12 @@
         </div>
       </div>
 
+      <div class="p-6 bg-slate-900/60">
+        <div class="max-w-3xl mx-auto">
+          <NovelExporter :is-game-ended="isGameEnded" :event-count="eventCount" />
+        </div>
+      </div>
+
       <div v-if="gameStore.error" class="p-4 bg-red-900 bg-opacity-50 border-t border-red-500">
         <div class="max-w-3xl mx-auto">
           <p class="text-red-200">{{ gameStore.error }}</p>
@@ -159,6 +165,7 @@ import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useGameStore } from '../stores/gameStore';
 import CharacterPanel from './CharacterPanel.vue';
+import NovelExporter from './NovelExporter.vue';
 import SaveLoadDialog from './SaveLoadDialog.vue';
 import type { PlayerOption } from '../types/game';
 import {
@@ -177,6 +184,14 @@ const inputMode = ref<'options' | 'freeText'>('options');
 const freeTextInput = ref('');
 
 const inputValidation = computed(() => validateFreeTextInput(freeTextInput.value));
+const isGameEnded = computed(() => {
+  const player = gameStore.playerCharacter;
+  if (!player) {
+    return false;
+  }
+  return player.stats.lifespan.current_age >= player.stats.lifespan.max_age;
+});
+const eventCount = computed(() => gameStore.gameState?.event_history?.length ?? 0);
 
 const handleOptionSelect = async (option: PlayerOption) => {
   try {

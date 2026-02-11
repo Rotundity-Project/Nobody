@@ -1,5 +1,7 @@
 ﻿use crate::game_engine::GameEngine;
 use crate::game_state::GameState;
+use crate::event_log::EventImportance;
+use crate::novel_generator::{Novel, NovelGenerator};
 use crate::numerical_system::{Action, Context, StatChange};
 use crate::plot_engine::{PlayerAction, PlayerOption, PlotEngine, PlotState};
 use crate::script::Script;
@@ -100,6 +102,39 @@ pub async fn execute_player_action(
     }
 
     game_state.game_time.advance_days(1);
+    let timestamp = u64::from(game_state.game_time.total_days);
+
+    if let Some(selected_option_id) = action.selected_option_id {
+        if let Some(selected_option) = plot_state.current_scene.available_options.get(selected_option_id) {
+            match &selected_option.action {
+                Action::Combat { .. } => engine.log_event(
+                    timestamp,
+                    "combat",
+                    format!("Player engaged in combat: {}", selected_option.description),
+                    EventImportance::Important,
+                ),
+                Action::Breakthrough => engine.log_event(
+                    timestamp,
+                    "breakthrough_attempt",
+                    format!("Player attempted breakthrough: {}", selected_option.description),
+                    EventImportance::Important,
+                ),
+                Action::Custom { .. } | Action::Cultivate | Action::Rest => engine.log_event(
+                    timestamp,
+                    "player_action",
+                    selected_option.description.clone(),
+                    EventImportance::Normal,
+                ),
+            }
+        }
+    } else if matches!(action.action_type, crate::plot_engine::ActionType::FreeText) {
+        engine.log_event(
+            timestamp,
+            "player_free_text",
+            action.content.clone(),
+            EventImportance::Normal,
+        );
+    }
 
     let mut plot_update = plot_engine.advance_plot(&plot_state, &action_result);
 
@@ -204,9 +239,37 @@ pub async fn get_plot_state(
     engine.get_plot_state().map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+pub async fn generate_novel(
+    title: String,
+    engine: State<'_, Mutex<GameEngine>>,
+) -> Result<Novel, String> {
+    let events = {
+        let engine = engine.lock().map_err(|e| e.to_string())?;
+        let state = engine.get_current_state().map_err(|e| e.to_string())?;
+        state.event_history
+    };
+    generate_novel_from_events(&title, &events).await
+}
+
+#[tauri::command]
+pub async fn export_novel(novel: Novel, output_path: String) -> Result<(), String> {
+    export_novel_to_path(&novel, &output_path)
+}
+
+async fn generate_novel_from_events(title: &str, events: &[crate::event_log::GameEvent]) -> Result<Novel, String> {
+    let generator = NovelGenerator::new();
+    generator.generate_novel(title.to_string(), events).await
+}
+
+fn export_novel_to_path(novel: &Novel, output_path: &str) -> Result<(), String> {
+    let generator = NovelGenerator::new();
+    generator.export_to_file(novel, output_path)
+}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::event_log::{EventImportance, GameEvent};
     use crate::models::{CultivationRealm, Element, Grade, SpiritualRoot};
     use crate::script::{InitialState, Location, ScriptType, WorldSetting};
 
@@ -271,4 +334,51 @@ mod tests {
 
         assert_eq!(response.error, "Test error");
     }
+
+    #[tokio::test]
+    async fn test_generate_novel_command_logic() {
+        let events = vec![
+            GameEvent {
+                id: 1,
+                timestamp: 1,
+                event_type: "cultivation".to_string(),
+                description: "Player cultivated".to_string(),
+                importance: EventImportance::Normal,
+            },
+            GameEvent {
+                id: 2,
+                timestamp: 2,
+                event_type: "combat".to_string(),
+                description: "Player won duel".to_string(),
+                importance: EventImportance::Important,
+            },
+        ];
+
+        let novel = generate_novel_from_events("Test Novel", &events).await.unwrap();
+        assert_eq!(novel.title, "Test Novel");
+        assert_eq!(novel.total_events, 2);
+        assert!(!novel.chapters.is_empty());
+    }
+
+    #[test]
+    fn test_export_novel_command_logic() {
+        let novel = Novel {
+            title: "Exported Novel".to_string(),
+            chapters: vec![crate::novel_generator::Chapter {
+                index: 1,
+                title: "Start".to_string(),
+                content: "A new journey starts.".to_string(),
+                source_event_ids: vec![1],
+            }],
+            total_events: 1,
+        };
+
+        let dir = tempfile::tempdir().unwrap();
+        let output = dir.path().join("novel_out.txt");
+        let result = export_novel_to_path(&novel, output.to_str().unwrap());
+        assert!(result.is_ok());
+        assert!(output.exists());
+    }
 }
+
+

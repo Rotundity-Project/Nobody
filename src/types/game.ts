@@ -84,6 +84,20 @@ export interface GameState {
   player: Character;
   world_state: WorldState;
   game_time: GameTime;
+  event_history: GameEvent[];
+}
+
+export interface GameEvent {
+  id: number;
+  timestamp: number;
+  event_type: string;
+  description: string;
+  importance: EventImportance;
+}
+
+export enum EventImportance {
+  Normal = "Normal",
+  Important = "Important",
 }
 
 export interface Character {
@@ -167,6 +181,17 @@ export interface PlayerAction {
   action_type: ActionType;
   content: string;
   selected_option_id: number | null;
+}
+
+export interface SaveInfo {
+  slot_id: number;
+  version: string;
+  timestamp: number;
+  player_name: string;
+  player_age: number;
+  realm: string;
+  location: string;
+  game_time: string;
 }
 
 export enum ActionType {

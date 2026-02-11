@@ -1,4 +1,5 @@
-﻿use crate::game_state::{Character, GameState, GameTime, WorldState};
+﻿use crate::event_log::{EventImportance, EventLog};
+use crate::game_state::{Character, GameState, GameTime, WorldState};
 use crate::models::{CharacterStats, Lifespan};
 use crate::npc::{CoreValue, Goal, NPC, NPCMemory, Personality, PersonalityTrait};
 use crate::npc_engine::{NPCDecision, NPCEngine, NPCEvent};
@@ -18,6 +19,7 @@ pub struct GameEngine {
     numerical_system: NumericalSystem,
     plot_engine: PlotEngine,
     npc_engine: NPCEngine,
+    event_log: Arc<Mutex<EventLog>>,
     save_load_system: SaveLoadSystem,
 }
 
@@ -30,6 +32,7 @@ impl GameEngine {
             numerical_system: NumericalSystem::new(),
             plot_engine: PlotEngine::new(),
             npc_engine: NPCEngine::new(),
+            event_log: Arc::new(Mutex::new(EventLog::new())),
             save_load_system: SaveLoadSystem::new(),
         }
     }
@@ -78,12 +81,25 @@ impl GameEngine {
         let game_time = GameTime::new(1, 1, 1);
 
         // 创建游戏状态
-        let game_state = GameState {
+        let mut game_state = GameState {
             script,
             player,
             world_state,
             game_time,
+            event_history: Vec::new(),
         };
+
+        {
+            let mut log = self.event_log.lock().unwrap();
+            *log = EventLog::new();
+            log.log_event(
+                u64::from(game_state.game_time.total_days),
+                "game_start",
+                format!("Game initialized for {}", game_state.player.name),
+                EventImportance::Important,
+            );
+            game_state.event_history = log.all_events().to_vec();
+        }
 
         // 初始化新局 NPC，避免沿用旧局状态。
         self.initialize_npcs_for_new_game(&game_state);
@@ -123,7 +139,15 @@ impl GameEngine {
             .as_ref()
             .ok_or_else(|| anyhow!("无法保存：游戏未初始化"))?;
 
-        let save_data = SaveData::from_game_state(game_state.clone());
+        self.log_event(
+            u64::from(game_state.game_time.total_days),
+            "save",
+            format!("Saved to slot {}", slot_id),
+            EventImportance::Normal,
+        );
+        let mut save_state = game_state.clone();
+        save_state.event_history = self.snapshot_event_history();
+        let save_data = SaveData::from_game_state(save_state);
         self.save_load_system.save_game(slot_id, &save_data)?;
 
         Ok(())
@@ -132,7 +156,18 @@ impl GameEngine {
     /// 从存档槽加载游戏
     pub fn load_game(&mut self, slot_id: u32) -> Result<GameState> {
         let save_data = self.save_load_system.load_game(slot_id)?;
-        let game_state = save_data.game_state;
+        let mut game_state = save_data.game_state;
+        {
+            let mut log = self.event_log.lock().unwrap();
+            *log = EventLog::from_events(game_state.event_history.clone());
+            log.log_event(
+                u64::from(game_state.game_time.total_days),
+                "load",
+                format!("Loaded from slot {}", slot_id),
+                EventImportance::Important,
+            );
+            game_state.event_history = log.all_events().to_vec();
+        }
 
         // 存储加载的状态
         let mut state_lock = self.state.lock().unwrap();
@@ -147,9 +182,12 @@ impl GameEngine {
 
     /// 初始化剧情状态
     pub fn initialize_plot(&mut self) -> Result<PlotState> {
-        let state_lock = self.state.lock().unwrap();
-        let game_state = state_lock
+        let game_state = self
+            .state
+            .lock()
+            .unwrap()
             .as_ref()
+            .cloned()
             .ok_or_else(|| anyhow!("无法初始化剧情：游戏未初始化"))?;
 
         // 创建初始场景
@@ -162,11 +200,13 @@ impl GameEngine {
                 game_state.player.stats.spiritual_root.element,
                 game_state.player.stats.cultivation_realm.name
             ),
-            game_state.player.location.clone(),
+            game_state.player.location,
         );
 
         // 生成初始玩家选项
-        let options = self.plot_engine.generate_player_options(&initial_scene, &game_state.player.stats);
+        let options = self
+            .plot_engine
+            .generate_player_options(&initial_scene, &game_state.player.stats);
         for option in options {
             initial_scene.add_option(option);
         }
@@ -176,6 +216,14 @@ impl GameEngine {
         // 存储剧情状态
         let mut plot_lock = self.plot_state.lock().unwrap();
         *plot_lock = Some(plot_state.clone());
+
+        self.log_event(
+            self.current_timestamp(),
+            "plot_init",
+            "Plot initialized at current scene".to_string(),
+            EventImportance::Normal,
+        );
+        self.sync_event_history_to_state();
 
         Ok(plot_state)
     }
@@ -211,9 +259,24 @@ impl GameEngine {
                 affinity_impact: 1,
                 trust_impact: 1,
             };
+            self.log_event(
+                event.timestamp,
+                "story_event",
+                event.description.clone(),
+                EventImportance::Normal,
+            );
             let decisions = self.npc_engine.process_event(&event);
+            for decision in &decisions {
+                self.log_event(
+                    event.timestamp,
+                    "npc_reaction",
+                    format!("{} -> {}", decision.npc_id, decision.action),
+                    EventImportance::Normal,
+                );
+            }
             all_decisions.extend(decisions);
         }
+        self.sync_event_history_to_state();
         Ok(all_decisions)
     }
 
@@ -254,6 +317,36 @@ impl GameEngine {
     /// 列出存档槽信息
     pub fn list_saves(&self) -> Result<Vec<SaveInfo>> {
         self.save_load_system.list_saves()
+    }
+
+    pub fn log_event(
+        &self,
+        timestamp: u64,
+        event_type: impl Into<String>,
+        description: impl Into<String>,
+        importance: EventImportance,
+    ) {
+        let mut log = self.event_log.lock().unwrap();
+        log.log_event(timestamp, event_type, description, importance);
+    }
+
+    fn snapshot_event_history(&self) -> Vec<crate::event_log::GameEvent> {
+        let log = self.event_log.lock().unwrap();
+        log.all_events().to_vec()
+    }
+
+    fn sync_event_history_to_state(&self) {
+        let history = self.snapshot_event_history();
+        let mut state_lock = self.state.lock().unwrap();
+        if let Some(ref mut state) = *state_lock {
+            state.event_history = history;
+        }
+    }
+
+    fn current_timestamp(&self) -> u64 {
+        self.get_current_state()
+            .map(|s| u64::from(s.game_time.total_days))
+            .unwrap_or(0)
     }
 }
 
@@ -713,6 +806,28 @@ mod integration_tests {
         assert!(!reactions.is_empty());
         assert!(reactions.iter().all(|r| !r.action.is_empty()));
     }
+
+    #[test]
+    fn test_event_log_records_story_and_npc_reaction() {
+        let mut engine = GameEngine::new();
+        let script = create_test_script();
+        engine.initialize_game(script).unwrap();
+
+        let events = vec!["battle erupted near the sect gate".to_string()];
+        let reactions = engine.process_npc_reactions_for_events(&events).unwrap();
+        assert!(!reactions.is_empty());
+
+        let state = engine.get_current_state().unwrap();
+        assert!(!state.event_history.is_empty());
+        assert!(state
+            .event_history
+            .iter()
+            .any(|e| e.event_type == "story_event" && !e.description.is_empty()));
+        assert!(state
+            .event_history
+            .iter()
+            .any(|e| e.event_type == "npc_reaction" && !e.description.is_empty()));
+    }
     #[test]
     fn test_load_updates_engine_state() {
         // 测试加载正确更新引擎状态
@@ -752,6 +867,9 @@ mod integration_tests {
         assert_eq!(state.player.stats.lifespan.current_age, 30);
     }
 }
+
+
+
 
 
 
