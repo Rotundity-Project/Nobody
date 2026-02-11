@@ -1,7 +1,10 @@
 ﻿pub mod game_engine;
 pub mod game_state;
 pub mod llm_service;
+pub mod memory_manager;
 pub mod models;
+pub mod npc;
+pub mod npc_engine;
 pub mod numerical_system;
 pub mod plot_engine;
 pub mod prompt_builder;

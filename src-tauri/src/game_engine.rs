@@ -1,8 +1,10 @@
 ﻿use crate::game_state::{Character, GameState, GameTime, WorldState};
 use crate::models::{CharacterStats, Lifespan};
+use crate::npc::{CoreValue, Goal, NPC, NPCMemory, Personality, PersonalityTrait};
+use crate::npc_engine::{NPCDecision, NPCEngine, NPCEvent};
 use crate::numerical_system::NumericalSystem;
 use crate::plot_engine::{PlotEngine, PlotState, Scene};
-use crate::save_load::{SaveData, SaveLoadSystem};
+use crate::save_load::{SaveData, SaveInfo, SaveLoadSystem};
 use crate::script::Script;
 use crate::script_manager::ScriptManager;
 use anyhow::{anyhow, Result};
@@ -15,6 +17,7 @@ pub struct GameEngine {
     script_manager: ScriptManager,
     numerical_system: NumericalSystem,
     plot_engine: PlotEngine,
+    npc_engine: NPCEngine,
     save_load_system: SaveLoadSystem,
 }
 
@@ -26,6 +29,7 @@ impl GameEngine {
             script_manager: ScriptManager::new(),
             numerical_system: NumericalSystem::new(),
             plot_engine: PlotEngine::new(),
+            npc_engine: NPCEngine::new(),
             save_load_system: SaveLoadSystem::new(),
         }
     }
@@ -81,6 +85,9 @@ impl GameEngine {
             game_time,
         };
 
+        // 初始化新局 NPC，避免沿用旧局状态。
+        self.initialize_npcs_for_new_game(&game_state);
+
         // 存储状态
         let mut state_lock = self.state.lock().unwrap();
         *state_lock = Some(game_state.clone());
@@ -94,6 +101,13 @@ impl GameEngine {
         state_lock
             .clone()
             .ok_or_else(|| anyhow!("游戏未初始化"))
+    }
+
+    /// 更新当前游戏状态
+    pub fn update_current_state(&self, new_state: GameState) -> Result<()> {
+        let mut state_lock = self.state.lock().unwrap();
+        *state_lock = Some(new_state);
+        Ok(())
     }
 
     /// 检查游戏是否已初始化
@@ -123,6 +137,10 @@ impl GameEngine {
         // 存储加载的状态
         let mut state_lock = self.state.lock().unwrap();
         *state_lock = Some(game_state.clone());
+        drop(state_lock);
+
+        // 加载后重建剧情状态，确保前端可立即获取选项
+        self.initialize_plot()?;
 
         Ok(game_state)
     }
@@ -175,6 +193,67 @@ impl GameEngine {
         let mut plot_lock = self.plot_state.lock().unwrap();
         *plot_lock = Some(new_plot_state);
         Ok(())
+    }
+
+
+    pub fn process_npc_reactions_for_events(
+        &mut self,
+        events: &[String],
+    ) -> Result<Vec<NPCDecision>> {
+        let mut all_decisions = Vec::new();
+        for (idx, event_text) in events.iter().enumerate() {
+            let event = NPCEvent {
+                timestamp: idx as u64 + 1,
+                description: event_text.clone(),
+                involved_npc_ids: Vec::new(),
+                importance: 0.7,
+                emotional_impact: 0.2,
+                affinity_impact: 1,
+                trust_impact: 1,
+            };
+            let decisions = self.npc_engine.process_event(&event);
+            all_decisions.extend(decisions);
+        }
+        Ok(all_decisions)
+    }
+
+    fn initialize_npcs_for_new_game(&mut self, game_state: &GameState) {
+        self.npc_engine = NPCEngine::new();
+
+        let npc = NPC {
+            id: "npc_elder_1".to_string(),
+            name: "Sect Elder".to_string(),
+            stats: CharacterStats {
+                spiritual_root: game_state.player.stats.spiritual_root.clone(),
+                cultivation_realm: game_state.player.stats.cultivation_realm.clone(),
+                techniques: vec!["Guidance".to_string()],
+                lifespan: Lifespan {
+                    current_age: 80,
+                    max_age: 180,
+                    realm_bonus: 40,
+                },
+                combat_power: game_state.player.stats.combat_power.saturating_add(200),
+            },
+            personality: Personality {
+                traits: vec![PersonalityTrait::Calm, PersonalityTrait::Righteous],
+                goals: vec![Goal {
+                    description: "Guide young disciples".to_string(),
+                    priority: 8,
+                }],
+                values: vec![CoreValue {
+                    name: "Order".to_string(),
+                    weight: 0.9,
+                }],
+            },
+            memory: NPCMemory::default(),
+            relationships: std::collections::HashMap::new(),
+        };
+
+        self.npc_engine.insert_npc(npc);
+    }
+    /// 列出存档槽信息
+    pub fn list_saves(&self) -> Result<Vec<SaveInfo>> {
+        self.save_load_system.list_saves()
     }
 }
 
@@ -623,6 +702,18 @@ mod integration_tests {
     }
 
     #[test]
+    fn test_property_22_plot_triggers_npc_reactions() {
+        let mut engine = GameEngine::new();
+        let script = create_test_script();
+        engine.initialize_game(script).unwrap();
+
+        let events = vec!["player breaks through a minor bottleneck".to_string()];
+        let reactions = engine.process_npc_reactions_for_events(&events).unwrap();
+
+        assert!(!reactions.is_empty());
+        assert!(reactions.iter().all(|r| !r.action.is_empty()));
+    }
+    #[test]
     fn test_load_updates_engine_state() {
         // 测试加载正确更新引擎状态
         // 验证需求: 9.2, 9.4
@@ -661,3 +752,6 @@ mod integration_tests {
         assert_eq!(state.player.stats.lifespan.current_age, 30);
     }
 }
+
+
+
