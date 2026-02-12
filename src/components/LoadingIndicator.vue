@@ -1,12 +1,17 @@
 <template>
-  <div class="flex items-center justify-center gap-3 text-center">
-    <div
-      class="inline-block animate-spin rounded-full border-2 border-slate-600 border-t-amber-300"
-      :class="sizeClass"
-    ></div>
-    <div class="text-left">
-      <p class="text-slate-100">{{ message }}</p>
-      <p v-if="detail" class="text-xs text-slate-400">{{ detail }}</p>
+  <div class="w-full space-y-3 text-center">
+    <div class="flex items-center justify-center gap-3">
+      <div
+        class="inline-block animate-spin rounded-full border-2 border-slate-600 border-t-amber-300"
+        :class="sizeClass"
+      ></div>
+      <div class="text-left">
+        <p class="text-slate-100">{{ message }}</p>
+        <p v-if="detail" class="text-xs text-slate-400">{{ detail }}</p>
+      </div>
+    </div>
+    <div class="h-1.5 overflow-hidden rounded-full bg-slate-800/90" aria-hidden="true">
+      <div class="loading-bar h-full w-1/3 rounded-full bg-amber-300/90"></div>
     </div>
   </div>
 </template>
@@ -38,3 +43,18 @@ const sizeClass = computed(() => {
   }
 });
 </script>
+
+<style scoped>
+.loading-bar {
+  animation: loading-slide 1.2s ease-in-out infinite;
+}
+
+@keyframes loading-slide {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(340%);
+  }
+}
+</style>

@@ -1,11 +1,20 @@
 <template>
   <div ref="containerRef" class="relative w-full">
-    <div :style="{ height: `${totalHeight}px` }">
+    <div v-if="!useVirtualization" class="space-y-4">
+      <p
+        v-for="(text, idx) in paragraphs"
+        :key="idx"
+        class="font-story text-slate-200 leading-relaxed whitespace-pre-wrap"
+      >
+        {{ text }}
+      </p>
+    </div>
+    <div v-else :style="{ height: `${totalHeight}px` }">
       <div :style="{ transform: `translateY(${topPadding}px)` }">
         <p
           v-for="(text, idx) in visibleItems"
           :key="visibleStart + idx"
-          class="font-story text-slate-200 leading-relaxed whitespace-pre-wrap animate-fade-up"
+          class="font-story text-slate-200 leading-relaxed whitespace-pre-wrap"
         >
           {{ text }}
         </p>
@@ -31,6 +40,8 @@ const containerWidth = ref(0);
 const lineHeightPx = 28;
 const paragraphGap = 16;
 const overscan = 6;
+const MIN_VIRTUAL_PARAGRAPHS = 120;
+const MIN_VIRTUAL_WIDTH = 900;
 
 let resizeObserver: ResizeObserver | null = null;
 let rafId = 0;
@@ -65,7 +76,15 @@ const estimateHeight = (text: string) => {
 };
 
 const heights = computed(() => props.paragraphs.map(estimateHeight));
+const useVirtualization = computed(
+  () =>
+    props.paragraphs.length >= MIN_VIRTUAL_PARAGRAPHS &&
+    containerWidth.value >= MIN_VIRTUAL_WIDTH,
+);
 const offsets = computed(() => {
+  if (!useVirtualization.value) {
+    return [];
+  }
   const result = new Array(props.paragraphs.length).fill(0);
   let acc = 0;
   for (let i = 0; i < props.paragraphs.length; i += 1) {
@@ -75,6 +94,9 @@ const offsets = computed(() => {
   return result;
 });
 const totalHeight = computed(() => {
+  if (!useVirtualization.value) {
+    return 0;
+  }
   const last = offsets.value.length - 1;
   if (last < 0) {
     return 0;
@@ -101,6 +123,9 @@ const findStartIndex = (scroll: number) => {
 };
 
 const visibleRange = computed(() => {
+  if (!useVirtualization.value) {
+    return { start: 0, end: props.paragraphs.length };
+  }
   const start = Math.max(0, findStartIndex(scrollTop.value) - overscan);
   const maxScroll = scrollTop.value + viewportHeight.value;
   let end = start;

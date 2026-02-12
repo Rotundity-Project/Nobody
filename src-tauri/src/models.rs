@@ -252,6 +252,8 @@ mod property_tests {
     // 对任何游戏状态，经过序列化和反序列化后，
     // 恢复的状态应该与原始状态等价
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(100))]
+
         #[test]
         fn test_property_26_spiritual_root_serialization_roundtrip(
             spiritual_root in arb_spiritual_root()

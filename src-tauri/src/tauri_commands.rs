@@ -340,15 +340,66 @@ pub async fn execute_player_action(
         plot_state.finalize_chapter(plot_update.chapter_title, plot_update.chapter_summary);
     }
 
+    plot_state.last_generation_diagnostics = plot_update.generation_diagnostics.clone();
+
+    // 用最新段落更新场景描述，避免选项生成长期绑定旧描述导致“选项不变”。
+    if !plot_update.plot_text.trim().is_empty() {
+        plot_state.current_scene.description = plot_update.plot_text.trim().to_string();
+    }
+
+    let previous_options = plot_state.current_scene.available_options.clone();
+
+    let mut option_source: Option<String> = None;
+
     if plot_update.is_waiting_for_input {
         if !plot_update.available_options.is_empty() {
             plot_state.current_scene.available_options = plot_update.available_options;
+            option_source = Some("llm_structured".to_string());
         } else {
-            plot_state.current_scene.available_options = plot_engine
-                .generate_player_options(&plot_state.current_scene, &game_state.player.stats);
+            let llm_regenerated = plot_engine.generate_player_options_with_llm(
+                &plot_state.current_scene,
+                &game_state.player.stats,
+            );
+            let mut regenerated_options = if let Some(options) = llm_regenerated {
+                option_source = Some("llm_regenerated".to_string());
+                options
+            } else {
+                option_source = Some("rule_fallback".to_string());
+                plot_engine
+                    .generate_player_options(&plot_state.current_scene, &game_state.player.stats)
+            };
+
+            if regenerated_options.is_empty() {
+                regenerated_options = previous_options;
+                option_source = Some("previous_reused".to_string());
+            }
+
+            // 通过时间推进对兜底选项做轻量轮转，确保连续交互时选项呈现有变化。
+            if !regenerated_options.is_empty() {
+                let rotation =
+                    (game_state.game_time.total_days as usize) % regenerated_options.len();
+                regenerated_options.rotate_left(rotation);
+                for (idx, option) in regenerated_options.iter_mut().enumerate() {
+                    option.id = idx;
+                }
+            }
+            plot_state.current_scene.available_options = regenerated_options;
         }
     } else {
         plot_state.current_scene.available_options.clear();
+        option_source = Some("not_waiting_for_input".to_string());
+    }
+
+    plot_state.last_option_generation_source = option_source.clone();
+    if let Some(source) = option_source {
+        match &mut plot_state.last_generation_diagnostics {
+            Some(diag) => {
+                diag.push_str(&format!("；选项来源：{}", source));
+            }
+            None => {
+                plot_state.last_generation_diagnostics = Some(format!("选项来源：{}", source));
+            }
+        }
     }
 
     let mut engine = match engine.lock() {

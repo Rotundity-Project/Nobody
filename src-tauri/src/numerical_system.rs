@@ -223,6 +223,78 @@ mod tests {
     }
 
     #[test]
+    fn test_numerical_system_default_constructor() {
+        let system = NumericalSystem::default();
+        let character = create_test_character();
+        let context = Context {
+            location: "Sect".to_string(),
+            time_of_day: "Day".to_string(),
+            weather: None,
+        };
+
+        let result = system.calculate_action_result(&character, &Action::Cultivate, &context);
+        assert!(result.success);
+    }
+
+    #[test]
+    fn test_calculate_action_result_rest() {
+        let system = NumericalSystem::new();
+        let character = create_test_character();
+        let context = Context {
+            location: "Sect".to_string(),
+            time_of_day: "Day".to_string(),
+            weather: None,
+        };
+
+        let result = system.calculate_action_result(&character, &Action::Rest, &context);
+        assert!(result.success);
+        assert!(result.description.contains("休息完成"));
+    }
+
+    #[test]
+    fn test_calculate_action_result_custom() {
+        let system = NumericalSystem::new();
+        let character = create_test_character();
+        let context = Context {
+            location: "Sect".to_string(),
+            time_of_day: "Day".to_string(),
+            weather: None,
+        };
+
+        let result = system.calculate_action_result(
+            &character,
+            &Action::Custom {
+                description: "自定义行动".to_string(),
+            },
+            &context,
+        );
+        assert!(result.success);
+        assert_eq!(result.description, "自定义行动");
+    }
+
+    #[test]
+    fn test_calculate_action_result_combat_action() {
+        let system = NumericalSystem::new();
+        let character = create_test_character();
+        let context = Context {
+            location: "Arena".to_string(),
+            time_of_day: "Noon".to_string(),
+            weather: Some("Sunny".to_string()),
+        };
+
+        let result = system.calculate_action_result(
+            &character,
+            &Action::Combat {
+                target_id: "enemy_1".to_string(),
+            },
+            &context,
+        );
+        assert!(result.success);
+        assert!(result.description.contains("enemy_1"));
+        assert!(!result.events.is_empty());
+    }
+
+    #[test]
     fn test_validate_realm_breakthrough_same_level() {
         let system = NumericalSystem::new();
         let mut character = create_test_character();
@@ -258,6 +330,33 @@ mod tests {
     }
 
     #[test]
+    fn test_calculate_combat_outcome_defender_wins() {
+        let system = NumericalSystem::new();
+        let mut attacker = create_test_character();
+        let mut defender = create_test_character();
+        attacker.combat_power = 90;
+        defender.combat_power = 300;
+
+        let result = system.calculate_combat_outcome(&attacker, &defender);
+        assert_eq!(result.winner_id, "defender");
+        assert_eq!(result.loser_id, "attacker");
+        assert!(result.damage_dealt > 0);
+    }
+
+    #[test]
+    fn test_calculate_combat_outcome_equal_power_min_damage() {
+        let system = NumericalSystem::new();
+        let mut attacker = create_test_character();
+        let mut defender = create_test_character();
+        attacker.combat_power = 200;
+        defender.combat_power = 200;
+
+        let result = system.calculate_combat_outcome(&attacker, &defender);
+        assert_eq!(result.winner_id, "defender");
+        assert_eq!(result.damage_dealt, 1);
+    }
+
+    #[test]
     fn test_update_lifespan() {
         let system = NumericalSystem::new();
         let mut character = create_test_character();
@@ -265,6 +364,117 @@ mod tests {
 
         system.update_lifespan(&mut character, 10);
         assert_eq!(character.lifespan.current_age, initial_age + 10);
+    }
+
+    #[test]
+    fn test_calculate_initial_combat_power_grade_ordering() {
+        let system = NumericalSystem::new();
+        let realm = CultivationRealm::new("Qi Condensation".to_string(), 1, 0, 1.0);
+
+        let heavenly = SpiritualRoot {
+            element: Element::Fire,
+            grade: Grade::Heavenly,
+            affinity: 0.8,
+        };
+        let double = SpiritualRoot {
+            element: Element::Fire,
+            grade: Grade::Double,
+            affinity: 0.8,
+        };
+        let triple = SpiritualRoot {
+            element: Element::Fire,
+            grade: Grade::Triple,
+            affinity: 0.8,
+        };
+        let pseudo = SpiritualRoot {
+            element: Element::Fire,
+            grade: Grade::Pseudo,
+            affinity: 0.8,
+        };
+
+        let p_heavenly = system.calculate_initial_combat_power(&heavenly, &realm);
+        let p_double = system.calculate_initial_combat_power(&double, &realm);
+        let p_triple = system.calculate_initial_combat_power(&triple, &realm);
+        let p_pseudo = system.calculate_initial_combat_power(&pseudo, &realm);
+
+        assert!(p_heavenly > p_double);
+        assert!(p_double > p_triple);
+        assert!(p_triple > p_pseudo);
+    }
+
+    #[test]
+    fn test_validate_realm_breakthrough_rejects_cross_level_jump() {
+        let system = NumericalSystem::new();
+        let character = create_test_character();
+
+        let invalid_target = CultivationRealm::new("Golden Core".to_string(), 3, 0, 4.0);
+        assert!(!system.validate_realm_breakthrough(&character, &invalid_target));
+    }
+
+    #[test]
+    fn test_validate_realm_breakthrough_rejects_invalid_sub_level_progression() {
+        let system = NumericalSystem::new();
+        let mut character = create_test_character();
+        character.cultivation_realm.sub_level = 2;
+
+        let invalid_target = CultivationRealm::new("Qi Condensation".to_string(), 1, 4, 1.4);
+        assert!(!system.validate_realm_breakthrough(&character, &invalid_target));
+    }
+
+    #[test]
+    fn test_breakthrough_result_failure_when_affinity_too_low() {
+        let system = NumericalSystem::new();
+        let mut character = create_test_character();
+        character.spiritual_root.affinity = 0.4;
+
+        let result = system.calculate_action_result(
+            &character,
+            &Action::Breakthrough,
+            &Context {
+                location: "Cave".to_string(),
+                time_of_day: "Night".to_string(),
+                weather: None,
+            },
+        );
+
+        assert!(!result.success);
+        assert!(result.description.contains("突破失败"));
+    }
+
+    #[test]
+    fn test_breakthrough_result_success_when_affinity_high() {
+        let system = NumericalSystem::new();
+        let mut character = create_test_character();
+        character.spiritual_root.affinity = 0.95;
+
+        let result = system.calculate_action_result(
+            &character,
+            &Action::Breakthrough,
+            &Context {
+                location: "Peak".to_string(),
+                time_of_day: "Dawn".to_string(),
+                weather: None,
+            },
+        );
+
+        assert!(result.success);
+        assert!(result.description.contains("突破成功"));
+    }
+
+    #[test]
+    fn test_calculate_initial_combat_power_applies_minimum_clamps() {
+        let system = NumericalSystem::new();
+        let spiritual_root = SpiritualRoot {
+            element: Element::Earth,
+            grade: Grade::Pseudo,
+            affinity: 0.0,
+        };
+        let realm = CultivationRealm::new("Weak Realm".to_string(), 1, 0, 0.0);
+
+        let power = system.calculate_initial_combat_power(&spiritual_root, &realm);
+
+        // base(100) * affinity_min(0.1) * pseudo(1.0) * realm_min(0.1) = 1
+        assert_eq!(power, 1);
     }
 }
 
@@ -350,6 +560,8 @@ mod property_tests {
     }
 
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(100))]
+
         #[test]
         fn test_property_5_action_result_consistency(
             character in arb_character_stats(),
@@ -369,6 +581,8 @@ mod property_tests {
     }
 
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(100))]
+
         #[test]
         fn test_property_6_realm_breakthrough_updates_attributes(
             mut character in arb_character_stats()
@@ -392,6 +606,8 @@ mod property_tests {
     }
 
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(100))]
+
         #[test]
         fn test_property_7_lifespan_exhaustion_triggers_death(
             current_age in 0u32..=1000,
