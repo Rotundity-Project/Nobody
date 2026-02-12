@@ -11,6 +11,8 @@ use std::time::{Duration, Instant};
 const DEFAULT_TIMEOUT_SECS: u64 = 30;
 const DEFAULT_CACHE_MAX_ENTRIES: usize = 512;
 const DEFAULT_CACHE_TTL_SECS: u64 = 600;
+const DEFAULT_MAX_RETRIES: u32 = 2;
+const DEFAULT_RETRY_BACKOFF_MS: u64 = 200;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct LLMConfig {
@@ -180,27 +182,48 @@ impl LLMService {
             "stream": false
         });
 
-        let response = self
-            .client
-            .post(&self.api_config.endpoint)
-            .bearer_auth(&self.api_config.api_key)
-            .json(&payload)
-            .send()
-            .await?;
+        let mut attempt = 0;
+        loop {
+            attempt += 1;
+            let response = self
+                .client
+                .post(&self.api_config.endpoint)
+                .bearer_auth(&self.api_config.api_key)
+                .json(&payload)
+                .send()
+                .await;
 
-        if !response.status().is_success() {
-            let status = response.status();
-            let body = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "failed to read error response body".to_string());
-            return Err(LLMServiceError::Api(format!("status={status} body={body}")));
+            let response = match response {
+                Ok(resp) => resp,
+                Err(err) => {
+                    let err = LLMServiceError::from(err);
+                    if attempt <= DEFAULT_MAX_RETRIES && is_retryable_error(&err) {
+                        backoff_sleep(attempt).await;
+                        continue;
+                    }
+                    return Err(err);
+                }
+            };
+
+            if !response.status().is_success() {
+                let status = response.status();
+                let body = response
+                    .text()
+                    .await
+                    .unwrap_or_else(|_| "failed to read error response body".to_string());
+                let err = LLMServiceError::Api(format!("status={status} body={body}"));
+                if attempt <= DEFAULT_MAX_RETRIES && is_retryable_status(status.as_u16()) {
+                    backoff_sleep(attempt).await;
+                    continue;
+                }
+                return Err(err);
+            }
+
+            let value: Value = response.json().await?;
+            let parsed = Self::parse_response(value)?;
+            self.cache_response(&request_hash, &parsed);
+            return Ok(parsed);
         }
-
-        let value: Value = response.json().await?;
-        let parsed = Self::parse_response(value)?;
-        self.cache_response(&request_hash, &parsed);
-        Ok(parsed)
     }
 
     pub fn cache_response(&self, request_hash: &str, response: &LLMResponse) {
@@ -283,6 +306,38 @@ impl LLMService {
             total_tokens,
         })
     }
+}
+
+fn is_retryable_status(status: u16) -> bool {
+    status == 429 || (500..=599).contains(&status)
+}
+
+fn is_retryable_error(err: &LLMServiceError) -> bool {
+    match err {
+        LLMServiceError::Timeout => true,
+        LLMServiceError::Http(_) => true,
+        LLMServiceError::Api(msg) => {
+            let status = msg
+                .split_whitespace()
+                .find_map(|chunk| {
+                    if let Some(rest) = chunk.strip_prefix("status=") {
+                        rest.trim_end_matches(|c: char| c == ',' || c == ';')
+                            .parse::<u16>()
+                            .ok()
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or(0);
+            is_retryable_status(status)
+        }
+        _ => false,
+    }
+}
+
+async fn backoff_sleep(attempt: u32) {
+    let backoff = DEFAULT_RETRY_BACKOFF_MS.saturating_mul(attempt as u64);
+    tokio::time::sleep(Duration::from_millis(backoff)).await;
 }
 
 #[derive(Debug, Clone)]
@@ -569,5 +624,24 @@ mod tests {
 
             prop_assert_eq!(cached, Some(response));
         }
+    }
+
+    #[test]
+    fn test_retryable_status_detection() {
+        assert!(is_retryable_status(500));
+        assert!(is_retryable_status(503));
+        assert!(is_retryable_status(429));
+        assert!(!is_retryable_status(400));
+        assert!(!is_retryable_status(401));
+    }
+
+    #[test]
+    fn test_retryable_error_detection() {
+        let api_err = LLMServiceError::Api("status=503 body=oops".to_string());
+        assert!(is_retryable_error(&api_err));
+        let api_err = LLMServiceError::Api("status=400 body=bad".to_string());
+        assert!(!is_retryable_error(&api_err));
+        let timeout = LLMServiceError::Timeout;
+        assert!(is_retryable_error(&timeout));
     }
 }
