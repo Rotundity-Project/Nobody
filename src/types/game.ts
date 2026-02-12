@@ -140,6 +140,27 @@ export interface PlotState {
   plot_history: string[];
   is_waiting_for_input: boolean;
   last_action_result: ActionResult | null;
+  settings: PlotSettings;
+  current_chapter: ChapterState;
+  chapters: ChapterState[];
+  segment_count: number;
+}
+
+export interface PlotSettings {
+  recap_enabled: boolean;
+  novel_style: string;
+  min_interactions_per_chapter: number;
+  max_interactions_per_chapter: number;
+  target_chapter_words_min: number;
+  target_chapter_words_max: number;
+}
+
+export interface ChapterState {
+  index: number;
+  title: string;
+  content: string[];
+  summary: string;
+  interaction_count: number;
 }
 
 export interface Scene {
@@ -181,6 +202,11 @@ export interface PlayerAction {
   action_type: ActionType;
   content: string;
   selected_option_id: number | null;
+  meta?: ActionMeta | null;
+}
+
+export interface ActionMeta {
+  action_kind?: string | null;
 }
 
 export interface SaveInfo {

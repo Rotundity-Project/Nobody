@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import { invoke } from '@tauri-apps/api/core';
+import { invokeWithTimeout } from '../utils/tauriInvoke';
 import type {
   Script,
   GameState,
@@ -36,11 +37,13 @@ export const useGameStore = defineStore('game', {
   },
 
   actions: {
-    async initializeGame(script: Script) {
+    async initializeGame(script: Script, playerName?: string) {
       this.isLoading = true;
       this.error = null;
 
       try {
+        const trimmedName = playerName?.trim();
+        script.initial_state.player_name = trimmedName || '无名弟子';
         const gameState = await invoke<GameState>('initialize_game', { script });
         this.currentScript = script;
         this.gameState = gameState;
@@ -120,12 +123,19 @@ export const useGameStore = defineStore('game', {
       }
     },
 
-    async initializeRandomGame() {
+    async initializeRandomGame(playerName?: string) {
       this.isLoading = true;
       this.error = null;
 
       try {
-        const script = await invoke<Script>('generate_random_script');
+        const script = await invokeWithTimeout<Script>(
+          'generate_random_script',
+          undefined,
+          45000,
+          '随机剧本生成超时，请稍后重试',
+        );
+        const trimmedName = playerName?.trim();
+        script.initial_state.player_name = trimmedName || '无名弟子';
         const gameState = await invoke<GameState>('initialize_game', { script });
         this.currentScript = script;
         this.gameState = gameState;

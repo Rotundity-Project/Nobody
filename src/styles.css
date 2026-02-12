@@ -1,31 +1,94 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Noto+Serif+SC:wght@400;600&family=Source+Sans+3:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
+  font-family: 'Source Sans 3', sans-serif;
+  line-height: 1.6;
   font-weight: 400;
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+  color-scheme: dark;
+  color: #e6edf3;
+  background-color: #0b0f14;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  --bg-1: #0b0f14;
+  --bg-2: #151a24;
+  --panel: rgba(20, 24, 34, 0.9);
+  --panel-strong: #1d2332;
+  --panel-border: rgba(148, 163, 184, 0.2);
+  --accent: #c0a77a;
+  --accent-strong: #f2c86b;
+  --accent-cool: #6dd0b2;
+  --text-strong: #f8fafc;
+  --text-muted: #94a3b8;
 }
 
 body {
   margin: 0;
-  display: flex;
-  place-items: center;
   min-width: 320px;
   min-height: 100vh;
+  background:
+    radial-gradient(circle at 10% 20%, rgba(192, 167, 122, 0.15), transparent 45%),
+    radial-gradient(circle at 80% 0%, rgba(109, 208, 178, 0.12), transparent 40%),
+    linear-gradient(145deg, var(--bg-1), var(--bg-2));
 }
 
 #app {
   width: 100%;
-  height: 100vh;
+  min-height: 100vh;
+}
+
+.font-display {
+  font-family: 'Cinzel', 'Noto Serif SC', serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.font-story {
+  font-family: 'Noto Serif SC', serif;
+}
+
+.text-glow {
+  text-shadow: 0 0 18px rgba(242, 200, 107, 0.25);
+}
+
+.panel-surface {
+  background-color: var(--panel);
+  border: 1px solid var(--panel-border);
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.35);
+}
+
+.animate-fade-up {
+  animation: fade-up 400ms ease-out both;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.4);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.4);
+  border-radius: 999px;
 }
