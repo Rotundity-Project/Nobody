@@ -1,6 +1,11 @@
 ﻿use crate::game_engine::GameEngine;
 use crate::game_state::GameState;
 use crate::event_log::EventImportance;
+use crate::llm_runtime_config::{
+    clear_runtime_llm_config, get_llm_config_status as runtime_llm_config_status,
+    resolve_llm_config, set_runtime_llm_config, LLMConfigStatus,
+};
+use crate::llm_service::{LLMConfig, LLMRequest, LLMService};
 use crate::novel_generator::{Novel, NovelGenerator};
 use crate::numerical_system::{Action, Context, StatChange};
 use crate::plot_engine::{PlayerAction, PlayerOption, PlotEngine, PlotState};
@@ -20,6 +25,56 @@ impl From<anyhow::Error> for ErrorResponse {
             error: err.to_string(),
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LLMConfigInput {
+    pub endpoint: String,
+    pub api_key: String,
+    pub model: String,
+    pub max_tokens: u32,
+    pub temperature: f32,
+}
+
+#[tauri::command]
+pub async fn set_llm_config(input: LLMConfigInput) -> Result<String, String> {
+    let config = LLMConfig {
+        endpoint: input.endpoint,
+        api_key: input.api_key,
+        model: input.model,
+        max_tokens: input.max_tokens,
+        temperature: input.temperature,
+    };
+    LLMService::new(config.clone()).map_err(|e| e.to_string())?;
+    set_runtime_llm_config(config);
+    Ok("LLM 配置已更新".to_string())
+}
+
+#[tauri::command]
+pub async fn clear_llm_config() -> Result<String, String> {
+    clear_runtime_llm_config();
+    Ok("已清除运行时 LLM 配置".to_string())
+}
+
+#[tauri::command]
+pub async fn get_llm_config_status() -> Result<LLMConfigStatus, String> {
+    Ok(runtime_llm_config_status())
+}
+
+#[tauri::command]
+pub async fn test_llm_connection() -> Result<String, String> {
+    let cfg = resolve_llm_config().ok_or_else(|| "未检测到 LLM 配置".to_string())?;
+    let service = LLMService::new(cfg).map_err(|e| e.to_string())?;
+    let response = service
+        .generate(LLMRequest {
+            prompt: "请回复：连接成功".to_string(),
+            max_tokens: Some(32),
+            temperature: Some(0.1),
+        })
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(response.text)
 }
 
 #[tauri::command]
@@ -72,7 +127,7 @@ pub async fn execute_player_action(
                         new_value: new_power.to_string(),
                     });
                     action_result.description = format!(
-                        "{} Combat power increased by {}.",
+                        "{} 战力提升了 {}。",
                         action_result.description, gain
                     );
                 }
@@ -143,7 +198,7 @@ pub async fn execute_player_action(
         .map_err(|e| e.to_string())?;
     if !npc_reactions.is_empty() {
         let reaction_line = format!(
-            "NPC reactions: {}",
+            "NPC 反应：{}",
             npc_reactions
                 .iter()
                 .map(|d| format!("{} -> {}", d.npc_id, d.action))
@@ -211,6 +266,29 @@ pub async fn generate_random_script() -> Result<Script, String> {
     manager
         .generate_random_script()
         .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn parse_novel_characters(novel_path: String) -> Result<Vec<String>, String> {
+    use crate::script_manager::ScriptManager;
+
+    let manager = ScriptManager::new();
+    manager
+        .extract_novel_characters(&novel_path)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn load_existing_novel(
+    novel_path: String,
+    selected_character: String,
+) -> Result<Script, String> {
+    use crate::script_manager::ScriptManager;
+
+    let manager = ScriptManager::new();
+    manager
+        .load_existing_novel(&novel_path, &selected_character)
         .map_err(|e| e.to_string())
 }
 

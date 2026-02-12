@@ -95,7 +95,7 @@ impl GameEngine {
             log.log_event(
                 u64::from(game_state.game_time.total_days),
                 "game_start",
-                format!("Game initialized for {}", game_state.player.name),
+                format!("已为 {} 初始化游戏", game_state.player.name),
                 EventImportance::Important,
             );
             game_state.event_history = log.all_events().to_vec();
@@ -142,7 +142,7 @@ impl GameEngine {
         self.log_event(
             u64::from(game_state.game_time.total_days),
             "save",
-            format!("Saved to slot {}", slot_id),
+            format!("已保存到槽位 {}", slot_id),
             EventImportance::Normal,
         );
         let mut save_state = game_state.clone();
@@ -163,7 +163,7 @@ impl GameEngine {
             log.log_event(
                 u64::from(game_state.game_time.total_days),
                 "load",
-                format!("Loaded from slot {}", slot_id),
+                format!("已从槽位 {} 读取存档", slot_id),
                 EventImportance::Important,
             );
             game_state.event_history = log.all_events().to_vec();
@@ -191,15 +191,16 @@ impl GameEngine {
             .ok_or_else(|| anyhow!("无法初始化剧情：游戏未初始化"))?;
 
         // 创建初始场景
+        let opening_text = self.plot_engine.generate_opening_plot(
+            &game_state.player.name,
+            &game_state.player.stats.cultivation_realm.name,
+            &format!("{:?}", game_state.player.stats.spiritual_root.element),
+            &game_state.player.location,
+        );
         let mut initial_scene = Scene::new(
             "start".to_string(),
-            "开始".to_string(),
-            format!(
-                "你是{}，刚刚踏入修仙之路。你的灵根是{:?}，当前境界是{}。",
-                game_state.player.name,
-                game_state.player.stats.spiritual_root.element,
-                game_state.player.stats.cultivation_realm.name
-            ),
+            "开篇".to_string(),
+            opening_text,
             game_state.player.location,
         );
 
@@ -220,7 +221,7 @@ impl GameEngine {
         self.log_event(
             self.current_timestamp(),
             "plot_init",
-            "Plot initialized at current scene".to_string(),
+            "剧情已初始化到当前场景".to_string(),
             EventImportance::Normal,
         );
         self.sync_event_history_to_state();

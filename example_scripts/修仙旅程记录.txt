@@ -1,0 +1,9 @@
+修仙旅程记录
+
+Total Events: 2
+
+Chapter 1 - Chapter 1: Turning of Fate
+The path of cultivation moved forward through these moments:
+Day 1: Game initialized for Wanderer (game_start)
+Day 1: Plot initialized at current scene (plot_init)
+

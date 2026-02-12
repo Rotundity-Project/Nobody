@@ -1,5 +1,6 @@
 ﻿use crate::event_log::GameEvent;
-use crate::llm_service::{LLMConfig, LLMRequest, LLMService};
+use crate::llm_runtime_config::resolve_llm_config;
+use crate::llm_service::{LLMRequest, LLMService};
 use crate::prompt_builder::{PromptBuilder, PromptConstraints, PromptContext, PromptTemplate};
 use crate::response_validator::{ResponseValidator, ValidationConstraints};
 use serde::{Deserialize, Serialize};
@@ -38,26 +39,8 @@ impl NovelGenerator {
     }
 
     fn initialize_llm_service_from_env() -> Option<LLMService> {
-        let endpoint = std::env::var("NOBODY_LLM_ENDPOINT").ok()?;
-        let api_key = std::env::var("NOBODY_LLM_API_KEY").ok()?;
-        let model = std::env::var("NOBODY_LLM_MODEL").unwrap_or_else(|_| "gpt-4o-mini".to_string());
-        let max_tokens = std::env::var("NOBODY_LLM_MAX_TOKENS")
-            .ok()
-            .and_then(|v| v.parse::<u32>().ok())
-            .unwrap_or(1024);
-        let temperature = std::env::var("NOBODY_LLM_TEMPERATURE")
-            .ok()
-            .and_then(|v| v.parse::<f32>().ok())
-            .unwrap_or(0.7);
-
-        LLMService::new(LLMConfig {
-            endpoint,
-            api_key,
-            model,
-            max_tokens,
-            temperature,
-        })
-        .ok()
+        let cfg = resolve_llm_config()?;
+        LLMService::new(cfg).ok()
     }
 
     pub async fn generate_novel(
@@ -74,8 +57,8 @@ impl NovelGenerator {
                 title,
                 chapters: vec![Chapter {
                     index: 1,
-                    title: "Chapter 1: A Quiet Beginning".to_string(),
-                    content: "No major events occurred yet. The cultivation journey is waiting to unfold.".to_string(),
+                    title: "第1章：静水初澜".to_string(),
+                    content: "尚无重大事件发生，你的修行旅程正等待展开。".to_string(),
                     source_event_ids: Vec::new(),
                 }],
                 total_events: 0,
@@ -104,7 +87,7 @@ impl NovelGenerator {
         events: &[GameEvent],
     ) -> Result<Chapter, String> {
         let source_event_ids = events.iter().map(|e| e.id).collect::<Vec<u64>>();
-        let title = format!("Chapter {}: Turning of Fate", chapter_index);
+        let title = format!("第{}章：命途流转", chapter_index);
 
         if let Some(content) = self.generate_chapter_with_llm(chapter_index, events).await {
             return Ok(Chapter {
@@ -142,19 +125,23 @@ impl NovelGenerator {
         let prompt = self.prompt_builder.build_prompt_with_token_limit(
             PromptTemplate::PlotGeneration,
             &PromptContext {
-                scene: Some(format!("Generate chapter {} from timeline events", chapter_index)),
+                scene: Some(format!("请根据时间线事件生成第 {} 章小说正文", chapter_index)),
                 location: None,
                 actor_name: Some("player".to_string()),
                 actor_realm: None,
                 actor_combat_power: None,
                 history_events: vec![event_lines],
                 world_setting_summary: Some(
-                    "Write concise cultivation novel prose, preserving event order".to_string(),
+                    "修仙小说文风，保留事件顺序，章节结尾留出后续发展空间".to_string(),
                 ),
             },
             &PromptConstraints {
-                numerical_rules: vec!["keep chronological order".to_string()],
-                world_rules: vec!["plain text only".to_string()],
+                numerical_rules: vec!["保持时间顺序，不可颠倒因果".to_string()],
+                world_rules: vec![
+                    "仅输出中文纯文本".to_string(),
+                    "字数控制在 300-700 字".to_string(),
+                    "叙事风格接近连载网文".to_string(),
+                ],
                 output_schema_hint: None,
             },
             600,
@@ -192,17 +179,18 @@ impl NovelGenerator {
 
     fn generate_chapter_fallback(&self, events: &[GameEvent]) -> String {
         if events.is_empty() {
-            return "The chapter opens in stillness, with no defining event yet.".to_string();
+            return "这一章尚未掀起波澜，主角在平静中积蓄力量。".to_string();
         }
 
         let mut lines = Vec::with_capacity(events.len() + 1);
-        lines.push("The path of cultivation moved forward through these moments:".to_string());
+        lines.push("修行之路在以下片段中继续推进：".to_string());
         for event in events {
             lines.push(format!(
-                "Day {}: {} ({})",
+                "第{}日：{}（{}）",
                 event.timestamp, event.description, event.event_type
             ));
         }
+        lines.push("故事尚未结束，你的下一次选择将决定后续走向。".to_string());
         lines.join("\n")
     }
 
@@ -214,10 +202,10 @@ impl NovelGenerator {
 
         let mut content = String::new();
         content.push_str(&format!("{}\n\n", novel.title));
-        content.push_str(&format!("Total Events: {}\n\n", novel.total_events));
+        content.push_str(&format!("事件总数：{}\n\n", novel.total_events));
 
         for chapter in &novel.chapters {
-            content.push_str(&format!("Chapter {} - {}\n", chapter.index, chapter.title));
+            content.push_str(&format!("第{}章 - {}\n", chapter.index, chapter.title));
             content.push_str(&chapter.content);
             content.push_str("\n\n");
         }

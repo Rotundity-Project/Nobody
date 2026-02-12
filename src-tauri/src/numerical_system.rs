@@ -1,4 +1,4 @@
-use crate::models::{CharacterStats, CultivationRealm, Grade, SpiritualRoot};
+﻿use crate::models::{CharacterStats, CultivationRealm, Grade, SpiritualRoot};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -71,18 +71,16 @@ impl NumericalSystem {
     ) -> ActionResult {
         match action {
             Action::Cultivate => self.calculate_cultivation_result(actor, context),
-            Action::Combat { target_id } => {
-                ActionResult {
-                    success: true,
-                    description: format!("Combat started with {}", target_id),
-                    stat_changes: vec![],
-                    events: vec![format!("Combat started at {}", context.location)],
-                }
-            }
+            Action::Combat { target_id } => ActionResult {
+                success: true,
+                description: format!("你与 {} 进入了战斗。", target_id),
+                stat_changes: vec![],
+                events: vec![format!("在 {} 发生了一场战斗。", context.location)],
+            },
             Action::Breakthrough => self.calculate_breakthrough_result(actor),
             Action::Rest => ActionResult {
                 success: true,
-                description: "Character rested and recovered energy".to_string(),
+                description: "休息完成，精力有所恢复。".to_string(),
                 stat_changes: vec![],
                 events: vec![],
             },
@@ -103,34 +101,29 @@ impl NumericalSystem {
         let progress = actor.spiritual_root.affinity * 10.0;
         ActionResult {
             success: true,
-            description: format!(
-                "Cultivation successful. Progress: {:.1}%",
-                progress
-            ),
+            description: format!("修炼成功，修行进度提升至 {:.1}%", progress),
             stat_changes: vec![],
-            events: vec!["Cultivation completed".to_string()],
+            events: vec!["完成一次修炼".to_string()],
         }
     }
 
     fn calculate_breakthrough_result(&self, actor: &CharacterStats) -> ActionResult {
-        let success_chance = actor.spiritual_root.affinity * (1.0 - self.realm_rules.breakthrough_difficulty);
+        let success_chance =
+            actor.spiritual_root.affinity * (1.0 - self.realm_rules.breakthrough_difficulty);
         let success = success_chance > 0.3;
 
         ActionResult {
             success,
             description: if success {
-                format!(
-                    "Successfully broke through to next sub-level of {}!",
-                    actor.cultivation_realm.name
-                )
+                format!("突破成功，你已触及 {} 的更高层次！", actor.cultivation_realm.name)
             } else {
-                "Breakthrough attempt failed. More preparation needed.".to_string()
+                "突破失败，积累仍不足，需要继续修炼。".to_string()
             },
             stat_changes: vec![],
             events: if success {
-                vec!["Breakthrough successful".to_string()]
+                vec!["突破成功".to_string()]
             } else {
-                vec!["Breakthrough failed".to_string()]
+                vec!["突破失败".to_string()]
             },
         }
     }
@@ -226,7 +219,7 @@ mod tests {
 
         let result = system.calculate_action_result(&character, &Action::Cultivate, &context);
         assert!(result.success);
-        assert!(result.description.contains("Cultivation successful"));
+        assert!(result.description.contains("修炼成功"));
     }
 
     #[test]
@@ -472,3 +465,4 @@ mod property_tests {
         assert_eq!(character.combat_power, power_after_realm);
     }
 }
+

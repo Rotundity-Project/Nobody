@@ -8,7 +8,7 @@
           <button
             @click="router.push('/')"
             class="text-gray-400 hover:text-white transition-colors"
-            title="Back"
+            title="返回"
           >
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -17,6 +17,12 @@
           <h1 class="text-xl font-bold text-purple-400">Nobody</h1>
         </div>
         <div class="flex gap-2">
+          <button
+            @click="showLLMDialog = true"
+            class="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg transition-colors duration-200"
+          >
+            LLM 设置
+          </button>
           <button
             @click="showSaveDialog = true"
             :disabled="!gameStore.isGameInitialized"
@@ -27,13 +33,13 @@
                 : 'bg-gray-600 text-gray-400 cursor-not-allowed'
             ]"
           >
-            Save
+            保存
           </button>
           <button
             @click="showLoadDialog = true"
             class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors duration-200"
           >
-            Load
+            加载
           </button>
         </div>
       </div>
@@ -46,7 +52,7 @@
           </div>
 
           <div v-if="!gameStore.isGameInitialized" class="text-center text-gray-400">
-            <p>No running game. Start a new game first.</p>
+            <p>当前没有进行中的游戏，请先开始新游戏。</p>
           </div>
         </div>
       </div>
@@ -60,14 +66,14 @@
                 class="px-3 py-1 rounded"
                 :class="inputMode === 'options' ? 'bg-purple-600 text-white' : 'bg-slate-700 text-gray-300'"
               >
-                Options
+                选项
               </button>
               <button
                 @click="inputMode = 'freeText'"
                 class="px-3 py-1 rounded"
                 :class="inputMode === 'freeText' ? 'bg-purple-600 text-white' : 'bg-slate-700 text-gray-300'"
               >
-                Free Text
+                自由输入
               </button>
             </div>
 
@@ -86,7 +92,7 @@
               >
                 <p class="text-white">{{ option.description }}</p>
                 <p v-if="option.requirements && option.requirements.length > 0" class="text-sm text-gray-400 mt-1">
-                  Requirements: {{ option.requirements.join(', ') }}
+                  条件：{{ option.requirements.join('，') }}
                 </p>
               </button>
             </div>
@@ -97,7 +103,7 @@
                 :disabled="isLoading"
                 rows="3"
                 maxlength="200"
-                placeholder="Describe what your character wants to do..."
+                placeholder="输入你想执行的行为，例如：我去后山修炼。"
                 class="w-full bg-slate-700 border border-slate-600 rounded-lg p-3 text-white outline-none focus:border-purple-500"
               />
               <p v-if="inputValidation.message" class="text-sm" :class="inputValidation.valid ? 'text-gray-300' : 'text-amber-300'">
@@ -109,25 +115,25 @@
                 class="px-4 py-2 rounded-lg transition-colors"
                 :class="isLoading || !inputValidation.valid ? 'bg-gray-600 text-gray-400 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700 text-white'"
               >
-                Submit Text Action
+                提交自由输入
               </button>
             </div>
           </div>
 
           <div v-else-if="isLoading" class="text-center">
             <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
-            <p class="text-gray-300 mt-2">Processing...</p>
+            <p class="text-gray-300 mt-2">处理中...</p>
           </div>
 
           <div v-else-if="gameStore.isGameInitialized && !gameStore.isWaitingForInput" class="text-center text-gray-400">
-            <p>Story is progressing...</p>
+            <p>剧情推进中...</p>
           </div>
         </div>
       </div>
 
       <div class="p-6 bg-slate-900/60">
         <div class="max-w-3xl mx-auto">
-          <NovelExporter :is-game-ended="isGameEnded" :event-count="eventCount" />
+          <NovelExporter :is-game-running="gameStore.isGameInitialized" :event-count="eventCount" />
         </div>
       </div>
 
@@ -138,7 +144,7 @@
             @click="gameStore.clearError"
             class="mt-2 px-4 py-1 bg-red-700 hover:bg-red-600 rounded text-sm transition-colors"
           >
-            Close
+            关闭
           </button>
         </div>
       </div>
@@ -157,6 +163,8 @@
       @close="showLoadDialog = false"
       @loaded="handleLoaded"
     />
+
+    <LLMConfigDialog :is-open="showLLMDialog" @close="showLLMDialog = false" />
   </div>
 </template>
 
@@ -165,6 +173,7 @@ import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useGameStore } from '../stores/gameStore';
 import CharacterPanel from './CharacterPanel.vue';
+import LLMConfigDialog from './LLMConfigDialog.vue';
 import NovelExporter from './NovelExporter.vue';
 import SaveLoadDialog from './SaveLoadDialog.vue';
 import type { PlayerOption } from '../types/game';
@@ -180,17 +189,11 @@ const gameStore = useGameStore();
 const isLoading = ref(false);
 const showSaveDialog = ref(false);
 const showLoadDialog = ref(false);
+const showLLMDialog = ref(false);
 const inputMode = ref<'options' | 'freeText'>('options');
 const freeTextInput = ref('');
 
 const inputValidation = computed(() => validateFreeTextInput(freeTextInput.value));
-const isGameEnded = computed(() => {
-  const player = gameStore.playerCharacter;
-  if (!player) {
-    return false;
-  }
-  return player.stats.lifespan.current_age >= player.stats.lifespan.max_age;
-});
 const eventCount = computed(() => gameStore.gameState?.event_history?.length ?? 0);
 
 const handleOptionSelect = async (option: PlayerOption) => {
@@ -198,7 +201,7 @@ const handleOptionSelect = async (option: PlayerOption) => {
     isLoading.value = true;
     await gameStore.executePlayerAction(createOptionAction(option));
   } catch (error) {
-    console.error('Failed to execute action:', error);
+    console.error('执行行动失败：', error);
   } finally {
     isLoading.value = false;
   }
@@ -215,17 +218,17 @@ const handleFreeTextSubmit = async () => {
     await gameStore.executePlayerAction(createFreeTextAction(freeTextInput.value));
     freeTextInput.value = '';
   } catch (error) {
-    console.error('Failed to submit free text action:', error);
+    console.error('提交自由输入失败：', error);
   } finally {
     isLoading.value = false;
   }
 };
 
 const handleSaved = (slotId: number) => {
-  console.log(`Game saved to slot ${slotId}`);
+  console.log(`游戏已保存到槽位 ${slotId}`);
 };
 
 const handleLoaded = (slotId: number) => {
-  console.log(`Game loaded from slot ${slotId}`);
+  console.log(`已从槽位 ${slotId} 加载游戏`);
 };
 </script>

@@ -1,8 +1,12 @@
-use crate::llm_service::{LLMConfig, LLMRequest, LLMService};
+use crate::llm_runtime_config::resolve_llm_config;
+use crate::llm_service::{LLMRequest, LLMService};
+use crate::models::{Element, Grade, SpiritualRoot};
+use crate::novel_parser::{NovelParser, ParsedNovelData};
 use crate::prompt_builder::{PromptBuilder, PromptConstraints, PromptContext, PromptTemplate};
 use crate::response_validator::{ResponseValidator, ValidationConstraints};
-use crate::script::Script;
+use crate::script::{InitialState, Location, Script, ScriptType, WorldSetting};
 use anyhow::{anyhow, Result};
+use std::collections::HashSet;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -23,26 +27,7 @@ impl ScriptManager {
     }
 
     fn initialize_llm_service_from_env() -> Option<LLMService> {
-        let endpoint = std::env::var("NOBODY_LLM_ENDPOINT").ok()?;
-        let api_key = std::env::var("NOBODY_LLM_API_KEY").ok()?;
-        let model = std::env::var("NOBODY_LLM_MODEL").unwrap_or_else(|_| "gpt-4o-mini".to_string());
-        let max_tokens = std::env::var("NOBODY_LLM_MAX_TOKENS")
-            .ok()
-            .and_then(|v| v.parse::<u32>().ok())
-            .unwrap_or(1024);
-        let temperature = std::env::var("NOBODY_LLM_TEMPERATURE")
-            .ok()
-            .and_then(|v| v.parse::<f32>().ok())
-            .unwrap_or(0.7);
-
-        let cfg = LLMConfig {
-            endpoint,
-            api_key,
-            model,
-            max_tokens,
-            temperature,
-        };
-
+        let cfg = resolve_llm_config()?;
         LLMService::new(cfg).ok()
     }
 
@@ -70,6 +55,67 @@ impl ScriptManager {
 
         self.validate_script(&script)?;
 
+        Ok(script)
+    }
+
+    pub fn extract_novel_characters(&self, file_path: &str) -> Result<Vec<String>> {
+        let parser = NovelParser::new();
+        let parsed = parser
+            .parse_novel_file(file_path)
+            .map_err(|e| anyhow!("Failed to parse novel file: {}", e))?;
+
+        if parsed.characters.is_empty() {
+            return Err(anyhow!("未能从小说中解析出角色列表"));
+        }
+
+        Ok(parsed.characters)
+    }
+
+    pub fn load_existing_novel(&self, file_path: &str, selected_character: &str) -> Result<Script> {
+        let parser = NovelParser::new();
+        let parsed = parser
+            .parse_novel_file(file_path)
+            .map_err(|e| anyhow!("Failed to parse novel file: {}", e))?;
+
+        let player_name = self.select_character_from_novel(&parsed, selected_character)?;
+        let world_setting = self.build_world_setting_from_novel(&parsed);
+
+        let starting_location = world_setting
+            .locations
+            .first()
+            .map(|loc| loc.id.clone())
+            .ok_or_else(|| anyhow!("无法为小说生成起始地点"))?;
+
+        let player_spiritual_root = world_setting
+            .spiritual_roots
+            .first()
+            .cloned()
+            .unwrap_or(SpiritualRoot {
+                element: Element::Fire,
+                grade: Grade::Double,
+                affinity: 0.6,
+            });
+
+        let initial_state = InitialState {
+            player_name,
+            player_spiritual_root,
+            starting_location,
+            starting_age: 16,
+        };
+
+        let seed = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|e| anyhow!("System clock error: {}", e))?
+            .as_secs();
+        let script = Script::new(
+            format!("novel_{}", seed),
+            parsed.title.clone(),
+            ScriptType::ExistingNovel,
+            world_setting,
+            initial_state,
+        );
+
+        self.validate_script(&script)?;
         Ok(script)
     }
 
@@ -119,7 +165,7 @@ impl ScriptManager {
             self.generate_random_script_with_llm(llm_service).await
         } else {
             Err(anyhow!(
-                "LLM service is not configured, falling back to local random script template"
+                "未检测到 LLM 配置，使用本地随机剧本模板"
             ))
         };
 
@@ -132,26 +178,27 @@ impl ScriptManager {
     async fn generate_random_script_with_llm(&self, llm_service: &LLMService) -> Result<Script> {
         let constraints = PromptConstraints {
             numerical_rules: vec![
-                "realm_level progression must be sequential".to_string(),
-                "starting_age must be between 10 and 100".to_string(),
+                "境界等级必须按顺序提升".to_string(),
+                "初始年龄必须在 10 到 100 之间".to_string(),
             ],
             world_rules: vec![
-                "script must include at least one cultivation realm and one location".to_string(),
-                "initial_state.starting_location must exist in world_setting.locations".to_string(),
+                "剧本至少包含一个修炼境界与一个地点".to_string(),
+                "initial_state.starting_location 必须存在于 world_setting.locations".to_string(),
+                "所有文本字段使用中文".to_string(),
             ],
             output_schema_hint: Some(
-                "Return strict JSON matching Script schema. No markdown fences.".to_string(),
+                "返回严格 JSON，必须匹配 Script 结构，不要 markdown 包裹。".to_string(),
             ),
         };
         let context = PromptContext {
-            scene: Some("Generate a random cultivation world script".to_string()),
+            scene: Some("生成一个可游玩的随机修仙世界剧本".to_string()),
             location: None,
             actor_name: None,
             actor_realm: None,
             actor_combat_power: None,
             history_events: Vec::new(),
             world_setting_summary: Some(
-                "Need a playable beginner scenario with coherent world settings".to_string(),
+                "需要一个适合新手开局、设定自洽、可直接进入游戏的中文场景".to_string(),
             ),
         };
 
@@ -169,7 +216,7 @@ impl ScriptManager {
                 temperature: Some(0.7),
             })
             .await
-            .map_err(|e| anyhow!("Failed to generate random script with LLM: {}", e))?;
+            .map_err(|e| anyhow!("LLM 随机剧本生成失败: {}", e))?;
 
         let validation_constraints = ValidationConstraints {
             require_json: true,
@@ -180,7 +227,7 @@ impl ScriptManager {
         };
         self.response_validator
             .validate_response(&llm_response, &validation_constraints)
-            .map_err(|e| anyhow!("Generated script response failed validation: {}", e))?;
+            .map_err(|e| anyhow!("生成结果校验失败: {}", e))?;
 
         let script = self.parse_generated_script_response(&llm_response.text)?;
         self.validate_script(&script)?;
@@ -214,13 +261,13 @@ impl ScriptManager {
 
         let script = serde_json::from_value::<Script>(serde_json::json!({
             "id": id,
-            "name": "Random Cultivation Start",
+            "name": "随机修仙开局",
             "script_type": "RandomGenerated",
             "world_setting": {
                 "cultivation_realms": [
-                    { "name": "Qi Condensation", "level": 1, "sub_level": 0, "power_multiplier": 1.0 },
-                    { "name": "Foundation Establishment", "level": 2, "sub_level": 0, "power_multiplier": 2.0 },
-                    { "name": "Golden Core", "level": 3, "sub_level": 0, "power_multiplier": 4.0 }
+                    { "name": "练气", "level": 1, "sub_level": 0, "power_multiplier": 1.0 },
+                    { "name": "筑基", "level": 2, "sub_level": 0, "power_multiplier": 2.0 },
+                    { "name": "金丹", "level": 3, "sub_level": 0, "power_multiplier": 4.0 }
                 ],
                 "spiritual_roots": [
                     { "element": "Fire", "grade": "Double", "affinity": 0.75 },
@@ -230,8 +277,8 @@ impl ScriptManager {
                 "techniques": [
                     {
                         "id": "breathing_technique",
-                        "name": "Basic Breathing Technique",
-                        "description": "A basic cultivation method for beginners.",
+                        "name": "基础吐纳诀",
+                        "description": "适合初学者的基础修炼功法。",
                         "required_realm_level": 1,
                         "element": null
                     }
@@ -239,28 +286,28 @@ impl ScriptManager {
                 "locations": [
                     {
                         "id": "sect_valley",
-                        "name": "Sect Valley",
-                        "description": "A valley with mild spiritual energy where outer disciples train.",
+                        "name": "宗门外谷",
+                        "description": "灵气温和，外门弟子常在此修炼。",
                         "spiritual_energy": 1.2
                     },
                     {
                         "id": "stone_forest",
-                        "name": "Stone Forest",
-                        "description": "Rock formations filled with hidden dangers and minor spirit beasts.",
+                        "name": "乱石林",
+                        "description": "怪石嶙峋，潜伏着低阶灵兽与隐秘机缘。",
                         "spiritual_energy": 1.5
                     }
                 ],
                 "factions": [
                     {
                         "id": "qingyun_sect",
-                        "name": "Qingyun Sect",
-                        "description": "A medium-sized righteous sect known for strict discipline.",
+                        "name": "青云宗",
+                        "description": "以门规严谨著称的正道宗门。",
                         "power_level": 65
                     }
                 ]
             },
             "initial_state": {
-                "player_name": "Wanderer",
+                "player_name": "无名弟子",
                 "player_spiritual_root": { "element": "Fire", "grade": "Double", "affinity": 0.75 },
                 "starting_location": "sect_valley",
                 "starting_age": 16
@@ -270,6 +317,95 @@ impl ScriptManager {
 
         self.validate_script(&script)?;
         Ok(script)
+    }
+
+    fn select_character_from_novel(
+        &self,
+        parsed: &ParsedNovelData,
+        selected_character: &str,
+    ) -> Result<String> {
+        if parsed.characters.is_empty() {
+            return Err(anyhow!("未能从小说中解析出角色列表"));
+        }
+
+        let trimmed = selected_character.trim();
+        if trimmed.is_empty() {
+            return Err(anyhow!("请选择一个角色"));
+        }
+
+        if !parsed.characters.iter().any(|c| c == trimmed) {
+            return Err(anyhow!("选择的角色不存在: {}", trimmed));
+        }
+
+        Ok(trimmed.to_string())
+    }
+
+    fn build_world_setting_from_novel(&self, parsed: &ParsedNovelData) -> WorldSetting {
+        let mut setting = WorldSetting::with_default_realms();
+        setting.spiritual_roots = WorldSetting::with_default_spiritual_roots().spiritual_roots;
+        setting.locations = self.build_locations_from_novel(&parsed.locations);
+        setting.techniques = Vec::new();
+        setting.factions = Vec::new();
+        setting
+    }
+
+    fn build_locations_from_novel(&self, locations: &[String]) -> Vec<Location> {
+        let mut results = Vec::new();
+        let mut seen = HashSet::new();
+
+        for (idx, name) in locations.iter().enumerate() {
+            let base_id = self
+                .normalize_identifier(name)
+                .unwrap_or_else(|| format!("location_{}", idx + 1));
+            let mut unique_id = base_id.clone();
+            let mut suffix = 1;
+            while seen.contains(&unique_id) {
+                suffix += 1;
+                unique_id = format!("{}_{}", base_id, suffix);
+            }
+            seen.insert(unique_id.clone());
+
+            results.push(Location {
+                id: unique_id,
+                name: name.clone(),
+                description: format!("从小说导入的地点：{}", name),
+                spiritual_energy: 1.0,
+            });
+        }
+
+        if results.is_empty() {
+            results.push(Location {
+                id: "novel_origin".to_string(),
+                name: "小说起点".to_string(),
+                description: "从小说导入的默认起点".to_string(),
+                spiritual_energy: 1.0,
+            });
+        }
+
+        results
+    }
+
+    fn normalize_identifier(&self, value: &str) -> Option<String> {
+        let mut out = String::new();
+        let mut last_was_sep = false;
+        for ch in value.chars() {
+            if ch.is_ascii_alphanumeric() {
+                out.push(ch.to_ascii_lowercase());
+                last_was_sep = false;
+            } else if ch.is_whitespace() || ch == '-' || ch == '_' {
+                if !last_was_sep && !out.is_empty() {
+                    out.push('_');
+                    last_was_sep = true;
+                }
+            }
+        }
+
+        let trimmed = out.trim_matches('_').to_string();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed)
+        }
     }
 }
 
@@ -394,6 +530,44 @@ mod tests {
         assert_eq!(script.script_type, ScriptType::RandomGenerated);
         assert!(!script.world_setting.cultivation_realms.is_empty());
         assert!(!script.world_setting.locations.is_empty());
+        assert!(manager.validate_script(&script).is_ok());
+    }
+
+    #[test]
+    fn test_extract_novel_characters() {
+        let manager = ScriptManager::new();
+        let temp = tempfile::tempdir().unwrap();
+        let file_path = temp.path().join("novel.txt");
+        std::fs::write(
+            &file_path,
+            "World: A cultivation world\nCharacter: Lin Mo\nCharacter: Su Wan\nLocation: Azure Cloud Sect\nLocation: Spirit Valley",
+        )
+        .unwrap();
+
+        let characters = manager
+            .extract_novel_characters(file_path.to_str().unwrap())
+            .unwrap();
+        assert!(characters.iter().any(|c| c == "Lin Mo"));
+        assert!(characters.iter().any(|c| c == "Su Wan"));
+    }
+
+    #[test]
+    fn test_load_existing_novel_builds_initial_state() {
+        let manager = ScriptManager::new();
+        let temp = tempfile::tempdir().unwrap();
+        let file_path = temp.path().join("novel.txt");
+        std::fs::write(
+            &file_path,
+            "World: A cultivation world\nCharacter: Lin Mo\nCharacter: Su Wan\nLocation: Azure Cloud Sect\nLocation: Spirit Valley",
+        )
+        .unwrap();
+
+        let script = manager
+            .load_existing_novel(file_path.to_str().unwrap(), "Lin Mo")
+            .unwrap();
+        assert_eq!(script.script_type, ScriptType::ExistingNovel);
+        assert_eq!(script.initial_state.player_name, "Lin Mo");
+        assert_eq!(script.initial_state.starting_location, "azure_cloud_sect");
         assert!(manager.validate_script(&script).is_ok());
     }
 }

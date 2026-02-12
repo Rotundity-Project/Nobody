@@ -1,23 +1,16 @@
-﻿import { buildNovelExportFilename, shouldShowNovelExporter } from './novelExporter';
+import { describe, expect, it } from 'vitest';
+import { buildNovelExportFilename, shouldShowNovelExporter } from './novelExporter';
 
-function assert(condition: boolean, message: string): void {
-  if (!condition) {
-    throw new Error(message);
-  }
-}
+describe('novelExporter utils', () => {
+  it('shows exporter only when game is running', () => {
+    expect(shouldShowNovelExporter(true)).toBe(true);
+    expect(shouldShowNovelExporter(false)).toBe(false);
+  });
 
-export function test_exporter_shown_when_game_ends(): void {
-  assert(shouldShowNovelExporter(true), 'Exporter should show when game ends');
-  assert(!shouldShowNovelExporter(false), 'Exporter should hide during active game');
-}
-
-export function test_export_filename_generation(): void {
-  assert(
-    buildNovelExportFilename('Journey of Immortal') === 'Journey_of_Immortal.txt',
-    'Filename should normalize spaces',
-  );
-  assert(
-    buildNovelExportFilename('***') === 'journey_record.txt',
-    'Filename should fallback for invalid title',
-  );
-}
+  it('builds export filenames with fallback', () => {
+    expect(buildNovelExportFilename('Journey of Immortal')).toBe(
+      'Journey_of_Immortal.txt',
+    );
+    expect(buildNovelExportFilename('***')).toBe('修仙旅程记录.txt');
+  });
+});

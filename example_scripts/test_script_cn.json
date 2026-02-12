@@ -1,6 +1,6 @@
 {
   "id": "test_cultivation_world_cn",
-  "name": "测试修仙世界",
+  "name": "测试修仙世界（中文）",
   "script_type": "Custom",
   "world_setting": {
     "cultivation_realms": [
@@ -37,27 +37,27 @@
     ],
     "spiritual_roots": [
       {
-        "element": "Fire",
+        "element": "火",
         "grade": "Heavenly",
         "affinity": 0.95
       },
       {
-        "element": "Water",
+        "element": "水",
         "grade": "Heavenly",
         "affinity": 0.95
       },
       {
-        "element": "Wood",
+        "element": "木",
         "grade": "Double",
         "affinity": 0.75
       },
       {
-        "element": "Metal",
+        "element": "金",
         "grade": "Triple",
         "affinity": 0.55
       },
       {
-        "element": "Earth",
+        "element": "土",
         "grade": "Pseudo",
         "affinity": 0.35
       }
@@ -96,25 +96,25 @@
       {
         "id": "azure_cloud_sect",
         "name": "青云宗",
-        "description": "一个位于青云山的中型修仙宗门，以火系功法闻名",
+        "description": "位于青云山的中型修仙宗门，以火系功法闻名",
         "spiritual_energy": 1.5
       },
       {
         "id": "misty_forest",
         "name": "迷雾森林",
-        "description": "充满灵气的古老森林，有许多灵兽出没",
+        "description": "灵气充盈的古老森林，常有灵兽出没",
         "spiritual_energy": 2.0
       },
       {
         "id": "mortal_town",
         "name": "凡人镇",
-        "description": "一个普通的凡人城镇，灵气稀薄",
+        "description": "普通凡人城镇，灵气稀薄",
         "spiritual_energy": 0.3
       },
       {
         "id": "spirit_stone_mine",
         "name": "灵石矿",
-        "description": "蕴含丰富灵石的矿脉，是各大宗门争夺的资源",
+        "description": "盛产灵石的矿脉，各大宗门争夺之地",
         "spiritual_energy": 3.0
       }
     ],
@@ -122,19 +122,19 @@
       {
         "id": "azure_cloud_sect",
         "name": "青云宗",
-        "description": "正道宗门，以火系功法和炼丹术闻名",
+        "description": "正道宗门，擅长火系功法与炼丹术",
         "power_level": 75
       },
       {
         "id": "shadow_pavilion",
         "name": "暗影阁",
-        "description": "神秘的情报组织，中立势力",
+        "description": "神秘情报组织，常年保持中立",
         "power_level": 60
       },
       {
         "id": "blood_demon_sect",
         "name": "血魔宗",
-        "description": "邪道宗门，修炼血系功法",
+        "description": "邪道宗门，修炼血道秘法",
         "power_level": 80
       }
     ]
