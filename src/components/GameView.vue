@@ -64,7 +64,7 @@
         </div>
       </div>
 
-      <div class="flex-1 overflow-y-auto p-8 relative">
+      <div ref="storyScrollRef" class="flex-1 overflow-y-auto p-8 relative">
         <div class="max-w-3xl mx-auto space-y-4">
           <div v-if="gameStore.plotState && gameStore.currentScene" class="prose prose-invert max-w-none">
             <h2 class="text-2xl font-display text-amber-200 mb-4">
@@ -76,9 +76,10 @@
                 {{ lastChapterSummary }}
               </p>
             </div>
-            <p class="font-story text-slate-200 leading-relaxed whitespace-pre-wrap animate-fade-up">
-              {{ currentChapterContent }}
-            </p>
+            <VirtualStoryList
+              :paragraphs="currentChapterParagraphs"
+              :scroll-element="storyScrollRef"
+            />
           </div>
 
           <div v-if="!gameStore.isGameInitialized" class="text-center text-gray-400">
@@ -224,6 +225,7 @@ import {
 import { playClick } from '../utils/audioSystem';
 import { getStorySettings, saveStorySettings, type StorySettings } from '../utils/storySettings';
 import { invokeWithTimeout } from '../utils/tauriInvoke';
+import VirtualStoryList from './VirtualStoryList.vue';
 
 const router = useRouter();
 const gameStore = useGameStore();
@@ -238,6 +240,7 @@ const showStorySettings = ref(false);
 const storySettings = ref<StorySettings>(getStorySettings());
 const inputMode = ref<'options' | 'freeText'>('options');
 const freeTextInput = ref('');
+const storyScrollRef = ref<HTMLElement | null>(null);
 
 const inputValidation = computed(() => validateFreeTextInput(freeTextInput.value));
 const currentChapterTitle = computed(
@@ -249,6 +252,14 @@ const currentChapterContent = computed(() => {
     return content.join('\n\n');
   }
   return gameStore.currentScene?.description ?? '';
+});
+const currentChapterParagraphs = computed(() => {
+  const content = gameStore.plotState?.current_chapter?.content ?? [];
+  const combined = content.length > 0 ? content.join('\n\n') : gameStore.currentScene?.description ?? '';
+  return combined
+    .split(/\n{2,}/)
+    .map((text) => text.trim())
+    .filter((text) => text.length > 0);
 });
 const lastChapterSummary = computed(() => {
   const chapters = gameStore.plotState?.chapters ?? [];

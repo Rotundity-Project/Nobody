@@ -23,6 +23,10 @@ pub struct GameEngine {
     save_load_system: SaveLoadSystem,
 }
 
+const EVENT_LOG_MAX_EVENTS: usize = 600;
+const EVENT_LOG_MAX_IMPORTANT: usize = 200;
+const EVENT_LOG_MAX_ARCHIVES: usize = 50;
+
 impl GameEngine {
     pub fn new() -> Self {
         Self {
@@ -43,14 +47,18 @@ impl GameEngine {
         self.script_manager.validate_script(&script)?;
 
         // 从初始状态创建玩家角色
+        let starting_realm = script
+            .world_setting
+            .cultivation_realms
+            .iter()
+            .find(|realm| realm.name == "练气" || realm.name == "炼气")
+            .or_else(|| script.world_setting.cultivation_realms.first())
+            .ok_or_else(|| anyhow!("剧本中未定义修炼境界"))?
+            .clone();
+
         let player_stats = CharacterStats {
             spiritual_root: script.initial_state.player_spiritual_root.clone(),
-            cultivation_realm: script
-                .world_setting
-                .cultivation_realms
-                .first()
-                .ok_or_else(|| anyhow!("剧本中未定义修炼境界"))?
-                .clone(),
+            cultivation_realm: starting_realm.clone(),
             techniques: Vec::new(),
             lifespan: Lifespan {
                 current_age: script.initial_state.starting_age,
@@ -59,11 +67,7 @@ impl GameEngine {
             },
             combat_power: self.numerical_system.calculate_initial_combat_power(
                 &script.initial_state.player_spiritual_root,
-                script
-                    .world_setting
-                    .cultivation_realms
-                    .first()
-                    .ok_or_else(|| anyhow!("未定义修炼境界"))?,
+                &starting_realm,
             ),
         };
 
@@ -190,29 +194,52 @@ impl GameEngine {
             .cloned()
             .ok_or_else(|| anyhow!("无法初始化剧情：游戏未初始化"))?;
 
-        // 创建初始场景
         let opening_text = self.plot_engine.generate_opening_plot(
             &game_state.player.name,
             &game_state.player.stats.cultivation_realm.name,
             &format!("{:?}", game_state.player.stats.spiritual_root.element),
             &game_state.player.location,
         );
+
+        self.initialize_plot_with_opening(opening_text, None)
+    }
+
+    pub fn initialize_plot_with_opening(
+        &mut self,
+        opening_text: String,
+        opening_options: Option<Vec<crate::plot_engine::PlayerOption>>,
+    ) -> Result<PlotState> {
+        let game_state = self
+            .state
+            .lock()
+            .unwrap()
+            .as_ref()
+            .cloned()
+            .ok_or_else(|| anyhow!("无法初始化剧情：游戏未初始化"))?;
+
         let mut initial_scene = Scene::new(
             "start".to_string(),
-            "开篇".to_string(),
-            opening_text,
+            "第一章".to_string(),
+            opening_text.clone(),
             game_state.player.location,
         );
 
-        // 生成初始玩家选项
-        let options = self
-            .plot_engine
-            .generate_player_options(&initial_scene, &game_state.player.stats);
-        for option in options {
-            initial_scene.add_option(option);
+        if let Some(options) = opening_options {
+            for option in options {
+                initial_scene.add_option(option);
+            }
+        } else {
+            // 生成初始玩家选项
+            let options = self
+                .plot_engine
+                .generate_player_options(&initial_scene, &game_state.player.stats);
+            for option in options {
+                initial_scene.add_option(option);
+            }
         }
 
-        let plot_state = PlotState::new(initial_scene);
+        let mut plot_state = PlotState::new(initial_scene);
+        plot_state.append_segment(opening_text);
 
         // 存储剧情状态
         let mut plot_lock = self.plot_state.lock().unwrap();
@@ -242,6 +269,15 @@ impl GameEngine {
         let mut plot_lock = self.plot_state.lock().unwrap();
         *plot_lock = Some(new_plot_state);
         Ok(())
+    }
+
+    pub fn update_plot_settings(&self, settings: crate::plot_engine::PlotSettings) -> Result<PlotState> {
+        let mut plot_lock = self.plot_state.lock().unwrap();
+        let state = plot_lock
+            .as_mut()
+            .ok_or_else(|| anyhow!("剧情未初始化"))?;
+        state.settings = settings;
+        Ok(state.clone())
     }
 
 
@@ -329,6 +365,11 @@ impl GameEngine {
     ) {
         let mut log = self.event_log.lock().unwrap();
         log.log_event(timestamp, event_type, description, importance);
+        log.archive_if_needed(
+            EVENT_LOG_MAX_EVENTS,
+            EVENT_LOG_MAX_IMPORTANT,
+            EVENT_LOG_MAX_ARCHIVES,
+        );
     }
 
     fn snapshot_event_history(&self) -> Vec<crate::event_log::GameEvent> {
@@ -497,7 +538,7 @@ mod tests {
         // 验证剧情状态正确初始化
         assert_eq!(plot_state.current_scene.id, "start");
         assert!(plot_state.is_waiting_for_input);
-        assert!(plot_state.plot_history.is_empty());
+        assert!(!plot_state.plot_history.is_empty());
         assert!(plot_state.last_action_result.is_none());
 
         // 验证可以获取剧情状态
@@ -823,11 +864,11 @@ mod integration_tests {
         assert!(state
             .event_history
             .iter()
-            .any(|e| e.event_type == "story_event" && !e.description.is_empty()));
+            .any(|e| e.event_type.as_ref() == "story_event" && !e.description.is_empty()));
         assert!(state
             .event_history
             .iter()
-            .any(|e| e.event_type == "npc_reaction" && !e.description.is_empty()));
+            .any(|e| e.event_type.as_ref() == "npc_reaction" && !e.description.is_empty()));
     }
     #[test]
     fn test_load_updates_engine_state() {
