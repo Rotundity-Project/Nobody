@@ -9,8 +9,8 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 const DEFAULT_TIMEOUT_SECS: u64 = 30;
-const DEFAULT_CACHE_MAX_ENTRIES: usize = 256;
-const DEFAULT_CACHE_TTL_SECS: u64 = 300;
+const DEFAULT_CACHE_MAX_ENTRIES: usize = 512;
+const DEFAULT_CACHE_TTL_SECS: u64 = 600;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct LLMConfig {
@@ -139,7 +139,10 @@ impl LLMService {
             ));
         }
 
-        let max_tokens = request.max_tokens.unwrap_or(self.api_config.max_tokens);
+        let max_tokens = request
+            .max_tokens
+            .unwrap_or(self.api_config.max_tokens)
+            .min(self.api_config.max_tokens);
         if max_tokens == 0 {
             return Err(LLMServiceError::InvalidRequest(
                 "max_tokens must be greater than 0".to_string(),
@@ -154,10 +157,11 @@ impl LLMService {
         }
 
         let estimated_prompt_tokens = estimate_token_count(&request.prompt);
-        if estimated_prompt_tokens > max_tokens {
+        let prompt_limit = max_tokens.saturating_mul(64);
+        if estimated_prompt_tokens > prompt_limit {
             return Err(LLMServiceError::InvalidRequest(format!(
-                "estimated prompt tokens {} exceeds max_tokens {}",
-                estimated_prompt_tokens, max_tokens
+                "estimated prompt tokens {} exceeds prompt limit {}",
+                estimated_prompt_tokens, prompt_limit
             )));
         }
 
@@ -172,7 +176,8 @@ impl LLMService {
                 { "role": "user", "content": request.prompt }
             ],
             "max_tokens": max_tokens,
-            "temperature": temperature
+            "temperature": temperature,
+            "stream": false
         });
 
         let response = self
@@ -202,6 +207,13 @@ impl LLMService {
         self.with_cache(|cache| {
             cache.insert(request_hash.to_string(), response.clone());
         });
+    }
+
+    pub fn cache_response_for_request(&self, request: &LLMRequest, response: &LLMResponse) {
+        let max_tokens = request.max_tokens.unwrap_or(self.api_config.max_tokens);
+        let temperature = request.temperature.unwrap_or(self.api_config.temperature);
+        let request_hash = self.build_request_hash(&request.prompt, max_tokens, temperature);
+        self.cache_response(&request_hash, response);
     }
 
     pub fn get_cached_response(&self, request_hash: &str) -> Option<LLMResponse> {
@@ -441,8 +453,9 @@ mod tests {
     #[tokio::test]
     async fn test_generate_rejects_prompt_over_max_tokens() {
         let service = LLMService::new(valid_config()).unwrap();
+        let long_prompt = (0..300).map(|_| "token").collect::<Vec<_>>().join(" ");
         let request = LLMRequest {
-            prompt: "a b c d e f g h i j".to_string(),
+            prompt: long_prompt,
             max_tokens: Some(3),
             temperature: Some(0.7),
         };

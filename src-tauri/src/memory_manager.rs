@@ -31,7 +31,8 @@ impl MemoryManager {
             memory
                 .short_term
                 .sort_by(|a, b| b.importance.partial_cmp(&a.importance).unwrap_or(std::cmp::Ordering::Equal));
-            memory.short_term.truncate(self.short_term_limit);
+            let overflow = memory.short_term.split_off(self.short_term_limit);
+            memory.long_term.extend(overflow);
         }
 
         if memory.long_term.len() > self.long_term_limit {
@@ -40,6 +41,13 @@ impl MemoryManager {
                 .sort_by(|a, b| b.importance.partial_cmp(&a.importance).unwrap_or(std::cmp::Ordering::Equal));
             memory.long_term.truncate(self.long_term_limit);
         }
+
+        memory.long_term.sort_by(|a, b| {
+            b.importance
+                .partial_cmp(&a.importance)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+        memory.long_term.dedup_by(|a, b| a.timestamp == b.timestamp && a.event == b.event);
 
         memory.important_events.sort_by(|a, b| {
             b.importance

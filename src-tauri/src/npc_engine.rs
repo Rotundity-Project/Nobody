@@ -1,4 +1,4 @@
-﻿use crate::llm_service::{LLMRequest, LLMService};
+use crate::llm_service::{LLMRequest, LLMResponse, LLMService};
 use crate::memory_manager::MemoryManager;
 use crate::npc::{InteractionRecord, MemoryEntry, NPC, Relationship};
 use crate::prompt_builder::{PromptBuilder, PromptConstraints, PromptContext, PromptTemplate};
@@ -139,11 +139,25 @@ impl NPCEngine {
     }
 
     pub async fn autonomous_npc_actions(&self) -> Vec<NPCDecision> {
+        let npc_ids = self.npcs.keys().cloned().collect::<Vec<String>>();
+        if npc_ids.is_empty() {
+            return Vec::new();
+        }
+
+        if let Some(llm_service) = &self.llm_service {
+            if let Ok(batch) = self
+                .generate_npc_decisions_batch(llm_service, &npc_ids, "no player input")
+                .await
+            {
+                return batch;
+            }
+        }
+
         let mut decisions = Vec::new();
-        for npc_id in self.npcs.keys() {
-            let fallback = self.generate_fallback_decision(npc_id, "no player input");
+        for npc_id in npc_ids {
+            let fallback = self.generate_fallback_decision(&npc_id, "no player input");
             let decision = if self.llm_service.is_some() {
-                self.generate_npc_decision(npc_id, "no player input")
+                self.generate_npc_decision(&npc_id, "no player input")
                     .await
                     .unwrap_or(fallback)
             } else {
@@ -181,40 +195,7 @@ impl NPCEngine {
         npc: &NPC,
         situation: &str,
     ) -> Result<NPCDecision, String> {
-        let context = PromptContext {
-            scene: Some(situation.to_string()),
-            location: None,
-            actor_name: Some(npc.name.clone()),
-            actor_realm: Some(npc.stats.cultivation_realm.name.clone()),
-            actor_combat_power: Some(npc.stats.combat_power),
-            history_events: npc
-                .memory
-                .short_term
-                .iter()
-                .rev()
-                .take(5)
-                .map(|m| m.event.clone())
-                .collect(),
-            world_setting_summary: Some("Cultivation world with strict numerical rules".to_string()),
-        };
-        let constraints = PromptConstraints {
-            numerical_rules: vec![
-                "action must not violate combat power realism".to_string(),
-                "decision should be executable in current realm".to_string(),
-            ],
-            world_rules: vec![
-                "respond in strict JSON only".to_string(),
-                "json keys: action, reason".to_string(),
-            ],
-            output_schema_hint: Some("{\"action\":\"string\",\"reason\":\"string\"}".to_string()),
-        };
-
-        let prompt = self.prompt_builder.build_prompt_with_token_limit(
-            PromptTemplate::NpcDecision,
-            &context,
-            &constraints,
-            400,
-        );
+        let prompt = self.build_npc_decision_prompt(npc, situation);
         let response = llm_service
             .generate(LLMRequest {
                 prompt,
@@ -252,6 +233,202 @@ impl NPCEngine {
             action: action.to_string(),
             reason: reason.to_string(),
         })
+    }
+
+    fn build_npc_decision_prompt(&self, npc: &NPC, situation: &str) -> String {
+        let context = PromptContext {
+            scene: Some(situation.to_string()),
+            location: None,
+            actor_name: Some(npc.name.clone()),
+            actor_realm: Some(npc.stats.cultivation_realm.name.clone()),
+            actor_combat_power: Some(npc.stats.combat_power),
+            history_events: npc
+                .memory
+                .short_term
+                .iter()
+                .rev()
+                .take(5)
+                .map(|m| m.event.clone())
+                .collect(),
+            world_setting_summary: Some("Cultivation world with strict numerical rules".to_string()),
+        };
+        let constraints = PromptConstraints {
+            numerical_rules: vec![
+                "action must not violate combat power realism".to_string(),
+                "decision should be executable in current realm".to_string(),
+            ],
+            world_rules: vec![
+                "respond in strict JSON only".to_string(),
+                "json keys: action, reason".to_string(),
+            ],
+            output_schema_hint: Some("{\"action\":\"string\",\"reason\":\"string\"}".to_string()),
+        };
+
+        self.prompt_builder.build_prompt_with_token_limit(
+            PromptTemplate::NpcDecision,
+            &context,
+            &constraints,
+            400,
+        )
+    }
+
+    async fn generate_npc_decisions_batch(
+        &self,
+        llm_service: &LLMService,
+        npc_ids: &[String],
+        situation: &str,
+    ) -> Result<Vec<NPCDecision>, String> {
+        let mut npc_summaries = Vec::new();
+        let mut npc_refs = Vec::new();
+
+        for npc_id in npc_ids {
+            let Some(npc) = self.npcs.get(npc_id) else { continue };
+            npc_summaries.push(format!(
+                "npc_id: {}, name: {}, realm: {}, combat_power: {}, traits: {:?}",
+                npc.id,
+                npc.name,
+                npc.stats.cultivation_realm.name,
+                npc.stats.combat_power,
+                npc.personality.traits
+            ));
+            npc_refs.push(npc);
+        }
+
+        if npc_summaries.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let prompt = self.build_npc_batch_prompt(&npc_summaries, situation);
+
+        let response = llm_service
+            .generate(LLMRequest {
+                prompt: prompt.clone(),
+                max_tokens: Some(350),
+                temperature: Some(0.6),
+            })
+            .await
+            .map_err(|e| e.to_string())?;
+
+        let parsed: Value = serde_json::from_str(&response.text).map_err(|e| e.to_string())?;
+        let arr = parsed
+            .as_array()
+            .ok_or_else(|| "batch decision must be JSON array".to_string())?;
+
+        let mut decisions = Vec::new();
+        let mut seen = HashMap::new();
+        for item in arr {
+            let npc_id = item
+                .get("npc_id")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string();
+            if npc_id.is_empty() || seen.contains_key(&npc_id) {
+                continue;
+            }
+            let action = item
+                .get("action")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string();
+            let reason = item
+                .get("reason")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string();
+
+            if action.is_empty() {
+                continue;
+            }
+
+            let decision = NPCDecision {
+                npc_id: npc_id.clone(),
+                action,
+                reason,
+            };
+            seen.insert(npc_id.clone(), decision.clone());
+            decisions.push(decision);
+        }
+
+        for npc in npc_refs {
+            if let Some(decision) = seen.get(&npc.id) {
+                self.prewarm_npc_decision_cache(llm_service, npc, situation, decision);
+            }
+        }
+
+        if decisions.len() < npc_ids.len() {
+            for npc_id in npc_ids {
+                if !seen.contains_key(npc_id) {
+                    decisions.push(self.generate_fallback_decision(npc_id, situation));
+                }
+            }
+        }
+
+        Ok(decisions)
+    }
+
+    fn build_npc_batch_prompt(&self, npc_summaries: &[String], situation: &str) -> String {
+        let context = PromptContext {
+            scene: Some(situation.to_string()),
+            location: None,
+            actor_name: None,
+            actor_realm: None,
+            actor_combat_power: None,
+            history_events: Vec::new(),
+            world_setting_summary: Some(format!(
+                "Generate decisions for each npc in list. NPCs: {}",
+                npc_summaries.join(" | ")
+            )),
+        };
+        let constraints = PromptConstraints {
+            numerical_rules: vec![
+                "action must not violate combat power realism".to_string(),
+                "decision should be executable in current realm".to_string(),
+            ],
+            world_rules: vec![
+                "respond in strict JSON only".to_string(),
+                "return an array of objects".to_string(),
+                "each object keys: npc_id, action, reason".to_string(),
+            ],
+            output_schema_hint: Some(
+                "[{\"npc_id\":\"string\",\"action\":\"string\",\"reason\":\"string\"}]".to_string(),
+            ),
+        };
+
+        self.prompt_builder.build_prompt_with_token_limit(
+            PromptTemplate::NpcDecision,
+            &context,
+            &constraints,
+            600,
+        )
+    }
+
+    fn prewarm_npc_decision_cache(
+        &self,
+        llm_service: &LLMService,
+        npc: &NPC,
+        situation: &str,
+        decision: &NPCDecision,
+    ) {
+        let prompt = self.build_npc_decision_prompt(npc, situation);
+        let response = LLMResponse {
+            text: format!(
+                "{{\"action\":\"{}\",\"reason\":\"{}\"}}",
+                decision.action, decision.reason
+            ),
+            model: Some(llm_service.api_config.model.clone()),
+            finish_reason: Some("prewarm".to_string()),
+            prompt_tokens: None,
+            completion_tokens: None,
+            total_tokens: None,
+        };
+        llm_service.cache_response_for_request(
+            &LLMRequest {
+                prompt,
+                max_tokens: Some(200),
+                temperature: Some(0.6),
+            },
+            &response,
+        );
     }
 
     fn generate_fallback_decision(&self, npc_id: &str, situation: &str) -> NPCDecision {
@@ -374,6 +551,7 @@ fn clamp_i32(value: i32, min: i32, max: i32) -> i32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::llm_service::LLMConfig;
     use crate::models::{CultivationRealm, Element, Grade, Lifespan, SpiritualRoot};
     use crate::npc::{CoreValue, Goal, NPCMemory, Personality, PersonalityTrait};
 
@@ -488,6 +666,75 @@ mod tests {
         let actions = engine.autonomous_npc_actions().await;
         assert_eq!(actions.len(), 2);
         assert!(actions.iter().all(|a| !a.action.is_empty()));
+    }
+
+    #[test]
+    fn test_batch_prompt_is_shorter_than_individual_sum() {
+        let mut npcs = HashMap::new();
+        npcs.insert("a".to_string(), test_npc("a", true));
+        npcs.insert("b".to_string(), test_npc("b", false));
+        npcs.insert("c".to_string(), test_npc("c", false));
+        let engine = NPCEngine::with_npcs(npcs);
+
+        let npc_list = vec![
+            engine.get_npc("a").unwrap(),
+            engine.get_npc("b").unwrap(),
+            engine.get_npc("c").unwrap(),
+        ];
+        let situation = "outer sect patrol request";
+        let mut individual_len = 0usize;
+        let mut summaries = Vec::new();
+        for npc in &npc_list {
+            individual_len += engine.build_npc_decision_prompt(npc, situation).len();
+            summaries.push(format!(
+                "npc_id: {}, name: {}, realm: {}, combat_power: {}, traits: {:?}",
+                npc.id,
+                npc.name,
+                npc.stats.cultivation_realm.name,
+                npc.stats.combat_power,
+                npc.personality.traits
+            ));
+        }
+
+        let batch_prompt = engine.build_npc_batch_prompt(&summaries, situation);
+        assert!(batch_prompt.len() < individual_len);
+    }
+
+    #[tokio::test]
+    async fn test_prewarm_cache_allows_cached_generate() {
+        let llm_service = LLMService::new(LLMConfig {
+            endpoint: "https://example.com/v1/chat/completions".to_string(),
+            api_key: "test-key".to_string(),
+            model: "gpt-test".to_string(),
+            max_tokens: 256,
+            temperature: 0.6,
+        })
+        .unwrap();
+
+        let mut engine = NPCEngine::new().with_llm_service(llm_service);
+        engine.insert_npc(test_npc("a", false));
+        let npc = engine.get_npc("a").unwrap().clone();
+
+        let decision = NPCDecision {
+            npc_id: npc.id.clone(),
+            action: "observe_and_plan".to_string(),
+            reason: "prewarm".to_string(),
+        };
+        let situation = "no player input";
+        let service = engine.llm_service.as_ref().unwrap();
+        engine.prewarm_npc_decision_cache(service, &npc, situation, &decision);
+
+        let prompt = engine.build_npc_decision_prompt(&npc, situation);
+        let response = service
+            .generate(LLMRequest {
+                prompt,
+                max_tokens: Some(200),
+                temperature: Some(0.6),
+            })
+            .await
+            .unwrap();
+
+        assert!(response.text.contains("observe_and_plan"));
     }
 }
 

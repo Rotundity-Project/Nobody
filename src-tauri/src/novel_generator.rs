@@ -229,8 +229,8 @@ mod tests {
         GameEvent {
             id,
             timestamp,
-            event_type: event_type.to_string(),
-            description: description.to_string(),
+            event_type: std::sync::Arc::from(event_type),
+            description: std::sync::Arc::from(description),
             importance: EventImportance::Normal,
         }
     }
@@ -302,8 +302,8 @@ mod property_tests {
         GameEvent {
             id,
             timestamp,
-            event_type: "event".to_string(),
-            description: desc,
+            event_type: std::sync::Arc::from("event"),
+            description: std::sync::Arc::from(desc),
             importance: EventImportance::Normal,
         }
     }
