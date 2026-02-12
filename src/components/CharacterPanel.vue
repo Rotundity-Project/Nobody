@@ -1,44 +1,44 @@
 <template>
-  <div class="w-80 bg-slate-800 border-r border-slate-700 p-6 overflow-y-auto">
-    <h3 class="text-xl font-bold mb-4 text-purple-400">角色信息</h3>
-    
+  <div class="w-full lg:w-80 bg-slate-900/80 border-b lg:border-b-0 lg:border-r border-slate-700 p-6 overflow-y-auto backdrop-blur">
+    <h3 class="text-xl font-display mb-4 text-amber-200">角色信息</h3>
+
     <div v-if="character" class="space-y-4">
-      <!-- Basic Info -->
       <div class="pb-4 border-b border-slate-700">
-        <p class="text-gray-400 text-sm">姓名</p>
+        <p class="text-slate-400 text-sm">姓名</p>
         <p class="text-white font-medium text-lg">{{ character.name }}</p>
       </div>
 
-      <!-- Cultivation Realm -->
       <div>
-        <p class="text-gray-400 text-sm">修为境界</p>
+        <p class="text-slate-400 text-sm">修为境界</p>
         <p class="text-white font-medium">{{ character.stats.cultivation_realm.name }}</p>
-        <p class="text-gray-500 text-xs">等级 {{ character.stats.cultivation_realm.level }}.{{ character.stats.cultivation_realm.sub_level }}</p>
+        <p class="text-slate-500 text-xs">
+          等级 {{ character.stats.cultivation_realm.level }}.{{ character.stats.cultivation_realm.sub_level }}
+        </p>
       </div>
 
-      <!-- Spiritual Root -->
       <div>
-        <p class="text-gray-400 text-sm">灵根</p>
+        <p class="text-slate-400 text-sm">灵根</p>
         <div class="flex items-center gap-2">
           <span class="text-white font-medium">{{ character.stats.spiritual_root.element }}</span>
-          <span 
+          <span
             class="px-2 py-0.5 rounded text-xs font-medium"
             :class="getRootGradeClass(character.stats.spiritual_root.grade)"
           >
             {{ character.stats.spiritual_root.grade }}
           </span>
         </div>
-        <p class="text-gray-500 text-xs">亲和度: {{ character.stats.spiritual_root.affinity }}%</p>
+        <p class="text-slate-500 text-xs">亲和度 {{ character.stats.spiritual_root.affinity }}%</p>
       </div>
 
-      <!-- Lifespan -->
       <div>
-        <p class="text-gray-400 text-sm">寿元</p>
+        <p class="text-slate-400 text-sm">寿元</p>
         <div class="flex items-center gap-2">
-          <p class="text-white font-medium">{{ character.stats.lifespan.current_age }} / {{ character.stats.lifespan.max_age }}</p>
+          <p class="text-white font-medium">
+            {{ character.stats.lifespan.current_age }} / {{ character.stats.lifespan.max_age }}
+          </p>
         </div>
         <div class="w-full bg-slate-700 rounded-full h-2 mt-1">
-          <div 
+          <div
             class="h-2 rounded-full transition-all duration-300"
             :class="getLifespanBarClass(character.stats.lifespan)"
             :style="{ width: `${getLifespanPercentage(character.stats.lifespan)}%` }"
@@ -46,18 +46,16 @@
         </div>
       </div>
 
-      <!-- Combat Power -->
       <div>
-        <p class="text-gray-400 text-sm">战斗力</p>
+        <p class="text-slate-400 text-sm">战斗力</p>
         <p class="text-white font-medium">{{ character.stats.combat_power.toLocaleString() }}</p>
       </div>
 
-      <!-- Techniques -->
       <div v-if="character.stats.techniques.length > 0">
-        <p class="text-gray-400 text-sm mb-2">功法</p>
+        <p class="text-slate-400 text-sm mb-2">功法</p>
         <div class="space-y-1">
-          <div 
-            v-for="(technique, index) in character.stats.techniques" 
+          <div
+            v-for="(technique, index) in character.stats.techniques"
             :key="index"
             class="text-sm text-white bg-slate-700 px-2 py-1 rounded"
           >
@@ -66,18 +64,16 @@
         </div>
       </div>
 
-      <!-- Location -->
       <div>
-        <p class="text-gray-400 text-sm">位置</p>
+        <p class="text-slate-400 text-sm">位置</p>
         <p class="text-white font-medium">{{ character.location }}</p>
       </div>
 
-      <!-- Inventory -->
       <div v-if="character.inventory.length > 0">
-        <p class="text-gray-400 text-sm mb-2">物品</p>
+        <p class="text-slate-400 text-sm mb-2">物品</p>
         <div class="space-y-1">
-          <div 
-            v-for="(item, index) in character.inventory" 
+          <div
+            v-for="(item, index) in character.inventory"
             :key="index"
             class="text-sm text-white bg-slate-700 px-2 py-1 rounded"
           >
@@ -87,7 +83,7 @@
       </div>
     </div>
 
-    <div v-else class="text-center text-gray-400">
+    <div v-else class="text-center text-slate-400">
       <p>暂无角色数据</p>
     </div>
   </div>

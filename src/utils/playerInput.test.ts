@@ -4,6 +4,7 @@ import type { PlayerOption } from '../types/game';
 import {
   createFreeTextAction,
   createOptionAction,
+  createContinueAction,
   toggleInputMode,
   validateFreeTextInput,
 } from './playerInput';
@@ -36,5 +37,11 @@ describe('playerInput utils', () => {
     expect(action.action_type).toBe(ActionType.SelectedOption);
     expect(action.selected_option_id).toBe(2);
     expect(action.content).toBe(option.description);
+  });
+
+  it('builds continue payload', () => {
+    const action = createContinueAction();
+    expect(action.action_type).toBe(ActionType.FreeText);
+    expect(action.meta?.action_kind).toBe('continue');
   });
 });
