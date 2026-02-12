@@ -1,35 +1,41 @@
-# Script Guide
+# 剧本编写指南
 
-## 1. Location
-Place script files under `example_scripts/` or any local path, then load with `Custom` in UI.
+## 1. 文件放置位置
 
-## 2. File Type
-- JSON
-- UTF-8 recommended
+推荐将剧本放在 `example_scripts/`，也可放在任意本地目录，然后在 UI 中通过 `自定义剧本` 加载。
 
-## 3. Root Schema
+## 2. 文件格式
+
+- 必须为 JSON
+- 推荐 UTF-8 编码
+
+## 3. 顶层结构
+
 ```json
 {
   "id": "string",
   "name": "string",
   "script_type": "Custom",
-  "world_setting": { ... },
-  "initial_state": { ... }
+  "world_setting": {},
+  "initial_state": {}
 }
 ```
 
-## 4. Required Fields
-- `world_setting.cultivation_realms` must not be empty
-- `world_setting.locations` must not be empty
-- `initial_state.starting_location` must match one `locations[].id`
-- `initial_state.starting_age` must be between `10` and `100`
+## 4. 必填约束
 
-## 5. Enum Values
+- `world_setting.cultivation_realms` 不能为空
+- `world_setting.locations` 不能为空
+- `initial_state.starting_location` 必须匹配 `locations[].id`
+- `initial_state.starting_age` 必须在 `10..100` 之间
+
+## 5. 常见枚举值
+
 - `script_type`: `Custom` | `RandomGenerated` | `ExistingNovel`
 - `element`: `Fire` | `Water` | `Wood` | `Metal` | `Earth`
 - `grade`: `Heavenly` | `Pseudo` | `Triple` | `Double`
 
-## 6. Minimal Valid Example
+## 6. 最小可用示例
+
 ```json
 {
   "id": "minimal_script",
@@ -57,9 +63,9 @@ Place script files under `example_scripts/` or any local path, then load with `C
 }
 ```
 
-## 7. Example Files
+## 7. 参考样例
+
 - `example_scripts/sect_apprentice.json`
 - `example_scripts/wandering_sword.json`
-- Existing references:
-  - `example_scripts/test_script.json`
-  - `example_scripts/test_script_cn.json`
+- `example_scripts/test_script.json`
+- `example_scripts/test_script_cn.json`

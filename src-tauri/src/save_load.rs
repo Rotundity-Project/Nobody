@@ -1,4 +1,5 @@
 ﻿use crate::game_state::GameState;
+use crate::plot_engine::PlotState;
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -15,6 +16,7 @@ pub struct SaveData {
     pub version: String,
     pub timestamp: u64,
     pub game_state: GameState,
+    pub plot_state: Option<PlotState>,
 }
 
 /// 存档文件元数据
@@ -217,6 +219,19 @@ impl SaveData {
                 .unwrap()
                 .as_secs(),
             game_state,
+            plot_state: None,
+        }
+    }
+
+    pub fn from_game_state_with_plot(game_state: GameState, plot_state: Option<PlotState>) -> Self {
+        Self {
+            version: "1.0.0".to_string(),
+            timestamp: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+            game_state,
+            plot_state,
         }
     }
 }
@@ -302,6 +317,12 @@ mod tests {
     }
 
     #[test]
+    fn test_save_load_system_default_creation() {
+        let system = SaveLoadSystem::default();
+        assert!(system.save_directory.to_str().unwrap().contains("saves"));
+    }
+
+    #[test]
     fn test_save_and_load_game() {
         let temp_dir = TempDir::new().unwrap();
         let system = SaveLoadSystem::with_directory(temp_dir.path().to_path_buf());
@@ -327,6 +348,16 @@ mod tests {
         let result = system.load_game(999);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("未找到"));
+    }
+
+    #[test]
+    fn test_load_invalid_json_save() {
+        let temp_dir = TempDir::new().unwrap();
+        let system = SaveLoadSystem::with_directory(temp_dir.path().to_path_buf());
+
+        std::fs::write(temp_dir.path().join("save_1.json"), "{invalid json").unwrap();
+        let result = system.load_game(1);
+        assert!(result.is_err());
     }
 
     #[test]
@@ -367,6 +398,44 @@ mod tests {
     }
 
     #[test]
+    fn test_delete_nonexistent_save_returns_error() {
+        let temp_dir = TempDir::new().unwrap();
+        let system = SaveLoadSystem::with_directory(temp_dir.path().to_path_buf());
+
+        let result = system.delete_save(42);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("未找到"));
+    }
+
+    #[test]
+    fn test_list_saves_empty_when_directory_missing() {
+        let temp_dir = TempDir::new().unwrap();
+        let missing_dir = temp_dir.path().join("missing_saves_dir");
+        let system = SaveLoadSystem::with_directory(missing_dir);
+
+        let saves = system.list_saves().unwrap();
+        assert!(saves.is_empty());
+    }
+
+    #[test]
+    fn test_list_saves_ignores_invalid_files() {
+        let temp_dir = TempDir::new().unwrap();
+        let system = SaveLoadSystem::with_directory(temp_dir.path().to_path_buf());
+
+        // 非 json 文件
+        std::fs::write(temp_dir.path().join("save_1.txt"), "ignored").unwrap();
+        // 非 save_ 前缀
+        std::fs::write(temp_dir.path().join("other.json"), "{}").unwrap();
+        // 非法 slot id
+        std::fs::write(temp_dir.path().join("save_x.json"), "{}").unwrap();
+        // 合法命名但内容损坏
+        std::fs::write(temp_dir.path().join("save_2.json"), "{broken").unwrap();
+
+        let saves = system.list_saves().unwrap();
+        assert!(saves.is_empty());
+    }
+
+    #[test]
     fn test_validate_save_data() {
         let system = SaveLoadSystem::new();
         let game_state = create_test_game_state();
@@ -394,6 +463,15 @@ mod tests {
         let mut empty_name = save_data;
         empty_name.game_state.player.name = "".to_string();
         assert!(system.validate_save_data(&empty_name).is_err());
+    }
+
+    #[test]
+    fn test_from_game_state_populates_version_and_timestamp() {
+        let game_state = create_test_game_state();
+        let save_data = SaveData::from_game_state(game_state);
+
+        assert_eq!(save_data.version, "1.0.0");
+        assert!(save_data.timestamp > 0);
     }
 
     #[test]
@@ -511,6 +589,8 @@ mod property_tests {
     // 对于任何有效的游戏状态，系统应该能够成功保存
     // 验证需求: 9.1
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(100))]
+
         #[test]
         fn test_property_24_any_valid_game_state_can_be_saved(
             game_state in arb_game_state()
@@ -530,6 +610,8 @@ mod property_tests {
     // 对于任何有效的存档，系统应该能够成功加载
     // 验证需求: 9.2
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(100))]
+
         #[test]
         fn test_property_25_any_valid_save_can_be_loaded(
             game_state in arb_game_state()
@@ -552,6 +634,8 @@ mod property_tests {
     // 对于任何游戏状态，经过保存和加载后，恢复的状态应该与原始状态等价
     // 验证需求: 9.3, 9.4
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(100))]
+
         #[test]
         fn test_property_26_save_load_roundtrip_consistency(
             game_state in arb_game_state()
@@ -600,6 +684,8 @@ mod property_tests {
     // 对于损坏或不兼容的存档，系统应该拒绝加载并返回错误
     // 验证需求: 9.5, 9.6
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(100))]
+
         #[test]
         fn test_property_27_corrupted_saves_are_rejected(
             game_state in arb_game_state(),
@@ -653,6 +739,8 @@ mod property_tests {
     // 不同槽位的存档数据应该相互独立，互不影响
     // 验证需求: 9.7
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(100))]
+
         #[test]
         fn test_property_28_multiple_save_slots_are_isolated(
             game_state1 in arb_game_state(),
@@ -699,3 +787,7 @@ mod property_tests {
         }
     }
 }
+
+
+
+

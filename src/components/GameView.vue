@@ -1,7 +1,5 @@
 ﻿<template>
-  <div class="min-h-screen text-white flex flex-col lg:flex-row">
-    <CharacterPanel :character="gameStore.playerCharacter" />
-
+  <div class="min-h-screen text-white flex flex-col">
     <div class="flex-1 flex flex-col">
       <div class="bg-slate-900/80 border-b border-slate-700 px-6 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between backdrop-blur">
         <div class="flex items-center gap-4">
@@ -44,6 +42,12 @@
             剧情设置
           </button>
           <button
+            @click="showCharacterInfo = true"
+            class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors duration-200"
+          >
+            角色信息
+          </button>
+          <button
             @click="showSaveDialog = true"
             :disabled="!gameStore.isGameInitialized"
             class="px-4 py-2 rounded-lg transition-colors duration-200"
@@ -80,6 +84,12 @@
               :paragraphs="currentChapterParagraphs"
               :scroll-element="storyScrollRef"
             />
+            <p
+              v-if="optionSourceLabel"
+              class="mt-3 text-xs text-slate-500 font-mono"
+            >
+              选项来源：{{ optionSourceLabel }}
+            </p>
           </div>
 
           <div v-if="!gameStore.isGameInitialized" class="text-center text-gray-400">
@@ -168,6 +178,15 @@
         </div>
       </div>
 
+      <div class="border-t border-slate-800 bg-slate-950/70 p-6">
+        <div class="max-w-3xl mx-auto">
+          <NovelExporter
+            :is-game-running="gameStore.isGameInitialized"
+            :event-count="gameStore.gameState?.event_history?.length ?? 0"
+          />
+        </div>
+      </div>
+
       <div v-if="gameStore.error" class="p-4 bg-red-900 bg-opacity-50 border-t border-red-500">
         <div class="max-w-3xl mx-auto">
           <p class="text-red-200">{{ gameStore.error }}</p>
@@ -202,6 +221,23 @@
       @close="showStorySettings = false"
       @save="applyStorySettings"
     />
+    <div
+      v-if="showCharacterInfo"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      @click.self="showCharacterInfo = false"
+    >
+      <div class="w-full max-w-md">
+        <CharacterPanel :character="gameStore.playerCharacter" />
+        <div class="mt-3 text-right">
+          <button
+            class="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white transition-colors"
+            @click="showCharacterInfo = false"
+          >
+            关闭
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -213,6 +249,7 @@ import AudioControlPanel from './AudioControlPanel.vue';
 import CharacterPanel from './CharacterPanel.vue';
 import LLMConfigDialog from './LLMConfigDialog.vue';
 import LoadingIndicator from './LoadingIndicator.vue';
+import NovelExporter from './NovelExporter.vue';
 import SaveLoadDialog from './SaveLoadDialog.vue';
 import StorySettingsDialog from './StorySettingsDialog.vue';
 import type { PlayerOption } from '../types/game';
@@ -237,6 +274,7 @@ const showLoadDialog = ref(false);
 const showLLMDialog = ref(false);
 const showAudioPanel = ref(false);
 const showStorySettings = ref(false);
+const showCharacterInfo = ref(false);
 const storySettings = ref<StorySettings>(getStorySettings());
 const inputMode = ref<'options' | 'freeText'>('options');
 const freeTextInput = ref('');
@@ -268,6 +306,20 @@ const lastChapterSummary = computed(() => {
 const shouldShowRecap = computed(
   () => storySettings.value.recap_enabled && lastChapterSummary.value.length > 0
 );
+const optionSourceLabel = computed(() => {
+  const source = gameStore.plotState?.last_option_generation_source;
+  if (!source) {
+    return '';
+  }
+  const labels: Record<string, string> = {
+    llm_structured: 'LLM-结构化',
+    llm_regenerated: 'LLM-再生成',
+    rule_fallback: '规则回退',
+    previous_reused: '复用上一组选项',
+    not_waiting_for_input: '当前无需输入',
+  };
+  return labels[source] ?? source;
+});
 
 const handleOptionSelect = async (option: PlayerOption) => {
   try {

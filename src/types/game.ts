@@ -140,6 +140,8 @@ export interface PlotState {
   plot_history: string[];
   is_waiting_for_input: boolean;
   last_action_result: ActionResult | null;
+  last_generation_diagnostics?: string | null;
+  last_option_generation_source?: string | null;
   settings: PlotSettings;
   current_chapter: ChapterState;
   chapters: ChapterState[];

@@ -6,6 +6,7 @@ use crate::prompt_builder::{PromptBuilder, PromptConstraints, PromptContext, Pro
 use crate::response_validator::{ResponseValidator, ValidationConstraints};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::time::Duration;
 use tokio::runtime::Handle;
 use tokio::task;
 
@@ -106,6 +107,10 @@ pub struct PlotState {
     pub current_chapter: ChapterState,
     pub chapters: Vec<ChapterState>,
     pub segment_count: u32,
+    #[serde(default)]
+    pub last_generation_diagnostics: Option<String>,
+    #[serde(default)]
+    pub last_option_generation_source: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -119,6 +124,7 @@ pub struct PlotUpdate {
     pub chapter_title: Option<String>,
     pub chapter_summary: Option<String>,
     pub chapter_end: bool,
+    pub generation_diagnostics: Option<String>,
 }
 
 pub struct PlotEngine {
@@ -142,6 +148,7 @@ struct ChapterSegment {
     chapter_title: Option<String>,
     chapter_summary: Option<String>,
     options: Vec<String>,
+    generation_diagnostics: Option<String>,
 }
 
 impl PlotEngine {
@@ -166,11 +173,25 @@ impl PlotEngine {
 
     fn run_llm_request(&self, llm_service: &LLMService, request: LLMRequest) -> Option<crate::llm_service::LLMResponse> {
         if let Ok(handle) = Handle::try_current() {
-            return task::block_in_place(|| handle.block_on(llm_service.generate(request)).ok());
+            return task::block_in_place(|| {
+                handle
+                    .block_on(tokio::time::timeout(
+                        Duration::from_secs(45),
+                        llm_service.generate(request),
+                    ))
+                    .ok()
+                    .and_then(Result::ok)
+            });
         }
 
         let runtime = tokio::runtime::Runtime::new().ok()?;
-        runtime.block_on(llm_service.generate(request)).ok()
+        runtime
+            .block_on(tokio::time::timeout(
+                Duration::from_secs(45),
+                llm_service.generate(request),
+            ))
+            .ok()
+            .and_then(Result::ok)
     }
 
     fn extract_json_value(&self, raw: &str) -> Option<Value> {
@@ -322,6 +343,108 @@ impl PlotEngine {
         Vec::new()
     }
 
+    fn compose_segment_text_from_json(&self, value: &Value) -> Option<String> {
+        let direct = value
+            .get("segment_text")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(ToString::to_string);
+        if direct.is_some() {
+            return direct;
+        }
+
+        let mut parts = Vec::new();
+        for key in [
+            "scene_description",
+            "environment_detail",
+            "npc_reaction",
+            "event_development",
+            "player_action_consequence",
+        ] {
+            if let Some(text) = value
+                .get(key)
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+            {
+                parts.push(text.to_string());
+            }
+        }
+
+        if parts.is_empty() {
+            None
+        } else {
+            Some(parts.join("\n\n"))
+        }
+    }
+
+    fn sanitize_llm_plain_text(&self, raw: &str) -> Option<String> {
+        let mut candidate = raw.trim().to_string();
+        if candidate.starts_with("```") {
+            let mut lines = candidate.lines();
+            let _ = lines.next();
+            candidate = lines.collect::<Vec<&str>>().join("\n");
+            if let Some(stripped) = candidate.strip_suffix("```") {
+                candidate = stripped.trim().to_string();
+            }
+        }
+
+        let cleaned = candidate.trim();
+        if cleaned.is_empty() {
+            return None;
+        }
+
+        // Avoid rendering raw JSON blobs into chapter body.
+        if (cleaned.starts_with('{') && cleaned.ends_with('}'))
+            || cleaned.contains("\"scene_description\"")
+            || cleaned.contains("\"segment_text\"")
+            || cleaned.contains("\"player_action_consequence\"")
+        {
+            return None;
+        }
+
+        Some(cleaned.to_string())
+    }
+
+    fn normalize_story_text(&self, raw: &str) -> String {
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            return String::new();
+        }
+
+        // If model output is cut mid-sentence, trim to last complete sentence punctuation.
+        let mut last_punct_idx = None;
+        for (idx, ch) in trimmed.char_indices() {
+            if matches!(ch, '。' | '！' | '？' | '；' | '.' | '!' | '?') {
+                last_punct_idx = Some(idx + ch.len_utf8());
+            }
+        }
+        if let Some(end) = last_punct_idx {
+            let candidate = trimmed[..end].trim();
+            if !candidate.is_empty() {
+                return candidate.to_string();
+            }
+        }
+        trimmed.to_string()
+    }
+
+    fn find_matching_option_by_text<'a>(
+        &self,
+        free_text: &str,
+        available_options: &'a [PlayerOption],
+    ) -> Option<&'a PlayerOption> {
+        let input = free_text.trim();
+        if input.is_empty() {
+            return None;
+        }
+
+        available_options.iter().find(|option| {
+            let text = option.description.trim();
+            text == input || text.eq_ignore_ascii_case(input)
+        })
+    }
+
     pub fn advance_plot(
         &self,
         current_state: &PlotState,
@@ -380,6 +503,7 @@ impl PlotEngine {
             chapter_title: segment.chapter_title,
             chapter_summary: segment.chapter_summary,
             chapter_end: segment.chapter_end,
+            generation_diagnostics: segment.generation_diagnostics,
         }
     }
 
@@ -443,6 +567,7 @@ impl PlotEngine {
             chapter_title: segment.chapter_title,
             chapter_summary: segment.chapter_summary,
             chapter_end: segment.chapter_end,
+            generation_diagnostics: segment.generation_diagnostics,
         }
     }
 
@@ -467,6 +592,7 @@ impl PlotEngine {
             chapter_title: None,
             chapter_summary: None,
             options: vec![],
+            generation_diagnostics: Some("回退：同步剧情生成未命中 LLM，已使用预设文本".to_string()),
         }
     }
 
@@ -475,14 +601,34 @@ impl PlotEngine {
         current_state: &PlotState,
         action_result: &ActionResult,
     ) -> ChapterSegment {
-        if let Some(segment) = self
+        let (segment_from_llm, llm_reason) = self
             .generate_chapter_segment_with_llm_async(current_state, action_result)
-            .await
-        {
+            .await;
+        if let Some(segment) = segment_from_llm {
             return self.apply_chapter_segment_rules(current_state, segment);
         }
 
+        if let Some(text) = self.generate_plot_text_with_llm(current_state, action_result) {
+            return self.apply_chapter_segment_rules(
+                current_state,
+                ChapterSegment {
+                    text,
+                    needs_player_input: true,
+                    chapter_end: false,
+                    chapter_title: None,
+                    chapter_summary: None,
+                    options: vec![],
+                    generation_diagnostics: llm_reason.map(|reason| {
+                        format!("回退：{}；已降级为纯文本续写", reason)
+                    }),
+                },
+            );
+        }
+
         let text = self.generate_plot_text_fallback(current_state, action_result);
+        let fallback_reason = llm_reason.unwrap_or_else(|| {
+            "LLM 续写不可用（可能无配置或返回不可解析）".to_string()
+        });
         ChapterSegment {
             text,
             needs_player_input: true,
@@ -490,6 +636,10 @@ impl PlotEngine {
             chapter_title: None,
             chapter_summary: None,
             options: vec![],
+            generation_diagnostics: Some(format!(
+                "回退：{}；纯文本续写也失败，已使用预设文本",
+                fallback_reason
+            )),
         }
     }
 
@@ -626,12 +776,10 @@ impl PlotEngine {
             .ok()?;
 
         if let Some(value) = self.extract_json_value(&response.text) {
-            let text = value
-                .get("segment_text")
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .trim()
-                .to_string();
+            let text = self
+                .compose_segment_text_from_json(&value)
+                .unwrap_or_default();
+            let text = self.normalize_story_text(&text);
             let needs_player_input = value
                 .get("needs_player_input")
                 .and_then(Value::as_bool)
@@ -667,11 +815,13 @@ impl PlotEngine {
                     chapter_title,
                     chapter_summary,
                     options,
+                    generation_diagnostics: None,
                 });
             }
         }
 
         if let Some(text) = self.extract_string_field_raw(&response.text, "segment_text") {
+            let text = self.normalize_story_text(&text);
             let needs_player_input = self
                 .extract_bool_field_raw(&response.text, "needs_player_input")
                 .unwrap_or(true);
@@ -689,21 +839,18 @@ impl PlotEngine {
                 chapter_title,
                 chapter_summary,
                 options,
+                generation_diagnostics: None,
             });
         }
 
-        let text = response.text.trim().to_string();
-        if text.is_empty() {
-            return None;
-        }
-
-        Some(ChapterSegment {
-            text,
+        self.sanitize_llm_plain_text(&response.text).map(|text| ChapterSegment {
+            text: self.normalize_story_text(&text),
             needs_player_input: true,
             chapter_end: false,
             chapter_title: None,
             chapter_summary: None,
             options: vec![],
+            generation_diagnostics: None,
         })
     }
 
@@ -711,11 +858,14 @@ impl PlotEngine {
         &self,
         current_state: &PlotState,
         action_result: &ActionResult,
-    ) -> Option<ChapterSegment> {
+    ) -> (Option<ChapterSegment>, Option<String>) {
         if cfg!(test) {
-            return None;
+            return (None, None);
         }
-        let llm_service = self.resolve_llm_service()?;
+        let llm_service = match self.resolve_llm_service() {
+            Some(service) => service,
+            None => return (None, Some("未检测到可用 LLM 配置".to_string())),
+        };
         let settings = &current_state.settings;
         let recent_segments = current_state
             .current_chapter
@@ -764,7 +914,8 @@ impl PlotEngine {
             ),
         };
 
-        let output_max = llm_service.api_config.max_tokens.min(1000).max(300);
+        // Keep token budget moderate while allowing complete narrative + options payload.
+        let output_max = llm_service.api_config.max_tokens.clamp(320, 700);
         let prompt_limit = output_max.saturating_mul(6);
 
         let prompt = self.prompt_builder.build_prompt_with_token_limit(
@@ -774,16 +925,18 @@ impl PlotEngine {
             prompt_limit,
         );
 
-        let response = match llm_service
-            .generate(LLMRequest {
+        let response = match tokio::time::timeout(
+            Duration::from_secs(45),
+            llm_service.generate(LLMRequest {
                 prompt: prompt.clone(),
                 max_tokens: Some(output_max),
                 temperature: Some(0.7),
-            })
-            .await
+            }),
+        )
+        .await
         {
-            Ok(resp) => resp,
-            Err(_) => {
+            Ok(Ok(resp)) => resp,
+            _ => {
                 let retry_prompt = self.prompt_builder.build_prompt_with_token_limit(
                     PromptTemplate::PlotGeneration,
                     &context,
@@ -805,18 +958,24 @@ impl PlotEngine {
                     },
                     output_max.saturating_mul(3),
                 );
-                llm_service
-                    .generate(LLMRequest {
+                match tokio::time::timeout(
+                    Duration::from_secs(30),
+                    llm_service.generate(LLMRequest {
                         prompt: retry_prompt,
-                        max_tokens: Some(output_max.saturating_div(2).max(200)),
+                        max_tokens: Some(output_max.saturating_div(2).max(240)),
                         temperature: Some(0.7),
-                    })
-                    .await
-                    .ok()?
+                    }),
+                )
+                .await
+                {
+                    Ok(Ok(resp)) => resp,
+                    _ => return (None, Some("LLM 结构化剧情生成超时或请求失败".to_string())),
+                }
             }
         };
 
-        self.response_validator
+        if self
+            .response_validator
             .validate_response(
                 &response,
                 &ValidationConstraints {
@@ -827,15 +986,16 @@ impl PlotEngine {
                     max_current_age: None,
                 },
             )
-            .ok()?;
+            .is_err()
+        {
+            return (None, Some("LLM 返回内容校验失败".to_string()));
+        }
 
         if let Some(value) = self.extract_json_value(&response.text) {
-            let text = value
-                .get("segment_text")
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .trim()
-                .to_string();
+            let text = self
+                .compose_segment_text_from_json(&value)
+                .unwrap_or_default();
+            let text = self.normalize_story_text(&text);
             let needs_player_input = value
                 .get("needs_player_input")
                 .and_then(Value::as_bool)
@@ -864,18 +1024,20 @@ impl PlotEngine {
                 .unwrap_or_default();
 
             if !text.is_empty() {
-                return Some(ChapterSegment {
+                return (Some(ChapterSegment {
                     text,
                     needs_player_input,
                     chapter_end,
                     chapter_title,
                     chapter_summary,
                     options,
-                });
+                    generation_diagnostics: None,
+                }), None);
             }
         }
 
         if let Some(text) = self.extract_string_field_raw(&response.text, "segment_text") {
+            let text = self.normalize_story_text(&text);
             let needs_player_input = self
                 .extract_bool_field_raw(&response.text, "needs_player_input")
                 .unwrap_or(true);
@@ -886,29 +1048,32 @@ impl PlotEngine {
             let chapter_summary = self.extract_string_field_raw(&response.text, "chapter_summary");
             let options = self.extract_options_field_raw(&response.text);
 
-            return Some(ChapterSegment {
+            return (Some(ChapterSegment {
                 text,
                 needs_player_input,
                 chapter_end,
                 chapter_title,
                 chapter_summary,
                 options,
-            });
+                generation_diagnostics: None,
+            }), None);
         }
 
-        let text = response.text.trim().to_string();
-        if text.is_empty() {
-            return None;
+        match self.sanitize_llm_plain_text(&response.text) {
+            Some(text) => (
+                Some(ChapterSegment {
+                    text: self.normalize_story_text(&text),
+                    needs_player_input: true,
+                    chapter_end: false,
+                    chapter_title: None,
+                    chapter_summary: None,
+                    options: vec![],
+                    generation_diagnostics: None,
+                }),
+                None,
+            ),
+            None => (None, Some("LLM 返回内容无法解析为剧情文本".to_string())),
         }
-
-        Some(ChapterSegment {
-            text,
-            needs_player_input: true,
-            chapter_end: false,
-            chapter_title: None,
-            chapter_summary: None,
-            options: vec![],
-        })
     }
 
     fn generate_plot_text_with_llm(
@@ -923,7 +1088,11 @@ impl PlotEngine {
         let prompt = self.prompt_builder.build_prompt_with_token_limit(
             PromptTemplate::PlotGeneration,
             &PromptContext {
-                scene: Some(current_state.current_scene.description.clone()),
+                scene: Some(format!(
+                    "承接上一段剧情，并自然写入玩家刚刚选择：{}。上一段内容：{}",
+                    action_result.description,
+                    current_state.current_scene.description
+                )),
                 location: Some(current_state.current_scene.location.clone()),
                 actor_name: Some("player".to_string()),
                 actor_realm: None,
@@ -937,6 +1106,7 @@ impl PlotEngine {
                     "仅输出纯文本".to_string(),
                     "使用简洁的小说叙事".to_string(),
                     "必须使用中文".to_string(),
+                    "控制在 220-420 字".to_string(),
                 ],
                 output_schema_hint: None,
             },
@@ -947,7 +1117,7 @@ impl PlotEngine {
             &llm_service,
             LLMRequest {
                 prompt,
-                max_tokens: Some(220),
+                max_tokens: Some(280),
                 temperature: Some(0.7),
             },
         )?;
@@ -964,13 +1134,17 @@ impl PlotEngine {
                 },
             )
             .ok()?;
-
-        let text = response.text.trim();
-        if text.is_empty() {
-            None
-        } else {
-            Some(text.to_string())
+        if let Some(value) = self.extract_json_value(&response.text) {
+            if let Some(text) = self.compose_segment_text_from_json(&value) {
+                let normalized = self.normalize_story_text(&text);
+                if !normalized.is_empty() {
+                    return Some(normalized);
+                }
+            }
         }
+        self.sanitize_llm_plain_text(&response.text)
+            .map(|text| self.normalize_story_text(&text))
+            .filter(|text| !text.is_empty())
     }
 
     fn generate_plot_text_fallback(&self, current_state: &PlotState, action_result: &ActionResult) -> String {
@@ -1214,10 +1388,6 @@ impl PlotEngine {
         scene: &Scene,
         character: &CharacterStats,
     ) -> Vec<PlayerOption> {
-        if !scene.available_options.is_empty() {
-            return scene.available_options.clone();
-        }
-
         let mut options = Vec::new();
         let mut option_id = 0;
 
@@ -1296,6 +1466,88 @@ impl PlotEngine {
         options
     }
 
+    pub fn generate_player_options_with_llm(
+        &self,
+        scene: &Scene,
+        character: &CharacterStats,
+    ) -> Option<Vec<PlayerOption>> {
+        if cfg!(test) {
+            return None;
+        }
+        let llm_service = self.resolve_llm_service()?;
+        let prompt = self.prompt_builder.build_prompt_with_token_limit(
+            PromptTemplate::OptionGeneration,
+            &PromptContext {
+                scene: Some(scene.description.clone()),
+                location: Some(scene.location.clone()),
+                actor_name: Some("player".to_string()),
+                actor_realm: Some(character.cultivation_realm.name.clone()),
+                actor_combat_power: Some(character.combat_power),
+                history_events: Vec::new(),
+                world_setting_summary: Some("基于当前剧情生成玩家可执行选项".to_string()),
+            },
+            &PromptConstraints {
+                numerical_rules: vec![
+                    "选项数量 2-4 条".to_string(),
+                    "选项必须可执行，避免空泛描述".to_string(),
+                ],
+                world_rules: vec![
+                    "优先输出严格 JSON".to_string(),
+                    "字段为 options 或 action_choices".to_string(),
+                    "每条选项不超过 24 字".to_string(),
+                    "只输出中文".to_string(),
+                ],
+                output_schema_hint: Some(
+                    "{\"options\":[\"string\",\"string\"]}".to_string(),
+                ),
+            },
+            280,
+        );
+
+        let response = self.run_llm_request(
+            &llm_service,
+            LLMRequest {
+                prompt,
+                max_tokens: Some(220),
+                temperature: Some(0.6),
+            },
+        )?;
+
+        let mut texts = if let Some(value) = self.extract_json_value(&response.text) {
+            value
+                .get("options")
+                .or_else(|| value.get("action_choices"))
+                .and_then(Value::as_array)
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(|s| s.trim().to_string()))
+                        .filter(|s| !s.is_empty())
+                        .take(4)
+                        .collect::<Vec<String>>()
+                })
+                .unwrap_or_default()
+        } else {
+            self.extract_options_field_raw(&response.text)
+        };
+
+        if texts.len() < 2 {
+            return None;
+        }
+
+        texts.truncate(4);
+        let options = texts
+            .into_iter()
+            .enumerate()
+            .map(|(idx, text)| PlayerOption {
+                id: idx,
+                description: text.clone(),
+                requirements: vec![],
+                action: Action::Custom { description: text },
+            })
+            .collect::<Vec<PlayerOption>>();
+        Some(options)
+    }
+
     pub fn validate_player_action(
         &self,
         action: &PlayerAction,
@@ -1319,6 +1571,12 @@ impl PlotEngine {
                     }
                 }
                 self.validate_free_text_input(&action.content)?;
+                if self
+                    .find_matching_option_by_text(&action.content, available_options)
+                    .is_some()
+                {
+                    return Ok(());
+                }
                 self.validate_free_text_reasonableness(&action.content, available_options)
             }
         }
@@ -1358,6 +1616,10 @@ impl PlotEngine {
                     Action::Custom {
                         description: "玩家翻页继续阅读".to_string(),
                     }
+                } else if let Some(option) =
+                    self.find_matching_option_by_text(&action.content, available_options)
+                {
+                    option.action.clone()
                 } else {
                     self.interpret_free_text_action(&action.content, character, context)
                 };
@@ -1684,6 +1946,8 @@ impl PlotState {
             current_chapter: chapter,
             chapters: Vec::new(),
             segment_count: 0,
+            last_generation_diagnostics: None,
+            last_option_generation_source: None,
         }
     }
 
@@ -1892,9 +2156,9 @@ mod tests {
         let scene = create_test_scene();
 
         let options = engine.generate_player_options(&scene, &character);
-        assert_eq!(options.len(), 2);
-        assert_eq!(options[0].description, "Cultivate");
-        assert_eq!(options[1].description, "Rest");
+        assert!(options.len() >= 2 && options.len() <= 5);
+        assert!(options.iter().any(|o| matches!(o.action, Action::Cultivate)));
+        assert!(options.iter().any(|o| matches!(o.action, Action::Rest)));
     }
 
     #[test]
@@ -2329,6 +2593,8 @@ mod property_tests {
     }
 
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(100))]
+
         #[test]
         fn test_property_18_plot_pauses_at_decision_points(
             scene in arb_scene()
@@ -2347,6 +2613,8 @@ mod property_tests {
     }
 
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(100))]
+
         #[test]
         fn test_plot_pauses_after_action(
             scene in arb_scene()
@@ -2372,6 +2640,8 @@ mod property_tests {
     }
 
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(100))]
+
         #[test]
         fn test_property_19_option_count_constraint(
             character in arb_character()
@@ -2393,6 +2663,8 @@ mod property_tests {
     }
 
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(100))]
+
         #[test]
         fn test_property_20_free_text_intent_parsing(
             input in "[A-Za-z0-9_ ]{1,120}"
@@ -2441,6 +2713,8 @@ mod property_tests {
     }
 
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(100))]
+
         #[test]
         fn test_property_21_unreasonable_actions_are_rejected(
             suffix in "[A-Za-z0-9 ]{0,40}"

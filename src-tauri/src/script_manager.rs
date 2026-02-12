@@ -176,7 +176,7 @@ impl ScriptManager {
     }
 
     async fn generate_random_script_with_llm(&self, llm_service: &LLMService) -> Result<Script> {
-        let constraints = PromptConstraints {
+        let mut constraints = PromptConstraints {
             numerical_rules: vec![
                 "境界等级必须按顺序提升".to_string(),
                 "初始年龄必须在 10 到 100 之间".to_string(),
@@ -190,6 +190,12 @@ impl ScriptManager {
                 "返回严格 JSON，必须匹配 Script 结构，不要 markdown 包裹。".to_string(),
             ),
         };
+        constraints.numerical_rules.push(
+            "随机角色需体现灵根稀有度分布：单灵根10%，双灵根30%，三灵根40%，杂灵根20%".to_string(),
+        );
+        constraints.world_rules.push(
+            "灵根数量越少越稀有，修行速度与宗门重视程度应更高".to_string(),
+        );
         let context = PromptContext {
             scene: Some("生成一个可游玩的随机修仙世界剧本".to_string()),
             location: None,
@@ -552,6 +558,84 @@ mod tests {
     }
 
     #[test]
+    fn test_load_custom_script_valid_file() {
+        let manager = ScriptManager::new();
+        let temp = tempfile::tempdir().unwrap();
+        let file_path = temp.path().join("valid_script.json");
+        let script = create_valid_script();
+        std::fs::write(&file_path, serde_json::to_string(&script).unwrap()).unwrap();
+
+        let loaded = manager.load_custom_script(file_path.to_str().unwrap()).unwrap();
+        assert_eq!(loaded.id, script.id);
+        assert_eq!(loaded.initial_state.player_name, script.initial_state.player_name);
+        assert!(manager.validate_script(&loaded).is_ok());
+    }
+
+    #[test]
+    fn test_load_custom_script_invalid_json_file() {
+        let manager = ScriptManager::new();
+        let temp = tempfile::tempdir().unwrap();
+        let file_path = temp.path().join("invalid_script.json");
+        std::fs::write(&file_path, "{invalid json}").unwrap();
+
+        let result = manager.load_custom_script(file_path.to_str().unwrap());
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Failed to parse script JSON"));
+    }
+
+    #[test]
+    fn test_load_custom_script_missing_required_fields() {
+        let manager = ScriptManager::new();
+        let temp = tempfile::tempdir().unwrap();
+        let file_path = temp.path().join("missing_fields.json");
+        std::fs::write(
+            &file_path,
+            r#"{
+                "id": "broken_script",
+                "name": "Broken Script",
+                "script_type": "custom",
+                "world_setting": {
+                    "cultivation_realms": [],
+                    "spiritual_roots": [],
+                    "techniques": [],
+                    "locations": [],
+                    "factions": []
+                },
+                "initial_state": {
+                    "player_name": "Tester",
+                    "player_spiritual_root": { "element": "Fire", "grade": "Double", "affinity": 0.6 },
+                    "starting_location": "missing_location",
+                    "starting_age": 16
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let result = manager.load_custom_script(file_path.to_str().unwrap());
+        assert!(result.is_err());
+        let message = result.unwrap_err().to_string();
+        assert!(
+            message.contains("Script validation failed")
+                || message.contains("Failed to parse script JSON")
+                || message.contains("missing field"),
+            "unexpected error message: {}",
+            message
+        );
+    }
+
+    #[test]
+    fn test_load_custom_script_file_not_found() {
+        let manager = ScriptManager::new();
+        let result = manager.load_custom_script("nonexistent_script.json");
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Script file not found"));
+    }
+
+    #[test]
     fn test_load_existing_novel_builds_initial_state() {
         let manager = ScriptManager::new();
         let temp = tempfile::tempdir().unwrap();
@@ -578,6 +662,8 @@ mod proptests {
     use super::*;
     use crate::models::{CultivationRealm, Element, Grade, SpiritualRoot};
     use crate::script::{Faction, InitialState, Location, ScriptType, Technique, WorldSetting};
+    use proptest::test_runner::TestRunner;
+    use proptest::strategy::ValueTree;
     use proptest::prelude::*;
 
     fn arb_element() -> impl Strategy<Value = Element> {
@@ -723,6 +809,22 @@ mod proptests {
         })
     }
 
+    fn arb_script_with_type(script_type: ScriptType) -> impl Strategy<Value = Script> {
+        arb_world_setting().prop_flat_map(move |world_setting| {
+            let initial_state = arb_initial_state(&world_setting);
+            (
+                "[a-z]{3,10}",
+                "[a-zA-Z ]{5,20}",
+                Just(script_type.clone()),
+                Just(world_setting.clone()),
+                initial_state,
+            )
+                .prop_map(|(id, name, script_type, world_setting, initial_state)| {
+                    Script::new(id, name, script_type, world_setting, initial_state)
+                })
+        })
+    }
+
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(100))]
 
@@ -760,6 +862,24 @@ mod proptests {
             let manager = ScriptManager::new();
             let result = manager.validate_script(&script);
             prop_assert!(result.is_err(), "Script with invalid age should be rejected");
+        }
+
+        // Feature: Nobody, Property 1: Script type support completeness
+        #[test]
+        fn prop_script_type_support_completeness(
+            script_type in prop_oneof![
+                Just(ScriptType::Custom),
+                Just(ScriptType::RandomGenerated),
+                Just(ScriptType::ExistingNovel)
+            ]
+        ) {
+            let manager = ScriptManager::new();
+            let script = arb_script_with_type(script_type)
+                .new_tree(&mut TestRunner::default())
+                .unwrap()
+                .current();
+            let result = manager.validate_script(&script);
+            prop_assert!(result.is_ok(), "Supported script type should pass validation");
         }
     }
 

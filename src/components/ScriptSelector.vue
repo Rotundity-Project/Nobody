@@ -206,7 +206,7 @@ const loadCustomScript = async () => {
     const script = await invokeWithTimeout<Script>(
       'load_script',
       { scriptPath: selected },
-      10000,
+      30000,
       '加载剧本超时，请重试',
     );
 
@@ -249,7 +249,7 @@ const prepareExistingNovel = async () => {
     const characters = await invokeWithTimeout<string[]>(
       'parse_novel_characters',
       { novelPath: selected },
-      15000,
+      60000,
       '解析小说超时，请检查文件或重试',
     );
 
@@ -290,7 +290,7 @@ const confirmNovelSelection = async () => {
         novelPath: selectedNovelPath.value,
         selectedCharacter: selectedCharacter.value,
       },
-      20000,
+      90000,
       '导入小说超时，请重试',
     );
 

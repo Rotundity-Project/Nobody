@@ -5,6 +5,7 @@ use crate::response_validator::{ResponseValidator, ValidationConstraints};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use std::path::Path;
+use std::time::Duration;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ParsedNovelData {
@@ -22,6 +23,8 @@ pub struct NovelParser {
 }
 
 impl NovelParser {
+    const PARSE_LLM_TIMEOUT_SECS: u64 = 18;
+
     pub fn new() -> Self {
         Self {
             llm_service: Self::initialize_llm_service_from_env(),
@@ -141,11 +144,15 @@ impl NovelParser {
 
         let runtime = tokio::runtime::Runtime::new().ok()?;
         let response = runtime
-            .block_on(llm_service.generate(LLMRequest {
-                prompt,
-                max_tokens: Some(350),
-                temperature: Some(0.2),
-            }))
+            .block_on(tokio::time::timeout(
+                Duration::from_secs(Self::PARSE_LLM_TIMEOUT_SECS),
+                llm_service.generate(LLMRequest {
+                    prompt,
+                    max_tokens: Some(350),
+                    temperature: Some(0.2),
+                }),
+            ))
+            .ok()?
             .ok()?;
 
         self.response_validator

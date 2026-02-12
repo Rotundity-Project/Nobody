@@ -47,7 +47,7 @@ export const useGameStore = defineStore('game', {
         const gameState = await invoke<GameState>('initialize_game', { script });
         this.currentScript = script;
         this.gameState = gameState;
-        
+
         const plotState = await invoke<PlotState>('initialize_plot');
         this.plotState = plotState;
       } catch (error) {
@@ -63,21 +63,53 @@ export const useGameStore = defineStore('game', {
       this.error = null;
 
       try {
-        await invoke<string>('execute_player_action', { action });
-        
-        const gameState = await invoke<GameState>('get_game_state');
+        await invokeWithTimeout<string>(
+          'execute_player_action',
+          { action },
+          140000,
+          '剧情推进超时，请稍后重试',
+        );
+
+        const gameState = await invokeWithTimeout<GameState>(
+          'get_game_state',
+          undefined,
+          8000,
+          '获取游戏状态超时，请重试',
+        );
         this.gameState = gameState;
-        
-        const plotState = await invoke<PlotState>('get_plot_state');
+
+        const plotState = await invokeWithTimeout<PlotState>(
+          'get_plot_state',
+          undefined,
+          8000,
+          '获取剧情状态超时，请重试',
+        );
         this.plotState = plotState;
+        this.error = plotState.last_generation_diagnostics ?? null;
       } catch (error) {
-        this.error = error instanceof Error ? error.message : String(error);
+        const message = error instanceof Error ? error.message : String(error);
+
+        if (message.includes('剧情推进超时')) {
+          try {
+            const latestPlotState = await invokeWithTimeout<PlotState>(
+              'get_plot_state',
+              undefined,
+              10000,
+              '获取剧情状态超时，请重试',
+            );
+            this.plotState = latestPlotState;
+            this.error = latestPlotState.last_generation_diagnostics ?? '剧情推进超时，请稍后重试';
+          } catch {
+            this.error = '剧情推进超时，请稍后重试';
+          }
+        } else {
+          this.error = message;
+        }
         throw error;
       } finally {
         this.isLoading = false;
       }
     },
-
     async saveGame(slotId: number) {
       this.isLoading = true;
       this.error = null;
@@ -131,7 +163,7 @@ export const useGameStore = defineStore('game', {
         const script = await invokeWithTimeout<Script>(
           'generate_random_script',
           undefined,
-          45000,
+          120000,
           '随机剧本生成超时，请稍后重试',
         );
         const trimmedName = playerName?.trim();

@@ -1,15 +1,16 @@
 ﻿use crate::event_log::{EventImportance, EventLog};
 use crate::game_state::{Character, GameState, GameTime, WorldState};
-use crate::models::{CharacterStats, Lifespan};
+use crate::models::{CharacterStats, Element, Grade, Lifespan, SpiritualRoot};
 use crate::npc::{CoreValue, Goal, NPC, NPCMemory, Personality, PersonalityTrait};
 use crate::npc_engine::{NPCDecision, NPCEngine, NPCEvent};
 use crate::numerical_system::NumericalSystem;
 use crate::plot_engine::{PlotEngine, PlotState, Scene};
 use crate::save_load::{SaveData, SaveInfo, SaveLoadSystem};
-use crate::script::Script;
+use crate::script::{Script, ScriptType};
 use crate::script_manager::ScriptManager;
 use anyhow::{anyhow, Result};
 use std::sync::{Arc, Mutex};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// 管理游戏状态和逻辑的主游戏引擎
 pub struct GameEngine {
@@ -27,6 +28,15 @@ const EVENT_LOG_MAX_EVENTS: usize = 600;
 const EVENT_LOG_MAX_IMPORTANT: usize = 200;
 const EVENT_LOG_MAX_ARCHIVES: usize = 50;
 
+#[derive(Debug, Clone)]
+struct RandomStartProfile {
+    starting_realm: crate::models::CultivationRealm,
+    spiritual_root: SpiritualRoot,
+    starting_location: String,
+    starting_age: u32,
+    max_age: u32,
+}
+
 impl GameEngine {
     pub fn new() -> Self {
         Self {
@@ -41,13 +51,166 @@ impl GameEngine {
         }
     }
 
+    fn random_seed() -> u64 {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_nanos() as u64)
+            .unwrap_or(0);
+        // Mix with stack address to reduce repeat rate in rapid consecutive calls.
+        let addr_mix = (&nanos as *const u64 as usize) as u64;
+        nanos ^ addr_mix.rotate_left(17)
+    }
+
+    fn rng_next(seed: &mut u64) -> u64 {
+        let mut x = *seed;
+        if x == 0 {
+            x = 0x9E37_79B9_7F4A_7C15;
+        }
+        x ^= x << 13;
+        x ^= x >> 7;
+        x ^= x << 17;
+        *seed = x;
+        x
+    }
+
+    fn rand_u32(seed: &mut u64, min: u32, max: u32) -> u32 {
+        if min >= max {
+            return min;
+        }
+        let span = (max - min + 1) as u64;
+        min + (Self::rng_next(seed) % span) as u32
+    }
+
+    fn rand_f32(seed: &mut u64, min: f32, max: f32) -> f32 {
+        if min >= max {
+            return min;
+        }
+        let val = (Self::rng_next(seed) as f64 / u64::MAX as f64) as f32;
+        min + (max - min) * val
+    }
+
+    fn choose_weighted_index(seed: &mut u64, weights: &[u32]) -> usize {
+        let total: u32 = weights.iter().sum();
+        if total == 0 {
+            return 0;
+        }
+        let mut roll = Self::rand_u32(seed, 1, total);
+        for (idx, weight) in weights.iter().enumerate() {
+            if *weight == 0 {
+                continue;
+            }
+            if roll <= *weight {
+                return idx;
+            }
+            roll -= *weight;
+        }
+        weights.len().saturating_sub(1)
+    }
+
+    fn random_root_grade(seed: &mut u64) -> Grade {
+        // 单灵根10%，双灵根30%，三灵根40%，杂灵根20%
+        match Self::choose_weighted_index(seed, &[10, 30, 40, 20]) {
+            0 => Grade::Heavenly,
+            1 => Grade::Double,
+            2 => Grade::Triple,
+            _ => Grade::Pseudo,
+        }
+    }
+
+    fn random_element(seed: &mut u64) -> Element {
+        match Self::rand_u32(seed, 0, 4) {
+            0 => Element::Metal,
+            1 => Element::Wood,
+            2 => Element::Water,
+            3 => Element::Fire,
+            _ => Element::Earth,
+        }
+    }
+
+    fn build_random_start_profile(&self, script: &Script) -> Option<RandomStartProfile> {
+        let mut realms = script.world_setting.cultivation_realms.clone();
+        if realms.is_empty() {
+            return None;
+        }
+        realms.sort_by_key(|r| r.level);
+
+        let mut seed = Self::random_seed();
+        let realm_weights = match realms.len() {
+            0 => vec![],
+            1 => vec![100],
+            2 => vec![75, 25],
+            3 => vec![70, 22, 8],
+            _ => {
+                let mut w = vec![68, 20, 8];
+                let remain_slots = realms.len() - 3;
+                let mut remain = 4u32;
+                for _ in 0..remain_slots {
+                    let portion = (remain / remain_slots as u32).max(1);
+                    w.push(portion);
+                    remain = remain.saturating_sub(portion);
+                }
+                w
+            }
+        };
+        let realm_idx = Self::choose_weighted_index(&mut seed, &realm_weights)
+            .min(realms.len().saturating_sub(1));
+        let mut starting_realm = realms[realm_idx].clone();
+        starting_realm.sub_level = Self::rand_u32(&mut seed, 0, 2);
+
+        let grade = Self::random_root_grade(&mut seed);
+        let affinity = match grade {
+            Grade::Heavenly => Self::rand_f32(&mut seed, 0.90, 1.00),
+            Grade::Double => Self::rand_f32(&mut seed, 0.78, 0.92),
+            Grade::Triple => Self::rand_f32(&mut seed, 0.62, 0.82),
+            Grade::Pseudo => Self::rand_f32(&mut seed, 0.40, 0.70),
+        };
+        let spiritual_root = SpiritualRoot {
+            element: Self::random_element(&mut seed),
+            grade: grade.clone(),
+            affinity,
+        };
+
+        let starting_location = if script.world_setting.locations.is_empty() {
+            script.initial_state.starting_location.clone()
+        } else {
+            let idx = Self::rand_u32(&mut seed, 0, script.world_setting.locations.len() as u32 - 1)
+                as usize;
+            script.world_setting.locations[idx].id.clone()
+        };
+
+        let base_age_min = 15 + (realm_idx as u32 * 2);
+        let base_age_max = base_age_min + 8;
+        let starting_age = Self::rand_u32(&mut seed, base_age_min, base_age_max);
+        let grade_bonus = match grade {
+            Grade::Heavenly => 35,
+            Grade::Double => 22,
+            Grade::Triple => 12,
+            Grade::Pseudo => 0,
+        };
+        let realm_bonus = (starting_realm.level.saturating_sub(1) * 8) as i32;
+        let jitter = Self::rand_u32(&mut seed, 0, 10) as i32;
+        let mut max_age = 95 + grade_bonus + realm_bonus + jitter;
+        let min_required = starting_age as i32 + 40;
+        if max_age < min_required {
+            max_age = min_required;
+        }
+
+        Some(RandomStartProfile {
+            starting_realm,
+            spiritual_root,
+            starting_location,
+            starting_age,
+            max_age: max_age as u32,
+        })
+    }
+
     /// 从剧本初始化游戏
     pub fn initialize_game(&mut self, script: Script) -> Result<GameState> {
         // 验证剧本
         self.script_manager.validate_script(&script)?;
 
         // 从初始状态创建玩家角色
-        let starting_realm = script
+        let mut starting_realm = script
             .world_setting
             .cultivation_realms
             .iter()
@@ -55,18 +218,33 @@ impl GameEngine {
             .or_else(|| script.world_setting.cultivation_realms.first())
             .ok_or_else(|| anyhow!("剧本中未定义修炼境界"))?
             .clone();
+        let mut player_spiritual_root = script.initial_state.player_spiritual_root.clone();
+        let mut starting_location = script.initial_state.starting_location.clone();
+        let mut starting_age = script.initial_state.starting_age;
+        let mut max_age = 100u32;
+
+        // 随机剧本每次开局都重新随机角色信息，避免固定模板体验。
+        if script.script_type == ScriptType::RandomGenerated {
+            if let Some(profile) = self.build_random_start_profile(&script) {
+                starting_realm = profile.starting_realm;
+                player_spiritual_root = profile.spiritual_root;
+                starting_location = profile.starting_location;
+                starting_age = profile.starting_age;
+                max_age = profile.max_age;
+            }
+        }
 
         let player_stats = CharacterStats {
-            spiritual_root: script.initial_state.player_spiritual_root.clone(),
+            spiritual_root: player_spiritual_root.clone(),
             cultivation_realm: starting_realm.clone(),
             techniques: Vec::new(),
             lifespan: Lifespan {
-                current_age: script.initial_state.starting_age,
-                max_age: 100,
+                current_age: starting_age,
+                max_age,
                 realm_bonus: 0,
             },
             combat_power: self.numerical_system.calculate_initial_combat_power(
-                &script.initial_state.player_spiritual_root,
+                &player_spiritual_root,
                 &starting_realm,
             ),
         };
@@ -75,7 +253,7 @@ impl GameEngine {
             "player".to_string(),
             script.initial_state.player_name.clone(),
             player_stats,
-            script.initial_state.starting_location.clone(),
+            starting_location,
         );
 
         // 从剧本创建世界状态
@@ -151,7 +329,11 @@ impl GameEngine {
         );
         let mut save_state = game_state.clone();
         save_state.event_history = self.snapshot_event_history();
-        let save_data = SaveData::from_game_state(save_state);
+        let plot_snapshot = {
+            let plot_lock = self.plot_state.lock().unwrap();
+            plot_lock.clone()
+        };
+        let save_data = SaveData::from_game_state_with_plot(save_state, plot_snapshot);
         self.save_load_system.save_game(slot_id, &save_data)?;
 
         Ok(())
@@ -178,8 +360,14 @@ impl GameEngine {
         *state_lock = Some(game_state.clone());
         drop(state_lock);
 
-        // 加载后重建剧情状态，确保前端可立即获取选项
-        self.initialize_plot()?;
+        // 优先恢复存档中的剧情状态，避免读档后剧情丢失。
+        if let Some(saved_plot_state) = save_data.plot_state {
+            let mut plot_lock = self.plot_state.lock().unwrap();
+            *plot_lock = Some(saved_plot_state);
+        } else {
+            // 兼容旧存档：若无剧情状态，则重建默认开篇。
+            self.initialize_plot()?;
+        }
 
         Ok(game_state)
     }
@@ -402,6 +590,8 @@ impl Default for GameEngine {
 mod tests {
     use super::*;
     use crate::models::{CultivationRealm, Element, Grade, SpiritualRoot};
+    use crate::numerical_system::Action;
+    use crate::plot_engine::{PlayerOption, PlotSettings};
     use crate::script::{InitialState, Location, ScriptType, WorldSetting};
 
     fn create_test_script() -> Script {
@@ -443,6 +633,12 @@ mod tests {
             world_setting,
             initial_state,
         )
+    }
+
+    fn create_random_script() -> Script {
+        let mut script = create_test_script();
+        script.script_type = ScriptType::RandomGenerated;
+        script
     }
 
     #[test]
@@ -625,6 +821,124 @@ mod tests {
         let current_state = engine.get_current_state().unwrap();
         assert_eq!(current_state.player.name, loaded_state.player.name);
         assert_eq!(current_state.game_time.year, loaded_state.game_time.year);
+    }
+
+    #[test]
+    fn test_random_generated_script_uses_randomized_profile() {
+        let mut engine = GameEngine::new();
+        let script = create_random_script();
+        let game_state = engine.initialize_game(script.clone()).unwrap();
+
+        let realm_names = script
+            .world_setting
+            .cultivation_realms
+            .iter()
+            .map(|r| r.name.clone())
+            .collect::<Vec<String>>();
+        assert!(realm_names.contains(&game_state.player.stats.cultivation_realm.name));
+
+        let location_ids = script
+            .world_setting
+            .locations
+            .iter()
+            .map(|l| l.id.clone())
+            .collect::<Vec<String>>();
+        assert!(location_ids.contains(&game_state.player.location));
+
+        assert!((15..=40).contains(&game_state.player.stats.lifespan.current_age));
+        assert!(
+            game_state.player.stats.lifespan.max_age
+                >= game_state.player.stats.lifespan.current_age + 40
+        );
+        assert!(game_state.player.stats.combat_power > 0);
+    }
+
+    #[test]
+    fn test_update_current_state_replaces_state() {
+        let mut engine = GameEngine::new();
+        let script = create_test_script();
+        let mut state = engine.initialize_game(script).unwrap();
+        state.player.name = "Updated Player".to_string();
+
+        engine.update_current_state(state.clone()).unwrap();
+        let current = engine.get_current_state().unwrap();
+        assert_eq!(current.player.name, "Updated Player");
+    }
+
+    #[test]
+    fn test_get_plot_state_before_initialization_fails() {
+        let engine = GameEngine::new();
+        let result = engine.get_plot_state();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_initialize_plot_without_game_fails() {
+        let mut engine = GameEngine::new();
+        let result = engine.initialize_plot();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_initialize_plot_with_custom_opening_options() {
+        let mut engine = GameEngine::new();
+        let script = create_test_script();
+        engine.initialize_game(script).unwrap();
+
+        let custom_options = vec![PlayerOption {
+            id: 0,
+            description: "自定义开局选项".to_string(),
+            requirements: vec![],
+            action: Action::Rest,
+        }];
+
+        let plot_state = engine
+            .initialize_plot_with_opening("自定义开场".to_string(), Some(custom_options))
+            .unwrap();
+
+        assert_eq!(plot_state.current_scene.description, "自定义开场");
+        assert_eq!(plot_state.current_scene.available_options.len(), 1);
+        assert_eq!(plot_state.current_scene.available_options[0].description, "自定义开局选项");
+    }
+
+    #[test]
+    fn test_update_plot_settings_requires_initialized_plot() {
+        let engine = GameEngine::new();
+        let result = engine.update_plot_settings(PlotSettings::default());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_update_plot_settings_success() {
+        let mut engine = GameEngine::new();
+        let script = create_test_script();
+        engine.initialize_game(script).unwrap();
+        engine.initialize_plot().unwrap();
+
+        let settings = PlotSettings {
+            recap_enabled: false,
+            novel_style: "纪实风格".to_string(),
+            min_interactions_per_chapter: 2,
+            max_interactions_per_chapter: 4,
+            target_chapter_words_min: 1500,
+            target_chapter_words_max: 2500,
+        };
+
+        let updated = engine.update_plot_settings(settings.clone()).unwrap();
+        assert_eq!(updated.settings, settings);
+    }
+
+    #[test]
+    fn test_update_plot_state_replaces_state() {
+        let mut engine = GameEngine::new();
+        let script = create_test_script();
+        engine.initialize_game(script).unwrap();
+        let mut plot = engine.initialize_plot().unwrap();
+        plot.current_scene.name = "更新后的章节".to_string();
+
+        engine.update_plot_state(plot.clone()).unwrap();
+        let current = engine.get_plot_state().unwrap();
+        assert_eq!(current.current_scene.name, "更新后的章节");
     }
 }
 

@@ -7,6 +7,7 @@ const openMock = vi.fn();
 const invokeMock = vi.fn();
 
 const initializeGameMock = vi.fn();
+const initializeRandomGameMock = vi.fn();
 
 vi.mock('vue-router', () => ({
   useRouter: () => ({
@@ -25,7 +26,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 vi.mock('../../stores/gameStore', () => ({
   useGameStore: () => ({
     initializeGame: initializeGameMock,
-    initializeRandomGame: vi.fn(),
+    initializeRandomGame: initializeRandomGameMock,
   }),
 }));
 
@@ -34,12 +35,16 @@ const flushPromises = async () => {
   await Promise.resolve();
 };
 
+const getScriptTypeCards = (wrapper: ReturnType<typeof mount>) =>
+  wrapper.findAll('.space-y-4 > div');
+
 describe('ScriptSelector', () => {
   beforeEach(() => {
     pushMock.mockReset();
     openMock.mockReset();
     invokeMock.mockReset();
     initializeGameMock.mockReset();
+    initializeRandomGameMock.mockReset();
   });
 
   it('parses novel and shows character selection', async () => {
@@ -52,18 +57,16 @@ describe('ScriptSelector', () => {
     });
 
     const wrapper = mount(ScriptSelector);
-    const target = wrapper
-      .findAll('h3')
-      .find((node) => node.text() === '现有小说');
-    expect(target).toBeTruthy();
+    const cards = getScriptTypeCards(wrapper);
+    expect(cards.length).toBeGreaterThanOrEqual(3);
 
-    await target!.trigger('click');
+    // existing_novel card
+    await cards[2]!.trigger('click');
     await flushPromises();
 
     expect(invokeMock).toHaveBeenCalledWith('parse_novel_characters', {
       novelPath: 'C:\\novel.txt',
     });
-    expect(wrapper.text()).toContain('选择主角');
     expect(wrapper.text()).toContain('Lin Mo');
     expect(wrapper.text()).toContain('Su Wan');
   });
@@ -99,21 +102,17 @@ describe('ScriptSelector', () => {
     initializeGameMock.mockResolvedValue(undefined);
 
     const wrapper = mount(ScriptSelector);
-    const target = wrapper
-      .findAll('h3')
-      .find((node) => node.text() === '现有小说');
-    await target!.trigger('click');
+    const cards = getScriptTypeCards(wrapper);
+    await cards[2]!.trigger('click');
     await flushPromises();
 
     const radioButtons = wrapper.findAll('input[type="radio"]');
     expect(radioButtons.length).toBe(2);
     await radioButtons[0]!.setValue();
 
-    const startButton = wrapper
-      .findAll('button')
-      .find((node) => node.text() === '开始导入');
-    expect(startButton).toBeTruthy();
-    await startButton!.trigger('click');
+    const startButton = wrapper.find('.mt-4 button');
+    expect(startButton.exists()).toBe(true);
+    await startButton.trigger('click');
     await flushPromises();
 
     expect(invokeMock).toHaveBeenCalledWith('load_existing_novel', {
@@ -121,6 +120,21 @@ describe('ScriptSelector', () => {
       selectedCharacter: 'Lin Mo',
     });
     expect(initializeGameMock).toHaveBeenCalled();
+    expect(pushMock).toHaveBeenCalledWith('/game');
+  });
+
+  it('starts random script generation', async () => {
+    initializeRandomGameMock.mockResolvedValue(undefined);
+
+    const wrapper = mount(ScriptSelector);
+    const cards = getScriptTypeCards(wrapper);
+    expect(cards.length).toBeGreaterThanOrEqual(2);
+
+    // random_generated card
+    await cards[1]!.trigger('click');
+    await flushPromises();
+
+    expect(initializeRandomGameMock).toHaveBeenCalled();
     expect(pushMock).toHaveBeenCalledWith('/game');
   });
 });
