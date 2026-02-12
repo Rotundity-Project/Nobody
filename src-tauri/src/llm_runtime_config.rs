@@ -26,8 +26,9 @@ pub struct LLMConfigStatus {
 
 pub fn set_runtime_llm_config(config: LLMConfig) {
     let mut guard = config_slot().lock().unwrap();
-    *guard = Some(config);
-    let _ = persist_runtime_llm_config_to_disk();
+    *guard = Some(config.clone());
+    drop(guard);
+    let _ = persist_llm_config_to_disk(&config);
 }
 
 pub fn clear_runtime_llm_config() {
@@ -119,9 +120,8 @@ fn load_llm_config_from_file() -> Option<LLMConfig> {
     serde_json::from_str::<LLMConfig>(&content).ok()
 }
 
-fn persist_runtime_llm_config_to_disk() -> Result<(), String> {
-    let cfg = get_runtime_llm_config().ok_or_else(|| "runtime config not found".to_string())?;
-    let content = serde_json::to_string_pretty(&cfg).map_err(|e| e.to_string())?;
+fn persist_llm_config_to_disk(cfg: &LLMConfig) -> Result<(), String> {
+    let content = serde_json::to_string_pretty(cfg).map_err(|e| e.to_string())?;
     fs::write(config_file_path(), content).map_err(|e| e.to_string())
 }
 
