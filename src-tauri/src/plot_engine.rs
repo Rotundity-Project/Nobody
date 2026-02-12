@@ -1,5 +1,6 @@
 ﻿use crate::models::CharacterStats;
-use crate::llm_service::{LLMConfig, LLMRequest, LLMService};
+use crate::llm_runtime_config::resolve_llm_config;
+use crate::llm_service::{LLMRequest, LLMService};
 use crate::numerical_system::{Action, ActionResult, Context, NumericalSystem};
 use crate::prompt_builder::{PromptBuilder, PromptConstraints, PromptContext, PromptTemplate};
 use crate::response_validator::{ResponseValidator, ValidationConstraints};
@@ -70,26 +71,7 @@ impl PlotEngine {
     }
 
     fn initialize_llm_service_from_env() -> Option<LLMService> {
-        let endpoint = std::env::var("NOBODY_LLM_ENDPOINT").ok()?;
-        let api_key = std::env::var("NOBODY_LLM_API_KEY").ok()?;
-        let model = std::env::var("NOBODY_LLM_MODEL").unwrap_or_else(|_| "gpt-4o-mini".to_string());
-        let max_tokens = std::env::var("NOBODY_LLM_MAX_TOKENS")
-            .ok()
-            .and_then(|v| v.parse::<u32>().ok())
-            .unwrap_or(512);
-        let temperature = std::env::var("NOBODY_LLM_TEMPERATURE")
-            .ok()
-            .and_then(|v| v.parse::<f32>().ok())
-            .unwrap_or(0.2);
-
-        let cfg = LLMConfig {
-            endpoint,
-            api_key,
-            model,
-            max_tokens,
-            temperature,
-        };
-
+        let cfg = resolve_llm_config()?;
         LLMService::new(cfg).ok()
     }
 
@@ -149,13 +131,14 @@ impl PlotEngine {
                 actor_realm: None,
                 actor_combat_power: None,
                 history_events: action_result.events.clone(),
-                world_setting_summary: Some("Cultivation novel style with scene, events, and NPC reactions".to_string()),
+                world_setting_summary: Some("修仙小说风格，强调场景、事件与 NPC 反应".to_string()),
             },
             &PromptConstraints {
-                numerical_rules: vec!["must remain consistent with action result".to_string()],
+                numerical_rules: vec!["必须与行动结果保持一致".to_string()],
                 world_rules: vec![
-                    "return plain text only".to_string(),
-                    "write concise novel-style narration".to_string(),
+                    "仅输出纯文本".to_string(),
+                    "使用简洁的小说叙事".to_string(),
+                    "必须使用中文".to_string(),
                 ],
                 output_schema_hint: None,
             },
@@ -201,13 +184,97 @@ impl PlotEngine {
         };
 
         format!(
-            "【{}】在{}，你{}。{} {}",
+            "【{}】在{}，你{}。{} {} 接下来你准备怎么做？",
             current_state.current_scene.name,
             current_state.current_scene.location,
             action_result.description,
             event_line,
             status
         )
+    }
+
+    pub fn generate_opening_plot(
+        &self,
+        player_name: &str,
+        realm_name: &str,
+        spiritual_root: &str,
+        location: &str,
+    ) -> String {
+        if let Some(text) = self.generate_opening_plot_with_llm(player_name, realm_name, spiritual_root, location) {
+            return text;
+        }
+        format!(
+            "【开篇】{}初入修行之路，身负{}，当前境界为{}。你站在{}，四周灵气浮动，机缘与风险并存。你决定先从何处入手？",
+            player_name, spiritual_root, realm_name, location
+        )
+    }
+
+    fn generate_opening_plot_with_llm(
+        &self,
+        player_name: &str,
+        realm_name: &str,
+        spiritual_root: &str,
+        location: &str,
+    ) -> Option<String> {
+        if cfg!(test) {
+            return None;
+        }
+        if tokio::runtime::Handle::try_current().is_ok() {
+            return None;
+        }
+        let llm_service = self.llm_service.as_ref()?;
+
+        let prompt = self.prompt_builder.build_prompt_with_token_limit(
+            PromptTemplate::PlotGeneration,
+            &PromptContext {
+                scene: Some("请生成修仙小说的第一段开篇剧情，并在结尾抛出行动选择点".to_string()),
+                location: Some(location.to_string()),
+                actor_name: Some(player_name.to_string()),
+                actor_realm: Some(realm_name.to_string()),
+                actor_combat_power: None,
+                history_events: vec![],
+                world_setting_summary: Some(format!("主角灵根：{}", spiritual_root)),
+            },
+            &PromptConstraints {
+                numerical_rules: vec!["不得出现跨境界夸张成长".to_string()],
+                world_rules: vec![
+                    "输出纯文本".to_string(),
+                    "必须是中文".to_string(),
+                    "长度控制在 120 到 220 字".to_string(),
+                ],
+                output_schema_hint: None,
+            },
+            320,
+        );
+
+        let runtime = tokio::runtime::Runtime::new().ok()?;
+        let response = runtime
+            .block_on(llm_service.generate(LLMRequest {
+                prompt,
+                max_tokens: Some(220),
+                temperature: Some(0.75),
+            }))
+            .ok()?;
+
+        self.response_validator
+            .validate_response(
+                &response,
+                &ValidationConstraints {
+                    require_json: false,
+                    max_realm_level: None,
+                    min_combat_power: None,
+                    max_combat_power: None,
+                    max_current_age: None,
+                },
+            )
+            .ok()?;
+
+        let text = response.text.trim();
+        if text.is_empty() {
+            None
+        } else {
+            Some(text.to_string())
+        }
     }
     pub fn generate_player_options(
         &self,
@@ -224,7 +291,7 @@ impl PlotEngine {
         // Cultivate option
         options.push(PlayerOption {
             id: option_id,
-            description: "Cultivate and improve realm".to_string(),
+            description: "静心修炼，稳固境界".to_string(),
             requirements: vec![],
             action: Action::Cultivate,
         });
@@ -235,11 +302,11 @@ impl PlotEngine {
             options.push(PlayerOption {
                 id: option_id,
                 description: format!(
-                    "Attempt breakthrough in {}",
+                    "尝试突破 {}",
                     character.cultivation_realm.name
                 ),
                 requirements: vec![format!(
-                    "Current realm: {} (sub-level {})",
+                    "当前境界：{}（小层级 {}）",
                     character.cultivation_realm.name, character.cultivation_realm.sub_level
                 )],
                 action: Action::Breakthrough,
@@ -250,7 +317,7 @@ impl PlotEngine {
         // Rest option
         options.push(PlayerOption {
             id: option_id,
-            description: "Rest and recover".to_string(),
+            description: "调息休整，恢复状态".to_string(),
             requirements: vec![],
             action: Action::Rest,
         });
@@ -260,20 +327,20 @@ impl PlotEngine {
         if scene.location == "azure_cloud_sect" || scene.location == "sect" {
             options.push(PlayerOption {
                 id: option_id,
-                description: "Visit sect library".to_string(),
+                description: "前往宗门藏经阁".to_string(),
                 requirements: vec![],
                 action: Action::Custom {
-                    description: "You study cultivation techniques at the sect library".to_string(),
+                    description: "你在藏经阁翻阅典籍，寻找适合自己的修炼方向。".to_string(),
                 },
             });
             option_id += 1;
         } else if scene.location == "city" {
             options.push(PlayerOption {
                 id: option_id,
-                description: "Explore the marketplace".to_string(),
+                description: "前往坊市探查消息".to_string(),
                 requirements: vec![],
                 action: Action::Custom {
-                    description: "You explore the busy city market".to_string(),
+                    description: "你在坊市中打探情报，顺便寻找可用的修炼资源。".to_string(),
                 },
             });
             option_id += 1;
@@ -283,10 +350,10 @@ impl PlotEngine {
         if options.len() < 2 {
             options.push(PlayerOption {
                 id: option_id,
-                description: "Meditate quietly".to_string(),
+                description: "盘坐冥想，梳理思绪".to_string(),
                 requirements: vec![],
                 action: Action::Custom {
-                    description: "You meditate and reflect on your cultivation path".to_string(),
+                    description: "你静心冥想，回顾当前修行方向。".to_string(),
                 },
             });
         } else if options.len() > 5 {
@@ -305,16 +372,16 @@ impl PlotEngine {
             ActionType::SelectedOption => {
                 if let Some(option_id) = action.selected_option_id {
                     if option_id >= available_options.len() {
-                        return Err(format!("Invalid option ID: {}", option_id));
+                        return Err(format!("无效的选项 ID：{}", option_id));
                     }
                     Ok(())
                 } else {
-                    Err("Option ID must be provided when selecting an option".to_string())
+                    Err("选择选项时必须提供选项 ID".to_string())
                 }
             }
             ActionType::FreeText => {
                 if action.content.trim().is_empty() {
-                    Err("Free text cannot be empty".to_string())
+                    Err("自由输入不能为空".to_string())
                 } else {
                     self.validate_free_text_reasonableness(&action.content, available_options)
                 }
@@ -390,17 +457,18 @@ impl PlotEngine {
                 actor_combat_power: Some(character.combat_power),
                 history_events: Vec::new(),
                 world_setting_summary: Some(
-                    "Interpret user intent into one in-game action".to_string(),
+                    "请把玩家自由输入解析为一个游戏内可执行行动".to_string(),
                 ),
             },
             &PromptConstraints {
                 numerical_rules: vec![
-                    "respect current realm and combat power".to_string(),
+                    "必须符合当前境界和战力约束".to_string(),
                 ],
                 world_rules: vec![
-                    "output strict JSON only".to_string(),
-                    "json keys: action,target,description".to_string(),
-                    "action must be cultivate|rest|breakthrough|combat|custom".to_string(),
+                    "只输出严格 JSON".to_string(),
+                    "JSON 字段: action,target,description".to_string(),
+                    "action 仅允许 cultivate|rest|breakthrough|combat|custom".to_string(),
+                    "description 必须为中文".to_string(),
                 ],
                 output_schema_hint: Some(
                     "{\"action\":\"cultivate|rest|breakthrough|combat|custom\",\"target\":\"optional string\",\"description\":\"optional string\"}".to_string(),
@@ -456,23 +524,23 @@ impl PlotEngine {
 
     fn parse_action_with_rules(&self, free_text: &str) -> Action {
         let lower = free_text.to_ascii_lowercase();
-        if contains_any(&lower, &["淇偧", "鎵撳潗", "cultivate", "meditate", "training"]) {
+        if contains_any(&lower, &["修炼", "打坐", "cultivate", "meditate", "training"]) {
             return Action::Cultivate;
         }
-        if contains_any(&lower, &["绐佺牬", "breakthrough", "advance realm"]) {
+        if contains_any(&lower, &["突破", "breakthrough", "advance realm"]) {
             return Action::Breakthrough;
         }
-        if contains_any(&lower, &["浼戞伅", "rest", "sleep", "recover"]) {
+        if contains_any(&lower, &["休息", "调息", "rest", "sleep", "recover"]) {
             return Action::Rest;
         }
-        if contains_any(&lower, &["鎴樻枟", "鏀诲嚮", "fight", "combat", "duel"]) {
+        if contains_any(&lower, &["战斗", "攻击", "fight", "combat", "duel"]) {
             return Action::Combat {
                 target_id: "unknown".to_string(),
             };
         }
 
         Action::Custom {
-            description: format!("Player free text action: {}", free_text.trim()),
+            description: format!("玩家行动：{}", free_text.trim()),
         }
     }
 
@@ -485,7 +553,7 @@ impl PlotEngine {
             self.validate_behavior_with_llm(free_text, available_options)
         {
             if !reasonable {
-                return Err(format!("Unreasonable action rejected: {}", reason));
+                return Err(format!("该行动被判定为不合理：{}", reason));
             }
         }
 
@@ -498,22 +566,22 @@ impl PlotEngine {
                 "destroy the world",
                 "god mode",
                 "one punch kill everyone",
-                "涓€鎷崇鏉€鎵€鏈変汉",
-                "鐬棿椋炲崌",
-                "姣佺伃涓栫晫",
-                "鏃犳晫妯″紡",
+                "一拳秒杀所有人",
+                "瞬间飞升",
+                "毁灭世界",
+                "无敌模式",
             ],
         ) {
-            return Err("Action exceeds current world and character constraints".to_string());
+            return Err("该行动超出当前世界规则或角色能力范围".to_string());
         }
 
         let can_breakthrough = available_options
             .iter()
             .any(|o| matches!(o.action, Action::Breakthrough));
         if !can_breakthrough
-            && contains_any(&lower, &["breakthrough", "绐佺牬", "advance realm", "娓″姭"])
+            && contains_any(&lower, &["breakthrough", "突破", "advance realm", "渡劫"])
         {
-            return Err("Current scene/realm does not allow breakthrough action".to_string());
+            return Err("当前场景或境界条件不满足突破要求".to_string());
         }
 
         Ok(())
@@ -542,7 +610,7 @@ impl PlotEngine {
             PromptTemplate::OptionGeneration,
             &PromptContext {
                 scene: Some(format!(
-                    "Player input: {} | allowed actions: {}",
+                    "玩家输入: {} | 可用行动: {}",
                     free_text, allowed_actions
                 )),
                 location: None,
@@ -551,14 +619,15 @@ impl PlotEngine {
                 actor_combat_power: None,
                 history_events: Vec::new(),
                 world_setting_summary: Some(
-                    "Judge if player action is reasonable in current cultivation scene".to_string(),
+                    "请判断玩家行动在当前修仙场景下是否合理".to_string(),
                 ),
             },
             &PromptConstraints {
-                numerical_rules: vec!["reject actions violating realm/capability".to_string()],
+                numerical_rules: vec!["拒绝违反境界与能力约束的行动".to_string()],
                 world_rules: vec![
-                    "output strict JSON only".to_string(),
-                    "json keys: reasonable,reason".to_string(),
+                    "只输出严格 JSON".to_string(),
+                    "JSON 字段: reasonable,reason".to_string(),
+                    "reason 必须为中文".to_string(),
                 ],
                 output_schema_hint: Some(
                     "{\"reasonable\":true|false,\"reason\":\"string\"}".to_string(),
@@ -594,7 +663,7 @@ impl PlotEngine {
         let reason = value
             .get("reason")
             .and_then(Value::as_str)
-            .unwrap_or("no reason")
+            .unwrap_or("未提供原因")
             .to_string();
         Some((reasonable, reason))
     }
@@ -876,13 +945,13 @@ mod tests {
 
         let action_result = ActionResult {
             success: true,
-            description: "淇偧鎴愬姛".to_string(),
+            description: "修炼成功".to_string(),
             stat_changes: vec![],
-            events: vec!["Cultivation completed".to_string()],
+            events: vec!["完成一次修炼".to_string()],
         };
 
         let update = engine.advance_plot(&state, &action_result);
-        assert!(update.plot_text.contains("淇偧鎴愬姛"));
+        assert!(update.plot_text.contains("修炼成功"));
         assert_eq!(update.triggered_events.len(), 1);
     }
 
@@ -896,12 +965,12 @@ mod tests {
             success: true,
             description: "你谨慎地运转功法".to_string(),
             stat_changes: vec![],
-            events: vec!["NPC reactions: npc_elder_1 -> observe".to_string()],
+            events: vec!["NPC 反应: npc_elder_1 -> observe".to_string()],
         };
 
         let text = engine.generate_plot_text(&state, &action_result);
         assert!(text.contains("sect") || text.contains("Test Scene"));
-        assert!(text.contains("NPC reactions") || text.contains("事件"));
+        assert!(text.contains("NPC 反应") || text.contains("事件"));
     }
 
     #[test]
@@ -935,7 +1004,7 @@ mod tests {
 
         let result = engine.validate_player_action(&action, &scene.available_options);
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("Option ID must be provided"));
+        assert!(result.unwrap_err().contains("必须提供选项 ID"));
     }
 
     #[test]
@@ -966,7 +1035,7 @@ mod tests {
 
         let result = engine.validate_player_action(&action, &scene.available_options);
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("constraints"));
+        assert!(result.unwrap_err().contains("超出当前世界规则"));
     }
 
     #[test]
@@ -1024,7 +1093,7 @@ mod tests {
         );
 
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("Invalid option ID"));
+        assert!(result.unwrap_err().contains("无效的选项 ID"));
     }
 
     #[test]

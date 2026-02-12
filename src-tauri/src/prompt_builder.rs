@@ -14,16 +14,16 @@ impl PromptTemplate {
     fn instruction(&self) -> &'static str {
         match self {
             PromptTemplate::ScriptGeneration => {
-                "Generate a complete cultivation world script with coherent settings."
+                "生成一个完整且可游玩的修仙世界剧本，设定必须自洽。"
             }
             PromptTemplate::OptionGeneration => {
-                "Generate 2 to 5 actionable player options for the current scene."
+                "基于当前场景生成 2 到 5 个可执行的玩家行动选项。"
             }
             PromptTemplate::NpcDecision => {
-                "Generate an NPC decision consistent with personality and memory."
+                "生成符合 NPC 性格与记忆的决策。"
             }
             PromptTemplate::PlotGeneration => {
-                "Generate novel-style plot text that follows from the latest events."
+                "生成承接最新事件的小说化剧情文本。"
             }
         }
     }
@@ -189,9 +189,10 @@ impl PromptBuilder {
             prompt.push_str(schema_hint);
             prompt.push('\n');
         } else {
-            prompt.push_str("Return valid JSON with deterministic fields when possible.\n");
+            prompt.push_str("在可能的情况下返回结构稳定的有效 JSON。\n");
         }
-        prompt.push_str("Do not violate any numerical or world constraints.\n");
+        prompt.push_str("输出语言必须为中文。\n");
+        prompt.push_str("不得违反任何数值约束与世界规则。\n");
 
         prompt
     }
@@ -266,7 +267,7 @@ mod tests {
             &PromptConstraints::default(),
         );
 
-        assert!(prompt.contains("Generate an NPC decision"));
+        assert!(prompt.contains("生成符合 NPC 性格与记忆的决策"));
         assert!(prompt.contains("[Task]"));
     }
 

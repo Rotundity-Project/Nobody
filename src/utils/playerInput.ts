@@ -11,17 +11,17 @@ const MAX_FREE_TEXT_LENGTH = 200;
 export function validateFreeTextInput(text: string): InputValidationResult {
   const trimmed = text.trim();
   if (!trimmed) {
-    return { valid: false, message: 'Input cannot be empty.' };
+    return { valid: false, message: '输入不能为空。' };
   }
   if (trimmed.length > MAX_FREE_TEXT_LENGTH) {
     return {
       valid: false,
-      message: `Input is too long. Max ${MAX_FREE_TEXT_LENGTH} characters.`,
+      message: `输入过长，最多 ${MAX_FREE_TEXT_LENGTH} 个字符。`,
     };
   }
   return {
     valid: true,
-    message: `Length ${trimmed.length}/${MAX_FREE_TEXT_LENGTH}`,
+    message: `长度 ${trimmed.length}/${MAX_FREE_TEXT_LENGTH}`,
   };
 }
 

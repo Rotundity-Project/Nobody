@@ -1,12 +1,14 @@
 <template>
-  <div 
+  <div
     v-if="isOpen"
     class="fixed inset-0 flex items-center justify-center"
     style="z-index: 50; background-color: rgba(0, 0, 0, 0.75);"
     @click.self="handleClose"
   >
-    <div class="bg-slate-800 rounded-lg shadow-2xl p-8 max-w-2xl w-full max-h-[80vh] overflow-y-auto relative"
-         style="z-index: 51;">
+    <div
+      class="bg-slate-800 rounded-lg shadow-2xl p-8 max-w-2xl w-full max-h-[80vh] overflow-y-auto relative"
+      style="z-index: 51;"
+    >
       <div class="flex items-center justify-between mb-6">
         <h2 class="text-2xl font-bold text-white">
           {{ mode === 'save' ? '保存游戏' : '加载游戏' }}
@@ -38,16 +40,15 @@
               <h3 class="text-lg font-semibold text-white mb-1">
                 存档槽 {{ slot.id }}
               </h3>
-              
+
               <div v-if="slot.data" class="text-sm text-gray-300 space-y-1">
-                <p>角色: {{ slot.data.characterName }}</p>
-                <p>境界: {{ slot.data.realm }}</p>
-                <p>位置: {{ slot.data.location }}</p>
-                <p class="text-gray-400 text-xs">
-                  保存时间: {{ formatDate(slot.data.timestamp) }}
-                </p>
+                <p>角色：{{ slot.data.characterName }}</p>
+                <p>境界：{{ slot.data.realm }}</p>
+                <p>位置：{{ slot.data.location }}</p>
+                <p class="text-gray-400 text-xs">游戏时间：{{ slot.data.gameTime }}</p>
+                <p class="text-gray-400 text-xs">保存时间：{{ formatDate(slot.data.timestamp) }}</p>
               </div>
-              
+
               <div v-else class="text-sm text-gray-500">
                 空存档
               </div>
@@ -74,17 +75,17 @@
       <div class="flex gap-3 mt-6">
         <button
           @click="handleConfirm"
-          :disabled="selectedSlot === null || isLoading"
+          :disabled="!canConfirm || isLoading"
           class="flex-1 px-6 py-3 rounded-lg font-medium transition-colors duration-200"
           :class="[
-            selectedSlot !== null && !isLoading
+            canConfirm && !isLoading
               ? 'bg-purple-600 hover:bg-purple-700 text-white'
               : 'bg-gray-600 text-gray-400 cursor-not-allowed'
           ]"
         >
           {{ mode === 'save' ? '保存' : '加载' }}
         </button>
-        
+
         <button
           @click="handleClose"
           :disabled="isLoading"
@@ -98,7 +99,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useGameStore } from '../stores/gameStore';
 
 interface Props {
@@ -110,6 +111,7 @@ interface SaveSlotData {
   characterName: string;
   realm: string;
   location: string;
+  gameTime: string;
   timestamp: number;
 }
 
@@ -138,18 +140,57 @@ const saveSlots = ref<SaveSlot[]>([
   { id: 5, data: null },
 ]);
 
-watch(() => props.isOpen, (newValue) => {
-  if (newValue) {
-    selectedSlot.value = null;
-    error.value = null;
-    loadSaveSlots();
+const selectedSlotInfo = computed(
+  () => saveSlots.value.find((slot) => slot.id === selectedSlot.value) ?? null
+);
+
+const canConfirm = computed(() => {
+  if (selectedSlot.value === null) {
+    return false;
   }
+  if (props.mode === 'save') {
+    return true;
+  }
+  return selectedSlotInfo.value?.data !== null;
 });
 
+watch(
+  () => props.isOpen,
+  (newValue) => {
+    if (newValue) {
+      selectedSlot.value = null;
+      error.value = null;
+      void loadSaveSlots();
+    }
+  }
+);
+
 const loadSaveSlots = async () => {
-  // TODO: Load actual save slot data from backend
-  // For now, using mock data
-  console.log('Loading save slots...');
+  try {
+    isLoading.value = true;
+    const saveInfos = await gameStore.listSaveSlots();
+    const saveMap = new Map(
+      saveInfos.map((info) => [
+        info.slot_id,
+        {
+          characterName: info.player_name,
+          realm: info.realm,
+          location: info.location,
+          gameTime: info.game_time,
+          timestamp: info.timestamp * 1000,
+        } as SaveSlotData,
+      ])
+    );
+
+    saveSlots.value = [1, 2, 3, 4, 5].map((id) => ({
+      id,
+      data: saveMap.get(id) ?? null,
+    }));
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '读取存档列表失败';
+  } finally {
+    isLoading.value = false;
+  }
 };
 
 const selectSlot = (slotId: number) => {
@@ -158,7 +199,14 @@ const selectSlot = (slotId: number) => {
 };
 
 const handleConfirm = async () => {
-  if (selectedSlot.value === null) return;
+  if (selectedSlot.value === null) {
+    return;
+  }
+
+  if (props.mode === 'load' && selectedSlotInfo.value?.data === null) {
+    error.value = '该槽位为空，无法加载。';
+    return;
+  }
 
   try {
     isLoading.value = true;
