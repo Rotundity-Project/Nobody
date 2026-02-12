@@ -1,0 +1,87 @@
+{
+  "id": "sect_apprentice_start",
+  "name": "Sect Apprentice Start",
+  "script_type": "Custom",
+  "world_setting": {
+    "cultivation_realms": [
+      {
+        "name": "Qi Condensation",
+        "level": 1,
+        "sub_level": 0,
+        "power_multiplier": 1.0
+      },
+      {
+        "name": "Foundation Establishment",
+        "level": 2,
+        "sub_level": 0,
+        "power_multiplier": 2.0
+      },
+      {
+        "name": "Golden Core",
+        "level": 3,
+        "sub_level": 0,
+        "power_multiplier": 4.0
+      }
+    ],
+    "spiritual_roots": [
+      {
+        "element": "Fire",
+        "grade": "Double",
+        "affinity": 0.72
+      },
+      {
+        "element": "Wood",
+        "grade": "Triple",
+        "affinity": 0.55
+      }
+    ],
+    "techniques": [
+      {
+        "id": "basic_breathing",
+        "name": "Basic Breathing Method",
+        "description": "Entry method taught to all outer disciples",
+        "required_realm_level": 1,
+        "element": null
+      },
+      {
+        "id": "ember_palm",
+        "name": "Ember Palm",
+        "description": "A low-level fire palm art",
+        "required_realm_level": 1,
+        "element": "Fire"
+      }
+    ],
+    "locations": [
+      {
+        "id": "outer_court",
+        "name": "Outer Court",
+        "description": "The training area for new disciples",
+        "spiritual_energy": 1.1
+      },
+      {
+        "id": "scripture_hall",
+        "name": "Scripture Hall",
+        "description": "A place to learn beginner techniques",
+        "spiritual_energy": 1.3
+      }
+    ],
+    "factions": [
+      {
+        "id": "red_peak_sect",
+        "name": "Red Peak Sect",
+        "description": "A strict orthodox sect focused on discipline",
+        "power_level": 62
+      }
+    ]
+  },
+  "initial_state": {
+    "player_name": "Jiang Chen",
+    "player_spiritual_root": {
+      "element": "Fire",
+      "grade": "Double",
+      "affinity": 0.72
+    },
+    "starting_location": "outer_court",
+    "starting_age": 16
+  }
+}
