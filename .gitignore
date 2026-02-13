@@ -23,3 +23,4 @@ dist-ssr
 *.sln
 *.sw?
 src-tauri/.nobody_llm_config.json
+.kiro/specs/Nobody/
