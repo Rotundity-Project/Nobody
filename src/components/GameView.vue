@@ -30,6 +30,13 @@
             </div>
           </div>
           <button
+            @click="showShortcutsDialog = true"
+            class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors duration-200"
+            title="查看快捷键"
+          >
+            ⌨️
+          </button>
+          <button
             @click="showLLMDialog = true"
             class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-slate-900 rounded-lg transition-colors duration-200"
           >
@@ -69,6 +76,16 @@
       </div>
 
       <div ref="storyScrollRef" class="flex-1 overflow-y-auto p-8 relative">
+        <button
+          v-if="gameStore.isGameInitialized"
+          @click="scrollToBottom"
+          class="absolute right-4 bottom-24 z-10 p-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-white shadow-lg transition-colors"
+          title="滚动到底部"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+          </svg>
+        </button>
         <div class="max-w-3xl mx-auto space-y-4">
           <div v-if="gameStore.plotState && gameStore.currentScene" class="prose prose-invert max-w-none">
             <h2 class="text-2xl font-display text-amber-200 mb-4">
@@ -214,6 +231,7 @@
       @loaded="handleLoaded"
     />
 
+    <KeyboardShortcutsDialog :is-open="showShortcutsDialog" @close="showShortcutsDialog = false" />
     <LLMConfigDialog :is-open="showLLMDialog" @close="showLLMDialog = false" />
     <StorySettingsDialog
       :is-open="showStorySettings"
@@ -242,12 +260,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watchEffect } from 'vue';
+import { computed, ref, watchEffect, onMounted, onUnmounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useGameStore } from '../stores/gameStore';
 import AudioControlPanel from './AudioControlPanel.vue';
 import CharacterPanel from './CharacterPanel.vue';
 import LLMConfigDialog from './LLMConfigDialog.vue';
+import KeyboardShortcutsDialog from './KeyboardShortcutsDialog.vue';
 import LoadingIndicator from './LoadingIndicator.vue';
 import NovelExporter from './NovelExporter.vue';
 import SaveLoadDialog from './SaveLoadDialog.vue';
@@ -275,10 +294,12 @@ const showLLMDialog = ref(false);
 const showAudioPanel = ref(false);
 const showStorySettings = ref(false);
 const showCharacterInfo = ref(false);
+const showShortcutsDialog = ref(false);
 const storySettings = ref<StorySettings>(getStorySettings());
 const inputMode = ref<'options' | 'freeText'>('options');
 const freeTextInput = ref('');
 const storyScrollRef = ref<HTMLElement | null>(null);
+const previousChapterParagraphs = ref<string[]>([]);
 
 const inputValidation = computed(() => validateFreeTextInput(freeTextInput.value));
 const currentChapterTitle = computed(
@@ -399,9 +420,82 @@ const applyStorySettings = async (settings: StorySettings) => {
   }
 };
 
+const scrollToBottom = () => {
+  if (storyScrollRef.value) {
+    storyScrollRef.value.scrollTo({
+      top: storyScrollRef.value.scrollHeight,
+      behavior: 'smooth'
+    });
+  }
+};
+
 watchEffect(() => {
   if (gameStore.isPlotInitialized) {
     void applyStorySettings(storySettings.value);
   }
+});
+
+// 监听章节内容变化，自动滚动到底部
+watch(currentChapterParagraphs, (newParagraphs) => {
+  if (newParagraphs.length > previousChapterParagraphs.value.length && storyScrollRef.value) {
+    // 只有当有新内容时才滚动到底部
+    requestAnimationFrame(() => {
+      storyScrollRef.value?.scrollTo({
+        top: storyScrollRef.value.scrollHeight,
+        behavior: 'smooth'
+      });
+    });
+  }
+  previousChapterParagraphs.value = [...newParagraphs];
+}, { deep: true });
+
+// 键盘快捷键支持
+const handleKeydown = (event: KeyboardEvent) => {
+  // 只有在游戏初始化且不在输入框时才响应快捷键
+  if (!gameStore.isGameInitialized || (event.target instanceof HTMLElement && event.target.tagName === 'TEXTAREA')) {
+    return;
+  }
+
+  // ESC 关闭所有弹窗
+  if (event.key === 'Escape') {
+    showSaveDialog.value = false;
+    showLoadDialog.value = false;
+    showLLMDialog.value = false;
+    showStorySettings.value = false;
+    showCharacterInfo.value = false;
+    showAudioPanel.value = false;
+  }
+
+  // Enter 提交自由输入
+  if (event.key === 'Enter' && inputMode.value === 'freeText' && freeTextInput.value.trim()) {
+    event.preventDefault();
+    handleFreeTextSubmit();
+  }
+
+  // 1-5 数字键快速选择选项
+  if (inputMode.value === 'options' && gameStore.availableOptions.length > 0) {
+    const num = parseInt(event.key);
+    if (num >= 1 && num <= 5 && num <= gameStore.availableOptions.length) {
+      event.preventDefault();
+      const option = gameStore.availableOptions[num - 1];
+      handleOptionSelect(option);
+    }
+  }
+
+  // Ctrl+S / Cmd+S 快速保存
+  if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+    event.preventDefault();
+    if (gameStore.isGameInitialized) {
+      showSaveDialog.value = true;
+    }
+  }
+};
+
+onMounted(() => {
+  window.addEventListener('keydown', handleKeydown);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeydown);
 });
 </script>
