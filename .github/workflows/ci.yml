@@ -2,64 +2,95 @@ name: CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main, develop ]
+    branches: [main, develop]
 
 jobs:
   test-frontend:
+    name: Test Frontend
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
-      
+
       - name: Install dependencies
         run: npm ci
-      
-      - name: Lint
-        run: npm run lint || echo "Lint script not configured yet"
-      
-      - name: Build
-        run: npm run build
+
+      - name: Run linter
+        run: npm run lint
+
+      - name: Run tests
+        run: npm test
 
   test-backend:
+    name: Test Backend
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: actions-rs/toolchain@v1
         with:
-          components: rustfmt, clippy
-      
+          toolchain: stable
+
       - name: Cache cargo registry
         uses: actions/cache@v4
         with:
           path: ~/.cargo/registry
           key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-      
+
       - name: Cache cargo index
         uses: actions/cache@v4
         with:
           path: ~/.cargo/git
           key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
-      
+
       - name: Cache cargo build
         uses: actions/cache@v4
         with:
-          path: src-tauri/target
+          path: target
           key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
-      
-      - name: Check formatting
-        run: cd src-tauri && cargo fmt -- --check
-      
-      - name: Run clippy
+
+      - name: Run Clippy
         run: cd src-tauri && cargo clippy -- -D warnings
-      
-      - name: Build
-        run: cd src-tauri && cargo build --release
+
+      - name: Run tests
+        run: cd src-tauri && cargo test --verbose
+
+  build:
+    name: Build
+    runs-on: ${{ matrix.os }}
+    needs: [test-frontend, test-backend]
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Build Tauri app
+        run: npm run tauri build
+        env:
+          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
