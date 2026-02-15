@@ -284,13 +284,6 @@ const inputValidation = computed(() => validateFreeTextInput(freeTextInput.value
 const currentChapterTitle = computed(
   () => gameStore.plotState?.current_chapter?.title || gameStore.currentScene?.name || '第一章'
 );
-const currentChapterContent = computed(() => {
-  const content = gameStore.plotState?.current_chapter?.content ?? [];
-  if (content.length > 0) {
-    return content.join('\n\n');
-  }
-  return gameStore.currentScene?.description ?? '';
-});
 const currentChapterParagraphs = computed(() => {
   const content = gameStore.plotState?.current_chapter?.content ?? [];
   const combined = content.length > 0 ? content.join('\n\n') : gameStore.currentScene?.description ?? '';

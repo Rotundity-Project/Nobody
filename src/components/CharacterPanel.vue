@@ -82,7 +82,11 @@ const elementLabel = computed(() => {
     [Element.Metal]: '金灵根',
     [Element.Earth]: '土灵根',
   };
-  return mapping[props.character.stats.spiritual_root.element] ?? '未知灵根';
+  const root = props.character.stats.spiritual_root;
+  const elements = root.elements && root.elements.length > 0 ? root.elements : [root.element];
+  return elements
+    .map((element) => mapping[element] ?? '未知灵根')
+    .join(' / ');
 });
 
 const gradeLabel = computed(() => {
@@ -139,7 +143,7 @@ const locationLabel = computed(() => {
     sect: '宗门驻地',
     city: '凡人城镇',
   };
-  return mapping[raw] ?? raw.replaceAll('_', ' ');
+  return mapping[raw] ?? raw.split('_').join(' ');
 });
 
 const getRootGradeClass = (grade: Grade): string => {
