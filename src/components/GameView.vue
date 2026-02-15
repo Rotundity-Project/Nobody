@@ -4,21 +4,33 @@
       <div class="bg-slate-900/80 border-b border-slate-700 px-6 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between backdrop-blur">
         <div class="flex items-center gap-4">
           <button
-            @click="router.push('/')"
             class="text-gray-400 hover:text-white transition-colors"
             title="返回"
+            @click="router.push('/')"
           >
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            <svg
+              class="w-6 h-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M10 19l-7-7m0 0l7-7m-7 7h18"
+              />
             </svg>
           </button>
-          <h1 class="text-xl font-display text-amber-200">Nobody</h1>
+          <h1 class="text-xl font-display text-amber-200">
+            Nobody
+          </h1>
         </div>
         <div class="flex flex-wrap gap-2">
           <div class="relative">
             <button
-              @click="toggleAudioPanel"
               class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors duration-200"
+              @click="toggleAudioPanel"
             >
               音量
             </button>
@@ -30,32 +42,31 @@
             </div>
           </div>
           <button
-            @click="showShortcutsDialog = true"
             class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors duration-200"
             title="查看快捷键"
+            @click="showShortcutsDialog = true"
           >
             ⌨️
           </button>
           <button
-            @click="showLLMDialog = true"
             class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-slate-900 rounded-lg transition-colors duration-200"
+            @click="showLLMDialog = true"
           >
             LLM 设置
           </button>
           <button
-            @click="showStorySettings = true"
             class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors duration-200"
+            @click="showStorySettings = true"
           >
             剧情设置
           </button>
           <button
-            @click="showCharacterInfo = true"
             class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors duration-200"
+            @click="showCharacterInfo = true"
           >
             角色信息
           </button>
           <button
-            @click="showSaveDialog = true"
             :disabled="!gameStore.isGameInitialized"
             class="px-4 py-2 rounded-lg transition-colors duration-200"
             :class="[
@@ -63,36 +74,58 @@
                 ? 'bg-amber-500 hover:bg-amber-400 text-slate-900'
                 : 'bg-gray-600 text-gray-400 cursor-not-allowed'
             ]"
+            @click="showSaveDialog = true"
           >
             保存
           </button>
           <button
-            @click="showLoadDialog = true"
             class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors duration-200"
+            @click="showLoadDialog = true"
           >
             加载
           </button>
         </div>
       </div>
 
-      <div ref="storyScrollRef" class="flex-1 overflow-y-auto p-8 relative">
+      <div
+        ref="storyScrollRef"
+        class="flex-1 overflow-y-auto p-8 relative"
+      >
         <button
           v-if="gameStore.isGameInitialized"
-          @click="scrollToBottom"
           class="absolute right-4 bottom-24 z-10 p-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-white shadow-lg transition-colors"
           title="滚动到底部"
+          @click="scrollToBottom"
         >
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+          <svg
+            class="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M19 14l-7 7m0 0l-7-7m7 7V3"
+            />
           </svg>
         </button>
         <div class="max-w-3xl mx-auto space-y-4">
-          <div v-if="gameStore.plotState && gameStore.currentScene" class="prose prose-invert max-w-none">
+          <div
+            v-if="gameStore.plotState && gameStore.currentScene"
+            class="prose prose-invert max-w-none"
+          >
             <h2 class="text-2xl font-display text-amber-200 mb-4">
               {{ currentChapterTitle }}
             </h2>
-            <div v-if="shouldShowRecap" class="mb-6 rounded-lg border border-amber-500/30 bg-slate-950/70 p-4">
-              <p class="text-xs uppercase tracking-[0.25em] text-amber-200/70">上一章摘要</p>
+            <div
+              v-if="shouldShowRecap"
+              class="mb-6 rounded-lg border border-amber-500/30 bg-slate-950/70 p-4"
+            >
+              <p class="text-xs uppercase tracking-[0.25em] text-amber-200/70">
+                上一章摘要
+              </p>
               <p class="mt-2 text-sm text-slate-300 font-story whitespace-pre-wrap">
                 {{ lastChapterSummary }}
               </p>
@@ -109,39 +142,47 @@
             </p>
           </div>
 
-          <div v-if="!gameStore.isGameInitialized" class="text-center text-gray-400">
+          <div
+            v-if="!gameStore.isGameInitialized"
+            class="text-center text-gray-400"
+          >
             <p>当前没有进行中的游戏，请先开始新游戏。</p>
           </div>
         </div>
 
-        <div class="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-slate-950 to-transparent"></div>
+        <div class="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-slate-950 to-transparent" />
       </div>
 
       <div class="border-t border-slate-700 bg-slate-900/80 p-6 backdrop-blur">
         <div class="max-w-3xl mx-auto">
-          <div v-if="gameStore.isWaitingForInput && gameStore.isGameInitialized" class="space-y-4">
+          <div
+            v-if="gameStore.isWaitingForInput && gameStore.isGameInitialized"
+            class="space-y-4"
+          >
             <div class="flex items-center gap-2">
               <button
-                @click="inputMode = 'options'"
                 class="px-3 py-1 rounded"
                 :class="inputMode === 'options' ? 'bg-purple-600 text-white' : 'bg-slate-700 text-gray-300'"
+                @click="inputMode = 'options'"
               >
                 选项
               </button>
               <button
-                @click="inputMode = 'freeText'"
                 class="px-3 py-1 rounded"
                 :class="inputMode === 'freeText' ? 'bg-purple-600 text-white' : 'bg-slate-700 text-gray-300'"
+                @click="inputMode = 'freeText'"
               >
                 自由输入
               </button>
             </div>
 
-            <div v-if="inputMode === 'options' && gameStore.availableOptions.length > 0" class="space-y-2">
+            <div
+              v-if="inputMode === 'options' && gameStore.availableOptions.length > 0"
+              class="space-y-2"
+            >
               <button
                 v-for="(option, index) in gameStore.availableOptions"
                 :key="index"
-                @click="handleOptionSelect(option)"
                 :disabled="isLoading"
                 class="w-full text-left p-4 rounded-lg border-2 transition-all duration-200"
                 :class="[
@@ -149,15 +190,24 @@
                     ? 'border-gray-600 bg-slate-700 opacity-50 cursor-not-allowed'
                     : 'border-amber-400/60 bg-slate-800/80 hover:bg-slate-700 cursor-pointer'
                 ]"
+                @click="handleOptionSelect(option)"
               >
-                <p class="text-slate-100">{{ option.description }}</p>
-                <p v-if="option.requirements && option.requirements.length > 0" class="text-sm text-slate-400 mt-1">
+                <p class="text-slate-100">
+                  {{ option.description }}
+                </p>
+                <p
+                  v-if="option.requirements && option.requirements.length > 0"
+                  class="text-sm text-slate-400 mt-1"
+                >
                   条件：{{ option.requirements.join('，') }}
                 </p>
               </button>
             </div>
 
-            <div v-if="inputMode === 'freeText'" class="space-y-2">
+            <div
+              v-if="inputMode === 'freeText'"
+              class="space-y-2"
+            >
               <textarea
                 v-model="freeTextInput"
                 :disabled="isLoading"
@@ -166,28 +216,42 @@
                 placeholder="输入你想执行的行为，例如：我去后山修炼。"
                 class="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white outline-none focus:border-amber-400"
               />
-              <p v-if="inputValidation.message" class="text-sm" :class="inputValidation.valid ? 'text-gray-300' : 'text-amber-300'">
+              <p
+                v-if="inputValidation.message"
+                class="text-sm"
+                :class="inputValidation.valid ? 'text-gray-300' : 'text-amber-300'"
+              >
                 {{ inputValidation.message }}
               </p>
               <button
-                @click="handleFreeTextSubmit"
                 :disabled="isLoading || !inputValidation.valid"
                 class="px-4 py-2 rounded-lg transition-colors"
                 :class="isLoading || !inputValidation.valid ? 'bg-gray-600 text-gray-400 cursor-not-allowed' : 'bg-amber-500 hover:bg-amber-400 text-slate-900'"
+                @click="handleFreeTextSubmit"
               >
                 提交自由输入
               </button>
             </div>
           </div>
 
-          <div v-else-if="isLoading" class="text-center">
-            <LoadingIndicator :message="loadingMessage" detail="请稍候，剧情正在推进..." size="lg" />
+          <div
+            v-else-if="isLoading"
+            class="text-center"
+          >
+            <LoadingIndicator
+              :message="loadingMessage"
+              detail="请稍候，剧情正在推进..."
+              size="lg"
+            />
           </div>
 
-          <div v-else-if="gameStore.isGameInitialized && !gameStore.isWaitingForInput" class="text-center">
+          <div
+            v-else-if="gameStore.isGameInitialized && !gameStore.isWaitingForInput"
+            class="text-center"
+          >
             <button
-              @click="handleContinue"
               class="px-4 py-2 rounded-lg transition-colors bg-amber-500 hover:bg-amber-400 text-slate-900"
+              @click="handleContinue"
             >
               继续写
             </button>
@@ -204,12 +268,17 @@
         </div>
       </div>
 
-      <div v-if="gameStore.error" class="p-4 bg-red-900 bg-opacity-50 border-t border-red-500">
+      <div
+        v-if="gameStore.error"
+        class="p-4 bg-red-900 bg-opacity-50 border-t border-red-500"
+      >
         <div class="max-w-3xl mx-auto">
-          <p class="text-red-200">{{ gameStore.error }}</p>
+          <p class="text-red-200">
+            {{ gameStore.error }}
+          </p>
           <button
-            @click="gameStore.clearError"
             class="mt-2 px-4 py-1 bg-red-700 hover:bg-red-600 rounded text-sm transition-colors"
+            @click="gameStore.clearError"
           >
             关闭
           </button>
@@ -231,8 +300,14 @@
       @loaded="handleLoaded"
     />
 
-    <KeyboardShortcutsDialog :is-open="showShortcutsDialog" @close="showShortcutsDialog = false" />
-    <LLMConfigDialog :is-open="showLLMDialog" @close="showLLMDialog = false" />
+    <KeyboardShortcutsDialog
+      :is-open="showShortcutsDialog"
+      @close="showShortcutsDialog = false"
+    />
+    <LLMConfigDialog
+      :is-open="showLLMDialog"
+      @close="showLLMDialog = false"
+    />
     <StorySettingsDialog
       :is-open="showStorySettings"
       :settings="storySettings"
@@ -305,13 +380,6 @@ const inputValidation = computed(() => validateFreeTextInput(freeTextInput.value
 const currentChapterTitle = computed(
   () => gameStore.plotState?.current_chapter?.title || gameStore.currentScene?.name || '第一章'
 );
-const currentChapterContent = computed(() => {
-  const content = gameStore.plotState?.current_chapter?.content ?? [];
-  if (content.length > 0) {
-    return content.join('\n\n');
-  }
-  return gameStore.currentScene?.description ?? '';
-});
 const currentChapterParagraphs = computed(() => {
   const content = gameStore.plotState?.current_chapter?.content ?? [];
   const combined = content.length > 0 ? content.join('\n\n') : gameStore.currentScene?.description ?? '';
