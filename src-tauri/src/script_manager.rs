@@ -92,6 +92,7 @@ impl ScriptManager {
             .cloned()
             .unwrap_or(SpiritualRoot {
                 element: Element::Fire,
+                elements: vec![Element::Fire],
                 grade: Grade::Double,
                 affinity: 0.6,
             });
@@ -191,7 +192,7 @@ impl ScriptManager {
             ),
         };
         constraints.numerical_rules.push(
-            "随机角色需体现灵根稀有度分布：单灵根10%，双灵根30%，三灵根40%，杂灵根20%".to_string(),
+            "随机角色需体现灵根稀有度分布：天灵根（单灵根）5%，双灵根15%，三灵根25%，伪灵根（四/五灵根）55%".to_string(),
         );
         constraints.world_rules.push(
             "灵根数量越少越稀有，修行速度与宗门重视程度应更高".to_string(),
@@ -433,6 +434,7 @@ mod tests {
         world_setting.spiritual_roots = vec![
             SpiritualRoot {
                 element: Element::Fire,
+                elements: vec![Element::Fire],
                 grade: Grade::Heavenly,
                 affinity: 0.8,
             },
@@ -448,6 +450,7 @@ mod tests {
             player_name: "Test Player".to_string(),
             player_spiritual_root: SpiritualRoot {
                 element: Element::Fire,
+                elements: vec![Element::Fire],
                 grade: Grade::Heavenly,
                 affinity: 0.8,
             },
@@ -686,6 +689,7 @@ mod proptests {
         (arb_element(), arb_grade(), 0.0f32..=1.0f32).prop_map(|(element, grade, affinity)| {
             SpiritualRoot {
                 element,
+                elements: vec![element],
                 grade,
                 affinity,
             }
