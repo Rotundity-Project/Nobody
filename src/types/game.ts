@@ -39,6 +39,7 @@ export interface CultivationRealm {
 
 export interface SpiritualRoot {
   element: Element;
+  elements?: Element[];
   grade: Grade;
   affinity: number;
 }
