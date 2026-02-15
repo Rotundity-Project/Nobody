@@ -210,11 +210,9 @@ fn extract_named_items(content: &str, prefix: &str) -> Vec<String> {
         .lines()
         .filter_map(|line| {
             let trimmed = line.trim();
-            if trimmed.starts_with(prefix) {
-                Some(trimmed[prefix.len()..].trim().to_string())
-            } else {
-                None
-            }
+            trimmed
+                .strip_prefix(prefix)
+                .map(|rest| rest.trim().to_string())
         })
         .filter(|s| !s.is_empty())
         .collect()

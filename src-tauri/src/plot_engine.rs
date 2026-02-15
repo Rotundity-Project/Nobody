@@ -129,7 +129,6 @@ pub struct PlotUpdate {
 
 pub struct PlotEngine {
     numerical_system: NumericalSystem,
-    llm_service: Option<LLMService>,
     prompt_builder: PromptBuilder,
     response_validator: ResponseValidator,
 }
@@ -155,15 +154,9 @@ impl PlotEngine {
     pub fn new() -> Self {
         Self {
             numerical_system: NumericalSystem::new(),
-            llm_service: Self::initialize_llm_service_from_env(),
             prompt_builder: PromptBuilder::default(),
             response_validator: ResponseValidator::default(),
         }
-    }
-
-    fn initialize_llm_service_from_env() -> Option<LLMService> {
-        let cfg = resolve_llm_config()?;
-        LLMService::new(cfg).ok()
     }
 
     fn resolve_llm_service(&self) -> Option<LLMService> {
@@ -264,8 +257,8 @@ impl PlotEngine {
             }
         } else {
             let end = s
-                .find(|c: char| c == ',' || c == '\n' || c == '}')
-                .unwrap_or_else(|| s.len());
+                .find([',', '\n', '}'])
+                .unwrap_or(s.len());
             let value = s[..end].trim();
             if value.is_empty() {
                 None
@@ -296,7 +289,7 @@ impl PlotEngine {
             if let Some(idx) = raw.find(&key_marker) {
                 let after = &raw[idx + key_marker.len()..];
                 let start = after.find('[').unwrap_or(0);
-                let mut s = &after[start..];
+                let s = &after[start..];
                 let mut items = Vec::new();
                 let mut in_string = false;
                 let mut escaped = false;
@@ -1237,7 +1230,7 @@ impl PlotEngine {
         location: &str,
     ) -> Option<OpeningPlot> {
         let llm_service = self.resolve_llm_service()?;
-        let output_max = llm_service.api_config.max_tokens.min(420).max(120);
+        let output_max = llm_service.api_config.max_tokens.clamp(120, 420);
         let prompt_limit = output_max.saturating_mul(6);
 
         let prompt = self.prompt_builder.build_prompt_with_token_limit(
@@ -1388,6 +1381,19 @@ impl PlotEngine {
         scene: &Scene,
         character: &CharacterStats,
     ) -> Vec<PlayerOption> {
+        let element_label = |element: &crate::models::Element| -> &'static str {
+            match element {
+                crate::models::Element::Metal => "金",
+                crate::models::Element::Wood => "木",
+                crate::models::Element::Water => "水",
+                crate::models::Element::Fire => "火",
+                crate::models::Element::Earth => "土",
+                crate::models::Element::Thunder => "雷",
+                crate::models::Element::Wind => "风",
+                crate::models::Element::Ice => "冰",
+            }
+        };
+
         let mut options = Vec::new();
         let mut option_id = 0;
 
@@ -1426,6 +1432,19 @@ impl PlotEngine {
         });
         option_id += 1;
 
+        for element in character.spiritual_root.effective_elements() {
+            let label = element_label(&element);
+            options.push(PlayerOption {
+                id: option_id,
+                description: format!("参悟{}系功法", label),
+                requirements: vec![format!("灵根属性：{}系", label)],
+                action: Action::Custom {
+                    description: format!("你运转{}系灵力，尝试推演更契合自身灵根的功法。", label),
+                },
+            });
+            option_id += 1;
+        }
+
         // Location-specific options
         if scene.location == "azure_cloud_sect" || scene.location == "sect" {
             options.push(PlayerOption {
@@ -1449,7 +1468,7 @@ impl PlotEngine {
             option_id += 1;
         }
 
-        // Ensure minimum 2 options and maximum 5 options
+        // Ensure minimum 2 options.
         if options.len() < 2 {
             options.push(PlayerOption {
                 id: option_id,
@@ -1459,8 +1478,6 @@ impl PlotEngine {
                     description: "你静心冥想，回顾当前修行方向。".to_string(),
                 },
             });
-        } else if options.len() > 5 {
-            options.truncate(5);
         }
 
         options
@@ -2002,6 +2019,7 @@ mod tests {
                 element: Element::Fire,
                 grade: Grade::Heavenly,
                 affinity: 0.8,
+            elements: Vec::new(),
             },
             cultivation_realm: CultivationRealm::new("Qi Condensation".to_string(), 1, 0, 1.0),
             techniques: Vec::new(),
@@ -2574,6 +2592,7 @@ mod property_tests {
                     element: Element::Fire,
                     grade: Grade::Heavenly,
                     affinity: 0.8,
+                elements: Vec::new(),
                 },
                 cultivation_realm: CultivationRealm::new(
                     "Test Realm".to_string(),
@@ -2675,6 +2694,7 @@ mod property_tests {
                     element: Element::Fire,
                     grade: Grade::Heavenly,
                     affinity: 0.8,
+                elements: Vec::new(),
                 },
                 cultivation_realm: CultivationRealm::new(
                     "Test Realm".to_string(),
