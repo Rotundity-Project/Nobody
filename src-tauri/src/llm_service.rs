@@ -321,7 +321,7 @@ fn is_retryable_error(err: &LLMServiceError) -> bool {
                 .split_whitespace()
                 .find_map(|chunk| {
                     if let Some(rest) = chunk.strip_prefix("status=") {
-                        rest.trim_end_matches(|c: char| c == ',' || c == ';')
+                        rest.trim_end_matches([',', ';'])
                             .parse::<u16>()
                             .ok()
                     } else {

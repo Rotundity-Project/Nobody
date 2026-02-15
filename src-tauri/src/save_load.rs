@@ -126,8 +126,8 @@ impl SaveLoadSystem {
 
             if path.extension().and_then(|s| s.to_str()) == Some("json") {
                 if let Some(file_name) = path.file_stem().and_then(|s| s.to_str()) {
-                    if file_name.starts_with("save_") {
-                        if let Ok(slot_id) = file_name[5..].parse::<u32>() {
+                    if let Some(rest) = file_name.strip_prefix("save_") {
+                        if let Ok(slot_id) = rest.parse::<u32>() {
                             if let Ok(save_data) = self.load_game(slot_id) {
                                 let save_info = SaveInfo {
                                     slot_id,
@@ -262,6 +262,7 @@ mod tests {
                 element: Element::Fire,
                 grade: Grade::Heavenly,
                 affinity: 0.8,
+            elements: Vec::new(),
             },
             starting_location: "sect".to_string(),
             starting_age: 16,
@@ -280,6 +281,7 @@ mod tests {
                 element: Element::Fire,
                 grade: Grade::Heavenly,
                 affinity: 0.8,
+            elements: Vec::new(),
             },
             cultivation_realm: CultivationRealm::new("Qi Condensation".to_string(), 1, 0, 1.0),
             techniques: Vec::new(),
@@ -535,6 +537,7 @@ mod property_tests {
                     element: Element::Fire,
                     grade: Grade::Heavenly,
                     affinity: 0.8,
+                elements: Vec::new(),
                 },
                 starting_location: "sect".to_string(),
                 starting_age: age,
@@ -553,6 +556,7 @@ mod property_tests {
                     element: Element::Fire,
                     grade: Grade::Heavenly,
                     affinity: 0.8,
+                elements: Vec::new(),
                 },
                 cultivation_realm: CultivationRealm::new("练气".to_string(), 1, 0, 1.0),
                 techniques: Vec::new(),
