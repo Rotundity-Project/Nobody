@@ -150,6 +150,7 @@ export const playClick = () => {
 const startBgm = () => {
   const ctx = ensureContext();
   if (!ctx || !bgmGain) return;
+  const bgmDestination = bgmGain;
   if (bgmOscillators.length > 0) return;
 
   resumeContext();
@@ -162,7 +163,7 @@ const startBgm = () => {
     const gain = ctx.createGain();
     gain.gain.value = 0.12;
     osc.connect(gain);
-    gain.connect(bgmGain);
+    gain.connect(bgmDestination);
     osc.start();
     return osc;
   });
