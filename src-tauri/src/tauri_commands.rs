@@ -545,7 +545,7 @@ pub async fn initialize_plot(
         (
             state.player.name,
             state.player.stats.cultivation_realm.name,
-            format!("{:?}", state.player.stats.spiritual_root.element),
+            state.player.stats.spiritual_root.display_elements(),
             state.player.location,
         )
     };
@@ -695,6 +695,7 @@ mod tests {
                 element: Element::Fire,
                 grade: Grade::Heavenly,
                 affinity: 0.9,
+            elements: Vec::new(),
             },
             starting_location: "sect".to_string(),
             starting_age: 16,
