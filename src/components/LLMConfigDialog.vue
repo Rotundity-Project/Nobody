@@ -45,11 +45,12 @@
         <p v-if="error" class="text-sm text-red-300">{{ error }}</p>
 
         <div class="flex flex-wrap gap-2">
-          <button class="rounded bg-amber-500 px-3 py-2 text-sm text-slate-900" @click="saveConfig" :disabled="busy">保存配置</button>
+          <button class="rounded bg-amber-500 px-3 py-2 text-sm text-slate-900" @click="saveConfig" :disabled="busy || !isFormValid">保存配置</button>
           <button class="rounded bg-emerald-500 px-3 py-2 text-sm text-slate-900" @click="testConnection" :disabled="busy">测试连接</button>
           <button class="rounded bg-slate-700 px-3 py-2 text-sm text-white" @click="loadStatus" :disabled="busy">刷新状态</button>
           <button class="rounded bg-slate-700 px-3 py-2 text-sm text-white" @click="clearConfig" :disabled="busy">清除运行时配置</button>
         </div>
+        <p v-if="!isFormValid" class="text-sm text-amber-300">{{ formValidation.join('；') }}</p>
       </div>
     </div>
   </div>
@@ -137,7 +138,32 @@ const loadStatus = async () => {
   }
 };
 
+const formValidation = computed(() => {
+  const errors: string[] = [];
+  if (!form.endpoint.trim()) {
+    errors.push('Endpoint 不能为空');
+  }
+  if (!form.model.trim()) {
+    errors.push('模型名称不能为空');
+  }
+  if (form.maxTokens < 1 || form.maxTokens > 32000) {
+    errors.push('maxTokens 必须在 1-32000 之间');
+  }
+  if (form.temperature < 0 || form.temperature > 2) {
+    errors.push('temperature 必须在 0-2 之间');
+  }
+  return errors;
+});
+
+const isFormValid = computed(() => formValidation.value.length === 0);
+
 const saveConfig = async () => {
+  // 验证表单
+  if (!isFormValid.value) {
+    error.value = formValidation.value.join('；');
+    return;
+  }
+
   busy.value = true;
   error.value = '';
   message.value = '';
@@ -148,9 +174,9 @@ const saveConfig = async () => {
       'set_llm_config',
       {
         input: {
-          endpoint: form.endpoint,
-          apiKey: form.apiKey,
-          model: form.model,
+          endpoint: form.endpoint.trim(),
+          apiKey: form.apiKey.trim(),
+          model: form.model.trim(),
           maxTokens: form.maxTokens,
           temperature: form.temperature,
         },
@@ -158,7 +184,12 @@ const saveConfig = async () => {
       10000,
       '保存配置超时，请检查网络或重试',
     );
-    window.localStorage.setItem(API_KEY_STORAGE, form.apiKey);
+    if (form.apiKey.trim()) {
+      // 只在 API Key 非空时保存到 localStorage
+      window.localStorage.setItem(API_KEY_STORAGE, form.apiKey.trim());
+    } else {
+      window.localStorage.removeItem(API_KEY_STORAGE);
+    }
     message.value = msg;
     await loadStatus();
   } catch (e) {

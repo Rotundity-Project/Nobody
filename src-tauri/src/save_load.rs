@@ -126,8 +126,8 @@ impl SaveLoadSystem {
 
             if path.extension().and_then(|s| s.to_str()) == Some("json") {
                 if let Some(file_name) = path.file_stem().and_then(|s| s.to_str()) {
-                    if file_name.starts_with("save_") {
-                        if let Ok(slot_id) = file_name[5..].parse::<u32>() {
+                    if let Some(rest) = file_name.strip_prefix("save_") {
+                        if let Ok(slot_id) = rest.parse::<u32>() {
                             if let Ok(save_data) = self.load_game(slot_id) {
                                 let save_info = SaveInfo {
                                     slot_id,

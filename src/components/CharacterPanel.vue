@@ -1,23 +1,38 @@
 <template>
   <div class="panel-surface rounded-2xl p-5 max-h-[70vh] overflow-y-auto">
-    <h3 class="text-xl font-display mb-4 text-amber-200">角色信息</h3>
+    <h3 class="text-xl font-display mb-4 text-amber-200">
+      角色信息
+    </h3>
 
-    <div v-if="character" class="space-y-4">
+    <div
+      v-if="character"
+      class="space-y-4"
+    >
       <div class="pb-4 border-b border-slate-700">
-        <p class="text-slate-400 text-sm">姓名</p>
-        <p class="text-white font-medium text-lg">{{ character.name }}</p>
+        <p class="text-slate-400 text-sm">
+          姓名
+        </p>
+        <p class="text-white font-medium text-lg">
+          {{ character.name }}
+        </p>
       </div>
 
       <div>
-        <p class="text-slate-400 text-sm">修为境界</p>
-        <p class="text-white font-medium">{{ realmName }}</p>
+        <p class="text-slate-400 text-sm">
+          修为境界
+        </p>
+        <p class="text-white font-medium">
+          {{ realmName }}
+        </p>
         <p class="text-slate-500 text-xs">
           等级 {{ character.stats.cultivation_realm.level }}.{{ character.stats.cultivation_realm.sub_level }}
         </p>
       </div>
 
       <div>
-        <p class="text-slate-400 text-sm">灵根</p>
+        <p class="text-slate-400 text-sm">
+          灵根
+        </p>
         <div class="flex items-center gap-2">
           <span class="text-white font-medium">{{ elementLabel }}</span>
           <span
@@ -27,12 +42,18 @@
             {{ gradeLabel }}
           </span>
         </div>
-        <p class="text-slate-500 text-xs">亲和度 {{ affinityLabel }}</p>
-        <p class="text-slate-500 text-xs">天赋提示：{{ gradeHint }}</p>
+        <p class="text-slate-500 text-xs">
+          亲和度 {{ affinityLabel }}
+        </p>
+        <p class="text-slate-500 text-xs">
+          天赋提示：{{ gradeHint }}
+        </p>
       </div>
 
       <div>
-        <p class="text-slate-400 text-sm">寿元</p>
+        <p class="text-slate-400 text-sm">
+          寿元
+        </p>
         <p class="text-white font-medium">
           {{ character.stats.lifespan.current_age }} / {{ character.stats.lifespan.max_age }}
         </p>
@@ -46,17 +67,28 @@
       </div>
 
       <div>
-        <p class="text-slate-400 text-sm">战斗力</p>
-        <p class="text-white font-medium">{{ character.stats.combat_power.toLocaleString() }}</p>
+        <p class="text-slate-400 text-sm">
+          战斗力
+        </p>
+        <p class="text-white font-medium">
+          {{ character.stats.combat_power.toLocaleString() }}
+        </p>
       </div>
 
       <div>
-        <p class="text-slate-400 text-sm">位置</p>
-        <p class="text-white font-medium">{{ locationLabel }}</p>
+        <p class="text-slate-400 text-sm">
+          位置
+        </p>
+        <p class="text-white font-medium">
+          {{ locationLabel }}
+        </p>
       </div>
     </div>
 
-    <div v-else class="text-center text-slate-400">
+    <div
+      v-else
+      class="text-center text-slate-400"
+    >
       <p>暂无角色数据</p>
     </div>
   </div>
@@ -139,7 +171,7 @@ const locationLabel = computed(() => {
     sect: '宗门驻地',
     city: '凡人城镇',
   };
-  return mapping[raw] ?? raw.replaceAll('_', ' ');
+  return mapping[raw] ?? raw.split('_').join(' ');
 });
 
 const getRootGradeClass = (grade: Grade): string => {

@@ -25,10 +25,10 @@ describe('VirtualStoryList', () => {
 
     const scrollEl = document.createElement('div');
     Object.defineProperty(scrollEl, 'clientHeight', { value: 200, configurable: true });
-    Object.defineProperty(scrollEl, 'clientWidth', { value: 400, configurable: true });
+    Object.defineProperty(scrollEl, 'clientWidth', { value: 1000, configurable: true });
     Object.defineProperty(scrollEl, 'scrollTop', { value: 0, writable: true, configurable: true });
 
-    const paragraphs = Array.from({ length: 80 }, (_, i) => `段落内容 ${i} ${'x'.repeat(120)}`);
+    const paragraphs = Array.from({ length: 160 }, (_, i) => `段落内容 ${i} ${'x'.repeat(120)}`);
 
     const wrapper = mount(VirtualStoryList, {
       props: {
