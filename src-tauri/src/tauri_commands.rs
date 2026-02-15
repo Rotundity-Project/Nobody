@@ -349,29 +349,28 @@ pub async fn execute_player_action(
 
     let previous_options = plot_state.current_scene.available_options.clone();
 
-    let mut option_source: Option<String> = None;
-
-    if plot_update.is_waiting_for_input {
+    let option_source: String = if plot_update.is_waiting_for_input {
         if !plot_update.available_options.is_empty() {
             plot_state.current_scene.available_options = plot_update.available_options;
-            option_source = Some("llm_structured".to_string());
+            "llm_structured".to_string()
         } else {
             let llm_regenerated = plot_engine.generate_player_options_with_llm(
                 &plot_state.current_scene,
                 &game_state.player.stats,
             );
-            let mut regenerated_options = if let Some(options) = llm_regenerated {
-                option_source = Some("llm_regenerated".to_string());
-                options
+            let (mut regenerated_options, mut source) = if let Some(options) = llm_regenerated {
+                (options, "llm_regenerated".to_string())
             } else {
-                option_source = Some("rule_fallback".to_string());
-                plot_engine
-                    .generate_player_options(&plot_state.current_scene, &game_state.player.stats)
+                (
+                    plot_engine
+                        .generate_player_options(&plot_state.current_scene, &game_state.player.stats),
+                    "rule_fallback".to_string(),
+                )
             };
 
             if regenerated_options.is_empty() {
                 regenerated_options = previous_options;
-                option_source = Some("previous_reused".to_string());
+                source = "previous_reused".to_string();
             }
 
             // 通过时间推进对兜底选项做轻量轮转，确保连续交互时选项呈现有变化。
@@ -384,21 +383,20 @@ pub async fn execute_player_action(
                 }
             }
             plot_state.current_scene.available_options = regenerated_options;
+            source
         }
     } else {
         plot_state.current_scene.available_options.clear();
-        option_source = Some("not_waiting_for_input".to_string());
-    }
+        "not_waiting_for_input".to_string()
+    };
 
-    plot_state.last_option_generation_source = option_source.clone();
-    if let Some(source) = option_source {
-        match &mut plot_state.last_generation_diagnostics {
-            Some(diag) => {
-                diag.push_str(&format!("；选项来源：{}", source));
-            }
-            None => {
-                plot_state.last_generation_diagnostics = Some(format!("选项来源：{}", source));
-            }
+    plot_state.last_option_generation_source = Some(option_source.clone());
+    match &mut plot_state.last_generation_diagnostics {
+        Some(diag) => {
+            diag.push_str(&format!("；选项来源：{}", option_source));
+        }
+        None => {
+            plot_state.last_generation_diagnostics = Some(format!("选项来源：{}", option_source));
         }
     }
 

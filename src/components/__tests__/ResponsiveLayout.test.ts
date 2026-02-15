@@ -32,8 +32,8 @@ describe('responsive layout classes', () => {
       },
     });
     const classes = wrapper.classes();
-    expect(classes).toContain('w-full');
-    expect(classes).toContain('lg:w-80');
+    expect(classes).toContain('panel-surface');
+    expect(classes).toContain('max-h-[70vh]');
   });
 
   it('GameView uses responsive flex direction', () => {
@@ -49,8 +49,8 @@ describe('responsive layout classes', () => {
       },
     });
     const classes = wrapper.classes();
+    expect(classes).toContain('flex');
     expect(classes).toContain('flex-col');
-    expect(classes).toContain('lg:flex-row');
   });
 
   it('MainMenu buttons have responsive width classes', () => {

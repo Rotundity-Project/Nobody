@@ -129,7 +129,6 @@ pub struct PlotUpdate {
 
 pub struct PlotEngine {
     numerical_system: NumericalSystem,
-    llm_service: Option<LLMService>,
     prompt_builder: PromptBuilder,
     response_validator: ResponseValidator,
 }
@@ -155,15 +154,9 @@ impl PlotEngine {
     pub fn new() -> Self {
         Self {
             numerical_system: NumericalSystem::new(),
-            llm_service: Self::initialize_llm_service_from_env(),
             prompt_builder: PromptBuilder::default(),
             response_validator: ResponseValidator::default(),
         }
-    }
-
-    fn initialize_llm_service_from_env() -> Option<LLMService> {
-        let cfg = resolve_llm_config()?;
-        LLMService::new(cfg).ok()
     }
 
     fn resolve_llm_service(&self) -> Option<LLMService> {
@@ -264,8 +257,8 @@ impl PlotEngine {
             }
         } else {
             let end = s
-                .find(|c: char| c == ',' || c == '\n' || c == '}')
-                .unwrap_or_else(|| s.len());
+                .find([',', '\n', '}'])
+                .unwrap_or(s.len());
             let value = s[..end].trim();
             if value.is_empty() {
                 None
@@ -296,7 +289,7 @@ impl PlotEngine {
             if let Some(idx) = raw.find(&key_marker) {
                 let after = &raw[idx + key_marker.len()..];
                 let start = after.find('[').unwrap_or(0);
-                let mut s = &after[start..];
+                let s = &after[start..];
                 let mut items = Vec::new();
                 let mut in_string = false;
                 let mut escaped = false;
@@ -1237,7 +1230,7 @@ impl PlotEngine {
         location: &str,
     ) -> Option<OpeningPlot> {
         let llm_service = self.resolve_llm_service()?;
-        let output_max = llm_service.api_config.max_tokens.min(420).max(120);
+        let output_max = llm_service.api_config.max_tokens.clamp(120, 420);
         let prompt_limit = output_max.saturating_mul(6);
 
         let prompt = self.prompt_builder.build_prompt_with_token_limit(

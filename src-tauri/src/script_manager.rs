@@ -398,11 +398,9 @@ impl ScriptManager {
             if ch.is_ascii_alphanumeric() {
                 out.push(ch.to_ascii_lowercase());
                 last_was_sep = false;
-            } else if ch.is_whitespace() || ch == '-' || ch == '_' {
-                if !last_was_sep && !out.is_empty() {
-                    out.push('_');
-                    last_was_sep = true;
-                }
+            } else if (ch.is_whitespace() || ch == '-' || ch == '_') && !last_was_sep && !out.is_empty() {
+                out.push('_');
+                last_was_sep = true;
             }
         }
 
