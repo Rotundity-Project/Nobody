@@ -114,7 +114,11 @@ const elementLabel = computed(() => {
     [Element.Metal]: '金灵根',
     [Element.Earth]: '土灵根',
   };
-  return mapping[props.character.stats.spiritual_root.element] ?? '未知灵根';
+  const root = props.character.stats.spiritual_root;
+  const elements = root.elements && root.elements.length > 0 ? root.elements : [root.element];
+  return elements
+    .map((element) => mapping[element] ?? '未知灵根')
+    .join(' / ');
 });
 
 const gradeLabel = computed(() => {
