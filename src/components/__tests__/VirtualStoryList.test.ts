@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils';
+﻿import { mount } from '@vue/test-utils';
 import { nextTick } from 'vue';
 import { describe, expect, it, vi } from 'vitest';
 import VirtualStoryList from '../VirtualStoryList.vue';
@@ -25,10 +25,10 @@ describe('VirtualStoryList', () => {
 
     const scrollEl = document.createElement('div');
     Object.defineProperty(scrollEl, 'clientHeight', { value: 200, configurable: true });
-    Object.defineProperty(scrollEl, 'clientWidth', { value: 400, configurable: true });
+    Object.defineProperty(scrollEl, 'clientWidth', { value: 1200, configurable: true });
     Object.defineProperty(scrollEl, 'scrollTop', { value: 0, writable: true, configurable: true });
 
-    const paragraphs = Array.from({ length: 80 }, (_, i) => `段落内容 ${i} ${'x'.repeat(120)}`);
+    const paragraphs = Array.from({ length: 180 }, (_, i) => `娈佃惤鍐呭 ${i} ${'x'.repeat(120)}`);
 
     const wrapper = mount(VirtualStoryList, {
       props: {
@@ -53,3 +53,4 @@ describe('VirtualStoryList', () => {
     wrapper.unmount();
   });
 });
+

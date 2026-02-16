@@ -39,9 +39,9 @@ describe('CharacterPanel', () => {
     });
 
     expect(wrapper.text()).toContain('Lin Mo');
-    expect(wrapper.text()).toContain('sect_valley');
-    expect(wrapper.text()).toContain('Heavenly');
-    expect(wrapper.find('.bg-green-500').exists()).toBe(true);
+    expect(wrapper.text()).toContain('宗门外谷');
+    expect(wrapper.text()).toContain('单灵根');
+    expect(wrapper.find('.bg-amber-600').exists()).toBe(true);
   });
 
   it('shows empty state when character is null', () => {
