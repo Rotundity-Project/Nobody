@@ -1,0 +1,105 @@
+{
+  "id": "wandering_sword_path",
+  "name": "Wandering Sword Path",
+  "script_type": "Custom",
+  "world_setting": {
+    "cultivation_realms": [
+      {
+        "name": "Qi Condensation",
+        "level": 1,
+        "sub_level": 0,
+        "power_multiplier": 1.0
+      },
+      {
+        "name": "Foundation Establishment",
+        "level": 2,
+        "sub_level": 0,
+        "power_multiplier": 2.2
+      },
+      {
+        "name": "Golden Core",
+        "level": 3,
+        "sub_level": 0,
+        "power_multiplier": 4.5
+      },
+      {
+        "name": "Nascent Soul",
+        "level": 4,
+        "sub_level": 0,
+        "power_multiplier": 8.8
+      }
+    ],
+    "spiritual_roots": [
+      {
+        "element": "Metal",
+        "grade": "Heavenly",
+        "affinity": 0.9
+      },
+      {
+        "element": "Water",
+        "grade": "Double",
+        "affinity": 0.64
+      }
+    ],
+    "techniques": [
+      {
+        "id": "sword_draw",
+        "name": "Swift Sword Draw",
+        "description": "Quick unsheathing strike for decisive openings",
+        "required_realm_level": 1,
+        "element": "Metal"
+      },
+      {
+        "id": "river_step",
+        "name": "River Step",
+        "description": "Footwork that favors evasion and flow",
+        "required_realm_level": 1,
+        "element": "Water"
+      }
+    ],
+    "locations": [
+      {
+        "id": "frontier_inn",
+        "name": "Frontier Inn",
+        "description": "A mixed stop for traders and cultivators",
+        "spiritual_energy": 0.9
+      },
+      {
+        "id": "ancient_ruins",
+        "name": "Ancient Ruins",
+        "description": "Dangerous ruins with fragmented legacies",
+        "spiritual_energy": 1.8
+      },
+      {
+        "id": "iron_cliff",
+        "name": "Iron Cliff",
+        "description": "Steep cliffs where sword cultivators train",
+        "spiritual_energy": 1.4
+      }
+    ],
+    "factions": [
+      {
+        "id": "lone_blade_alliance",
+        "name": "Lone Blade Alliance",
+        "description": "Loose network of independent sword cultivators",
+        "power_level": 58
+      },
+      {
+        "id": "jade_guard_hall",
+        "name": "Jade Guard Hall",
+        "description": "A lawful faction maintaining frontier order",
+        "power_level": 67
+      }
+    ]
+  },
+  "initial_state": {
+    "player_name": "Mu Lin",
+    "player_spiritual_root": {
+      "element": "Metal",
+      "grade": "Heavenly",
+      "affinity": 0.9
+    },
+    "starting_location": "frontier_inn",
+    "starting_age": 18
+  }
+}

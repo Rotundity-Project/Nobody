@@ -1,8 +1,8 @@
 [package]
 name = "nobody"
-version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
+version = "1.0.0"
+description = "Nobody: A cultivation simulation game built with Tauri + Vue."
+authors = ["Rotundity Project"]
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -31,4 +31,3 @@ reqwest = { version = "0.12", features = ["json"] }
 [dev-dependencies]
 proptest = "1.4"
 tempfile = "3.8"
-
