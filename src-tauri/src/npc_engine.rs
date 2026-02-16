@@ -1,4 +1,4 @@
-use crate::llm_service::{LLMRequest, LLMResponse, LLMService};
+﻿use crate::llm_service::{LLMRequest, LLMResponse, LLMService};
 use crate::memory_manager::MemoryManager;
 use crate::npc::{InteractionRecord, MemoryEntry, NPC, Relationship};
 use crate::prompt_builder::{PromptBuilder, PromptConstraints, PromptContext, PromptTemplate};
@@ -570,6 +570,7 @@ mod tests {
                     element: Element::Fire,
                     grade: Grade::Double,
                     affinity: 0.7,
+                elements: Vec::new(),
                 },
                 CultivationRealm::new("Qi Condensation".to_string(), 1, 0, 1.0),
                 Lifespan::new(20, 120, 20),
@@ -754,6 +755,7 @@ mod property_tests {
                     element: Element::Water,
                     grade: Grade::Double,
                     affinity: 0.6,
+                elements: Vec::new(),
                 },
                 CultivationRealm::new("Qi Condensation".to_string(), 1, 0, 1.0),
                 Lifespan::new(20, 100, 10),

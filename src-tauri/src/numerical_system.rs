@@ -98,10 +98,21 @@ impl NumericalSystem {
         actor: &CharacterStats,
         _context: &Context,
     ) -> ActionResult {
-        let progress = actor.spiritual_root.affinity * 10.0;
+        let root_count = actor.spiritual_root.root_count();
+        let root_penalty = match root_count {
+            1 => 1.0,
+            2 => 0.82,
+            3 => 0.68,
+            4 => 0.56,
+            _ => 0.45,
+        };
+        let progress = actor.spiritual_root.affinity * 10.0 * root_penalty;
         ActionResult {
             success: true,
-            description: format!("修炼成功，修行进度提升至 {:.1}%", progress),
+            description: format!(
+                "修炼成功，修行进度提升至 {:.1}%（{}灵根修炼系数 {:.2}）",
+                progress, root_count, root_penalty
+            ),
             stat_changes: vec![],
             events: vec!["完成一次修炼".to_string()],
         }
@@ -201,6 +212,7 @@ mod tests {
             element: Element::Fire,
             grade: Grade::Heavenly,
             affinity: 0.8,
+        elements: Vec::new(),
         };
         let realm = CultivationRealm::new("Qi Condensation".to_string(), 1, 0, 1.0);
         let lifespan = Lifespan::new(20, 100, 50);
@@ -375,21 +387,25 @@ mod tests {
             element: Element::Fire,
             grade: Grade::Heavenly,
             affinity: 0.8,
+        elements: Vec::new(),
         };
         let double = SpiritualRoot {
             element: Element::Fire,
             grade: Grade::Double,
             affinity: 0.8,
+        elements: Vec::new(),
         };
         let triple = SpiritualRoot {
             element: Element::Fire,
             grade: Grade::Triple,
             affinity: 0.8,
+        elements: Vec::new(),
         };
         let pseudo = SpiritualRoot {
             element: Element::Fire,
             grade: Grade::Pseudo,
             affinity: 0.8,
+        elements: Vec::new(),
         };
 
         let p_heavenly = system.calculate_initial_combat_power(&heavenly, &realm);
@@ -468,6 +484,7 @@ mod tests {
             element: Element::Earth,
             grade: Grade::Pseudo,
             affinity: 0.0,
+        elements: Vec::new(),
         };
         let realm = CultivationRealm::new("Weak Realm".to_string(), 1, 0, 0.0);
 
@@ -510,6 +527,7 @@ mod property_tests {
         (arb_element(), arb_grade(), 0.0f32..=1.0f32).prop_map(|(element, grade, affinity)| {
             SpiritualRoot {
                 element,
+                elements: vec![element],
                 grade,
                 affinity,
             }
@@ -635,6 +653,7 @@ mod property_tests {
                 element: Element::Fire,
                 grade: Grade::Heavenly,
                 affinity: 0.8,
+            elements: Vec::new(),
             },
             CultivationRealm::new("Qi Condensation".to_string(), 1, 0, 1.0),
             Lifespan::new(20, 100, 50),
@@ -662,6 +681,7 @@ mod property_tests {
                 element: Element::Water,
                 grade: Grade::Double,
                 affinity: 0.6,
+            elements: Vec::new(),
             },
             CultivationRealm::new("Foundation".to_string(), 2, 0, 2.0),
             Lifespan::new(30, 120, 80),

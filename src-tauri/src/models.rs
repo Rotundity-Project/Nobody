@@ -1,7 +1,7 @@
 ﻿use serde::{Deserialize, Serialize};
 
 /// 灵根元素类型
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Element {
     Metal,    // 金
     Wood,     // 木
@@ -26,8 +26,44 @@ pub enum Grade {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SpiritualRoot {
     pub element: Element,  // 元素
+    #[serde(default)]
+    pub elements: Vec<Element>, // 多灵根元素（为空时回退到 element）
     pub grade: Grade,      // 品质
     pub affinity: f32,     // 亲和度 (0.0-1.0)
+}
+
+impl SpiritualRoot {
+    pub fn root_count(&self) -> usize {
+        if !self.elements.is_empty() {
+            return self.elements.len();
+        }
+        match self.grade {
+            Grade::Heavenly => 1,
+            Grade::Double => 2,
+            Grade::Triple => 3,
+            Grade::Pseudo => 4,
+        }
+    }
+
+    pub fn effective_elements(&self) -> Vec<Element> {
+        if self.elements.is_empty() {
+            vec![self.element]
+        } else {
+            self.elements.clone()
+        }
+    }
+
+    pub fn has_element(&self, element: &Element) -> bool {
+        self.effective_elements().iter().any(|e| e == element)
+    }
+
+    pub fn display_elements(&self) -> String {
+        self.effective_elements()
+            .iter()
+            .map(|e| format!("{:?}", e))
+            .collect::<Vec<String>>()
+            .join("、")
+    }
 }
 
 /// 修炼境界
@@ -173,6 +209,7 @@ mod tests {
             element: Element::Fire,
             grade: Grade::Heavenly,
             affinity: 0.8,
+        elements: Vec::new(),
         };
         let realm = CultivationRealm::new("练气".to_string(), 1, 0, 1.0);
         let lifespan = Lifespan::new(20, 100, 0);
@@ -215,6 +252,7 @@ mod property_tests {
         (arb_element(), arb_grade(), 0.0f32..=1.0f32).prop_map(|(element, grade, affinity)| {
             SpiritualRoot {
                 element,
+                elements: vec![element],
                 grade,
                 affinity,
             }
@@ -319,6 +357,7 @@ mod property_tests {
                 element: Element::Fire,
                 grade: Grade::Heavenly,
                 affinity: 0.8,
+            elements: Vec::new(),
             },
             CultivationRealm::new("练气".to_string(), 1, 0, 1.0),
             Lifespan::new(20, 100, 50),
@@ -338,6 +377,7 @@ mod property_tests {
                 element: Element::Water,
                 grade: Grade::Double,
                 affinity: 0.6,
+            elements: Vec::new(),
             },
             CultivationRealm::new("筑基".to_string(), 2, 2, 2.5),
             Lifespan::new(50, 150, 100),
@@ -364,6 +404,7 @@ mod property_tests {
                 element: Element::Thunder,
                 grade: Grade::Heavenly,
                 affinity: 0.95,
+            elements: Vec::new(),
             },
             CultivationRealm::new("金丹".to_string(), 3, 3, 5.0),
             Lifespan::new(100, 200, 300),
@@ -383,6 +424,7 @@ mod property_tests {
             element: Element::Fire,
             grade: Grade::Heavenly,
             affinity: 0.8,
+        elements: Vec::new(),
         };
 
         let json = serde_json::to_string_pretty(&spiritual_root).unwrap();
