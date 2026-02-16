@@ -85,7 +85,12 @@ export const useGameStore = defineStore('game', {
           '获取剧情状态超时，请重试',
         );
         this.plotState = plotState;
-        this.error = plotState.last_generation_diagnostics ?? null;
+
+        // 显示 LLM 诊断信息（如果有）
+        if (plotState.last_generation_diagnostics) {
+          console.warn('LLM 诊断信息:', plotState.last_generation_diagnostics);
+          this.error = plotState.last_generation_diagnostics;
+        }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
 
@@ -100,10 +105,10 @@ export const useGameStore = defineStore('game', {
             this.plotState = latestPlotState;
             this.error = latestPlotState.last_generation_diagnostics ?? '剧情推进超时，请稍后重试';
           } catch {
-            this.error = '剧情推进超时，请稍后重试';
+            this.error = '剧情推进超时，请稍后重试。您可以尝试重新连接或调整 LLM 设置。';
           }
         } else {
-          this.error = message;
+          this.error = `操作失败: ${message}`;
         }
         throw error;
       } finally {
