@@ -99,6 +99,7 @@ mod tests {
                 element: Element::Fire,
                 grade: Grade::Double,
                 affinity: 0.7,
+            elements: Vec::new(),
             },
             CultivationRealm::new("Qi Condensation".to_string(), 1, 1, 1.2),
             Lifespan::new(20, 120, 20),

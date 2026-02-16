@@ -1,4 +1,4 @@
-use crate::models::{CultivationRealm, Element, Grade, SpiritualRoot};
+﻿use crate::models::{CultivationRealm, Element, Grade, SpiritualRoot};
 use serde::{Deserialize, Serialize};
 
 // Script type enum
@@ -76,16 +76,19 @@ impl WorldSetting {
                 element: Element::Fire,
                 grade: Grade::Heavenly,
                 affinity: 0.9,
+            elements: Vec::new(),
             },
             SpiritualRoot {
                 element: Element::Water,
                 grade: Grade::Double,
                 affinity: 0.7,
+            elements: Vec::new(),
             },
             SpiritualRoot {
                 element: Element::Metal,
                 grade: Grade::Triple,
                 affinity: 0.5,
+            elements: Vec::new(),
             },
         ];
         setting
@@ -162,6 +165,7 @@ mod tests {
                 element: Element::Fire,
                 grade: Grade::Heavenly,
                 affinity: 0.8,
+            elements: Vec::new(),
             },
             starting_location: "Sect".to_string(),
             starting_age: 16,

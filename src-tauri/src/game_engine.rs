@@ -108,8 +108,8 @@ impl GameEngine {
     }
 
     fn random_root_grade(seed: &mut u64) -> Grade {
-        // 单灵根10%，双灵根30%，三灵根40%，杂灵根20%
-        match Self::choose_weighted_index(seed, &[10, 30, 40, 20]) {
+        // 天灵根（单灵根）5%，双灵根15%，三灵根25%，伪灵根（四/五灵根）55%
+        match Self::choose_weighted_index(seed, &[5, 15, 25, 55]) {
             0 => Grade::Heavenly,
             1 => Grade::Double,
             2 => Grade::Triple,
@@ -125,6 +125,37 @@ impl GameEngine {
             3 => Element::Fire,
             _ => Element::Earth,
         }
+    }
+
+    fn root_count_from_grade(seed: &mut u64, grade: &Grade) -> usize {
+        match grade {
+            Grade::Heavenly => 1,
+            Grade::Double => 2,
+            Grade::Triple => 3,
+            Grade::Pseudo => {
+                if Self::rand_u32(seed, 0, 1) == 0 {
+                    4
+                } else {
+                    5
+                }
+            }
+        }
+    }
+
+    fn random_spiritual_root_elements(seed: &mut u64, count: usize) -> Vec<Element> {
+        let mut pool = vec![
+            Element::Metal,
+            Element::Wood,
+            Element::Water,
+            Element::Fire,
+            Element::Earth,
+        ];
+        let pick_count = count.clamp(1, pool.len());
+        for i in 0..pick_count {
+            let j = i + (Self::rng_next(seed) as usize % (pool.len() - i));
+            pool.swap(i, j);
+        }
+        pool.into_iter().take(pick_count).collect()
     }
 
     fn build_random_start_profile(&self, script: &Script) -> Option<RandomStartProfile> {
@@ -164,8 +195,11 @@ impl GameEngine {
             Grade::Triple => Self::rand_f32(&mut seed, 0.62, 0.82),
             Grade::Pseudo => Self::rand_f32(&mut seed, 0.40, 0.70),
         };
+        let root_count = Self::root_count_from_grade(&mut seed, &grade);
+        let elements = Self::random_spiritual_root_elements(&mut seed, root_count);
         let spiritual_root = SpiritualRoot {
-            element: Self::random_element(&mut seed),
+            element: elements.first().copied().unwrap_or_else(|| Self::random_element(&mut seed)),
+            elements,
             grade: grade.clone(),
             affinity,
         };
@@ -385,7 +419,7 @@ impl GameEngine {
         let opening_text = self.plot_engine.generate_opening_plot(
             &game_state.player.name,
             &game_state.player.stats.cultivation_realm.name,
-            &format!("{:?}", game_state.player.stats.spiritual_root.element),
+            &game_state.player.stats.spiritual_root.display_elements(),
             &game_state.player.location,
         );
 
@@ -621,6 +655,7 @@ mod tests {
                 element: Element::Fire,
                 grade: Grade::Heavenly,
                 affinity: 0.9,
+            elements: Vec::new(),
             },
             starting_location: "sect".to_string(),
             starting_age: 16,
@@ -978,6 +1013,7 @@ mod integration_tests {
                 element: Element::Fire,
                 grade: Grade::Heavenly,
                 affinity: 0.9,
+            elements: Vec::new(),
             },
             starting_location: "sect".to_string(),
             starting_age: 16,
