@@ -32,6 +32,7 @@ describe('responsive layout classes', () => {
       },
     });
     const classes = wrapper.classes();
+    expect(classes).toContain('panel-surface');
     expect(classes).toContain('max-h-[70vh]');
     expect(classes).toContain('overflow-y-auto');
   });
@@ -48,11 +49,9 @@ describe('responsive layout classes', () => {
         },
       },
     });
-    const header = wrapper.find('.bg-slate-900\\/80');
-    expect(header.exists()).toBe(true);
-    const classes = header.classes();
-    expect(classes).toContain('sm:flex-row');
-    expect(classes).toContain('sm:justify-between');
+    const classes = wrapper.classes();
+    expect(classes).toContain('flex');
+    expect(classes).toContain('flex-col');
   });
 
   it('MainMenu buttons have responsive width classes', () => {

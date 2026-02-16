@@ -1,63 +1,63 @@
-# Nobody - ĞŞÏÉÄ£ÄâÆ÷
+# Nobody - ä¿®ä»™æ¨¡æ‹Ÿå™¨
 
-Nobody ÊÇÒ»¸ö AI Çı¶¯µÄÎÄ×ÖĞŞÏÉÄ£ÄâÆ÷£¬Ê¹ÓÃ Tauri2 + Vue3 + TailwindCSS ¼¼ÊõÕ»¹¹½¨¡£
+Nobody æ˜¯ä¸€ä¸ª AI é©±åŠ¨çš„æ–‡å­—ä¿®ä»™æ¨¡æ‹Ÿå™¨ï¼Œä½¿ç”¨ Tauri2 + Vue3 + TailwindCSS æŠ€æœ¯æ ˆæ„å»ºã€‚
 
-## ¼¼ÊõÕ»
+## æŠ€æœ¯æ ˆ
 
-- **Ç°¶Ë**: Vue3 (Composition API) + TailwindCSS + TypeScript
-- **ºó¶Ë**: Tauri2 (Rust)
-- **×´Ì¬¹ÜÀí**: Pinia
-- **AI ¼¯³É**: LLM API
-- **°æ±¾¿ØÖÆ**: Git
+- **å‰ç«¯**: Vue3 (Composition API) + TailwindCSS + TypeScript
+- **åç«¯**: Tauri2 (Rust)
+- **çŠ¶æ€ç®¡ç†**: Pinia
+- **AI é›†æˆ**: LLM API
+- **ç‰ˆæœ¬æ§åˆ¶**: Git
 
-## ¿ª·¢»·¾³ÉèÖÃ
+## å¼€å‘ç¯å¢ƒè®¾ç½®
 
-### Ç°ÖÃÒªÇó
+### å‰ç½®è¦æ±‚
 
 - Node.js 20+
 - Rust 1.70+
-- npm »ò yarn
+- npm æˆ– yarn
 
-### °²×°ÒÀÀµ
+### å®‰è£…ä¾èµ–
 
 ```bash
 npm install
 ```
 
-### ¿ª·¢Ä£Ê½
+### å¼€å‘æ¨¡å¼
 
 ```bash
 npm run tauri:dev
 ```
 
-### ¹¹½¨Éú²ú°æ±¾
+### æ„å»ºç”Ÿäº§ç‰ˆæœ¬
 
 ```bash
 npm run tauri:build
 ```
 
-## ÏîÄ¿½á¹¹
+## é¡¹ç›®ç»“æ„
 
 ```
 Nobody/
-©À©¤©¤ src/                  # Vue3 Ç°¶Ë´úÂë
-©¦   ©À©¤©¤ components/       # Vue ×é¼ş
-©¦   ©À©¤©¤ stores/          # Pinia ×´Ì¬¹ÜÀí
-©¦   ©À©¤©¤ router/          # Vue Router Â·ÓÉ
-©¦   ©¸©¤©¤ types/           # TypeScript ÀàĞÍ¶¨Òå
-©À©¤©¤ src-tauri/           # Rust ºó¶Ë´úÂë
-©¦   ©¸©¤©¤ src/
-©¦       ©À©¤©¤ models/      # Êı¾İÄ£ĞÍ
-©¦       ©¸©¤©¤ services/    # ÒµÎñÂß¼­
-©¸©¤©¤ .kiro/specs/         # ÏîÄ¿¹æ·¶ÎÄµµ
+â”œâ”€â”€ src/                  # Vue3 å‰ç«¯ä»£ç 
+â”‚   â”œâ”€â”€ components/       # Vue ç»„ä»¶
+â”‚   â”œâ”€â”€ stores/          # Pinia çŠ¶æ€ç®¡ç†
+â”‚   â”œâ”€â”€ router/          # Vue Router è·¯ç”±
+â”‚   â””â”€â”€ types/           # TypeScript ç±»å‹å®šä¹‰
+â”œâ”€â”€ src-tauri/           # Rust åç«¯ä»£ç 
+â”‚   â””â”€â”€ src/
+â”‚       â”œâ”€â”€ models/      # æ•°æ®æ¨¡å‹
+â”‚       â””â”€â”€ services/    # ä¸šåŠ¡é€»è¾‘
+â””â”€â”€ .kiro/specs/         # é¡¹ç›®è§„èŒƒæ–‡æ¡£
 ```
 
-## ´úÂë¹æ·¶
+## ä»£ç è§„èŒƒ
 
-- Ç°¶ËÊ¹ÓÃ ESLint + Prettier
-- ºó¶ËÊ¹ÓÃ Clippy + Rustfmt
+- å‰ç«¯ä½¿ç”¨ ESLint + Prettier
+- åç«¯ä½¿ç”¨ Clippy + Rustfmt
 
-ÔËĞĞ´úÂë¼ì²é£º
+è¿è¡Œä»£ç æ£€æŸ¥ï¼š
 ```bash
 npm run lint
 npm run format
@@ -67,6 +67,6 @@ npm run format
 
 MIT
 
-## ²Ö¿â
+## ä»“åº“
 
 https://github.com/MoSaSaPlus/Nobody
