@@ -25,18 +25,18 @@ vi.mock('../../stores/gameStore', () => ({
 }));
 
 describe('responsive layout classes', () => {
-  it('CharacterPanel uses responsive width', () => {
+  it('CharacterPanel keeps constrained panel layout', () => {
     const wrapper = shallowMount(CharacterPanel, {
       props: {
         character: null,
       },
     });
     const classes = wrapper.classes();
-    expect(classes).toContain('w-full');
-    expect(classes).toContain('lg:w-80');
+    expect(classes).toContain('max-h-[70vh]');
+    expect(classes).toContain('overflow-y-auto');
   });
 
-  it('GameView uses responsive flex direction', () => {
+  it('GameView uses responsive header layout', () => {
     const wrapper = shallowMount(GameView, {
       global: {
         stubs: {
@@ -48,9 +48,11 @@ describe('responsive layout classes', () => {
         },
       },
     });
-    const classes = wrapper.classes();
-    expect(classes).toContain('flex-col');
-    expect(classes).toContain('lg:flex-row');
+    const header = wrapper.find('.bg-slate-900\\/80');
+    expect(header.exists()).toBe(true);
+    const classes = header.classes();
+    expect(classes).toContain('sm:flex-row');
+    expect(classes).toContain('sm:justify-between');
   });
 
   it('MainMenu buttons have responsive width classes', () => {
