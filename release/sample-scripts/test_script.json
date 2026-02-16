@@ -1,0 +1,152 @@
+{
+  "id": "test_cultivation_world",
+  "name": "Test Cultivation World",
+  "script_type": "Custom",
+  "world_setting": {
+    "cultivation_realms": [
+      {
+        "name": "Qi Condensation",
+        "level": 1,
+        "sub_level": 0,
+        "power_multiplier": 1.0
+      },
+      {
+        "name": "Foundation Establishment",
+        "level": 2,
+        "sub_level": 0,
+        "power_multiplier": 2.5
+      },
+      {
+        "name": "Golden Core",
+        "level": 3,
+        "sub_level": 0,
+        "power_multiplier": 5.0
+      },
+      {
+        "name": "Nascent Soul",
+        "level": 4,
+        "sub_level": 0,
+        "power_multiplier": 10.0
+      },
+      {
+        "name": "Spirit Transformation",
+        "level": 5,
+        "sub_level": 0,
+        "power_multiplier": 20.0
+      }
+    ],
+    "spiritual_roots": [
+      {
+        "element": "Fire",
+        "grade": "Heavenly",
+        "affinity": 0.95
+      },
+      {
+        "element": "Water",
+        "grade": "Heavenly",
+        "affinity": 0.95
+      },
+      {
+        "element": "Wood",
+        "grade": "Double",
+        "affinity": 0.75
+      },
+      {
+        "element": "Metal",
+        "grade": "Triple",
+        "affinity": 0.55
+      },
+      {
+        "element": "Earth",
+        "grade": "Pseudo",
+        "affinity": 0.35
+      }
+    ],
+    "techniques": [
+      {
+        "id": "basic_qi_gathering",
+        "name": "Basic Qi Gathering",
+        "description": "The most basic cultivation method for Qi Condensation cultivators",
+        "required_realm_level": 1,
+        "element": "Fire"
+      },
+      {
+        "id": "flame_palm",
+        "name": "Flame Palm",
+        "description": "Fire element attack technique",
+        "required_realm_level": 1,
+        "element": "Fire"
+      },
+      {
+        "id": "water_shield",
+        "name": "Water Shield",
+        "description": "Water element defensive technique",
+        "required_realm_level": 1,
+        "element": "Water"
+      },
+      {
+        "id": "golden_core_method",
+        "name": "Golden Core Formation Method",
+        "description": "Core technique for breaking through to Golden Core",
+        "required_realm_level": 3,
+        "element": null
+      }
+    ],
+    "locations": [
+      {
+        "id": "azure_cloud_sect",
+        "name": "Azure Cloud Sect",
+        "description": "A medium-sized cultivation sect located on Azure Cloud Mountain, famous for fire element techniques",
+        "spiritual_energy": 1.5
+      },
+      {
+        "id": "misty_forest",
+        "name": "Misty Forest",
+        "description": "An ancient forest filled with spiritual energy and spirit beasts",
+        "spiritual_energy": 2.0
+      },
+      {
+        "id": "mortal_town",
+        "name": "Mortal Town",
+        "description": "An ordinary mortal town with sparse spiritual energy",
+        "spiritual_energy": 0.3
+      },
+      {
+        "id": "spirit_stone_mine",
+        "name": "Spirit Stone Mine",
+        "description": "A mine rich in spirit stones, contested by various sects",
+        "spiritual_energy": 3.0
+      }
+    ],
+    "factions": [
+      {
+        "id": "azure_cloud_sect",
+        "name": "Azure Cloud Sect",
+        "description": "Righteous sect known for fire techniques and alchemy",
+        "power_level": 75
+      },
+      {
+        "id": "shadow_pavilion",
+        "name": "Shadow Pavilion",
+        "description": "Mysterious intelligence organization, neutral faction",
+        "power_level": 60
+      },
+      {
+        "id": "blood_demon_sect",
+        "name": "Blood Demon Sect",
+        "description": "Demonic sect practicing blood cultivation methods",
+        "power_level": 80
+      }
+    ]
+  },
+  "initial_state": {
+    "player_name": "Lin Fan",
+    "player_spiritual_root": {
+      "element": "Fire",
+      "grade": "Heavenly",
+      "affinity": 0.9
+    },
+    "starting_location": "azure_cloud_sect",
+    "starting_age": 16
+  }
+}
