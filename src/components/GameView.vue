@@ -327,6 +327,7 @@
           <p>章节：{{ gameStore.plotState.current_chapter.index }} / {{ gameStore.plotState.current_chapter.title }}</p>
           <p>选项来源：{{ optionSourceLabel || 'n/a' }}</p>
           <p>等待输入：{{ gameStore.isWaitingForInput ? 'yes' : 'no' }}</p>
+          <p>一致性风险分：{{ consistencyRiskScore ?? 'n/a' }}</p>
           <p class="whitespace-pre-wrap text-slate-400">
             诊断：{{ gameStore.plotState.last_generation_diagnostics || '无' }}
           </p>
@@ -536,6 +537,15 @@ const optionSourceLabel = computed(() => {
     consistency_non_waiting_fallback: '一致性兜底自动推进',
   };
   return labels[source] ?? source;
+});
+const consistencyRiskScore = computed(() => {
+  const diag = gameStore.plotState?.last_generation_diagnostics ?? '';
+  const matched = diag.match(/风险分[=:：]\s*(\d+)/);
+  if (!matched) {
+    return null;
+  }
+  const value = Number(matched[1]);
+  return Number.isFinite(value) ? value : null;
 });
 
 const handleOptionSelect = async (option: PlayerOption) => {
