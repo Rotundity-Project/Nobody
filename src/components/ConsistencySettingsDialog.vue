@@ -59,9 +59,14 @@
         <p class="mt-3 text-sm text-emerald-100">当前模拟风险分：{{ previewRiskScore }}</p>
       </div>
 
-      <button class="mt-5 w-full rounded bg-amber-500 px-4 py-2 font-medium text-slate-900" @click="handleSave">
-        保存策略
-      </button>
+      <div class="mt-5 grid grid-cols-2 gap-3">
+        <button class="w-full rounded bg-slate-700 px-4 py-2 font-medium text-slate-100" @click="emit('reset')">
+          恢复默认
+        </button>
+        <button class="w-full rounded bg-amber-500 px-4 py-2 font-medium text-slate-900" @click="handleSave">
+          保存策略
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -78,6 +83,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: [];
   save: [policy: ConsistencyPolicy];
+  reset: [];
 }>();
 
 const ruleItems = [
@@ -143,4 +149,3 @@ const handleSave = () => {
   emit('close');
 };
 </script>
-

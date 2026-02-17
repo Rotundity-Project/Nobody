@@ -151,6 +151,19 @@ pub fn update_runtime_policy(next: ConsistencyPolicy) -> Result<ConsistencyPolic
     Ok(next)
 }
 
+pub fn reset_runtime_policy() -> Result<ConsistencyPolicy, String> {
+    let default = ConsistencyPolicy::default();
+    {
+        let mut guard = match runtime_policy().lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        *guard = default.clone();
+    }
+    persist_policy(&default)?;
+    Ok(default)
+}
+
 fn current_policy_snapshot() -> ConsistencyPolicy {
     get_runtime_policy()
 }

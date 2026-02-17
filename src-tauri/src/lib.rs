@@ -56,6 +56,7 @@ pub fn run() {
             tauri_commands::update_plot_settings,
             tauri_commands::get_consistency_policy,
             tauri_commands::update_consistency_policy,
+            tauri_commands::reset_consistency_policy,
             tauri_commands::generate_novel,
             tauri_commands::export_novel,
             tauri_commands::set_llm_config,

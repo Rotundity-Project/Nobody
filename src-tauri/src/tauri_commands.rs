@@ -16,7 +16,8 @@ use crate::memory_layers::{ChapterSummary, MemoryEntry, WorldFact};
 use crate::novel_generator::{Novel, NovelGenerator};
 use crate::numerical_system::{Action, Context, StatChange};
 use crate::plot_consistency::{
-    get_runtime_policy, update_runtime_policy, validate_and_repair_plot_update, ConsistencyPolicy,
+    get_runtime_policy, reset_runtime_policy, update_runtime_policy, validate_and_repair_plot_update,
+    ConsistencyPolicy,
 };
 use crate::plot_engine::{PlayerAction, PlayerOption, PlotEngine, PlotSettings, PlotState};
 use crate::save_load::SaveInfo;
@@ -877,6 +878,16 @@ pub async fn update_consistency_policy(
         crate::app_error::AppErrorKind::InvalidInput,
         e,
     )))
+}
+
+#[tauri::command]
+pub async fn reset_consistency_policy() -> Result<ConsistencyPolicy, String> {
+    reset_runtime_policy().map_err(|e| {
+        map_error(
+            "重置一致性策略失败",
+            AppError::new(crate::app_error::AppErrorKind::InvalidInput, e),
+        )
+    })
 }
 
 #[tauri::command]

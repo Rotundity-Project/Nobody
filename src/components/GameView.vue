@@ -387,6 +387,7 @@
       :policy="consistencyPolicy"
       @close="showConsistencySettings = false"
       @save="applyConsistencyPolicy"
+      @reset="resetConsistencyPolicy"
     />
     <div
       v-if="showCharacterInfo"
@@ -689,6 +690,20 @@ const applyConsistencyPolicy = async (policy: ConsistencyPolicy) => {
     consistencyPolicy.value = updated;
   } catch (error) {
     console.error('保存一致性策略失败：', error);
+  }
+};
+
+const resetConsistencyPolicy = async () => {
+  try {
+    const reset = await invokeWithTimeout<ConsistencyPolicy>(
+      'reset_consistency_policy',
+      undefined,
+      8000,
+      '重置一致性策略超时',
+    );
+    consistencyPolicy.value = reset;
+  } catch (error) {
+    console.error('重置一致性策略失败：', error);
   }
 };
 
