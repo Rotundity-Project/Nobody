@@ -426,8 +426,13 @@ pub async fn execute_player_action(
         }
     }
 
-    let consistency_report =
-        validate_and_repair_plot_update(&plot_state, &plot_update, &action_result);
+    let consistency_report = validate_and_repair_plot_update(
+        &plot_state,
+        &plot_update,
+        &action_result,
+        game_state.player.stats.cultivation_realm.level,
+        game_state.player.stats.combat_power,
+    );
     if let Some(text) = consistency_report.repaired_plot_text.clone() {
         plot_update.plot_text = text;
     }

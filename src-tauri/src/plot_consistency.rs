@@ -86,10 +86,33 @@ fn build_repair_text(plot_state: &PlotState, action_result: &ActionResult) -> St
     )
 }
 
+fn contains_any(text: &str, needles: &[&str]) -> bool {
+    needles.iter().any(|n| text.contains(n))
+}
+
+fn detect_realm_power_conflict(
+    text: &str,
+    player_realm_level: u32,
+    player_combat_power: u64,
+) -> bool {
+    let low_tier_targets = ["练气", "qi condensation", "low-tier"];
+    let hostility_words = ["妖兽", "monster", "beast"];
+    let fear_words = ["不敌", "害怕", "畏惧", "落荒而逃", "毫无还手", "flee", "panic"];
+    let base_hit = contains_any(text, &low_tier_targets)
+        && contains_any(text, &hostility_words)
+        && contains_any(text, &fear_words);
+    if !base_hit {
+        return false;
+    }
+    player_realm_level >= 3 || player_combat_power >= 3000
+}
+
 pub fn validate_and_repair_plot_update(
     plot_state: &PlotState,
     plot_update: &PlotUpdate,
     action_result: &ActionResult,
+    player_realm_level: u32,
+    player_combat_power: u64,
 ) -> ConsistencyReport {
     let mut report = ConsistencyReport::default();
     let current_text = plot_update.plot_text.trim();
@@ -139,6 +162,23 @@ pub fn validate_and_repair_plot_update(
             message: "等待玩家输入但没有选项，已切换为自动推进".to_string(),
         });
         report.force_non_waiting = true;
+    }
+
+    if detect_realm_power_conflict(current_text, player_realm_level, player_combat_power) {
+        report.issues.push(ConsistencyIssue {
+            level: IssueLevel::Warning,
+            code: "realm_power_conflict",
+            message: "高境界角色对低阶威胁表现失衡，已注入合理化修正".to_string(),
+        });
+        let fix_line = "你稳住心神，以当前境界与功法判断，此等低阶威胁不足以令你失措，战术重心转为试探与压制。";
+        let merged = if let Some(existing) = report.repaired_plot_text.clone() {
+            format!("{}\n\n{}", existing.trim(), fix_line)
+        } else if current_text.is_empty() {
+            fix_line.to_string()
+        } else {
+            format!("{}\n\n{}", current_text, fix_line)
+        };
+        report.repaired_plot_text = Some(merged);
     }
 
     report
@@ -202,7 +242,7 @@ mod tests {
             chapter_end: false,
             generation_diagnostics: None,
         };
-        let report = validate_and_repair_plot_update(&state, &update, &action_result());
+        let report = validate_and_repair_plot_update(&state, &update, &action_result(), 1, 100);
         assert!(report.repaired_plot_text.is_some());
         assert!(!report.issues.is_empty());
     }
@@ -222,7 +262,7 @@ mod tests {
             chapter_end: false,
             generation_diagnostics: None,
         };
-        let report = validate_and_repair_plot_update(&state, &update, &action_result());
+        let report = validate_and_repair_plot_update(&state, &update, &action_result(), 1, 100);
         assert!(report.repaired_plot_text.is_some());
         assert!(report.issues.iter().any(|i| i.code == "duplicate_segment"));
     }
@@ -242,9 +282,28 @@ mod tests {
             chapter_end: false,
             generation_diagnostics: None,
         };
-        let report = validate_and_repair_plot_update(&state, &update, &action_result());
+        let report = validate_and_repair_plot_update(&state, &update, &action_result(), 1, 100);
         assert!(report.force_non_waiting);
         assert!(report.issues.iter().any(|i| i.code == "waiting_without_options"));
     }
-}
 
+    #[test]
+    fn detects_realm_power_conflict_for_high_realm_player() {
+        let state = test_plot_state();
+        let update = PlotUpdate {
+            new_scene: None,
+            plot_text: "你面对练气期妖兽竟心生畏惧，几乎落荒而逃。".to_string(),
+            triggered_events: vec![],
+            state_changes: vec![],
+            is_waiting_for_input: false,
+            available_options: vec![],
+            chapter_title: None,
+            chapter_summary: None,
+            chapter_end: false,
+            generation_diagnostics: None,
+        };
+        let report = validate_and_repair_plot_update(&state, &update, &action_result(), 4, 6200);
+        assert!(report.issues.iter().any(|i| i.code == "realm_power_conflict"));
+        assert!(report.repaired_plot_text.is_some());
+    }
+}
