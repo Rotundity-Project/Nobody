@@ -1,3 +1,6 @@
+use serde::Deserialize;
+use std::sync::OnceLock;
+
 use crate::numerical_system::ActionResult;
 use crate::plot_engine::{PlotState, PlotUpdate};
 
@@ -28,14 +31,80 @@ impl ConsistencyReport {
         if self.issues.is_empty() {
             return None;
         }
+        let policy = load_policy();
+        let risk_score: i32 = self
+            .issues
+            .iter()
+            .map(|i| policy.weight_for(i.code, &i.level))
+            .sum();
         let body = self
             .issues
             .iter()
             .map(|i| format!("[{}:{}] {}", level_tag(&i.level), i.code, i.message))
             .collect::<Vec<_>>()
             .join("；");
-        Some(format!("一致性校验器V2：{}", body))
+        Some(format!("一致性校验器V2(风险分={}): {}", risk_score, body))
     }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct ConsistencyPolicy {
+    recent_window: usize,
+    cross_chapter_window: usize,
+    duplicate_recent_threshold: f32,
+    duplicate_cross_chapter_threshold: f32,
+    weight_warning: i32,
+    weight_critical: i32,
+    code_weights: std::collections::HashMap<String, i32>,
+}
+
+impl Default for ConsistencyPolicy {
+    fn default() -> Self {
+        let mut code_weights = std::collections::HashMap::new();
+        code_weights.insert("duplicate_segment".to_string(), 8);
+        code_weights.insert("duplicate_cross_chapter".to_string(), 10);
+        code_weights.insert("waiting_without_options".to_string(), 12);
+        code_weights.insert("realm_power_conflict".to_string(), 9);
+        code_weights.insert("title_drift".to_string(), 6);
+        code_weights.insert("location_transition_untracked".to_string(), 6);
+        code_weights.insert("chapter_goal_weak".to_string(), 5);
+        code_weights.insert("chapter_summary_missing".to_string(), 4);
+        code_weights.insert("empty_plot_text".to_string(), 15);
+        Self {
+            recent_window: 3,
+            cross_chapter_window: 3,
+            duplicate_recent_threshold: 0.92,
+            duplicate_cross_chapter_threshold: 0.88,
+            weight_warning: 5,
+            weight_critical: 12,
+            code_weights,
+        }
+    }
+}
+
+impl ConsistencyPolicy {
+    fn weight_for(&self, code: &str, level: &IssueLevel) -> i32 {
+        self.code_weights
+            .get(code)
+            .copied()
+            .unwrap_or(match level {
+                IssueLevel::Warning => self.weight_warning,
+                IssueLevel::Critical => self.weight_critical,
+            })
+    }
+}
+
+fn load_policy() -> &'static ConsistencyPolicy {
+    static POLICY: OnceLock<ConsistencyPolicy> = OnceLock::new();
+    POLICY.get_or_init(|| {
+        let path = std::path::Path::new("config/consistency_rules_v2.json");
+        if let Ok(raw) = std::fs::read_to_string(path) {
+            if let Ok(cfg) = serde_json::from_str::<ConsistencyPolicy>(&raw) {
+                return cfg;
+            }
+        }
+        ConsistencyPolicy::default()
+    })
 }
 
 fn level_tag(level: &IssueLevel) -> &'static str {
@@ -174,6 +243,7 @@ pub fn validate_and_repair_plot_update(
     player_combat_power: u64,
     player_name: &str,
 ) -> ConsistencyReport {
+    let policy = load_policy();
     let mut report = ConsistencyReport::default();
     let current_text = plot_update.plot_text.trim();
 
@@ -193,14 +263,15 @@ pub fn validate_and_repair_plot_update(
             .content
             .iter()
             .rev()
-            .take(3)
+            .take(policy.recent_window)
             .any(|old| {
                 let normalized_old = normalize_text(old);
                 if normalized_old.is_empty() {
                     return false;
                 }
                 normalized_old == normalized_current
-                    || jaccard_similarity(&normalized_old, &normalized_current) >= 0.92
+                    || jaccard_similarity(&normalized_old, &normalized_current)
+                        >= policy.duplicate_recent_threshold
             });
         if duplicate {
             report.issues.push(ConsistencyIssue {
@@ -209,6 +280,35 @@ pub fn validate_and_repair_plot_update(
                 message: "检测到与近期剧情高度重复，已替换为去重段落".to_string(),
             });
             report.repaired_plot_text = Some(build_repair_text(plot_state, action_result));
+        }
+
+        let cross_dup = plot_state
+            .chapters
+            .iter()
+            .rev()
+            .take(policy.cross_chapter_window)
+            .flat_map(|chapter| chapter.content.iter())
+            .any(|old| {
+                let normalized_old = normalize_text(old);
+                if normalized_old.is_empty() {
+                    return false;
+                }
+                jaccard_similarity(&normalized_old, &normalized_current)
+                    >= policy.duplicate_cross_chapter_threshold
+            });
+        if cross_dup {
+            report.issues.push(ConsistencyIssue {
+                level: IssueLevel::Warning,
+                code: "duplicate_cross_chapter",
+                message: "检测到与前序章节重复，已注入差异化推进锚点".to_string(),
+            });
+            let bridge = "你意识到此事与过往经历相似，但仍有关键差异：新的动机与代价正在浮现。";
+            let merged = if let Some(existing) = report.repaired_plot_text.clone() {
+                format!("{}\n\n{}", existing.trim(), bridge)
+            } else {
+                format!("{}\n\n{}", current_text, bridge)
+            };
+            report.repaired_plot_text = Some(merged);
         }
     }
 
@@ -504,5 +604,35 @@ mod tests {
         };
         let report = validate_and_repair_plot_update(&state, &update, &action_result(), 2, 500, "无名弟子");
         assert!(report.issues.iter().any(|i| i.code == "chapter_goal_weak"));
+    }
+
+    #[test]
+    fn detects_cross_chapter_duplicate() {
+        let mut state = test_plot_state();
+        state.chapters.push(ChapterState {
+            index: 0,
+            title: "序章".to_string(),
+            content: vec!["你推开山门，风声呼啸。".to_string()],
+            summary: String::new(),
+            interaction_count: 1,
+            status: Default::default(),
+        });
+        let update = PlotUpdate {
+            new_scene: None,
+            plot_text: "你推开山门，风声呼啸。".to_string(),
+            triggered_events: vec![],
+            state_changes: vec![],
+            is_waiting_for_input: false,
+            available_options: vec![],
+            chapter_title: None,
+            chapter_summary: None,
+            chapter_end: false,
+            generation_diagnostics: None,
+        };
+        let report = validate_and_repair_plot_update(&state, &update, &action_result(), 2, 500, "无名弟子");
+        assert!(report
+            .issues
+            .iter()
+            .any(|i| i.code == "duplicate_cross_chapter"));
     }
 }
