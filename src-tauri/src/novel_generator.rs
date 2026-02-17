@@ -1,4 +1,5 @@
-﻿use crate::event_log::GameEvent;
+use crate::event_log::GameEvent;
+use crate::plot_engine::PlotState;
 use crate::llm_runtime_config::resolve_llm_config;
 use crate::llm_service::{LLMRequest, LLMService};
 use crate::prompt_builder::{PromptBuilder, PromptConstraints, PromptContext, PromptTemplate};
@@ -15,9 +16,19 @@ pub struct Chapter {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TocEntry {
+    pub index: u32,
+    pub title: String,
+    pub summary: String,
+    pub source_event_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Novel {
     pub title: String,
     pub chapters: Vec<Chapter>,
+    #[serde(default)]
+    pub toc: Vec<TocEntry>,
     pub total_events: usize,
 }
 
@@ -61,6 +72,12 @@ impl NovelGenerator {
                     content: "尚无重大事件发生，你的修行旅程正等待展开。".to_string(),
                     source_event_ids: Vec::new(),
                 }],
+                toc: vec![TocEntry {
+                    index: 1,
+                    title: "第1章：静水初澜".to_string(),
+                    summary: "修行旅程尚未展开。".to_string(),
+                    source_event_count: 0,
+                }],
                 total_events: 0,
             });
         }
@@ -74,11 +91,59 @@ impl NovelGenerator {
             chapters.push(chapter);
         }
 
+        let toc = build_toc(&chapters);
         Ok(Novel {
             title,
             chapters,
+            toc,
             total_events: ordered_events.len(),
         })
+    }
+
+    pub fn generate_chronicle_from_plot(
+        &self,
+        title: impl Into<String>,
+        plot_state: &PlotState,
+    ) -> Novel {
+        let title = title.into();
+        let mut chapters = Vec::new();
+
+        for ch in &plot_state.chapters {
+            if ch.content.is_empty() {
+                continue;
+            }
+            chapters.push(Chapter {
+                index: ch.index,
+                title: ch.title.clone(),
+                content: ch.content.join("\n\n"),
+                source_event_ids: Vec::new(),
+            });
+        }
+
+        if !plot_state.current_chapter.content.is_empty() {
+            chapters.push(Chapter {
+                index: plot_state.current_chapter.index,
+                title: plot_state.current_chapter.title.clone(),
+                content: plot_state.current_chapter.content.join("\n\n"),
+                source_event_ids: Vec::new(),
+            });
+        }
+
+        if chapters.is_empty() {
+            chapters.push(Chapter {
+                index: 1,
+                title: "第1章：初入仙途".to_string(),
+                content: "当前尚无可导出的章节内容。".to_string(),
+                source_event_ids: Vec::new(),
+            });
+        }
+
+        Novel {
+            title,
+            toc: build_toc(&chapters),
+            total_events: plot_state.plot_history.len(),
+            chapters,
+        }
     }
 
     pub async fn generate_chapter(
@@ -203,9 +268,14 @@ impl NovelGenerator {
         let mut content = String::new();
         content.push_str(&format!("{}\n\n", novel.title));
         content.push_str(&format!("事件总数：{}\n\n", novel.total_events));
+        content.push_str("目录\n");
+        for item in &novel.toc {
+            content.push_str(&format!("{}. {} - {}\n", item.index, item.title, item.summary));
+        }
+        content.push('\n');
 
         for chapter in &novel.chapters {
-            content.push_str(&format!("第{}章 - {}\n", chapter.index, chapter.title));
+            content.push_str(&format!("{}\n", chapter.title));
             content.push_str(&chapter.content);
             content.push_str("\n\n");
         }
@@ -220,10 +290,39 @@ impl Default for NovelGenerator {
     }
 }
 
+fn build_toc(chapters: &[Chapter]) -> Vec<TocEntry> {
+    chapters
+        .iter()
+        .map(|chapter| TocEntry {
+            index: chapter.index,
+            title: chapter.title.clone(),
+            summary: summarize_chapter(chapter),
+            source_event_count: chapter.source_event_ids.len(),
+        })
+        .collect()
+}
+
+fn summarize_chapter(chapter: &Chapter) -> String {
+    let plain = chapter.content.replace('\n', " ");
+    let trimmed = plain.trim();
+    if trimmed.is_empty() {
+        return "（无摘要）".to_string();
+    }
+    let mut out = String::new();
+    for ch in trimmed.chars().take(42) {
+        out.push(ch);
+    }
+    if trimmed.chars().count() > 42 {
+        out.push_str("...");
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::event_log::EventImportance;
+    use crate::plot_engine::{PlotState, Scene};
 
     fn test_event(id: u64, timestamp: u64, event_type: &str, description: &str) -> GameEvent {
         GameEvent {
@@ -277,6 +376,12 @@ mod tests {
                 content: "A quiet dawn over the sect.".to_string(),
                 source_event_ids: vec![1],
             }],
+            toc: vec![TocEntry {
+                index: 1,
+                title: "Beginning".to_string(),
+                summary: "A quiet dawn over the sect.".to_string(),
+                source_event_count: 1,
+            }],
             total_events: 1,
         };
 
@@ -288,7 +393,27 @@ mod tests {
 
         let text = std::fs::read_to_string(output).unwrap();
         assert!(text.contains("Export Test"));
+        assert!(text.contains("目录"));
         assert!(text.contains("Beginning"));
+    }
+
+    #[test]
+    fn test_generate_chronicle_from_plot_includes_toc() {
+        let generator = NovelGenerator::new();
+        let scene = Scene::new(
+            "start".to_string(),
+            "第1章 初始".to_string(),
+            "opening".to_string(),
+            "sect".to_string(),
+        );
+        let mut plot = PlotState::new(scene);
+        plot.append_segment("第一段剧情".to_string());
+        plot.finalize_chapter(Some("第1章 初始".to_string()), Some("开端".to_string()));
+        plot.append_segment("第二章第一段".to_string());
+
+        let novel = generator.generate_chronicle_from_plot("Chronicle", &plot);
+        assert!(!novel.chapters.is_empty());
+        assert_eq!(novel.chapters.len(), novel.toc.len());
     }
 }
 
@@ -387,6 +512,7 @@ mod property_tests {
             let novel = Novel {
                 title: title.clone(),
                 chapters,
+                toc: vec![],
                 total_events: chapter_count,
             };
 

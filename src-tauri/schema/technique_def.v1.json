@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TechniqueDef v1",
+  "type": "object",
+  "required": ["schemaVersion", "techniqueId", "name", "realmRequirement", "basePower", "description"],
+  "properties": {
+    "schemaVersion": { "type": "string", "const": "v1" },
+    "techniqueId": { "type": "string", "minLength": 1 },
+    "name": { "type": "string", "minLength": 1 },
+    "tags": { "type": "array", "items": { "type": "string" } },
+    "realmRequirement": { "type": "integer", "minimum": 1, "maximum": 9 },
+    "rootAffinity": { "type": "array", "items": { "type": "string" } },
+    "basePower": { "type": "number", "minimum": 0 },
+    "riskTags": { "type": "array", "items": { "type": "string" } },
+    "description": { "type": "string", "minLength": 1 }
+  },
+  "additionalProperties": true
+}

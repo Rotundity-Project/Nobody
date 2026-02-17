@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MapNodeDef v1",
+  "type": "object",
+  "required": ["schemaVersion", "nodeId", "name", "nodeType", "dangerTier", "auraDensity"],
+  "properties": {
+    "schemaVersion": { "type": "string", "const": "v1" },
+    "nodeId": { "type": "string", "minLength": 1 },
+    "name": { "type": "string", "minLength": 1 },
+    "nodeType": { "type": "string", "minLength": 1 },
+    "dangerTier": { "type": "integer", "minimum": 1, "maximum": 9 },
+    "auraDensity": { "type": "number", "minimum": 0.05, "maximum": 5.0 },
+    "factionControl": { "type": "string" },
+    "connectedNodes": { "type": "array", "items": { "type": "string" } }
+  },
+  "additionalProperties": true
+}

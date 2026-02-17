@@ -70,12 +70,28 @@ impl Default for PlotSettings {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ChapterLifecycle {
+    InProgress,
+    Closed,
+    Exported,
+}
+
+impl Default for ChapterLifecycle {
+    fn default() -> Self {
+        Self::InProgress
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ChapterState {
     pub index: u32,
     pub title: String,
     pub content: Vec<String>,
     pub summary: String,
     pub interaction_count: u8,
+    #[serde(default)]
+    pub status: ChapterLifecycle,
 }
 
 impl ChapterState {
@@ -86,6 +102,7 @@ impl ChapterState {
             content: Vec::new(),
             summary: String::new(),
             interaction_count: 0,
+            status: ChapterLifecycle::InProgress,
         }
     }
 
@@ -1998,6 +2015,7 @@ impl PlotState {
             self.current_scene.name = self.current_chapter.title.clone();
         }
 
+        self.current_chapter.status = ChapterLifecycle::Closed;
         self.chapters.push(self.current_chapter.clone());
         let next_index = self.current_chapter.index + 1;
         let next_title = format!("第{}章", next_index);

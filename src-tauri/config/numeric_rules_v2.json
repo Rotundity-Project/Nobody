@@ -1,0 +1,13 @@
+{
+  "techniquePowerBands": [
+    { "realmRequirement": 1, "minPower": 8, "maxPower": 80 },
+    { "realmRequirement": 2, "minPower": 60, "maxPower": 220 },
+    { "realmRequirement": 3, "minPower": 180, "maxPower": 560 },
+    { "realmRequirement": 4, "minPower": 500, "maxPower": 1400 },
+    { "realmRequirement": 5, "minPower": 1200, "maxPower": 3200 }
+  ],
+  "mapDangerMin": 1,
+  "mapDangerMax": 9,
+  "auraDensityMin": 0.05,
+  "auraDensityMax": 5.0
+}
