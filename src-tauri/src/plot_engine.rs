@@ -69,18 +69,13 @@ impl Default for PlotSettings {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum ChapterLifecycle {
+    #[default]
     InProgress,
     Closed,
     Exported,
-}
-
-impl Default for ChapterLifecycle {
-    fn default() -> Self {
-        Self::InProgress
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
