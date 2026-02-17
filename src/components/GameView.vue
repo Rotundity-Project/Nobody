@@ -438,7 +438,7 @@ const freeTextInput = ref('');
 const storyScrollRef = ref<HTMLElement | null>(null);
 const previousChapterParagraphs = ref<string[]>([]);
 const isDevMode = import.meta.env.DEV;
-const MAX_AUTO_ADVANCE_STEPS = 12;
+const MAX_AUTO_ADVANCE_STEPS = 48;
 
 const inputValidation = computed(() => validateFreeTextInput(freeTextInput.value));
 const currentChapterTitle = computed(
@@ -496,6 +496,9 @@ const isNoInputAdvanceState = computed(
 const shouldShowInputPanel = computed(
   () => gameStore.isWaitingForInput && gameStore.isGameInitialized && !isNoInputAdvanceState.value
 );
+const shouldAutoAdvance = computed(
+  () => gameStore.isGameInitialized && (!gameStore.isWaitingForInput || isNoInputAdvanceState.value)
+);
 const optionSourceLabel = computed(() => {
   const source = gameStore.plotState?.last_option_generation_source;
   if (!source) {
@@ -551,16 +554,41 @@ const handleContinue = async () => {
     loadingMessage.value = '正在续写剧情...';
     playClick();
     let step = 0;
+    let stoppedByStagnation = false;
+    let previousSignature = [
+      gameStore.plotState?.current_chapter?.index ?? -1,
+      gameStore.plotState?.current_chapter?.content?.length ?? 0,
+      gameStore.plotState?.segment_count ?? 0,
+      gameStore.plotState?.last_option_generation_source ?? '',
+      gameStore.isWaitingForInput ? 'w' : 'nw',
+      gameStore.availableOptions.length,
+    ].join('|');
     do {
       step += 1;
       if (step > 1) {
         loadingMessage.value = `正在自动推进剧情（${step}）...`;
       }
       await gameStore.executePlayerAction(createContinueAction());
-    } while (isNoInputAdvanceState.value && step < MAX_AUTO_ADVANCE_STEPS);
 
-    if (isNoInputAdvanceState.value) {
-      console.warn(`自动推进已达到上限（${MAX_AUTO_ADVANCE_STEPS} 步），请检查剧情生成状态。`);
+      const currentSignature = [
+        gameStore.plotState?.current_chapter?.index ?? -1,
+        gameStore.plotState?.current_chapter?.content?.length ?? 0,
+        gameStore.plotState?.segment_count ?? 0,
+        gameStore.plotState?.last_option_generation_source ?? '',
+        gameStore.isWaitingForInput ? 'w' : 'nw',
+        gameStore.availableOptions.length,
+      ].join('|');
+
+      const stagnated = currentSignature === previousSignature;
+      previousSignature = currentSignature;
+      if (stagnated) {
+        stoppedByStagnation = true;
+        break;
+      }
+    } while (shouldAutoAdvance.value && step < MAX_AUTO_ADVANCE_STEPS);
+
+    if (shouldAutoAdvance.value && !stoppedByStagnation && step >= MAX_AUTO_ADVANCE_STEPS) {
+      console.warn(`自动推进达到保护上限（${MAX_AUTO_ADVANCE_STEPS} 步），已停止以避免卡死。`);
     }
   } catch (error) {
     console.error('继续写失败：', error);
