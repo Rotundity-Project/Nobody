@@ -15,6 +15,7 @@ use crate::llm_service::{LLMConfig, LLMRequest, LLMService};
 use crate::memory_layers::{ChapterSummary, MemoryEntry, WorldFact};
 use crate::novel_generator::{Novel, NovelGenerator};
 use crate::numerical_system::{Action, Context, StatChange};
+use crate::plot_consistency::validate_and_repair_plot_update;
 use crate::plot_engine::{PlayerAction, PlayerOption, PlotEngine, PlotSettings, PlotState};
 use crate::save_load::SaveInfo;
 use crate::script::Script;
@@ -425,6 +426,26 @@ pub async fn execute_player_action(
         }
     }
 
+    let consistency_report =
+        validate_and_repair_plot_update(&plot_state, &plot_update, &action_result);
+    if let Some(text) = consistency_report.repaired_plot_text.clone() {
+        plot_update.plot_text = text;
+    }
+    if consistency_report.force_non_waiting {
+        plot_update.is_waiting_for_input = false;
+    }
+    if let Some(diag) = consistency_report.to_diagnostics() {
+        match &mut plot_update.generation_diagnostics {
+            Some(existing) => {
+                existing.push('；');
+                existing.push_str(&diag);
+            }
+            None => {
+                plot_update.generation_diagnostics = Some(diag);
+            }
+        }
+    }
+
     let log_entry = if let Some(selected_option_id) = action.selected_option_id {
         if let Some(selected_option) = plot_state.current_scene.available_options.get(selected_option_id) {
             match &selected_option.action {
@@ -487,7 +508,7 @@ pub async fn execute_player_action(
 
     let previous_options = plot_state.current_scene.available_options.clone();
 
-    let option_source: String = if plot_update.is_waiting_for_input {
+    let mut option_source: String = if plot_update.is_waiting_for_input {
         if !plot_update.available_options.is_empty() {
             plot_state.current_scene.available_options = plot_update.available_options;
             "llm_structured".to_string()
@@ -527,6 +548,21 @@ pub async fn execute_player_action(
         plot_state.current_scene.available_options.clear();
         "not_waiting_for_input".to_string()
     };
+
+    if plot_update.is_waiting_for_input
+        && !plot_update.chapter_end
+        && plot_state.current_scene.available_options.is_empty()
+    {
+        plot_update.is_waiting_for_input = false;
+        option_source = "consistency_non_waiting_fallback".to_string();
+        match &mut plot_state.last_generation_diagnostics {
+            Some(diag) => diag.push_str("；一致性兜底：无选项等待态已改为自动推进"),
+            None => {
+                plot_state.last_generation_diagnostics =
+                    Some("一致性兜底：无选项等待态已改为自动推进".to_string())
+            }
+        }
+    }
 
     plot_state.last_option_generation_source = Some(option_source.clone());
     match &mut plot_state.last_generation_diagnostics {

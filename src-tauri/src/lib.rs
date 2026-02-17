@@ -18,6 +18,7 @@ pub mod novel_parser;
 pub mod numeric_guard;
 pub mod numerical_system;
 pub mod plot_engine;
+pub mod plot_consistency;
 pub mod prompt_builder;
 pub mod response_validator;
 pub mod save_load;
