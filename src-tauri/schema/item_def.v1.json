@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ItemDef v1",
+  "type": "object",
+  "required": ["schemaVersion", "itemId", "name", "itemType", "qualityTier"],
+  "properties": {
+    "schemaVersion": { "type": "string", "const": "v1" },
+    "itemId": { "type": "string", "minLength": 1 },
+    "name": { "type": "string", "minLength": 1 },
+    "itemType": { "type": "string", "minLength": 1 },
+    "qualityTier": { "type": "integer", "minimum": 1, "maximum": 9 },
+    "description": { "type": "string" }
+  },
+  "additionalProperties": true
+}

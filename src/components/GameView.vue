@@ -156,10 +156,10 @@
       <div class="border-t border-slate-700 bg-slate-900/80 p-6 backdrop-blur">
         <div class="max-w-3xl mx-auto">
           <div
-            v-if="gameStore.isWaitingForInput && gameStore.isGameInitialized"
+            v-if="shouldShowInputPanel"
             class="space-y-4"
           >
-            <div class="flex items-center gap-2">
+            <div v-if="gameStore.availableOptions.length > 0" class="flex items-center gap-2">
               <button
                 class="px-3 py-1 rounded"
                 :class="inputMode === 'options' ? 'bg-purple-600 text-white' : 'bg-slate-700 text-gray-300'"
@@ -205,7 +205,7 @@
             </div>
 
             <div
-              v-if="inputMode === 'freeText'"
+              v-if="inputMode === 'freeText' || gameStore.availableOptions.length === 0"
               class="space-y-2"
             >
               <textarea
@@ -232,6 +232,19 @@
                 提交自由输入
               </button>
             </div>
+          </div>
+
+          <div
+            v-else-if="isNoInputAdvanceState && !isLoading"
+            class="text-center space-y-3"
+          >
+            <p class="text-sm text-slate-400">当前无需输入，点击继续即可推进剧情。</p>
+            <button
+              class="px-4 py-2 rounded-lg transition-colors bg-amber-500 hover:bg-amber-400 text-slate-900"
+              @click="handleContinue"
+            >
+              继续推进剧情
+            </button>
           </div>
 
           <div
@@ -269,13 +282,30 @@
       </div>
 
       <div
+        v-if="isDevMode && gameStore.plotState"
+        class="border-t border-slate-800 bg-slate-950/80 p-4"
+      >
+        <div class="mx-auto max-w-3xl space-y-2 text-xs text-slate-300">
+          <p class="uppercase tracking-[0.2em] text-slate-500">Debug Context</p>
+          <p>章节：{{ gameStore.plotState.current_chapter.index }} / {{ gameStore.plotState.current_chapter.title }}</p>
+          <p>选项来源：{{ optionSourceLabel || 'n/a' }}</p>
+          <p>等待输入：{{ gameStore.isWaitingForInput ? 'yes' : 'no' }}</p>
+          <p class="whitespace-pre-wrap text-slate-400">
+            诊断：{{ gameStore.plotState.last_generation_diagnostics || '无' }}
+          </p>
+        </div>
+      </div>
+
+      <div
         v-if="gameStore.error"
         class="p-4 bg-red-900 bg-opacity-50 border-t border-red-500"
       >
         <div class="max-w-3xl mx-auto">
-          <p class="text-red-200">
-            {{ gameStore.error }}
-          </p>
+          <StatusBanner
+            kind="error"
+            title="系统提示"
+            :message="gameStore.error ?? ''"
+          />
           <button
             class="mt-2 px-4 py-1 bg-red-700 hover:bg-red-600 rounded text-sm transition-colors"
             @click="gameStore.clearError"
@@ -345,6 +375,7 @@ import KeyboardShortcutsDialog from './KeyboardShortcutsDialog.vue';
 import LoadingIndicator from './LoadingIndicator.vue';
 import NovelExporter from './NovelExporter.vue';
 import SaveLoadDialog from './SaveLoadDialog.vue';
+import StatusBanner from './StatusBanner.vue';
 import StorySettingsDialog from './StorySettingsDialog.vue';
 import type { PlayerOption } from '../types/game';
 import {
@@ -375,6 +406,8 @@ const inputMode = ref<'options' | 'freeText'>('options');
 const freeTextInput = ref('');
 const storyScrollRef = ref<HTMLElement | null>(null);
 const previousChapterParagraphs = ref<string[]>([]);
+const isDevMode = import.meta.env.DEV;
+const MAX_AUTO_ADVANCE_STEPS = 12;
 
 const inputValidation = computed(() => validateFreeTextInput(freeTextInput.value));
 const currentChapterTitle = computed(
@@ -394,6 +427,16 @@ const lastChapterSummary = computed(() => {
 });
 const shouldShowRecap = computed(
   () => storySettings.value.recap_enabled && lastChapterSummary.value.length > 0
+);
+const isNoInputAdvanceState = computed(
+  () =>
+    gameStore.isGameInitialized &&
+    gameStore.isWaitingForInput &&
+    gameStore.availableOptions.length === 0 &&
+    gameStore.plotState?.last_option_generation_source === 'not_waiting_for_input'
+);
+const shouldShowInputPanel = computed(
+  () => gameStore.isWaitingForInput && gameStore.isGameInitialized && !isNoInputAdvanceState.value
 );
 const optionSourceLabel = computed(() => {
   const source = gameStore.plotState?.last_option_generation_source;
@@ -449,7 +492,18 @@ const handleContinue = async () => {
     isLoading.value = true;
     loadingMessage.value = '正在续写剧情...';
     playClick();
-    await gameStore.executePlayerAction(createContinueAction());
+    let step = 0;
+    do {
+      step += 1;
+      if (step > 1) {
+        loadingMessage.value = `正在自动推进剧情（${step}）...`;
+      }
+      await gameStore.executePlayerAction(createContinueAction());
+    } while (isNoInputAdvanceState.value && step < MAX_AUTO_ADVANCE_STEPS);
+
+    if (isNoInputAdvanceState.value) {
+      console.warn(`自动推进已达到上限（${MAX_AUTO_ADVANCE_STEPS} 步），请检查剧情生成状态。`);
+    }
   } catch (error) {
     console.error('继续写失败：', error);
   } finally {
@@ -489,7 +543,7 @@ const applyStorySettings = async (settings: StorySettings) => {
 };
 
 const scrollToBottom = () => {
-  if (storyScrollRef.value) {
+  if (storyScrollRef.value && typeof storyScrollRef.value.scrollTo === 'function') {
     storyScrollRef.value.scrollTo({
       top: storyScrollRef.value.scrollHeight,
       behavior: 'smooth'
@@ -508,7 +562,10 @@ watch(currentChapterParagraphs, (newParagraphs) => {
   if (newParagraphs.length > previousChapterParagraphs.value.length && storyScrollRef.value) {
     // 只有当有新内容时才滚动到底部
     requestAnimationFrame(() => {
-      storyScrollRef.value?.scrollTo({
+      if (!storyScrollRef.value || typeof storyScrollRef.value.scrollTo !== 'function') {
+        return;
+      }
+      storyScrollRef.value.scrollTo({
         top: storyScrollRef.value.scrollHeight,
         behavior: 'smooth'
       });
@@ -532,6 +589,13 @@ const handleKeydown = (event: KeyboardEvent) => {
     showStorySettings.value = false;
     showCharacterInfo.value = false;
     showAudioPanel.value = false;
+  }
+
+  // Enter 提交自由输入
+  if (event.key === 'Enter' && isNoInputAdvanceState.value) {
+    event.preventDefault();
+    handleContinue();
+    return;
   }
 
   // Enter 提交自由输入

@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils';
+﻿import { mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { nextTick } from 'vue';
 import NovelExporter from '../NovelExporter.vue';
@@ -29,7 +29,7 @@ describe('NovelExporter', () => {
     saveMock.mockReset();
   });
 
-  it('generates novel and allows export', async () => {
+  it('generates chronicle and allows export', async () => {
     invokeMock.mockImplementation((command: string) => {
       if (command === 'generate_novel') {
         return Promise.resolve({
@@ -37,9 +37,17 @@ describe('NovelExporter', () => {
           chapters: [
             {
               index: 1,
-              title: '第一章',
+              title: '第1章 初始',
               content: '内容',
               source_event_ids: [1],
+            },
+          ],
+          toc: [
+            {
+              index: 1,
+              title: '第1章 初始',
+              summary: '内容',
+              source_event_count: 1,
             },
           ],
           total_events: 1,
@@ -60,22 +68,18 @@ describe('NovelExporter', () => {
       },
     });
 
-    const generateButton = wrapper
-      .findAll('button')
-      .find((btn) => btn.text().includes('生成小说'));
-    expect(generateButton).toBeTruthy();
-    await generateButton!.trigger('click');
+    const buttons = wrapper.findAll('button');
+    expect(buttons.length).toBeGreaterThanOrEqual(2);
+
+    await buttons[0]!.trigger('click');
     await flushPromises();
     await nextTick();
 
     expect(invokeMock).toHaveBeenCalledWith('generate_novel', expect.any(Object));
     expect(wrapper.text()).toContain('测试小说');
+    expect(wrapper.text()).toContain('目录');
 
-    const exportButton = wrapper
-      .findAll('button')
-      .find((btn) => btn.text().includes('导出 TXT'));
-    expect(exportButton).toBeTruthy();
-    await exportButton!.trigger('click');
+    await buttons[1]!.trigger('click');
     await flushPromises();
 
     expect(saveMock).toHaveBeenCalled();

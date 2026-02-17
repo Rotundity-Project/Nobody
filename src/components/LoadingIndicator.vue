@@ -11,8 +11,14 @@
       </div>
     </div>
     <div class="h-1.5 overflow-hidden rounded-full bg-slate-800/90" aria-hidden="true">
-      <div class="loading-bar h-full w-1/3 rounded-full bg-amber-300/90"></div>
+      <div
+        v-if="progressPercent !== null"
+        class="h-full rounded-full bg-amber-300/90 transition-all duration-300"
+        :style="{ width: `${progressPercent}%` }"
+      ></div>
+      <div v-else class="loading-bar h-full w-1/3 rounded-full bg-amber-300/90"></div>
     </div>
+    <p v-if="progressText" class="text-xs text-slate-400">{{ progressText }}</p>
   </div>
 </template>
 
@@ -24,11 +30,15 @@ const props = withDefaults(
     message?: string;
     detail?: string;
     size?: 'sm' | 'md' | 'lg';
+    progress?: number | null;
+    progressText?: string;
   }>(),
   {
     message: '处理中...',
     detail: '',
     size: 'md',
+    progress: null,
+    progressText: '',
   },
 );
 
@@ -41,6 +51,13 @@ const sizeClass = computed(() => {
     default:
       return 'h-6 w-6';
   }
+});
+
+const progressPercent = computed(() => {
+  if (props.progress == null) {
+    return null;
+  }
+  return Math.max(0, Math.min(100, props.progress));
 });
 </script>
 
