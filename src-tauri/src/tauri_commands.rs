@@ -416,7 +416,7 @@ pub async fn execute_player_action(
         );
         match &mut plot_update.generation_diagnostics {
             Some(diag) => {
-                diag.push_str("；");
+                diag.push('；');
                 diag.push_str(&ctx_diag);
             }
             None => {
