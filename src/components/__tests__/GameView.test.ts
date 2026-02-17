@@ -173,6 +173,56 @@ describe('GameView', () => {
     expect(executePlayerActionMock).toHaveBeenCalledWith(continueAction);
   });
 
+  it('auto advances when backend keeps no-input state', async () => {
+    const continueAction = { action_type: 'FreeText', content: 'continue', selected_option_id: null };
+    createContinueActionMock.mockReturnValue(continueAction);
+
+    let callCount = 0;
+    executePlayerActionMock.mockImplementation(async () => {
+      callCount += 1;
+      if (callCount < 3) {
+        storeRef.isWaitingForInput = false;
+        storeRef.availableOptions = [];
+        storeRef.plotState = {
+          current_chapter: {
+            title: 'chapter',
+            content: ['paragraph', `p${callCount}`],
+          },
+          chapters: [],
+          segment_count: callCount,
+          last_option_generation_source: 'llm_structured',
+        } as any;
+      } else {
+        storeRef.isWaitingForInput = true;
+        storeRef.availableOptions = [{ id: 0, description: '閫夐」涓€', requirements: [], action: {} }];
+        storeRef.plotState = {
+          current_chapter: {
+            title: 'chapter',
+            content: ['paragraph', 'p3'],
+          },
+          chapters: [],
+          segment_count: 3,
+          last_option_generation_source: 'llm_structured',
+        } as any;
+      }
+    });
+
+    storeRef = buildStore({
+      isWaitingForInput: false,
+      availableOptions: [],
+    });
+
+    const wrapper = mount(GameView);
+    const continueButton = wrapper
+      .findAll('button')
+      .find((btn) => /(继续|缁х画)/.test(btn.text()));
+    expect(continueButton).toBeTruthy();
+    await continueButton!.trigger('click');
+    await flushPromises();
+
+    expect(executePlayerActionMock).toHaveBeenCalledTimes(3);
+  });
+
   it('submits free text input', async () => {
     const freeAction = { action_type: 'FreeText', content: 'hello', selected_option_id: null };
     createFreeTextActionMock.mockReturnValue(freeAction);
@@ -253,9 +303,10 @@ describe('GameView', () => {
         storeRef.plotState = {
           current_chapter: {
             title: 'chapter',
-            content: ['paragraph'],
+            content: ['paragraph', `p${callCount}`],
           },
           chapters: [],
+          segment_count: callCount,
           last_option_generation_source: 'not_waiting_for_input',
         } as any;
         storeRef.availableOptions = [];
@@ -264,9 +315,10 @@ describe('GameView', () => {
         storeRef.plotState = {
           current_chapter: {
             title: 'chapter',
-            content: ['paragraph'],
+            content: ['paragraph', 'p3'],
           },
           chapters: [],
+          segment_count: 3,
           last_option_generation_source: 'llm_structured',
         } as any;
         storeRef.availableOptions = [{ id: 0, description: '选项一', requirements: [], action: {} }];
