@@ -123,6 +123,8 @@ pub struct PlotState {
     pub last_generation_diagnostics: Option<String>,
     #[serde(default)]
     pub last_option_generation_source: Option<String>,
+    #[serde(default)]
+    pub last_consistency_risk_score: Option<i32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -1977,6 +1979,7 @@ impl PlotState {
             segment_count: 0,
             last_generation_diagnostics: None,
             last_option_generation_source: None,
+            last_consistency_risk_score: None,
         }
     }
 

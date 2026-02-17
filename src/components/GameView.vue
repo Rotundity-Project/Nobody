@@ -540,6 +540,10 @@ const optionSourceLabel = computed(() => {
   return labels[source] ?? source;
 });
 const consistencyRiskScore = computed(() => {
+  const structured = gameStore.plotState?.last_consistency_risk_score;
+  if (typeof structured === 'number') {
+    return structured;
+  }
   const diag = gameStore.plotState?.last_generation_diagnostics ?? '';
   const matched = diag.match(/风险分[=:：]\s*(\d+)/);
   if (!matched) {

@@ -143,6 +143,7 @@ export interface PlotState {
   last_action_result: ActionResult | null;
   last_generation_diagnostics?: string | null;
   last_option_generation_source?: string | null;
+  last_consistency_risk_score?: number | null;
   settings: PlotSettings;
   current_chapter: ChapterState;
   chapters: ChapterState[];

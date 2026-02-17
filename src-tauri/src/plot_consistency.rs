@@ -28,16 +28,22 @@ pub struct ConsistencyReport {
 }
 
 impl ConsistencyReport {
+    pub fn risk_score(&self) -> i32 {
+        if self.issues.is_empty() {
+            return 0;
+        }
+        let policy = current_policy_snapshot();
+        self.issues
+            .iter()
+            .map(|i| policy.weight_for(i.code, &i.level))
+            .sum()
+    }
+
     pub fn to_diagnostics(&self) -> Option<String> {
         if self.issues.is_empty() {
             return None;
         }
-        let policy = current_policy_snapshot();
-        let risk_score: i32 = self
-            .issues
-            .iter()
-            .map(|i| policy.weight_for(i.code, &i.level))
-            .sum();
+        let risk_score = self.risk_score();
         let body = self
             .issues
             .iter()
@@ -517,6 +523,7 @@ mod tests {
             segment_count: 1,
             last_generation_diagnostics: None,
             last_option_generation_source: None,
+            last_consistency_risk_score: None,
         }
     }
 

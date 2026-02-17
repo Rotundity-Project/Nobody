@@ -515,6 +515,12 @@ pub async fn execute_player_action(
     }
 
     plot_state.last_generation_diagnostics = plot_update.generation_diagnostics.clone();
+    let risk_score = consistency_report.risk_score();
+    plot_state.last_consistency_risk_score = if risk_score > 0 {
+        Some(risk_score)
+    } else {
+        None
+    };
 
     // 用最新段落更新场景描述，避免选项生成长期绑定旧描述导致“选项不变”。
     if !plot_update.plot_text.trim().is_empty() {
