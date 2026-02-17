@@ -380,4 +380,24 @@ describe('GameView', () => {
       '读取一致性策略超时',
     );
   });
+
+  it('shows structured consistency risk score in debug panel', () => {
+    storeRef = buildStore({
+      plotState: {
+        current_chapter: {
+          title: 'chapter',
+          content: ['paragraph'],
+          index: 1,
+        },
+        chapters: [],
+        segment_count: 1,
+        last_option_generation_source: 'llm_structured',
+        last_generation_diagnostics: 'diag',
+        last_consistency_risk_score: 23,
+      } as any,
+    });
+
+    const wrapper = mount(GameView);
+    expect(wrapper.text()).toContain('一致性风险分：23');
+  });
 });
