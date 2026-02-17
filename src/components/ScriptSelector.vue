@@ -82,7 +82,13 @@
       </div>
 
       <div v-if="isLoading" class="mt-6">
-        <LoadingIndicator :message="loadingMessage" detail="请稍候，正在处理请求..." size="lg" />
+        <LoadingIndicator
+          :message="loadingMessage"
+          detail="请稍候，正在处理请求"
+          :progress="loadingProgress"
+          :progress-text="loadingProgressText"
+          size="lg"
+        />
       </div>
 
       <div v-if="error" class="mt-6 p-4 bg-red-900 bg-opacity-50 border border-red-500 rounded-lg">
@@ -112,7 +118,9 @@ import type { ScriptType, Script } from '../types/game';
 const router = useRouter();
 const gameStore = useGameStore();
 const isLoading = ref(false);
-const loadingMessage = ref('加载中...');
+const loadingMessage = ref('加载中');
+const loadingProgress = ref<number | null>(null);
+const loadingProgressText = ref('');
 const error = ref<string | null>(null);
 const playerName = ref('');
 
@@ -170,23 +178,29 @@ const selectScriptType = async (type: ScriptType) => {
 const loadRandomScript = async () => {
   try {
     isLoading.value = true;
-    loadingMessage.value = '正在生成随机剧本...';
+    loadingMessage.value = '正在生成随机剧本';
+    loadingProgress.value = 50;
+    loadingProgressText.value = '生成进度 1/2';
     error.value = null;
 
     await gameStore.initializeRandomGame(playerName.value);
+    loadingProgress.value = 100;
+    loadingProgressText.value = '生成进度 2/2';
     router.push('/game');
   } catch (err) {
     error.value = err instanceof Error ? err.message : '随机剧本生成失败';
   } finally {
     isLoading.value = false;
-    loadingMessage.value = '加载中...';
+    loadingMessage.value = '加载中';
+    loadingProgress.value = null;
+    loadingProgressText.value = '';
   }
 };
 
 const loadCustomScript = async () => {
   try {
     isLoading.value = true;
-    loadingMessage.value = '正在加载自定义剧本...';
+    loadingMessage.value = '正在加载自定义剧本';
     error.value = null;
 
     const selected = await open({
@@ -216,7 +230,7 @@ const loadCustomScript = async () => {
     error.value = err instanceof Error ? err.message : '加载剧本失败';
   } finally {
     isLoading.value = false;
-    loadingMessage.value = '加载中...';
+    loadingMessage.value = '加载中';
   }
 };
 
@@ -228,7 +242,7 @@ const showCharacterSelect = ref(false);
 const prepareExistingNovel = async () => {
   try {
     isLoading.value = true;
-    loadingMessage.value = '正在解析小说...';
+    loadingMessage.value = '正在解析小说';
     error.value = null;
 
     const selected = await open({
@@ -264,7 +278,7 @@ const prepareExistingNovel = async () => {
     error.value = err instanceof Error ? err.message : '小说解析失败';
   } finally {
     isLoading.value = false;
-    loadingMessage.value = '加载中...';
+    loadingMessage.value = '加载中';
   }
 };
 
@@ -281,7 +295,7 @@ const confirmNovelSelection = async () => {
 
   try {
     isLoading.value = true;
-    loadingMessage.value = '正在导入小说剧本...';
+    loadingMessage.value = '正在导入小说剧本';
     error.value = null;
 
     const script = await invokeWithTimeout<Script>(
@@ -300,7 +314,7 @@ const confirmNovelSelection = async () => {
     error.value = err instanceof Error ? err.message : '小说导入失败';
   } finally {
     isLoading.value = false;
-    loadingMessage.value = '加载中...';
+    loadingMessage.value = '加载中';
   }
 };
 

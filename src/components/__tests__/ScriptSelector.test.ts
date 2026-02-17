@@ -137,4 +137,27 @@ describe('ScriptSelector', () => {
     expect(initializeRandomGameMock).toHaveBeenCalled();
     expect(pushMock).toHaveBeenCalledWith('/game');
   });
+
+  it('shows random generation progress text without ellipsis dot', async () => {
+    let resolveInit: (() => void) | undefined;
+    initializeRandomGameMock.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveInit = resolve;
+        }),
+    );
+
+    const wrapper = mount(ScriptSelector);
+    const cards = getScriptTypeCards(wrapper);
+    await cards[1]!.trigger('click');
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('正在生成随机剧本');
+    expect(wrapper.text()).toContain('生成进度 1/2');
+    expect(wrapper.text()).toContain('请稍候，正在处理请求');
+    expect(wrapper.text()).not.toContain('请稍候，正在处理请求...');
+
+    resolveInit?.();
+    await flushPromises();
+  });
 });

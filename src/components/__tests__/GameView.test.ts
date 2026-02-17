@@ -200,4 +200,101 @@ describe('GameView', () => {
 
     expect(executePlayerActionMock).toHaveBeenCalledWith(freeAction);
   });
+
+  it('shows continue action when option source says no input required', async () => {
+    const continueAction = { action_type: 'FreeText', content: 'continue', selected_option_id: null };
+    createContinueActionMock.mockReturnValue(continueAction);
+    executePlayerActionMock.mockImplementation(async () => {
+      storeRef.plotState = {
+        current_chapter: {
+          title: 'chapter',
+          content: ['paragraph'],
+        },
+        chapters: [],
+        last_option_generation_source: 'llm_structured',
+      } as any;
+      storeRef.availableOptions = [{ id: 0, description: '选项一', requirements: [], action: {} }];
+      storeRef.isWaitingForInput = true;
+    });
+
+    storeRef = buildStore({
+      isWaitingForInput: true,
+      availableOptions: [],
+      plotState: {
+        current_chapter: {
+          title: 'chapter',
+          content: ['paragraph'],
+        },
+        chapters: [],
+        last_option_generation_source: 'not_waiting_for_input',
+      } as any,
+    });
+
+    const wrapper = mount(GameView);
+    const continueButton = wrapper
+      .findAll('button')
+      .find((btn) => btn.text().includes('继续'));
+    expect(continueButton).toBeTruthy();
+    await continueButton!.trigger('click');
+    await flushPromises();
+
+    expect(executePlayerActionMock).toHaveBeenCalledWith(continueAction);
+    expect(executePlayerActionMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('auto advances multiple times when no input is required repeatedly', async () => {
+    const continueAction = { action_type: 'FreeText', content: 'continue', selected_option_id: null };
+    createContinueActionMock.mockReturnValue(continueAction);
+
+    let callCount = 0;
+    executePlayerActionMock.mockImplementation(async () => {
+      callCount += 1;
+      if (callCount < 3) {
+        storeRef.plotState = {
+          current_chapter: {
+            title: 'chapter',
+            content: ['paragraph'],
+          },
+          chapters: [],
+          last_option_generation_source: 'not_waiting_for_input',
+        } as any;
+        storeRef.availableOptions = [];
+        storeRef.isWaitingForInput = true;
+      } else {
+        storeRef.plotState = {
+          current_chapter: {
+            title: 'chapter',
+            content: ['paragraph'],
+          },
+          chapters: [],
+          last_option_generation_source: 'llm_structured',
+        } as any;
+        storeRef.availableOptions = [{ id: 0, description: '选项一', requirements: [], action: {} }];
+        storeRef.isWaitingForInput = true;
+      }
+    });
+
+    storeRef = buildStore({
+      isWaitingForInput: true,
+      availableOptions: [],
+      plotState: {
+        current_chapter: {
+          title: 'chapter',
+          content: ['paragraph'],
+        },
+        chapters: [],
+        last_option_generation_source: 'not_waiting_for_input',
+      } as any,
+    });
+
+    const wrapper = mount(GameView);
+    const continueButton = wrapper
+      .findAll('button')
+      .find((btn) => btn.text().includes('继续'));
+    expect(continueButton).toBeTruthy();
+    await continueButton!.trigger('click');
+    await flushPromises();
+
+    expect(executePlayerActionMock).toHaveBeenCalledTimes(3);
+  });
 });
