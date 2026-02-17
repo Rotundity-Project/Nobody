@@ -510,6 +510,7 @@ const optionSourceLabel = computed(() => {
     rule_fallback: '规则回退',
     previous_reused: '复用上一组选项',
     not_waiting_for_input: '当前无需输入',
+    consistency_non_waiting_fallback: '一致性兜底自动推进',
   };
   return labels[source] ?? source;
 });
