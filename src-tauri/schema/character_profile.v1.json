@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CharacterProfile v1",
+  "type": "object",
+  "required": ["schemaVersion", "characterId", "name", "realm"],
+  "properties": {
+    "schemaVersion": { "type": "string", "const": "v1" },
+    "characterId": { "type": "string", "minLength": 1 },
+    "name": { "type": "string", "minLength": 1 },
+    "realm": { "type": "string", "minLength": 1 },
+    "personalityTags": { "type": "array", "items": { "type": "string" } },
+    "relationshipEdges": { "type": "array", "items": { "type": "string" } },
+    "knownTechniques": { "type": "array", "items": { "type": "string" } }
+  },
+  "additionalProperties": true
+}

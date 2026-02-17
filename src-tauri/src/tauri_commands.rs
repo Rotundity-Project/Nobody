@@ -1,11 +1,18 @@
 ﻿use crate::game_engine::GameEngine;
 use crate::game_state::GameState;
 use crate::event_log::EventImportance;
+use crate::context_builder::{build_context_bundle, ContextBuildInput, ContextBundle};
+use crate::entity_store::{EntityQuery, EntityStore};
+use crate::entity_types::{
+    EntityCandidateRequest, EntityType, ResolvedEntity, StoredEntity, ValidationStatus,
+};
+use crate::entity_validator::resolve_candidate;
 use crate::llm_runtime_config::{
     clear_runtime_llm_config, get_llm_config_status as runtime_llm_config_status,
     resolve_llm_config, set_runtime_llm_config, LLMConfigStatus,
 };
 use crate::llm_service::{LLMConfig, LLMRequest, LLMService};
+use crate::memory_layers::{ChapterSummary, MemoryEntry, WorldFact};
 use crate::novel_generator::{Novel, NovelGenerator};
 use crate::numerical_system::{Action, Context, StatChange};
 use crate::plot_engine::{PlayerAction, PlayerOption, PlotEngine, PlotSettings, PlotState};
@@ -13,9 +20,78 @@ use crate::save_load::SaveInfo;
 use crate::script::Script;
 use crate::app_error::AppError;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use std::path::Path;
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 use tauri::State;
+
+static ENTITY_STORE: OnceLock<Mutex<EntityStore>> = OnceLock::new();
+static MEMORY_LAYERS: OnceLock<Mutex<crate::memory_layers::MemoryLayers>> = OnceLock::new();
+
+fn entity_store() -> &'static Mutex<EntityStore> {
+    ENTITY_STORE.get_or_init(|| Mutex::new(EntityStore::new()))
+}
+
+fn memory_layers() -> &'static Mutex<crate::memory_layers::MemoryLayers> {
+    MEMORY_LAYERS.get_or_init(|| Mutex::new(crate::memory_layers::MemoryLayers::new()))
+}
+
+fn build_plot_context_for_generation(
+    game_state: &GameState,
+    plot_state: &PlotState,
+    action: &PlayerAction,
+) -> Option<ContextBundle> {
+    let recent_context_lines = plot_state
+        .current_chapter
+        .content
+        .iter()
+        .rev()
+        .take(6)
+        .cloned()
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect::<Vec<_>>();
+
+    let input = ContextBuildInput {
+        world_id: game_state.script.id.clone(),
+        run_id: "active-run".to_string(),
+        scene_id: plot_state.current_scene.id.clone(),
+        character_ids: vec![game_state.player.id.clone()],
+        map_node_id: Some(game_state.player.location.clone()),
+        player_intent: if action.content.trim().is_empty() {
+            None
+        } else {
+            Some(action.content.clone())
+        },
+        recent_context_lines,
+        token_budget: 260,
+    };
+
+    let store = entity_store().lock().ok()?;
+    let memory = memory_layers().lock().ok()?;
+    Some(build_context_bundle(&store, &memory, &input))
+}
+
+fn render_generation_context(bundle: &ContextBundle) -> String {
+    let mut lines = Vec::new();
+    for line in bundle.hard_facts.iter().take(4) {
+        lines.push(format!("事实: {}", line));
+    }
+    for line in bundle.recent_context.iter().take(3) {
+        lines.push(format!("近文: {}", line));
+    }
+    for line in bundle.chapter_summaries.iter().take(2) {
+        lines.push(format!("章节: {}", line));
+    }
+    for line in bundle.recent_events.iter().take(2) {
+        lines.push(format!("事件: {}", line));
+    }
+    if lines.is_empty() {
+        return String::new();
+    }
+    format!("\n\n[外置记忆+上下文窗口]\n{}", lines.join("\n"))
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ErrorResponse {
@@ -275,7 +351,39 @@ pub async fn execute_player_action(
                         });
                     }
                 }
-                Action::Rest | Action::Custom { .. } | Action::Combat { .. } => {}
+                Action::Combat { .. } => {
+                    let realm_level = game_state.player.stats.cultivation_realm.level;
+                    let check = crate::numeric_guard::validate_character_combat_power(
+                        realm_level,
+                        game_state.player.stats.combat_power,
+                    );
+                    if check.accepted && check.normalized {
+                        if let Some(v) = check.normalized_value {
+                            let old_power = game_state.player.stats.combat_power;
+                            let new_power = v.round().max(1.0) as u64;
+                            game_state.player.stats.combat_power = new_power;
+                            action_result.stat_changes.push(StatChange {
+                                stat_name: "combat_power".to_string(),
+                                old_value: old_power.to_string(),
+                                new_value: new_power.to_string(),
+                            });
+                            if let Some(reason) = check.reason {
+                                action_result.description = format!(
+                                    "{}（数值校验：{}）",
+                                    action_result.description, reason
+                                );
+                            }
+                        }
+                    } else if !check.accepted {
+                        action_result.success = false;
+                        action_result.description = format!(
+                            "{}（数值校验未通过：{}）",
+                            action_result.description,
+                            check.reason.unwrap_or_else(|| "未知原因".to_string())
+                        );
+                    }
+                }
+                Action::Rest | Action::Custom { .. } => {}
             }
         }
     }
@@ -283,9 +391,39 @@ pub async fn execute_player_action(
     game_state.game_time.advance_days(1);
     let timestamp = u64::from(game_state.game_time.total_days);
 
-    let plot_update = plot_engine
-        .advance_plot_async(&plot_state, &action_result)
+    let context_bundle = build_plot_context_for_generation(&game_state, &plot_state, &action);
+    let mut plot_state_for_generation = plot_state.clone();
+    if let Some(bundle) = &context_bundle {
+        let inject = render_generation_context(bundle);
+        if !inject.is_empty() {
+            plot_state_for_generation.current_scene.description =
+                format!("{}{}", plot_state_for_generation.current_scene.description, inject);
+        }
+    }
+
+    let mut plot_update = plot_engine
+        .advance_plot_async(&plot_state_for_generation, &action_result)
         .await;
+
+    if let Some(bundle) = context_bundle {
+        let ctx_diag = format!(
+            "上下文注入：facts={}, recent_ctx={}, chapter_refs={}, recent_events={}, token_used={}",
+            bundle.hard_facts.len(),
+            bundle.recent_context.len(),
+            bundle.chapter_summaries.len(),
+            bundle.recent_events.len(),
+            bundle.token_budget_used
+        );
+        match &mut plot_update.generation_diagnostics {
+            Some(diag) => {
+                diag.push_str("；");
+                diag.push_str(&ctx_diag);
+            }
+            None => {
+                plot_update.generation_diagnostics = Some(ctx_diag);
+            }
+        }
+    }
 
     let log_entry = if let Some(selected_option_id) = action.selected_option_id {
         if let Some(selected_option) = plot_state.current_scene.available_options.get(selected_option_id) {
@@ -412,6 +550,43 @@ pub async fn execute_player_action(
     let _npc_reactions = engine
         .process_npc_reactions_for_events(&plot_update.triggered_events)
         .map_err(|e| e.to_string())?;
+
+    // V2 记忆回写：短期事件 / 中期章节摘要 / 长期事实
+    if let Ok(mut memory) = memory_layers().lock() {
+        for (idx, event_text) in plot_update.triggered_events.iter().enumerate() {
+            memory.push_recent_event(
+                MemoryEntry {
+                    event_id: format!("evt-{}-{}", timestamp, idx),
+                    summary: event_text.clone(),
+                    turn: timestamp,
+                },
+                120,
+            );
+        }
+
+        if let Some(last_chapter) = plot_state.chapters.last() {
+            memory.upsert_chapter_summary(ChapterSummary {
+                chapter_id: format!("chapter-{}", last_chapter.index),
+                title: last_chapter.title.clone(),
+                summary: if last_chapter.summary.trim().is_empty() {
+                    last_chapter
+                        .content
+                        .last()
+                        .cloned()
+                        .unwrap_or_else(|| "（无摘要）".to_string())
+                } else {
+                    last_chapter.summary.clone()
+                },
+            });
+        }
+
+        memory.upsert_world_fact(WorldFact {
+            fact_id: format!("fact-location-{}", timestamp),
+            subject: "player".to_string(),
+            predicate: "at".to_string(),
+            object: game_state.player.location.clone(),
+        });
+    }
 
     engine
         .update_current_state(game_state)
@@ -645,11 +820,17 @@ pub async fn generate_novel(
     engine: State<'_, Mutex<GameEngine>>,
 ) -> Result<Novel, String> {
     validate_non_empty(&title, "小说标题").map_err(|e| map_error("生成小说失败", e))?;
-    let events = {
+    let (events, plot_state) = {
         let engine = engine.lock().map_err(|e| e.to_string())?;
         let state = engine.get_current_state().map_err(|e| e.to_string())?;
-        state.event_history
+        let plot_state = engine.get_plot_state().ok();
+        (state.event_history, plot_state)
     };
+    if let Some(plot_state) = plot_state {
+        if !plot_state.chapters.is_empty() || !plot_state.current_chapter.content.is_empty() {
+            return Ok(generate_novel_from_plot_state(&title, &plot_state));
+        }
+    }
     generate_novel_from_events(&title, &events).await
 }
 
@@ -664,9 +845,157 @@ async fn generate_novel_from_events(title: &str, events: &[crate::event_log::Gam
     generator.generate_novel(title.to_string(), events).await
 }
 
+fn generate_novel_from_plot_state(title: &str, plot_state: &PlotState) -> Novel {
+    let generator = NovelGenerator::new();
+    generator.generate_chronicle_from_plot(title.to_string(), plot_state)
+}
+
 fn export_novel_to_path(novel: &Novel, output_path: &str) -> Result<(), String> {
     let generator = NovelGenerator::new();
     generator.export_to_file(novel, output_path)
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommitEntitiesInput {
+    pub world_id: String,
+    pub run_id: String,
+    pub candidates: Vec<EntityCandidateRequest>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommitEntitiesResponse {
+    pub committed: Vec<StoredEntity>,
+    pub rejected: Vec<ResolvedEntity>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GenerateCandidatesInput {
+    pub entity_type: EntityType,
+    pub hint: Option<String>,
+    pub count: Option<u8>,
+}
+
+#[tauri::command]
+pub async fn generate_entity_candidates(
+    input: GenerateCandidatesInput,
+) -> Result<Vec<EntityCandidateRequest>, String> {
+    let count = input.count.unwrap_or(1).clamp(1, 5) as usize;
+    let hint = input.hint.unwrap_or_else(|| "default".to_string());
+    let candidates = (0..count)
+        .map(|idx| {
+            let payload = match input.entity_type {
+                EntityType::Technique => json!({
+                    "techniqueId": format!("tech_{}_{}", hint, idx + 1),
+                    "name": format!("{} Technique {}", hint, idx + 1),
+                    "tags": ["generated"],
+                    "realmRequirement": 1,
+                    "rootAffinity": ["Fire"],
+                    "basePower": 32.0,
+                    "riskTags": [],
+                    "description": "Generated candidate technique"
+                }),
+                EntityType::Character => json!({
+                    "characterId": format!("char_{}_{}", hint, idx + 1),
+                    "name": format!("{} Character {}", hint, idx + 1),
+                    "realm": "Qi Condensation",
+                    "personalityTags": ["cautious"],
+                    "relationshipEdges": [],
+                    "knownTechniques": []
+                }),
+                EntityType::MapNode => json!({
+                    "nodeId": format!("map_{}_{}", hint, idx + 1),
+                    "name": format!("{} Region {}", hint, idx + 1),
+                    "nodeType": "wilderness",
+                    "dangerTier": 3,
+                    "auraDensity": 0.8,
+                    "factionControl": "neutral",
+                    "connectedNodes": []
+                }),
+                EntityType::Item => json!({
+                    "itemId": format!("item_{}_{}", hint, idx + 1),
+                    "name": format!("{} Item {}", hint, idx + 1),
+                    "itemType": "artifact",
+                    "qualityTier": 2,
+                    "description": "Generated candidate item"
+                }),
+            };
+            EntityCandidateRequest {
+                entity_type: input.entity_type,
+                payload,
+                source_trace_id: Some(format!("candidate-gen-{}", idx + 1)),
+            }
+        })
+        .collect();
+    Ok(candidates)
+}
+
+#[tauri::command]
+pub async fn commit_entities(input: CommitEntitiesInput) -> Result<CommitEntitiesResponse, String> {
+    if input.world_id.trim().is_empty() || input.run_id.trim().is_empty() {
+        return Err("world_id and run_id must be non-empty".to_string());
+    }
+
+    let mut committed = Vec::new();
+    let mut rejected = Vec::new();
+    let mut store = entity_store()
+        .lock()
+        .map_err(|_| "failed to lock entity store".to_string())?;
+    let mut memory = memory_layers()
+        .lock()
+        .map_err(|_| "failed to lock memory layers".to_string())?;
+
+    for candidate in &input.candidates {
+        let resolved = resolve_candidate(candidate);
+        if matches!(resolved.validation_report.status, ValidationStatus::Rejected) {
+            rejected.push(resolved);
+            continue;
+        }
+
+        let stored = StoredEntity {
+            world_id: input.world_id.clone(),
+            run_id: input.run_id.clone(),
+            entity_id: resolved.entity_id.clone(),
+            entity_type: resolved.entity_type,
+            payload: resolved.payload.clone(),
+            updated_at: 0,
+        };
+        store.upsert(stored.clone());
+        committed.push(stored.clone());
+
+        memory.upsert_world_fact(crate::memory_layers::WorldFact {
+            fact_id: format!("fact_{}_{}", input.run_id, resolved.entity_id),
+            subject: resolved.entity_id,
+            predicate: "defined_as".to_string(),
+            object: format!("{:?}", resolved.entity_type),
+        });
+    }
+
+    Ok(CommitEntitiesResponse { committed, rejected })
+}
+
+#[tauri::command]
+pub async fn query_entities(query: EntityQuery) -> Result<Vec<StoredEntity>, String> {
+    if query.world_id.trim().is_empty() || query.run_id.trim().is_empty() {
+        return Err("world_id and run_id must be non-empty".to_string());
+    }
+    let store = entity_store()
+        .lock()
+        .map_err(|_| "failed to lock entity store".to_string())?;
+    Ok(store.list_by_query(&query))
+}
+
+#[tauri::command]
+pub async fn build_context_bundle_command(input: ContextBuildInput) -> Result<ContextBundle, String> {
+    let store = entity_store()
+        .lock()
+        .map_err(|_| "failed to lock entity store".to_string())?;
+    let memory = memory_layers()
+        .lock()
+        .map_err(|_| "failed to lock memory layers".to_string())?;
+    Ok(build_context_bundle(&store, &memory, &input))
 }
 #[cfg(test)]
 mod tests {
@@ -835,6 +1164,12 @@ mod tests {
                 title: "Start".to_string(),
                 content: "A new journey starts.".to_string(),
                 source_event_ids: vec![1],
+            }],
+            toc: vec![crate::novel_generator::TocEntry {
+                index: 1,
+                title: "Start".to_string(),
+                summary: "A new journey starts.".to_string(),
+                source_event_count: 1,
             }],
             total_events: 1,
         };

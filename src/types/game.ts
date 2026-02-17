@@ -164,6 +164,7 @@ export interface ChapterState {
   content: string[];
   summary: string;
   interaction_count: number;
+  status?: 'in_progress' | 'closed' | 'exported';
 }
 
 export interface Scene {

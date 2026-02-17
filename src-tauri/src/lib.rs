@@ -2,14 +2,20 @@
 pub mod game_state;
 pub mod event_log;
 pub mod app_error;
+pub mod context_builder;
+pub mod entity_store;
+pub mod entity_types;
+pub mod entity_validator;
 pub mod llm_runtime_config;
 pub mod llm_service;
 pub mod memory_manager;
+pub mod memory_layers;
 pub mod models;
 pub mod npc;
 pub mod npc_engine;
 pub mod novel_generator;
 pub mod novel_parser;
+pub mod numeric_guard;
 pub mod numerical_system;
 pub mod plot_engine;
 pub mod prompt_builder;
@@ -53,6 +59,10 @@ pub fn run() {
             tauri_commands::clear_llm_config,
             tauri_commands::get_llm_config_status,
             tauri_commands::test_llm_connection,
+            tauri_commands::generate_entity_candidates,
+            tauri_commands::commit_entities,
+            tauri_commands::query_entities,
+            tauri_commands::build_context_bundle_command,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
