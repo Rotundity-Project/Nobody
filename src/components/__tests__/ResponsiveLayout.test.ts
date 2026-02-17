@@ -52,6 +52,7 @@ describe('responsive layout classes', () => {
     const classes = wrapper.classes();
     expect(classes).toContain('flex');
     expect(classes).toContain('flex-col');
+    expect(wrapper.find('[data-testid="game-sidebar"]').exists()).toBe(true);
   });
 
   it('MainMenu buttons have responsive width classes', () => {
