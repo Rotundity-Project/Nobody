@@ -432,12 +432,19 @@ pub async fn execute_player_action(
         &action_result,
         game_state.player.stats.cultivation_realm.level,
         game_state.player.stats.combat_power,
+        &game_state.player.name,
     );
     if let Some(text) = consistency_report.repaired_plot_text.clone() {
         plot_update.plot_text = text;
     }
     if consistency_report.force_non_waiting {
         plot_update.is_waiting_for_input = false;
+    }
+    if let Some(next_location) = consistency_report.override_location.clone() {
+        plot_state.current_scene.location = next_location;
+    }
+    if let Some(summary) = consistency_report.override_chapter_summary.clone() {
+        plot_update.chapter_summary = Some(summary);
     }
     if let Some(diag) = consistency_report.to_diagnostics() {
         match &mut plot_update.generation_diagnostics {

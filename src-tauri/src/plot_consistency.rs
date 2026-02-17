@@ -19,6 +19,8 @@ pub struct ConsistencyReport {
     pub issues: Vec<ConsistencyIssue>,
     pub repaired_plot_text: Option<String>,
     pub force_non_waiting: bool,
+    pub override_location: Option<String>,
+    pub override_chapter_summary: Option<String>,
 }
 
 impl ConsistencyReport {
@@ -107,12 +109,70 @@ fn detect_realm_power_conflict(
     player_realm_level >= 3 || player_combat_power >= 3000
 }
 
+fn detect_title_drift(text: &str, player_name: &str) -> bool {
+    let name = player_name.trim();
+    if name.is_empty() {
+        return false;
+    }
+    let has_name = text.contains(name);
+    let has_second_person = text.contains("你");
+    let has_third_person = contains_any(text, &["他", "她", "此人", "那名修士"]);
+    has_name && has_third_person && !has_second_person
+}
+
+fn extract_location_transition(text: &str) -> Option<String> {
+    let markers = ["来到", "抵达", "前往", "赶到", "进入"];
+    let punct = ['，', '。', '！', '？', ',', '.', '!', '?', '\n'];
+    for marker in markers {
+        let Some(start) = text.find(marker) else {
+            continue;
+        };
+        let rest = text[start + marker.len()..].trim_start();
+        if rest.is_empty() {
+            continue;
+        }
+        let end = rest
+            .char_indices()
+            .find_map(|(idx, ch)| punct.contains(&ch).then_some(idx))
+            .unwrap_or(rest.len());
+        let candidate = rest[..end].trim().trim_matches('\"').trim_matches('“').trim_matches('”');
+        if candidate.chars().count() >= 2 && candidate.chars().count() <= 12 {
+            return Some(candidate.to_string());
+        }
+    }
+    None
+}
+
+fn needs_chapter_goal_hint(text: &str, interaction_count: u8, chapter_end: bool) -> bool {
+    if chapter_end || interaction_count < 1 {
+        return false;
+    }
+    let goal_words = ["目标", "线索", "计划", "决定", "下一步", "调查", "突破", "冲突", "抉择"];
+    !contains_any(text, &goal_words)
+}
+
+fn fallback_summary(text: &str) -> Option<String> {
+    let cleaned = text.trim();
+    if cleaned.is_empty() {
+        return None;
+    }
+    let mut out = String::new();
+    for ch in cleaned.chars().take(48) {
+        out.push(ch);
+    }
+    if cleaned.chars().count() > 48 {
+        out.push('…');
+    }
+    Some(format!("本章小结：{}", out))
+}
+
 pub fn validate_and_repair_plot_update(
     plot_state: &PlotState,
     plot_update: &PlotUpdate,
     action_result: &ActionResult,
     player_realm_level: u32,
     player_combat_power: u64,
+    player_name: &str,
 ) -> ConsistencyReport {
     let mut report = ConsistencyReport::default();
     let current_text = plot_update.plot_text.trim();
@@ -181,6 +241,87 @@ pub fn validate_and_repair_plot_update(
         report.repaired_plot_text = Some(merged);
     }
 
+    if detect_title_drift(current_text, player_name) {
+        report.issues.push(ConsistencyIssue {
+            level: IssueLevel::Warning,
+            code: "title_drift",
+            message: "叙事称谓从玩家视角漂移，已注入称谓修正".to_string(),
+        });
+        let fix_line = format!("叙事视角重新锚定为“你（{}）”，你的判断与行动将继续主导局势。", player_name.trim());
+        let merged = if let Some(existing) = report.repaired_plot_text.clone() {
+            format!("{}\n\n{}", existing.trim(), fix_line)
+        } else if current_text.is_empty() {
+            fix_line
+        } else {
+            format!("{}\n\n{}", current_text, fix_line)
+        };
+        report.repaired_plot_text = Some(merged);
+    }
+
+    if let Some(next_location) = extract_location_transition(current_text) {
+        let now = plot_state.current_scene.location.trim();
+        if !now.is_empty() && next_location != now {
+            report.issues.push(ConsistencyIssue {
+                level: IssueLevel::Warning,
+                code: "location_transition_untracked",
+                message: format!("检测到地点切换（{} -> {}），已同步场景位置", now, next_location),
+            });
+            report.override_location = Some(next_location.clone());
+            let bridge = format!("你已从{}转入{}，场景状态随之更新。", now, next_location);
+            let merged = if let Some(existing) = report.repaired_plot_text.clone() {
+                format!("{}\n\n{}", existing.trim(), bridge)
+            } else if current_text.is_empty() {
+                bridge
+            } else {
+                format!("{}\n\n{}", current_text, bridge)
+            };
+            report.repaired_plot_text = Some(merged);
+        }
+    }
+
+    if needs_chapter_goal_hint(
+        current_text,
+        plot_state.current_chapter.interaction_count,
+        plot_update.chapter_end,
+    ) {
+        report.issues.push(ConsistencyIssue {
+            level: IssueLevel::Warning,
+            code: "chapter_goal_weak",
+            message: "章节目标不够清晰，已注入目标锚点".to_string(),
+        });
+        let hint = "本章目标已明确：围绕当前冲突提取关键线索，完成一次可验证的推进。";
+        let merged = if let Some(existing) = report.repaired_plot_text.clone() {
+            format!("{}\n\n{}", existing.trim(), hint)
+        } else if current_text.is_empty() {
+            hint.to_string()
+        } else {
+            format!("{}\n\n{}", current_text, hint)
+        };
+        report.repaired_plot_text = Some(merged);
+    }
+
+    if plot_update.chapter_end
+        && plot_update
+            .chapter_summary
+            .as_ref()
+            .map(|s| s.trim().is_empty())
+            .unwrap_or(true)
+    {
+        if let Some(summary) = fallback_summary(
+            report
+                .repaired_plot_text
+                .as_deref()
+                .unwrap_or(current_text),
+        ) {
+            report.issues.push(ConsistencyIssue {
+                level: IssueLevel::Warning,
+                code: "chapter_summary_missing",
+                message: "章节结束但缺少摘要，已生成回退摘要".to_string(),
+            });
+            report.override_chapter_summary = Some(summary);
+        }
+    }
+
     report
 }
 
@@ -242,7 +383,7 @@ mod tests {
             chapter_end: false,
             generation_diagnostics: None,
         };
-        let report = validate_and_repair_plot_update(&state, &update, &action_result(), 1, 100);
+        let report = validate_and_repair_plot_update(&state, &update, &action_result(), 1, 100, "无名弟子");
         assert!(report.repaired_plot_text.is_some());
         assert!(!report.issues.is_empty());
     }
@@ -262,7 +403,7 @@ mod tests {
             chapter_end: false,
             generation_diagnostics: None,
         };
-        let report = validate_and_repair_plot_update(&state, &update, &action_result(), 1, 100);
+        let report = validate_and_repair_plot_update(&state, &update, &action_result(), 1, 100, "无名弟子");
         assert!(report.repaired_plot_text.is_some());
         assert!(report.issues.iter().any(|i| i.code == "duplicate_segment"));
     }
@@ -282,7 +423,7 @@ mod tests {
             chapter_end: false,
             generation_diagnostics: None,
         };
-        let report = validate_and_repair_plot_update(&state, &update, &action_result(), 1, 100);
+        let report = validate_and_repair_plot_update(&state, &update, &action_result(), 1, 100, "无名弟子");
         assert!(report.force_non_waiting);
         assert!(report.issues.iter().any(|i| i.code == "waiting_without_options"));
     }
@@ -302,8 +443,66 @@ mod tests {
             chapter_end: false,
             generation_diagnostics: None,
         };
-        let report = validate_and_repair_plot_update(&state, &update, &action_result(), 4, 6200);
+        let report = validate_and_repair_plot_update(&state, &update, &action_result(), 4, 6200, "无名弟子");
         assert!(report.issues.iter().any(|i| i.code == "realm_power_conflict"));
         assert!(report.repaired_plot_text.is_some());
+    }
+
+    #[test]
+    fn detects_title_drift() {
+        let state = test_plot_state();
+        let update = PlotUpdate {
+            new_scene: None,
+            plot_text: "无名弟子看向远处，他突然心神不宁。".to_string(),
+            triggered_events: vec![],
+            state_changes: vec![],
+            is_waiting_for_input: false,
+            available_options: vec![],
+            chapter_title: None,
+            chapter_summary: None,
+            chapter_end: false,
+            generation_diagnostics: None,
+        };
+        let report = validate_and_repair_plot_update(&state, &update, &action_result(), 2, 500, "无名弟子");
+        assert!(report.issues.iter().any(|i| i.code == "title_drift"));
+    }
+
+    #[test]
+    fn detects_location_transition() {
+        let state = test_plot_state();
+        let update = PlotUpdate {
+            new_scene: None,
+            plot_text: "你一路前行，来到黑风谷，四周杀气弥漫。".to_string(),
+            triggered_events: vec![],
+            state_changes: vec![],
+            is_waiting_for_input: false,
+            available_options: vec![],
+            chapter_title: None,
+            chapter_summary: None,
+            chapter_end: false,
+            generation_diagnostics: None,
+        };
+        let report = validate_and_repair_plot_update(&state, &update, &action_result(), 2, 500, "无名弟子");
+        assert_eq!(report.override_location.as_deref(), Some("黑风谷"));
+    }
+
+    #[test]
+    fn adds_chapter_goal_hint_when_missing() {
+        let mut state = test_plot_state();
+        state.current_chapter.interaction_count = 2;
+        let update = PlotUpdate {
+            new_scene: None,
+            plot_text: "你踏入石阶，四周寂静无声。".to_string(),
+            triggered_events: vec![],
+            state_changes: vec![],
+            is_waiting_for_input: false,
+            available_options: vec![],
+            chapter_title: None,
+            chapter_summary: None,
+            chapter_end: false,
+            generation_diagnostics: None,
+        };
+        let report = validate_and_repair_plot_update(&state, &update, &action_result(), 2, 500, "无名弟子");
+        assert!(report.issues.iter().any(|i| i.code == "chapter_goal_weak"));
     }
 }
