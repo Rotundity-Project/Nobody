@@ -62,6 +62,12 @@
           </button>
           <button
             class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors duration-200"
+            @click="openConsistencySettings"
+          >
+            一致性设置
+          </button>
+          <button
+            class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors duration-200"
             @click="showCharacterInfo = true"
           >
             角色信息
@@ -375,6 +381,12 @@
       @close="showStorySettings = false"
       @save="applyStorySettings"
     />
+    <ConsistencySettingsDialog
+      :is-open="showConsistencySettings"
+      :policy="consistencyPolicy"
+      @close="showConsistencySettings = false"
+      @save="applyConsistencyPolicy"
+    />
     <div
       v-if="showCharacterInfo"
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
@@ -408,7 +420,8 @@ import NovelExporter from './NovelExporter.vue';
 import SaveLoadDialog from './SaveLoadDialog.vue';
 import StatusBanner from './StatusBanner.vue';
 import StorySettingsDialog from './StorySettingsDialog.vue';
-import type { PlayerOption } from '../types/game';
+import ConsistencySettingsDialog from './ConsistencySettingsDialog.vue';
+import type { ConsistencyPolicy, PlayerOption } from '../types/game';
 import {
   createFreeTextAction,
   createOptionAction,
@@ -430,9 +443,19 @@ const showLoadDialog = ref(false);
 const showLLMDialog = ref(false);
 const showAudioPanel = ref(false);
 const showStorySettings = ref(false);
+const showConsistencySettings = ref(false);
 const showCharacterInfo = ref(false);
 const showShortcutsDialog = ref(false);
 const storySettings = ref<StorySettings>(getStorySettings());
+const consistencyPolicy = ref<ConsistencyPolicy>({
+  recent_window: 3,
+  cross_chapter_window: 3,
+  duplicate_recent_threshold: 0.92,
+  duplicate_cross_chapter_threshold: 0.88,
+  weight_warning: 5,
+  weight_critical: 12,
+  code_weights: {},
+});
 const inputMode = ref<'options' | 'freeText'>('options');
 const freeTextInput = ref('');
 const storyScrollRef = ref<HTMLElement | null>(null);
@@ -629,6 +652,36 @@ const applyStorySettings = async (settings: StorySettings) => {
   }
 };
 
+const openConsistencySettings = async () => {
+  try {
+    const policy = await invokeWithTimeout<ConsistencyPolicy>(
+      'get_consistency_policy',
+      undefined,
+      8000,
+      '读取一致性策略超时',
+    );
+    consistencyPolicy.value = policy;
+    showConsistencySettings.value = true;
+  } catch (error) {
+    console.error('读取一致性策略失败：', error);
+  }
+};
+
+const applyConsistencyPolicy = async (policy: ConsistencyPolicy) => {
+  consistencyPolicy.value = policy;
+  try {
+    const updated = await invokeWithTimeout<ConsistencyPolicy>(
+      'update_consistency_policy',
+      { policy },
+      8000,
+      '保存一致性策略超时',
+    );
+    consistencyPolicy.value = updated;
+  } catch (error) {
+    console.error('保存一致性策略失败：', error);
+  }
+};
+
 const scrollToBottom = () => {
   if (storyScrollRef.value && typeof storyScrollRef.value.scrollTo === 'function') {
     storyScrollRef.value.scrollTo({
@@ -674,6 +727,7 @@ const handleKeydown = (event: KeyboardEvent) => {
     showLoadDialog.value = false;
     showLLMDialog.value = false;
     showStorySettings.value = false;
+    showConsistencySettings.value = false;
     showCharacterInfo.value = false;
     showAudioPanel.value = false;
   }

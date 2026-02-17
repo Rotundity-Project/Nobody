@@ -158,6 +158,16 @@ export interface PlotSettings {
   target_chapter_words_max: number;
 }
 
+export interface ConsistencyPolicy {
+  recent_window: number;
+  cross_chapter_window: number;
+  duplicate_recent_threshold: number;
+  duplicate_cross_chapter_threshold: number;
+  weight_warning: number;
+  weight_critical: number;
+  code_weights: Record<string, number>;
+}
+
 export interface ChapterState {
   index: number;
   title: string;

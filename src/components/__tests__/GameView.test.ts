@@ -42,6 +42,10 @@ vi.mock('../StorySettingsDialog.vue', () => ({
   default: { name: 'StorySettingsDialog', template: '<div />' },
 }));
 
+vi.mock('../ConsistencySettingsDialog.vue', () => ({
+  default: { name: 'ConsistencySettingsDialog', template: '<div />' },
+}));
+
 vi.mock('../LoadingIndicator.vue', () => ({
   default: { name: 'LoadingIndicator', template: '<div />' },
 }));
@@ -348,5 +352,32 @@ describe('GameView', () => {
     await flushPromises();
 
     expect(executePlayerActionMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('loads consistency policy when opening consistency settings', async () => {
+    invokeWithTimeoutMock.mockResolvedValue({
+      recent_window: 3,
+      cross_chapter_window: 3,
+      duplicate_recent_threshold: 0.92,
+      duplicate_cross_chapter_threshold: 0.88,
+      weight_warning: 5,
+      weight_critical: 12,
+      code_weights: {},
+    });
+
+    const wrapper = mount(GameView);
+    const settingsBtn = wrapper
+      .findAll('button')
+      .find((btn) => btn.text().includes('一致性设置'));
+    expect(settingsBtn).toBeTruthy();
+    await settingsBtn!.trigger('click');
+    await flushPromises();
+
+    expect(invokeWithTimeoutMock).toHaveBeenCalledWith(
+      'get_consistency_policy',
+      undefined,
+      8000,
+      '读取一致性策略超时',
+    );
   });
 });

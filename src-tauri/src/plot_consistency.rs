@@ -1,5 +1,6 @@
-use serde::Deserialize;
-use std::sync::OnceLock;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
 
 use crate::numerical_system::ActionResult;
 use crate::plot_engine::{PlotState, PlotUpdate};
@@ -31,7 +32,7 @@ impl ConsistencyReport {
         if self.issues.is_empty() {
             return None;
         }
-        let policy = load_policy();
+        let policy = current_policy_snapshot();
         let risk_score: i32 = self
             .issues
             .iter()
@@ -47,20 +48,20 @@ impl ConsistencyReport {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
-struct ConsistencyPolicy {
-    recent_window: usize,
-    cross_chapter_window: usize,
-    duplicate_recent_threshold: f32,
-    duplicate_cross_chapter_threshold: f32,
-    weight_warning: i32,
-    weight_critical: i32,
-    code_weights: std::collections::HashMap<String, i32>,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConsistencyPolicy {
+    pub recent_window: usize,
+    pub cross_chapter_window: usize,
+    pub duplicate_recent_threshold: f32,
+    pub duplicate_cross_chapter_threshold: f32,
+    pub weight_warning: i32,
+    pub weight_critical: i32,
+    pub code_weights: HashMap<String, i32>,
 }
 
 impl Default for ConsistencyPolicy {
     fn default() -> Self {
-        let mut code_weights = std::collections::HashMap::new();
+        let mut code_weights = HashMap::new();
         code_weights.insert("duplicate_segment".to_string(), 8);
         code_weights.insert("duplicate_cross_chapter".to_string(), 10);
         code_weights.insert("waiting_without_options".to_string(), 12);
@@ -96,15 +97,62 @@ impl ConsistencyPolicy {
 
 fn load_policy() -> &'static ConsistencyPolicy {
     static POLICY: OnceLock<ConsistencyPolicy> = OnceLock::new();
-    POLICY.get_or_init(|| {
-        let path = std::path::Path::new("config/consistency_rules_v2.json");
-        if let Ok(raw) = std::fs::read_to_string(path) {
-            if let Ok(cfg) = serde_json::from_str::<ConsistencyPolicy>(&raw) {
-                return cfg;
-            }
+    POLICY.get_or_init(load_policy_from_disk)
+}
+
+fn runtime_policy() -> &'static Mutex<ConsistencyPolicy> {
+    static RUNTIME_POLICY: OnceLock<Mutex<ConsistencyPolicy>> = OnceLock::new();
+    RUNTIME_POLICY.get_or_init(|| Mutex::new(load_policy().clone()))
+}
+
+fn load_policy_from_disk() -> ConsistencyPolicy {
+    let path = std::path::Path::new("config/consistency_rules_v2.json");
+    if let Ok(raw) = std::fs::read_to_string(path) {
+        if let Ok(cfg) = serde_json::from_str::<ConsistencyPolicy>(&raw) {
+            return cfg;
         }
-        ConsistencyPolicy::default()
-    })
+    }
+    ConsistencyPolicy::default()
+}
+
+fn persist_policy(policy: &ConsistencyPolicy) -> Result<(), String> {
+    let path = std::path::Path::new("config/consistency_rules_v2.json");
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| format!("创建配置目录失败: {}", e))?;
+    }
+    let data =
+        serde_json::to_string_pretty(policy).map_err(|e| format!("序列化策略失败: {}", e))?;
+    std::fs::write(path, data).map_err(|e| format!("写入策略文件失败: {}", e))
+}
+
+pub fn get_runtime_policy() -> ConsistencyPolicy {
+    match runtime_policy().lock() {
+        Ok(guard) => guard.clone(),
+        Err(poisoned) => poisoned.into_inner().clone(),
+    }
+}
+
+pub fn update_runtime_policy(next: ConsistencyPolicy) -> Result<ConsistencyPolicy, String> {
+    let valid_recent = (0.5..=0.999).contains(&next.duplicate_recent_threshold);
+    let valid_cross = (0.5..=0.999).contains(&next.duplicate_cross_chapter_threshold);
+    if next.recent_window == 0 || next.cross_chapter_window == 0 || !valid_recent || !valid_cross {
+        return Err("一致性策略参数非法".to_string());
+    }
+
+    {
+        let mut guard = match runtime_policy().lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        *guard = next.clone();
+    }
+
+    persist_policy(&next)?;
+    Ok(next)
+}
+
+fn current_policy_snapshot() -> ConsistencyPolicy {
+    get_runtime_policy()
 }
 
 fn level_tag(level: &IssueLevel) -> &'static str {
@@ -243,7 +291,7 @@ pub fn validate_and_repair_plot_update(
     player_combat_power: u64,
     player_name: &str,
 ) -> ConsistencyReport {
-    let policy = load_policy();
+    let policy = current_policy_snapshot();
     let mut report = ConsistencyReport::default();
     let current_text = plot_update.plot_text.trim();
 
