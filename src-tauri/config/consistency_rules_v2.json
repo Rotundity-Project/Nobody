@@ -1,0 +1,19 @@
+{
+  "recent_window": 3,
+  "cross_chapter_window": 3,
+  "duplicate_recent_threshold": 0.92,
+  "duplicate_cross_chapter_threshold": 0.88,
+  "weight_warning": 5,
+  "weight_critical": 12,
+  "code_weights": {
+    "empty_plot_text": 15,
+    "duplicate_segment": 8,
+    "duplicate_cross_chapter": 10,
+    "waiting_without_options": 12,
+    "realm_power_conflict": 9,
+    "title_drift": 6,
+    "location_transition_untracked": 6,
+    "chapter_goal_weak": 5,
+    "chapter_summary_missing": 4
+  }
+}
