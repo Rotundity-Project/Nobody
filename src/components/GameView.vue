@@ -35,26 +35,10 @@
               ref="storyScrollRef"
               class="relative flex-1 overflow-y-auto p-6 sm:p-8"
             >
-              <button
-                v-if="gameStore.isGameInitialized"
-                class="absolute right-4 bottom-24 z-10 p-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-white shadow-lg transition-colors"
-                title="滚动到底部"
-                @click="scrollToBottom"
-              >
-                <svg
-                  class="w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M19 14l-7 7m0 0l-7-7m7 7V3"
-                  />
-                </svg>
-              </button>
+              <ScrollToBottomButton
+                :visible="gameStore.isGameInitialized"
+                @scroll="scrollToBottom"
+              />
               <StoryScenePanel
                 :has-scene="Boolean(gameStore.plotState && gameStore.currentScene)"
                 :chapter-title="currentChapterTitle"
@@ -233,6 +217,7 @@ import FreeTextInputPanel from './FreeTextInputPanel.vue';
 import GameTopBar from './GameTopBar.vue';
 import InputModeTabs from './InputModeTabs.vue';
 import OptionListPanel from './OptionListPanel.vue';
+import ScrollToBottomButton from './ScrollToBottomButton.vue';
 import StoryScenePanel from './StoryScenePanel.vue';
 import LLMConfigDialog from './LLMConfigDialog.vue';
 import KeyboardShortcutsDialog from './KeyboardShortcutsDialog.vue';
