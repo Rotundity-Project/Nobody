@@ -24,6 +24,8 @@ pub struct Character {
     pub location: String,
     #[serde(default)]
     pub combat_status: CombatAftermathStatus,
+    #[serde(default)]
+    pub growth_log: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
@@ -117,6 +119,7 @@ impl Character {
             inventory: Vec::new(),
             location,
             combat_status: CombatAftermathStatus::default(),
+            growth_log: Vec::new(),
         }
     }
 }
@@ -222,6 +225,7 @@ mod tests {
         assert_eq!(character.location, "sect");
         assert!(character.inventory.is_empty());
         assert_eq!(character.combat_status.injury_level, 0);
+        assert!(character.growth_log.is_empty());
     }
 
     #[test]

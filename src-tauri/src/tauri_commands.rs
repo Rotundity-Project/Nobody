@@ -192,6 +192,16 @@ fn apply_combat_aftermath(game_state: &mut GameState, combat_success: bool) -> S
     )
 }
 
+fn push_growth_log(game_state: &mut GameState, entry: impl Into<String>) {
+    let log = &mut game_state.player.growth_log;
+    log.push(entry.into());
+    const MAX_GROWTH_LOG: usize = 240;
+    if log.len() > MAX_GROWTH_LOG {
+        let overflow = log.len() - MAX_GROWTH_LOG;
+        log.drain(0..overflow);
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct GenerationTimingSample {
     total_ms: u64,
@@ -512,6 +522,10 @@ pub async fn execute_player_action(
                         "{} 战力提升了 {}。",
                         action_result.description, gain
                     );
+                    push_growth_log(
+                        &mut game_state,
+                        format!("修炼成长：战力 {} -> {}", old_power, new_power),
+                    );
                 }
                 Action::Breakthrough => {
                     if action_result.success
@@ -531,6 +545,11 @@ pub async fn execute_player_action(
                                 .sub_level
                                 .to_string(),
                         });
+                        let realm_name = game_state.player.stats.cultivation_realm.name.clone();
+                        let new_sub = game_state.player.stats.cultivation_realm.sub_level;
+                        let growth_entry =
+                            format!("突破成长：{} 小境界 {} -> {}", realm_name, old_sub, new_sub);
+                        push_growth_log(&mut game_state, growth_entry);
                     }
                 }
                 Action::Combat { .. } => {
@@ -571,6 +590,7 @@ pub async fn execute_player_action(
                     action_result.events.push(aftermath_summary.clone());
                     action_result.description =
                         format!("{}；{}", action_result.description, aftermath_summary);
+                    push_growth_log(&mut game_state, format!("战斗成长：{}", aftermath_summary));
                 }
                 Action::Rest | Action::Custom { .. } => {}
             }
@@ -1683,6 +1703,65 @@ mod tests {
         assert_eq!(state.player.combat_status.reputation, 1);
         assert_eq!(state.player.combat_status.enmity, 3);
         assert_eq!(state.player.combat_status.injury_level, 2);
+    }
+
+    #[test]
+    fn test_push_growth_log_keeps_recent_entries() {
+        let mut state = crate::game_state::GameState {
+            script: crate::script::Script::new(
+                "id".to_string(),
+                "name".to_string(),
+                crate::script::ScriptType::Custom,
+                crate::script::WorldSetting::new(),
+                crate::script::InitialState {
+                    player_name: "p".to_string(),
+                    player_spiritual_root: crate::models::SpiritualRoot {
+                        element: crate::models::Element::Fire,
+                        elements: vec![crate::models::Element::Fire],
+                        grade: crate::models::Grade::Heavenly,
+                        affinity: 0.8,
+                    },
+                    starting_location: "sect".to_string(),
+                    starting_age: 16,
+                },
+            ),
+            player: crate::game_state::Character::new(
+                "player".to_string(),
+                "Tester".to_string(),
+                crate::models::CharacterStats {
+                    spiritual_root: crate::models::SpiritualRoot {
+                        element: crate::models::Element::Fire,
+                        elements: vec![crate::models::Element::Fire],
+                        grade: crate::models::Grade::Heavenly,
+                        affinity: 0.8,
+                    },
+                    cultivation_realm: crate::models::CultivationRealm::new(
+                        "Qi".to_string(),
+                        1,
+                        0,
+                        1.0,
+                    ),
+                    techniques: vec![],
+                    lifespan: crate::models::Lifespan {
+                        current_age: 16,
+                        max_age: 100,
+                        realm_bonus: 0,
+                    },
+                    combat_power: 120,
+                },
+                "sect".to_string(),
+            ),
+            world_state: crate::game_state::WorldState::new(),
+            game_time: crate::game_state::GameTime::new(1, 1, 1),
+            event_history: vec![],
+        };
+
+        for i in 0..260 {
+            push_growth_log(&mut state, format!("entry-{}", i));
+        }
+        assert_eq!(state.player.growth_log.len(), 240);
+        assert_eq!(state.player.growth_log.first().map(String::as_str), Some("entry-20"));
+        assert_eq!(state.player.growth_log.last().map(String::as_str), Some("entry-259"));
     }
 }
 
