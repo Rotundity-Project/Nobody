@@ -25,6 +25,7 @@ pub mod save_load;
 pub mod script;
 pub mod script_manager;
 pub mod tauri_commands;
+pub mod travel_rules;
 
 use game_engine::GameEngine;
 use std::sync::Mutex;

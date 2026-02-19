@@ -240,11 +240,12 @@ fn apply_travel_and_encounter(
     let total_days = game_state.game_time.total_days;
     let energy = target_node.spiritual_energy;
     let status = &game_state.player.combat_status;
-    let weighted_prob = (0.18
-        + (energy as f64 * 0.42)
-        + (status.enmity.max(0) as f64 * 0.025)
-        + (status.qi_deviation as f64 * 0.02))
-        .clamp(0.1, 0.92);
+    let cfg = crate::travel_rules::rules();
+    let weighted_prob = (cfg.encounter_base_prob
+        + (energy as f64 * cfg.encounter_energy_weight)
+        + (status.enmity.max(0) as f64 * cfg.encounter_enmity_weight)
+        + (status.qi_deviation as f64 * cfg.encounter_qi_weight))
+        .clamp(cfg.encounter_prob_min, cfg.encounter_prob_max);
     let mut hash_acc = total_days as u64;
     for b in target_location.as_bytes() {
         hash_acc = hash_acc.wrapping_mul(131).wrapping_add(u64::from(*b));
@@ -293,15 +294,18 @@ fn compute_reachable_location_ids(game_state: &GameState) -> Vec<String> {
     };
     let realm = &game_state.player.stats.cultivation_realm;
     let status = &game_state.player.combat_status;
+    let cfg = crate::travel_rules::rules();
 
-    let mobility = (0.22
-        + (realm.level as f32 * 0.09)
-        + ((realm.sub_level.min(3)) as f32 * 0.03)
-        - (status.injury_level as f32 * 0.025)
-        - (status.qi_deviation as f32 * 0.01))
-        .clamp(0.12, 0.95);
-    let max_energy = (0.35 + (realm.level as f32 * 0.16) - (status.injury_level as f32 * 0.02))
-        .clamp(0.35, 1.2);
+    let mobility = (cfg.mobility_base
+        + (realm.level as f32 * cfg.mobility_per_realm)
+        + ((realm.sub_level.min(3)) as f32 * cfg.mobility_per_sub_level)
+        - (status.injury_level as f32 * cfg.mobility_injury_penalty)
+        - (status.qi_deviation as f32 * cfg.mobility_qi_penalty))
+        .clamp(cfg.mobility_min, cfg.mobility_max);
+    let max_energy = (cfg.max_energy_base
+        + (realm.level as f32 * cfg.max_energy_per_realm)
+        - (status.injury_level as f32 * cfg.max_energy_injury_penalty))
+        .clamp(cfg.max_energy_min, cfg.max_energy_max);
 
     let mut by_gap = game_state
         .world_state
@@ -313,10 +317,10 @@ fn compute_reachable_location_ids(game_state: &GameState) -> Vec<String> {
         })
         .collect::<Vec<_>>();
     by_gap.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap_or(std::cmp::Ordering::Equal));
-    let nearest_two = if by_gap.len() > 3 {
+    let nearest_two = if cfg.nearby_fallback_enabled && by_gap.len() >= cfg.nearby_fallback_min_location_count {
         by_gap
             .iter()
-            .take(2)
+            .take(cfg.nearby_fallback_count)
             .map(|(id, _, _)| id.clone())
             .collect::<Vec<_>>()
     } else {

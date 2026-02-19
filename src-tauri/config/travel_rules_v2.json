@@ -1,0 +1,23 @@
+{
+  "mobilityBase": 0.22,
+  "mobilityPerRealm": 0.09,
+  "mobilityPerSubLevel": 0.03,
+  "mobilityInjuryPenalty": 0.025,
+  "mobilityQiPenalty": 0.01,
+  "mobilityMin": 0.12,
+  "mobilityMax": 0.95,
+  "maxEnergyBase": 0.35,
+  "maxEnergyPerRealm": 0.16,
+  "maxEnergyInjuryPenalty": 0.02,
+  "maxEnergyMin": 0.35,
+  "maxEnergyMax": 1.2,
+  "nearbyFallbackEnabled": true,
+  "nearbyFallbackCount": 2,
+  "nearbyFallbackMinLocationCount": 4,
+  "encounterBaseProb": 0.18,
+  "encounterEnergyWeight": 0.42,
+  "encounterEnmityWeight": 0.025,
+  "encounterQiWeight": 0.02,
+  "encounterProbMin": 0.1,
+  "encounterProbMax": 0.92
+}
