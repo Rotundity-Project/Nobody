@@ -496,7 +496,7 @@ pub fn validate_and_repair_plot_update(
 mod tests {
     use super::*;
     use crate::numerical_system::ActionResult;
-    use crate::plot_engine::{ChapterState, PlotSettings, Scene};
+    use crate::plot_engine::{ChapterState, PlotInteractionState, PlotSettings, Scene};
 
     fn test_plot_state() -> PlotState {
         PlotState {
@@ -509,6 +509,7 @@ mod tests {
             },
             plot_history: vec![],
             is_waiting_for_input: true,
+            interaction_state: PlotInteractionState::WaitingForChoice,
             last_action_result: None,
             settings: PlotSettings::default(),
             current_chapter: ChapterState {

@@ -19,7 +19,9 @@ use crate::plot_consistency::{
     get_runtime_policy, reset_runtime_policy, update_runtime_policy, validate_and_repair_plot_update,
     ConsistencyPolicy,
 };
-use crate::plot_engine::{PlayerAction, PlayerOption, PlotEngine, PlotSettings, PlotState};
+use crate::plot_engine::{
+    PlayerAction, PlayerOption, PlotEngine, PlotInteractionState, PlotSettings, PlotState,
+};
 use crate::save_load::SaveInfo;
 use crate::script::Script;
 use crate::app_error::AppError;
@@ -299,6 +301,7 @@ pub async fn execute_player_action(
         let plot_state = engine.get_plot_state().map_err(|e| e.to_string())?;
         (game_state, plot_state)
     };
+    plot_state.interaction_state = PlotInteractionState::Resolving;
 
     let plot_engine = PlotEngine::new();
     let context = Context {
@@ -583,6 +586,12 @@ pub async fn execute_player_action(
                     Some("一致性兜底：无选项等待态已改为自动推进".to_string())
             }
         }
+    }
+
+    plot_state.is_waiting_for_input = plot_update.is_waiting_for_input;
+    plot_state.recalculate_interaction_state();
+    if plot_update.chapter_end {
+        plot_state.interaction_state = PlotInteractionState::Cooldown;
     }
 
     plot_state.last_option_generation_source = Some(option_source.clone());

@@ -78,6 +78,17 @@ pub enum ChapterLifecycle {
     Exported,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum PlotInteractionState {
+    AutoAdvance,
+    #[default]
+    WaitingForChoice,
+    WaitingForFreeText,
+    Resolving,
+    Cooldown,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ChapterState {
     pub index: u32,
@@ -114,6 +125,8 @@ pub struct PlotState {
     pub current_scene: Scene,
     pub plot_history: Vec<String>,
     pub is_waiting_for_input: bool,
+    #[serde(default)]
+    pub interaction_state: PlotInteractionState,
     pub last_action_result: Option<ActionResult>,
     pub settings: PlotSettings,
     pub current_chapter: ChapterState,
@@ -1968,10 +1981,16 @@ impl PlotState {
     pub fn new(initial_scene: Scene) -> Self {
         let title = "第一章".to_string();
         let chapter = ChapterState::new(1, title.clone());
+        let interaction_state = if initial_scene.available_options.is_empty() {
+            PlotInteractionState::WaitingForFreeText
+        } else {
+            PlotInteractionState::WaitingForChoice
+        };
         Self {
             current_scene: initial_scene,
             plot_history: Vec::new(),
             is_waiting_for_input: true,
+            interaction_state,
             last_action_result: None,
             settings: PlotSettings::default(),
             current_chapter: chapter,
@@ -1981,6 +2000,16 @@ impl PlotState {
             last_option_generation_source: None,
             last_consistency_risk_score: None,
         }
+    }
+
+    pub fn recalculate_interaction_state(&mut self) {
+        self.interaction_state = if !self.is_waiting_for_input {
+            PlotInteractionState::AutoAdvance
+        } else if self.current_scene.available_options.is_empty() {
+            PlotInteractionState::WaitingForFreeText
+        } else {
+            PlotInteractionState::WaitingForChoice
+        };
     }
 
     pub fn add_to_history(&mut self, text: String) {

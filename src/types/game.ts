@@ -140,6 +140,7 @@ export interface PlotState {
   current_scene: Scene;
   plot_history: string[];
   is_waiting_for_input: boolean;
+  interaction_state?: PlotInteractionState;
   last_action_result: ActionResult | null;
   last_generation_diagnostics?: string | null;
   last_option_generation_source?: string | null;
@@ -149,6 +150,13 @@ export interface PlotState {
   chapters: ChapterState[];
   segment_count: number;
 }
+
+export type PlotInteractionState =
+  | 'auto_advance'
+  | 'waiting_for_choice'
+  | 'waiting_for_free_text'
+  | 'resolving'
+  | 'cooldown';
 
 export interface PlotSettings {
   recap_enabled: boolean;

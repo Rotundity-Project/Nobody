@@ -73,6 +73,12 @@
             角色信息
           </button>
           <button
+            class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors duration-200"
+            @click="showInfoTabs = true"
+          >
+            信息面板
+          </button>
+          <button
             :disabled="!gameStore.isGameInitialized"
             class="px-4 py-2 rounded-lg transition-colors duration-200"
             :class="[
@@ -94,8 +100,8 @@
       </div>
 
       <div class="flex-1 overflow-hidden p-4 sm:p-6 lg:p-8">
-        <div class="mx-auto grid h-full max-w-7xl gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(280px,1fr)]">
-          <div class="flex min-h-0 flex-col rounded-2xl border border-slate-800/90 bg-slate-950/45">
+        <div class="mx-auto h-full max-w-7xl">
+          <div class="flex h-full min-h-0 flex-col rounded-2xl border border-slate-800/90 bg-slate-950/45">
             <div
               ref="storyScrollRef"
               class="relative flex-1 overflow-y-auto p-6 sm:p-8"
@@ -279,77 +285,6 @@
                 </div>
               </div>
             </div>
-          </div>
-
-          <aside
-            data-testid="game-sidebar"
-            class="space-y-4 overflow-y-auto rounded-2xl border border-slate-800/90 bg-slate-950/40 p-4 sm:p-5"
-          >
-            <section class="rounded-xl border border-slate-700/70 bg-slate-900/60 p-4">
-              <p class="text-xs uppercase tracking-[0.2em] text-slate-500">角色快照</p>
-              <div class="mt-3 space-y-2 text-sm text-slate-200">
-                <p>姓名：{{ gameStore.playerCharacter?.name || '无名弟子' }}</p>
-                <p>境界：{{ playerRealmLabel }}</p>
-                <p>战力：{{ playerCombatPowerLabel }}</p>
-                <p>位置：{{ gameStore.playerCharacter?.location || gameStore.currentScene?.location || '未知' }}</p>
-              </div>
-            </section>
-
-            <section class="rounded-xl border border-slate-700/70 bg-slate-900/60 p-4">
-              <p class="text-xs uppercase tracking-[0.2em] text-slate-500">剧情进度</p>
-              <div class="mt-3 space-y-2 text-sm text-slate-200">
-                <p>章节：{{ chapterProgressLabel }}</p>
-                <p>章节互动：{{ chapterInteractionLabel }}</p>
-                <p>剧情段落：{{ gameStore.plotState?.segment_count ?? 0 }}</p>
-                <p>当前状态：{{ gameStore.isWaitingForInput ? '等待玩家输入' : '自动推进中' }}</p>
-              </div>
-            </section>
-
-            <section class="rounded-xl border border-slate-700/70 bg-slate-900/60 p-4">
-              <p class="text-xs uppercase tracking-[0.2em] text-slate-500">经历导出</p>
-              <div class="mt-3">
-                <NovelExporter
-                  :is-game-running="gameStore.isGameInitialized"
-                  :event-count="gameStore.gameState?.event_history?.length ?? 0"
-                />
-              </div>
-            </section>
-          </aside>
-        </div>
-      </div>
-
-      <div
-        v-if="isDevMode && gameStore.plotState"
-        class="border-t border-slate-800 bg-slate-950/80 p-4"
-      >
-        <div class="mx-auto max-w-3xl space-y-2 text-xs text-slate-300">
-          <p class="uppercase tracking-[0.2em] text-slate-500">Debug Context</p>
-          <p>章节：{{ gameStore.plotState.current_chapter.index }} / {{ gameStore.plotState.current_chapter.title }}</p>
-          <p>选项来源：{{ optionSourceLabel || 'n/a' }}</p>
-          <p>等待输入：{{ gameStore.isWaitingForInput ? 'yes' : 'no' }}</p>
-          <p>一致性风险分：{{ consistencyRiskScore ?? 'n/a' }}</p>
-          <p class="whitespace-pre-wrap text-slate-400">
-            诊断：{{ gameStore.plotState.last_generation_diagnostics || '无' }}
-          </p>
-        </div>
-      </div>
-
-      <div
-        v-if="gameStore.error"
-        class="p-4 bg-red-900 bg-opacity-50 border-t border-red-500"
-      >
-        <div class="max-w-3xl mx-auto">
-          <StatusBanner
-            kind="error"
-            title="系统提示"
-            :message="gameStore.error ?? ''"
-          />
-          <button
-            class="mt-2 px-4 py-1 bg-red-700 hover:bg-red-600 rounded text-sm transition-colors"
-            @click="gameStore.clearError"
-          >
-            关闭
-          </button>
         </div>
       </div>
     </div>
@@ -382,6 +317,27 @@
       @close="showStorySettings = false"
       @save="applyStorySettings"
     />
+    <InfoTabsDialog
+      :is-open="showInfoTabs"
+      :player-name="gameStore.playerCharacter?.name || '无名弟子'"
+      :player-realm="playerRealmLabel"
+      :player-combat-power="playerCombatPowerLabel"
+      :player-location="gameStore.playerCharacter?.location || gameStore.currentScene?.location || '未知'"
+      :chapter-progress="chapterProgressLabel"
+      :chapter-interaction="chapterInteractionLabel"
+      :segment-count="gameStore.plotState?.segment_count ?? 0"
+      :is-waiting-for-input="gameStore.isWaitingForInput"
+      :is-game-running="gameStore.isGameInitialized"
+      :event-count="gameStore.gameState?.event_history?.length ?? 0"
+      :is-dev-mode="isDevMode"
+      :debug-chapter="`${gameStore.plotState?.current_chapter?.index ?? 0} / ${gameStore.plotState?.current_chapter?.title ?? 'n/a'}`"
+      :debug-option-source="optionSourceLabel || 'n/a'"
+      :debug-risk-score="consistencyRiskScore"
+      :debug-diagnostics="gameStore.plotState?.last_generation_diagnostics || ''"
+      :system-error="gameStore.error"
+      @close="showInfoTabs = false"
+      @clear-error="gameStore.clearError"
+    />
     <ConsistencySettingsDialog
       :is-open="showConsistencySettings"
       :policy="consistencyPolicy"
@@ -407,6 +363,7 @@
       </div>
     </div>
   </div>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -418,9 +375,8 @@ import CharacterPanel from './CharacterPanel.vue';
 import LLMConfigDialog from './LLMConfigDialog.vue';
 import KeyboardShortcutsDialog from './KeyboardShortcutsDialog.vue';
 import LoadingIndicator from './LoadingIndicator.vue';
-import NovelExporter from './NovelExporter.vue';
+import InfoTabsDialog from './InfoTabsDialog.vue';
 import SaveLoadDialog from './SaveLoadDialog.vue';
-import StatusBanner from './StatusBanner.vue';
 import StorySettingsDialog from './StorySettingsDialog.vue';
 import ConsistencySettingsDialog from './ConsistencySettingsDialog.vue';
 import type { ConsistencyPolicy, PlayerOption } from '../types/game';
@@ -445,6 +401,7 @@ const showLoadDialog = ref(false);
 const showLLMDialog = ref(false);
 const showAudioPanel = ref(false);
 const showStorySettings = ref(false);
+const showInfoTabs = ref(false);
 const showConsistencySettings = ref(false);
 const showCharacterInfo = ref(false);
 const showShortcutsDialog = ref(false);
@@ -511,18 +468,40 @@ const lastChapterSummary = computed(() => {
 const shouldShowRecap = computed(
   () => storySettings.value.recap_enabled && lastChapterSummary.value.length > 0
 );
+const plotInteractionState = computed(() => {
+  if (gameStore.plotState?.interaction_state) {
+    return gameStore.plotState.interaction_state;
+  }
+  if (!gameStore.isGameInitialized) {
+    return 'auto_advance';
+  }
+  if (!gameStore.isWaitingForInput) {
+    return 'auto_advance';
+  }
+  return gameStore.availableOptions.length > 0 ? 'waiting_for_choice' : 'waiting_for_free_text';
+});
 const isNoInputAdvanceState = computed(
   () =>
     gameStore.isGameInitialized &&
-    gameStore.isWaitingForInput &&
-    gameStore.availableOptions.length === 0 &&
-    gameStore.plotState?.last_option_generation_source === 'not_waiting_for_input'
+    (
+      plotInteractionState.value === 'cooldown' ||
+      gameStore.plotState?.last_option_generation_source === 'not_waiting_for_input' ||
+      gameStore.plotState?.last_option_generation_source === 'consistency_non_waiting_fallback'
+    )
 );
 const shouldShowInputPanel = computed(
-  () => gameStore.isWaitingForInput && gameStore.isGameInitialized && !isNoInputAdvanceState.value
+  () =>
+    gameStore.isGameInitialized &&
+    !isNoInputAdvanceState.value &&
+    (plotInteractionState.value === 'waiting_for_choice'
+      || plotInteractionState.value === 'waiting_for_free_text')
 );
 const shouldAutoAdvance = computed(
-  () => gameStore.isGameInitialized && (!gameStore.isWaitingForInput || isNoInputAdvanceState.value)
+  () =>
+    gameStore.isGameInitialized &&
+    (!gameStore.isWaitingForInput
+      || plotInteractionState.value === 'cooldown'
+      || isNoInputAdvanceState.value)
 );
 const optionSourceLabel = computed(() => {
   const source = gameStore.plotState?.last_option_generation_source;
