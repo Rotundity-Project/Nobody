@@ -53,62 +53,24 @@
             </div>
 
             <div class="border-t border-slate-700 bg-slate-900/80 p-6 backdrop-blur">
-              <div class="mx-auto max-w-3xl">
-                <div
-                  v-if="shouldShowInputPanel"
-                  class="space-y-4"
-                >
-                  <InputStatusNotice
-                    :error="gameStore.error"
-                    :show-auto-advance-hint="isNoInputAdvanceState"
-                  />
-                  <InputModeTabs
-                    :visible="gameStore.availableOptions.length > 0"
-                    :mode="inputMode"
-                    @switch-mode="setInputMode"
-                  />
-
-                  <OptionListPanel
-                    :visible="inputMode === 'options' && gameStore.availableOptions.length > 0"
-                    :options="gameStore.availableOptions"
-                    :disabled="isLoading"
-                    @select="handleOptionSelect"
-                  />
-
-                  <FreeTextInputPanel
-                    :visible="inputMode === 'freeText' || gameStore.availableOptions.length === 0"
-                    :model-value="freeTextInput"
-                    :disabled="isLoading"
-                    :valid="inputValidation.valid"
-                    :validation-message="inputValidation.message"
-                    @update:model-value="freeTextInput = $event"
-                    @submit="handleFreeTextSubmit"
-                  />
-                </div>
-
-                <div
-                  v-else-if="isNoInputAdvanceState && !isLoading"
-                  class="text-center"
-                >
-                  <ContinueActionPanel
-                    message="当前无需输入，点击继续即可推进剧情。"
-                    button-text="继续推进剧情"
-                    @continue="handleContinue"
-                  />
-                </div>
-
-                <LoadingStatePanel
-                  v-else-if="isLoading"
-                  :message="loadingMessage"
-                />
-
-                <div
-                  v-else-if="gameStore.isGameInitialized && !gameStore.isWaitingForInput"
-                  class="text-center"
-                >
-                  <ContinueActionPanel button-text="继续写" @continue="handleContinue" />
-                </div>
-              </div>
+              <GameInteractionPanel
+                :should-show-input-panel="shouldShowInputPanel"
+                :error="gameStore.error"
+                :is-no-input-advance-state="isNoInputAdvanceState"
+                :available-options="gameStore.availableOptions"
+                :input-mode="inputMode"
+                :is-loading="isLoading"
+                :free-text-input="freeTextInput"
+                :input-validation="inputValidation"
+                :is-game-initialized="gameStore.isGameInitialized"
+                :is-waiting-for-input="gameStore.isWaitingForInput"
+                :loading-message="loadingMessage"
+                @switch-mode="setInputMode"
+                @select-option="handleOptionSelect"
+                @update:free-text-input="freeTextInput = $event"
+                @submit-free-text="handleFreeTextSubmit"
+                @continue="handleContinue"
+              />
             </div>
         </div>
       </div>
@@ -204,17 +166,12 @@ import { useRouter } from 'vue-router';
 import { useGameStore } from '../stores/gameStore';
 import CharacterPanel from './CharacterPanel.vue';
 import ChapterStatusStrip from './ChapterStatusStrip.vue';
-import ContinueActionPanel from './ContinueActionPanel.vue';
-import FreeTextInputPanel from './FreeTextInputPanel.vue';
 import GameTopBar from './GameTopBar.vue';
-import InputModeTabs from './InputModeTabs.vue';
-import InputStatusNotice from './InputStatusNotice.vue';
-import OptionListPanel from './OptionListPanel.vue';
+import GameInteractionPanel from './GameInteractionPanel.vue';
 import ScrollToBottomButton from './ScrollToBottomButton.vue';
 import StoryScenePanel from './StoryScenePanel.vue';
 import LLMConfigDialog from './LLMConfigDialog.vue';
 import KeyboardShortcutsDialog from './KeyboardShortcutsDialog.vue';
-import LoadingStatePanel from './LoadingStatePanel.vue';
 import InfoTabsDialog from './InfoTabsDialog.vue';
 import SaveLoadDialog from './SaveLoadDialog.vue';
 import StorySettingsDialog from './StorySettingsDialog.vue';
