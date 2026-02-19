@@ -87,32 +87,21 @@
       @save-consistency="applyConsistencyPolicy"
       @reset-consistency="resetConsistencyPolicy"
     />
-    <InfoTabsDialog
+    <GameInfoCenterDialog
       :is-open="showInfoTabs"
-      :player-name="gameStore.playerCharacter?.name || '无名弟子'"
-      :player-realm="playerRealmLabel"
-      :player-combat-power="playerCombatPowerLabel"
-      :player-location="gameStore.playerCharacter?.location || gameStore.currentScene?.location || '未知'"
-      :chapter-progress="chapterProgressLabel"
-      :chapter-interaction="chapterInteractionLabel"
-      :segment-count="gameStore.plotState?.segment_count ?? 0"
-      :is-waiting-for-input="gameStore.isWaitingForInput"
-      :world-locations="worldLocationList"
-      :reachable-location-ids="gameStore.reachableLocationIds"
-      :map-overview="gameStore.mapOverview"
-      :recent-combat-explanations="recentCombatReview"
-      :current-location-id="gameStore.playerCharacter?.location || ''"
-      :is-traveling="travelPending"
-      :is-game-running="gameStore.isGameInitialized"
-      :event-count="gameStore.gameState?.event_history?.length ?? 0"
+      :game-store="gameStore"
+      :player-realm-label="playerRealmLabel"
+      :player-combat-power-label="playerCombatPowerLabel"
+      :chapter-progress-label="chapterProgressLabel"
+      :chapter-interaction-label="chapterInteractionLabel"
+      :world-location-list="worldLocationList"
+      :recent-combat-review="recentCombatReview"
+      :travel-pending="travelPending"
       :is-dev-mode="isDevMode"
-      :debug-chapter="`${gameStore.plotState?.current_chapter?.index ?? 0} / ${gameStore.plotState?.current_chapter?.title ?? 'n/a'}`"
-      :debug-option-source="optionSourceLabel || 'n/a'"
-      :debug-risk-score="consistencyRiskScore"
-      :debug-diagnostics="gameStore.plotState?.last_generation_diagnostics || ''"
-      :system-error="gameStore.error"
+      :option-source-label="optionSourceLabel"
+      :consistency-risk-score="consistencyRiskScore"
       @close="showInfoTabs = false"
-      @clear-error="gameStore.clearError"
+      @clear-error="gameStore.clearError()"
       @travel="handleTravel"
     />
     <CharacterInfoModal
@@ -130,11 +119,11 @@ import { useRouter } from 'vue-router';
 import { useGameStore } from '../stores/gameStore';
 import CharacterInfoModal from './CharacterInfoModal.vue';
 import ChapterStatusStrip from './ChapterStatusStrip.vue';
+import GameInfoCenterDialog from './GameInfoCenterDialog.vue';
 import GameTopBar from './GameTopBar.vue';
 import GameInteractionPanel from './GameInteractionPanel.vue';
 import GameSystemDialogs from './GameSystemDialogs.vue';
 import StoryViewport from './StoryViewport.vue';
-import InfoTabsDialog from './InfoTabsDialog.vue';
 import type { ConsistencyPolicy, PlayerOption } from '../types/game';
 import {
   createFreeTextAction,
