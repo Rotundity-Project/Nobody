@@ -129,23 +129,11 @@
       @save="applyConsistencyPolicy"
       @reset="resetConsistencyPolicy"
     />
-    <div
-      v-if="showCharacterInfo"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-      @click.self="showCharacterInfo = false"
-    >
-      <div class="w-full max-w-md">
-        <CharacterPanel :character="gameStore.playerCharacter" />
-        <div class="mt-3 text-right">
-          <button
-            class="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white transition-colors"
-            @click="showCharacterInfo = false"
-          >
-            关闭
-          </button>
-        </div>
-      </div>
-    </div>
+    <CharacterInfoModal
+      :is-open="showCharacterInfo"
+      :character="gameStore.playerCharacter"
+      @close="showCharacterInfo = false"
+    />
   </div>
   </div>
 </template>
@@ -154,7 +142,7 @@
 import { computed, ref, watchEffect, onMounted, onUnmounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useGameStore } from '../stores/gameStore';
-import CharacterPanel from './CharacterPanel.vue';
+import CharacterInfoModal from './CharacterInfoModal.vue';
 import ChapterStatusStrip from './ChapterStatusStrip.vue';
 import GameTopBar from './GameTopBar.vue';
 import GameInteractionPanel from './GameInteractionPanel.vue';
