@@ -99,6 +99,31 @@
       </section>
 
       <section
+        v-else-if="activeTab === 'review'"
+        class="space-y-2 text-sm text-slate-200"
+      >
+        <p class="text-slate-400">最近战斗复盘</p>
+        <div
+          v-if="recentCombatExplanations.length === 0"
+          class="text-slate-400"
+        >
+          暂无战斗复盘记录
+        </div>
+        <ul
+          v-else
+          class="space-y-2"
+        >
+          <li
+            v-for="(item, idx) in recentCombatExplanations"
+            :key="`review-${idx}-${item}`"
+            class="rounded border border-slate-700 bg-slate-900/50 p-2 text-xs text-slate-200"
+          >
+            {{ item }}
+          </li>
+        </ul>
+      </section>
+
+      <section
         v-else-if="activeTab === 'export'"
         class="space-y-2"
       >
@@ -162,7 +187,7 @@ import { ref } from 'vue';
 import NovelExporter from './NovelExporter.vue';
 import StatusBanner from './StatusBanner.vue';
 
-type TabId = 'character' | 'progress' | 'map' | 'export' | 'debug' | 'system';
+type TabId = 'character' | 'progress' | 'map' | 'review' | 'export' | 'debug' | 'system';
 
 defineProps<{
   isOpen: boolean;
@@ -180,6 +205,7 @@ defineProps<{
     spiritual_energy: number;
   }>;
   reachableLocationIds: string[];
+  recentCombatExplanations: string[];
   currentLocationId: string;
   isTraveling: boolean;
   isGameRunning: boolean;
@@ -202,6 +228,7 @@ const tabs: Array<{ id: TabId; label: string }> = [
   { id: 'character', label: '角色快照' },
   { id: 'progress', label: '剧情进度' },
   { id: 'map', label: '地图行程' },
+  { id: 'review', label: '战斗复盘' },
   { id: 'export', label: '经历导出' },
   { id: 'debug', label: 'Debug Context' },
   { id: 'system', label: '系统提示' },

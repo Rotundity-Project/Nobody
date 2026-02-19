@@ -329,6 +329,7 @@
       :is-waiting-for-input="gameStore.isWaitingForInput"
       :world-locations="worldLocationList"
       :reachable-location-ids="gameStore.reachableLocationIds"
+      :recent-combat-explanations="recentCombatReview"
       :current-location-id="gameStore.playerCharacter?.location || ''"
       :is-traveling="travelPending"
       :is-game-running="gameStore.isGameInitialized"
@@ -465,6 +466,17 @@ const worldLocationList = computed(() => {
     name: loc.name,
     spiritual_energy: loc.spiritual_energy,
   }));
+});
+const recentCombatReview = computed(() => {
+  const events = gameStore.gameState?.event_history ?? [];
+  return events
+    .filter((event) =>
+      event.event_type === 'combat_explanation'
+      || event.event_type === 'encounter'
+      || event.event_type === 'combat')
+    .slice(-6)
+    .reverse()
+    .map((event) => `[t=${event.timestamp}] ${event.description}`);
 });
 const currentChapterParagraphs = computed(() => {
   const content = gameStore.plotState?.current_chapter?.content ?? [];
