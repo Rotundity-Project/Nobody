@@ -395,7 +395,8 @@ impl GameEngine {
         drop(state_lock);
 
         // 优先恢复存档中的剧情状态，避免读档后剧情丢失。
-        if let Some(saved_plot_state) = save_data.plot_state {
+        if let Some(mut saved_plot_state) = save_data.plot_state {
+            saved_plot_state.recalculate_interaction_state();
             let mut plot_lock = self.plot_state.lock().unwrap();
             *plot_lock = Some(saved_plot_state);
         } else {

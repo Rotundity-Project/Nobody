@@ -1,5 +1,5 @@
 ﻿use crate::game_state::GameState;
-use crate::plot_engine::PlotState;
+use crate::plot_engine::{PlotInteractionState, PlotState};
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -212,11 +212,41 @@ impl SaveLoadSystem {
 
     /// 迁移旧存档到当前 schema（内存态迁移，不覆盖原文件）
     fn migrate_save_data(&self, save_data: &mut SaveData) {
+        let mut legacy_schema = save_data.migration_history.is_empty();
         if save_data.schema_version.trim().is_empty() {
+            legacy_schema = true;
             save_data.schema_version = default_schema_version();
             save_data
                 .migration_history
                 .push("migrated: set default schema_version".to_string());
+        }
+        if !save_data.schema_version.starts_with("v2_") {
+            legacy_schema = true;
+            save_data
+                .migration_history
+                .push(format!(
+                    "migrated: schema {} -> {}",
+                    save_data.schema_version,
+                    default_schema_version()
+                ));
+            save_data.schema_version = default_schema_version();
+        }
+        if legacy_schema {
+            if let Some(plot_state) = save_data.plot_state.as_mut() {
+                let expected = if !plot_state.is_waiting_for_input {
+                    PlotInteractionState::AutoAdvance
+                } else if plot_state.current_scene.available_options.is_empty() {
+                    PlotInteractionState::WaitingForFreeText
+                } else {
+                    PlotInteractionState::WaitingForChoice
+                };
+                if plot_state.interaction_state != expected {
+                    plot_state.interaction_state = expected;
+                    save_data
+                        .migration_history
+                        .push("migrated: normalized plot interaction_state".to_string());
+                }
+            }
         }
         if save_data.migration_history.is_empty() {
             save_data
@@ -272,6 +302,7 @@ mod tests {
     use super::*;
     use crate::game_state::{Character, GameTime, WorldState};
     use crate::models::{CharacterStats, CultivationRealm, Element, Grade, Lifespan, SpiritualRoot};
+    use crate::plot_engine::{PlotInteractionState, PlotState, Scene};
     use crate::script::{InitialState, Location, Script, ScriptType, WorldSetting};
     use tempfile::TempDir;
 
@@ -529,6 +560,46 @@ mod tests {
         let loaded = system.load_game(1).unwrap();
         assert_eq!(loaded.schema_version, "v2_0");
         assert!(!loaded.migration_history.is_empty());
+    }
+
+    #[test]
+    fn test_load_legacy_plot_state_recalculates_interaction_state() {
+        let temp_dir = TempDir::new().unwrap();
+        let system = SaveLoadSystem::with_directory(temp_dir.path().to_path_buf());
+
+        let game_state = create_test_game_state();
+        let scene = Scene::new(
+            "legacy".to_string(),
+            "Legacy".to_string(),
+            "legacy state".to_string(),
+            "sect".to_string(),
+        );
+        let mut plot_state = PlotState::new(scene);
+        plot_state.is_waiting_for_input = true;
+        plot_state.current_scene.available_options.clear();
+        plot_state.interaction_state = PlotInteractionState::WaitingForChoice;
+
+        let save_data = SaveData::from_game_state_with_plot(game_state, Some(plot_state));
+        let mut value = serde_json::to_value(save_data).unwrap();
+        let obj = value.as_object_mut().unwrap();
+        obj.remove("schema_version");
+        obj.remove("migration_history");
+        std::fs::write(
+            temp_dir.path().join("save_1.json"),
+            serde_json::to_string_pretty(&value).unwrap(),
+        )
+        .unwrap();
+
+        let loaded = system.load_game(1).unwrap();
+        let loaded_plot = loaded.plot_state.unwrap();
+        assert_eq!(
+            loaded_plot.interaction_state,
+            PlotInteractionState::WaitingForFreeText
+        );
+        assert!(loaded
+            .migration_history
+            .iter()
+            .any(|h| h.contains("normalized plot interaction_state")));
     }
 
     #[test]
