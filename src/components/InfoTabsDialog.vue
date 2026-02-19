@@ -53,8 +53,7 @@
       >
         <p>当前位置：{{ currentLocationId || playerLocation }}</p>
         <p class="text-xs text-slate-400">
-          可达节点：{{ mapOverviewNodes(mapOverview, worldLocations, currentLocationId, reachableLocationIds).filter((node) => node.reachable).length }}
-          / {{ mapOverviewNodes(mapOverview, worldLocations, currentLocationId, reachableLocationIds).length }}
+          可达节点：{{ reachableNodeCount }} / {{ resolvedMapNodes.length }}
         </p>
         <div
           v-if="worldLocations.length === 0"
@@ -67,7 +66,7 @@
           class="grid gap-2 sm:grid-cols-2"
         >
           <div
-            v-for="loc in mapOverviewNodes(mapOverview, worldLocations, currentLocationId, reachableLocationIds)"
+            v-for="loc in resolvedMapNodes"
             :key="loc.id"
             class="rounded border border-slate-700 bg-slate-900/50 p-2"
           >
@@ -202,7 +201,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import NovelExporter from './NovelExporter.vue';
 import StatusBanner from './StatusBanner.vue';
 
@@ -236,7 +235,7 @@ type MapOverviewNodeView = {
   suggestedPath: string[];
 };
 
-defineProps<{
+const props = defineProps<{
   isOpen: boolean;
   playerName: string;
   playerRealm: string;
@@ -323,4 +322,17 @@ const mapOverviewNodes = (
     suggestedPath: [],
   }));
 };
+
+const resolvedMapNodes = computed(() =>
+  mapOverviewNodes(
+    props.mapOverview,
+    props.worldLocations,
+    props.currentLocationId,
+    props.reachableLocationIds,
+  ),
+);
+
+const reachableNodeCount = computed(
+  () => resolvedMapNodes.value.filter((node) => node.reachable).length,
+);
 </script>
