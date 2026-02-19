@@ -959,7 +959,7 @@ pub async fn execute_player_action(
             game_state.player.stats.combat_power,
             combat_guard_reason.as_deref(),
         );
-        let payload = serde_json::to_string(&explanation).unwrap_or_else(|_| explanation.summary);
+        let payload = serde_json::to_string(&explanation).unwrap_or(explanation.summary);
         engine.log_event(
             timestamp,
             "combat_explanation",
