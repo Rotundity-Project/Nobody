@@ -20,6 +20,7 @@ Scope: `tasks_v2.md` Task 23
 | Map aura normalization bounds | `prop_map_aura_normalization_is_bounded` | `src-tauri/src/numeric_guard.rs` | `cargo test -q prop_map_aura_normalization_is_bounded` |
 | Technique power band bounds | `prop_technique_power_normalization_hits_band` | `src-tauri/src/numeric_guard.rs` | `cargo test -q prop_technique_power_normalization_hits_band` |
 | Technique root affinity invariant | `prop_technique_root_affinity_never_contains_blank_or_duplicate` | `src-tauri/src/entity_validator.rs` | `cargo test -q prop_technique_root_affinity_never_contains_blank_or_duplicate` |
+| Technique risk-tag invariant | `prop_technique_risk_tags_are_lowercase_and_unique` | `src-tauri/src/entity_validator.rs` | `cargo test -q prop_technique_risk_tags_are_lowercase_and_unique` |
 
 ## Suggested Bundles
 

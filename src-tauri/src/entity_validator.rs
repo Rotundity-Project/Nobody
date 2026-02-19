@@ -63,6 +63,31 @@ fn normalize_root_affinity(values: &[String]) -> Result<(Vec<String>, bool), Str
     Ok((normalized, changed))
 }
 
+fn normalize_risk_tags(values: &[String]) -> Result<(Vec<String>, bool), String> {
+    if values.is_empty() {
+        return Ok((Vec::new(), false));
+    }
+
+    let mut normalized = Vec::new();
+    let mut seen = BTreeSet::new();
+    let mut changed = false;
+
+    for raw in values {
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            return Err("riskTags contains blank entry".to_string());
+        }
+        let lower = trimmed.to_ascii_lowercase();
+        if seen.insert(lower.clone()) {
+            normalized.push(lower);
+        } else {
+            changed = true;
+        }
+    }
+
+    Ok((normalized, changed))
+}
+
 pub fn resolve_candidate(candidate: &EntityCandidateRequest) -> ResolvedEntity {
     match candidate.entity_type {
         EntityType::Technique => resolve_technique(candidate),
@@ -108,6 +133,18 @@ fn resolve_technique(candidate: &EntityCandidateRequest) -> ResolvedEntity {
         }
     };
     t.root_affinity = root_affinity;
+    let (risk_tags, risk_changed) = match normalize_risk_tags(&t.risk_tags) {
+        Ok(v) => v,
+        Err(reason) => {
+            return ResolvedEntity {
+                entity_id: t.technique_id.clone(),
+                entity_type: EntityType::Technique,
+                payload: json!(t),
+                validation_report: reject(reason),
+            };
+        }
+    };
+    t.risk_tags = risk_tags;
 
     let check = numeric_guard::validate_technique_power(t.realm_requirement, t.base_power);
     let mut report = if !check.accepted {
@@ -138,6 +175,13 @@ fn resolve_technique(candidate: &EntityCandidateRequest) -> ResolvedEntity {
         report
             .reasons
             .push("duplicate rootAffinity entries deduplicated".to_string());
+        report.normalized_payload = Some(json!(t));
+    }
+    if risk_changed {
+        report.status = ValidationStatus::Normalized;
+        report
+            .reasons
+            .push("riskTags normalized to lower-case and deduplicated".to_string());
         report.normalized_payload = Some(json!(t));
     }
 
@@ -340,6 +384,40 @@ mod tests {
         ));
     }
 
+    #[test]
+    fn normalizes_and_deduplicates_risk_tags() {
+        let req = EntityCandidateRequest {
+            entity_type: EntityType::Technique,
+            payload: json!({
+                "techniqueId": "t_risk_norm",
+                "name": "Risky Art",
+                "tags": ["utility"],
+                "realmRequirement": 1,
+                "rootAffinity": ["Fire"],
+                "basePower": 20.0,
+                "riskTags": ["Backlash", "backlash", "Overheat"],
+                "description": "risk normalized"
+            }),
+            source_trace_id: None,
+        };
+        let resolved = resolve_candidate(&req);
+        assert!(matches!(
+            resolved.validation_report.status,
+            ValidationStatus::Normalized
+        ));
+        let arr = resolved
+            .payload
+            .get("riskTags")
+            .and_then(|v| v.as_array())
+            .cloned()
+            .unwrap_or_default();
+        let tags = arr
+            .iter()
+            .filter_map(|v| v.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(tags, vec!["backlash", "overheat"]);
+    }
+
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(100))]
 
@@ -391,6 +469,58 @@ mod tests {
                 prop_assert!(strings.iter().all(|s| !s.trim().is_empty()));
                 let uniq = strings.iter().copied().collect::<std::collections::BTreeSet<_>>();
                 prop_assert_eq!(uniq.len(), strings.len());
+            }
+        }
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(100))]
+
+        #[test]
+        fn prop_technique_risk_tags_are_lowercase_and_unique(
+            risk_tags in proptest::collection::vec(
+                prop_oneof![
+                    Just("Backlash".to_string()),
+                    Just("backlash".to_string()),
+                    Just("Overheat".to_string()),
+                    Just("Deviation".to_string()),
+                    Just("".to_string())
+                ],
+                0..8
+            )
+        ) {
+            let req = EntityCandidateRequest {
+                entity_type: EntityType::Technique,
+                payload: json!({
+                    "techniqueId": "t_prop_risk",
+                    "name": "Prop Risk",
+                    "tags": ["utility"],
+                    "realmRequirement": 1,
+                    "rootAffinity": ["Fire"],
+                    "basePower": 20.0,
+                    "riskTags": risk_tags,
+                    "description": "property"
+                }),
+                source_trace_id: None,
+            };
+            let resolved = resolve_candidate(&req);
+            if matches!(resolved.validation_report.status, ValidationStatus::Rejected) {
+                let reason = resolved.validation_report.reasons.join(" ");
+                prop_assert!(reason.contains("riskTags"));
+            } else {
+                let arr = resolved
+                    .payload
+                    .get("riskTags")
+                    .and_then(|v| v.as_array())
+                    .cloned()
+                    .unwrap_or_default();
+                let tags = arr
+                    .iter()
+                    .filter_map(|v| v.as_str())
+                    .collect::<Vec<_>>();
+                let uniq = tags.iter().copied().collect::<std::collections::BTreeSet<_>>();
+                prop_assert_eq!(uniq.len(), tags.len());
+                prop_assert!(tags.iter().all(|t| t == &t.to_ascii_lowercase()));
             }
         }
     }
