@@ -1,0 +1,57 @@
+name: Perf Benchmark
+
+on:
+  workflow_dispatch:
+
+jobs:
+  perf-baseline:
+    name: Perf Baseline (Rust Engine)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Install Tauri dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev librsvg2-dev patchelf
+          sudo apt-get install -y libwebkit2gtk-4.1-dev || sudo apt-get install -y libwebkit2gtk-4.0-dev
+          sudo apt-get install -y libappindicator3-dev || sudo apt-get install -y libayatana-appindicator3-dev
+
+      - name: Run plot benchmark
+        working-directory: src-tauri
+        run: cargo test -q perf_plot_advance_p95_under_target -- --ignored --nocapture | tee ../plot_perf.log
+
+      - name: Run combat benchmark
+        working-directory: src-tauri
+        run: cargo test -q perf_combat_parse_p95_under_target -- --ignored --nocapture | tee ../combat_perf.log
+
+      - name: Build benchmark summary
+        shell: bash
+        run: |
+          {
+            echo "# Perf Benchmark Summary"
+            echo
+            echo "- Commit: \`${GITHUB_SHA}\`"
+            echo "- Date: \`$(date -u +"%Y-%m-%dT%H:%M:%SZ")\`"
+            echo
+            echo "## Extracted Metrics"
+            grep "PERF " plot_perf.log || true
+            grep "PERF " combat_perf.log || true
+          } > perf-summary.md
+
+          cat perf-summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload benchmark artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-benchmark-${{ github.run_number }}
+          path: |
+            plot_perf.log
+            combat_perf.log
+            perf-summary.md

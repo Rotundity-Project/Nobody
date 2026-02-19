@@ -27,6 +27,10 @@ Environment: local dev machine, no LLM network calls, Rust test harness
 - Commands:
   - `cargo test -q perf_plot_advance_p95_under_target -- --ignored --nocapture`
   - `cargo test -q perf_combat_parse_p95_under_target -- --ignored --nocapture`
+- CI manual workflow:
+  - `.github/workflows/perf-benchmark.yml`
+  - Trigger: `workflow_dispatch`
+  - Artifacts: `plot_perf.log`, `combat_perf.log`, `perf-summary.md`
 
 ## Results
 - Plot advance per-op: `P50=0.001 ms`, `P95=0.002 ms`, `P99=0.003 ms`
@@ -44,5 +48,5 @@ Environment: local dev machine, no LLM network calls, Rust test harness
 
 ## Next
 1. Add diagnostics exporter to aggregate `耗时(ms)` fields into percentile stats.
-2. Add repeat runs on CI runners for cross-platform comparability.
+2. Add repeat runs on CI runners for cross-platform comparability (current workflow is manual and ubuntu-only).
 3. Track trend by commit in `docs/qa/perf-history.md` (initialized).
