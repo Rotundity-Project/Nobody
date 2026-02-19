@@ -326,14 +326,7 @@ fn detect_enemy_style(hint: &str) -> Option<&'static str> {
 }
 
 fn style_counter_delta(player_style: &str, enemy_style: &str) -> i32 {
-    match (player_style, enemy_style) {
-        ("sword", "body") => 5,
-        ("blade", "talisman") => 6,
-        ("body", "sword") => 4,
-        ("talisman", "blade") => 5,
-        (a, b) if a == b => -2,
-        _ => 0,
-    }
+    crate::combat_style_rules::counter_delta(player_style, enemy_style)
 }
 
 fn evaluate_style_counter_modifier(

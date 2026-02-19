@@ -2,6 +2,7 @@
 pub mod game_state;
 pub mod event_log;
 pub mod app_error;
+pub mod combat_style_rules;
 pub mod context_builder;
 pub mod entity_store;
 pub mod entity_types;

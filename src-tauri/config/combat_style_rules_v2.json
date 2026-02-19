@@ -1,0 +1,10 @@
+{
+  "defaultSameStylePenaltyPct": -2,
+  "defaultUnknownDeltaPct": 0,
+  "counters": [
+    { "attackerStyle": "sword", "defenderStyle": "body", "deltaPct": 5 },
+    { "attackerStyle": "blade", "defenderStyle": "talisman", "deltaPct": 6 },
+    { "attackerStyle": "body", "defenderStyle": "sword", "deltaPct": 4 },
+    { "attackerStyle": "talisman", "defenderStyle": "blade", "deltaPct": 5 }
+  ]
+}
