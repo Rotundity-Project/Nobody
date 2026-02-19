@@ -1,13 +1,8 @@
 <template>
   <div class="panel-surface max-h-[70vh] overflow-y-auto rounded-2xl p-5">
-    <h3 class="mb-4 text-xl font-display text-amber-200">
-      角色信息
-    </h3>
+    <h3 class="mb-4 text-xl font-display text-amber-200">角色信息</h3>
 
-    <div
-      v-if="character"
-      class="space-y-4"
-    >
+    <div v-if="character" class="space-y-4">
       <section class="border-b border-slate-700 pb-4">
         <p class="text-sm text-slate-400">姓名</p>
         <p class="text-lg font-medium text-white">{{ character.name }}</p>
@@ -25,10 +20,7 @@
         <p class="text-sm text-slate-400">灵根</p>
         <div class="flex items-center gap-2">
           <span class="font-medium text-white">{{ elementLabel }}</span>
-          <span
-            class="rounded px-2 py-0.5 text-xs font-medium"
-            :class="rootGradeClass(character.stats.spiritual_root.grade)"
-          >
+          <span class="rounded px-2 py-0.5 text-xs font-medium" :class="rootGradeClass(character.stats.spiritual_root.grade)">
             {{ gradeLabel }}
           </span>
         </div>
@@ -109,10 +101,7 @@
       <section v-if="recentGrowthLog.length > 0">
         <p class="text-sm text-slate-400">最近成长记录</p>
         <ul class="space-y-1 text-xs text-slate-300">
-          <li
-            v-for="(entry, index) in recentGrowthLog"
-            :key="`${index}-${entry}`"
-          >
+          <li v-for="(entry, index) in recentGrowthLog" :key="`${index}-${entry}`">
             {{ entry }}
           </li>
         </ul>
@@ -124,10 +113,7 @@
       </section>
     </div>
 
-    <div
-      v-else
-      class="text-center text-slate-400"
-    >
+    <div v-else class="text-center text-slate-400">
       <p>暂无角色数据</p>
     </div>
   </div>
