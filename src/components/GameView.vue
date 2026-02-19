@@ -27,7 +27,10 @@
           </h1>
         </div>
         <div class="flex flex-wrap gap-2">
-          <div class="relative">
+          <div
+            ref="systemMenuRef"
+            class="relative"
+          >
             <button
               class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors duration-200"
               @click="toggleSystemMenu"
@@ -461,6 +464,7 @@ const consistencyPolicy = ref<ConsistencyPolicy>({
 const inputMode = ref<'options' | 'freeText'>('options');
 const freeTextInput = ref('');
 const storyScrollRef = ref<HTMLElement | null>(null);
+const systemMenuRef = ref<HTMLElement | null>(null);
 const previousChapterParagraphs = ref<string[]>([]);
 const isDevMode = import.meta.env.DEV;
 const MAX_AUTO_ADVANCE_STEPS = 48;
@@ -721,6 +725,17 @@ const toggleSystemMenu = () => {
   }
 };
 
+const handleDocumentClick = (event: MouseEvent) => {
+  if (!showSystemMenu.value) {
+    return;
+  }
+  const target = event.target as Node | null;
+  if (systemMenuRef.value && target && !systemMenuRef.value.contains(target)) {
+    showSystemMenu.value = false;
+    showAudioPanel.value = false;
+  }
+};
+
 const applyStorySettings = async (settings: StorySettings) => {
   storySettings.value = settings;
   saveStorySettings(settings);
@@ -867,9 +882,11 @@ const handleKeydown = (event: KeyboardEvent) => {
 
 onMounted(() => {
   window.addEventListener('keydown', handleKeydown);
+  window.addEventListener('mousedown', handleDocumentClick);
 });
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown);
+  window.removeEventListener('mousedown', handleDocumentClick);
 });
 </script>
