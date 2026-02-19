@@ -118,6 +118,54 @@ fn chapter_goal_regeneration_hint(interaction_count: u8) -> String {
     )
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+struct CombatExplanation {
+    dominant_factors: Vec<String>,
+    reversal_factors: Vec<String>,
+    summary: String,
+}
+
+fn build_combat_explanation(
+    action_result: &crate::numerical_system::ActionResult,
+    player_realm_level: u32,
+    player_combat_power: u64,
+    numeric_guard_reason: Option<&str>,
+) -> CombatExplanation {
+    let mut dominant_factors = vec![
+        format!("境界层级: {}", player_realm_level),
+        format!("战力基线: {}", player_combat_power),
+    ];
+    if action_result.success {
+        dominant_factors.push("行动结果: 成功".to_string());
+    } else {
+        dominant_factors.push("行动结果: 受阻".to_string());
+    }
+
+    let mut reversal_factors = Vec::new();
+    if let Some(reason) = numeric_guard_reason {
+        reversal_factors.push(format!("数值守门裁决: {}", reason));
+    }
+    if !action_result.success {
+        reversal_factors.push("执行环节出现失败分支".to_string());
+    }
+    if reversal_factors.is_empty() {
+        reversal_factors.push("未触发显著反转因子".to_string());
+    }
+
+    let summary = format!(
+        "主导因素={}；反转因素={}",
+        dominant_factors.join(" / "),
+        reversal_factors.join(" / ")
+    );
+
+    CombatExplanation {
+        dominant_factors,
+        reversal_factors,
+        summary,
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct GenerationTimingSample {
     total_ms: u64,
@@ -418,6 +466,8 @@ pub async fn execute_player_action(
         )
         .map_err(|e| e.to_string())?;
 
+    let mut combat_guard_reason: Option<String> = None;
+    let mut should_emit_combat_explanation = false;
     if let Some(selected_option_id) = action.selected_option_id {
         if let Some(selected_option) = plot_state.current_scene.available_options.get(selected_option_id)
         {
@@ -458,6 +508,7 @@ pub async fn execute_player_action(
                     }
                 }
                 Action::Combat { .. } => {
+                    should_emit_combat_explanation = true;
                     let realm_level = game_state.player.stats.cultivation_realm.level;
                     let check = crate::numeric_guard::validate_character_combat_power(
                         realm_level,
@@ -474,6 +525,7 @@ pub async fn execute_player_action(
                                 new_value: new_power.to_string(),
                             });
                             if let Some(reason) = check.reason {
+                                combat_guard_reason = Some(reason.clone());
                                 action_result.description = format!(
                                     "{}（数值校验：{}）",
                                     action_result.description, reason
@@ -482,6 +534,7 @@ pub async fn execute_player_action(
                         }
                     } else if !check.accepted {
                         action_result.success = false;
+                        combat_guard_reason = check.reason.clone();
                         action_result.description = format!(
                             "{}（数值校验未通过：{}）",
                             action_result.description,
@@ -639,7 +692,7 @@ pub async fn execute_player_action(
         None
     };
 
-    plot_state.last_action_result = Some(action_result);
+    plot_state.last_action_result = Some(action_result.clone());
     plot_state.append_segment(plot_update.plot_text.clone());
 
     if let Some(title) = plot_update.chapter_title.clone() {
@@ -771,6 +824,22 @@ pub async fn execute_player_action(
 
     if let Some((event_type, message, importance)) = log_entry {
         engine.log_event(timestamp, event_type, message, importance);
+    }
+
+    if should_emit_combat_explanation {
+        let explanation = build_combat_explanation(
+            &action_result,
+            game_state.player.stats.cultivation_realm.level,
+            game_state.player.stats.combat_power,
+            combat_guard_reason.as_deref(),
+        );
+        let payload = serde_json::to_string(&explanation).unwrap_or_else(|_| explanation.summary);
+        engine.log_event(
+            timestamp,
+            "combat_explanation",
+            payload,
+            EventImportance::Important,
+        );
     }
 
     let _npc_reactions = engine
@@ -1499,6 +1568,28 @@ mod tests {
         let hint = chapter_goal_regeneration_hint(2);
         assert!(hint.contains("章节目标重生成约束"));
         assert!(hint.contains("资源变化"));
+    }
+
+    #[test]
+    fn test_build_combat_explanation_contains_dominant_and_reversal() {
+        let action_result = crate::numerical_system::ActionResult {
+            success: false,
+            description: "战斗受阻".to_string(),
+            stat_changes: vec![],
+            events: vec![],
+        };
+        let explanation = build_combat_explanation(
+            &action_result,
+            3,
+            4200,
+            Some("combat_power above maximum for realm 3"),
+        );
+        assert!(explanation.summary.contains("主导因素="));
+        assert!(explanation.summary.contains("反转因素="));
+        assert!(explanation
+            .reversal_factors
+            .iter()
+            .any(|item| item.contains("数值守门裁决")));
     }
 }
 
