@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils';
+﻿import { mount } from '@vue/test-utils';
 import { reactive } from 'vue';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import GameView from '../GameView.vue';
@@ -40,6 +40,14 @@ vi.mock('../SaveLoadDialog.vue', () => ({
 
 vi.mock('../StorySettingsDialog.vue', () => ({
   default: { name: 'StorySettingsDialog', template: '<div />' },
+}));
+
+vi.mock('../InfoTabsDialog.vue', () => ({
+  default: {
+    name: 'InfoTabsDialog',
+    props: ['debugRiskScore'],
+    template: '<div data-testid="info-tabs-dialog">{{ debugRiskScore }}</div>',
+  },
 }));
 
 vi.mock('../ConsistencySettingsDialog.vue', () => ({
@@ -198,7 +206,7 @@ describe('GameView', () => {
         } as any;
       } else {
         storeRef.isWaitingForInput = true;
-        storeRef.availableOptions = [{ id: 0, description: '閫夐」涓€', requirements: [], action: {} }];
+        storeRef.availableOptions = [{ id: 0, description: '选项A', requirements: [], action: {} }];
         storeRef.plotState = {
           current_chapter: {
             title: 'chapter',
@@ -219,7 +227,7 @@ describe('GameView', () => {
     const wrapper = mount(GameView);
     const continueButton = wrapper
       .findAll('button')
-      .find((btn) => /(继续|缁х画)/.test(btn.text()));
+      .find((btn) => /(继续|推进)/.test(btn.text()));
     expect(continueButton).toBeTruthy();
     await continueButton!.trigger('click');
     await flushPromises();
@@ -398,6 +406,8 @@ describe('GameView', () => {
     });
 
     const wrapper = mount(GameView);
-    expect(wrapper.text()).toContain('一致性风险分：23');
+    const dialog = wrapper.get('[data-testid="info-tabs-dialog"]');
+    expect(dialog.text()).toContain('23');
   });
 });
+

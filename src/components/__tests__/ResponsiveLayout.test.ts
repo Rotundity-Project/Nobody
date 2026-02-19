@@ -1,4 +1,4 @@
-import { mount, shallowMount } from '@vue/test-utils';
+﻿import { mount, shallowMount } from '@vue/test-utils';
 import { describe, expect, it, vi } from 'vitest';
 import CharacterPanel from '../CharacterPanel.vue';
 import GameView from '../GameView.vue';
@@ -52,7 +52,7 @@ describe('responsive layout classes', () => {
     const classes = wrapper.classes();
     expect(classes).toContain('flex');
     expect(classes).toContain('flex-col');
-    expect(wrapper.find('[data-testid="game-sidebar"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain('信息面板');
   });
 
   it('MainMenu buttons have responsive width classes', () => {
@@ -70,3 +70,5 @@ describe('responsive layout classes', () => {
     expect(buttonClasses).toContain('sm:w-64');
   });
 });
+
+
