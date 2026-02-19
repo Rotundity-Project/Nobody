@@ -422,6 +422,7 @@ mod property_tests {
     use super::*;
     use crate::event_log::EventImportance;
     use proptest::prelude::*;
+    use std::collections::BTreeSet;
 
     fn build_event(id: u64, timestamp: u64, desc: String) -> GameEvent {
         GameEvent {
@@ -431,6 +432,29 @@ mod property_tests {
             description: std::sync::Arc::from(desc),
             importance: EventImportance::Normal,
         }
+    }
+
+    fn sentence_fact_coverage_ratio(content: &str, source_facts: &BTreeSet<String>) -> f64 {
+        if content.trim().is_empty() {
+            return 0.0;
+        }
+
+        let sentences = content
+            .split(['\n', '.', '!', '?', '。', '！', '？'])
+            .map(str::trim)
+            .filter(|line| !line.is_empty())
+            .collect::<Vec<&str>>();
+
+        if sentences.is_empty() {
+            return 0.0;
+        }
+
+        let covered_facts = source_facts
+            .iter()
+            .filter(|fact| sentences.iter().any(|line| line.contains(fact.as_str())))
+            .count();
+
+        covered_facts as f64 / source_facts.len() as f64
     }
 
     proptest! {
@@ -521,6 +545,47 @@ mod property_tests {
             }
 
             prop_assert_eq!(covered, expected);
+        }
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(100))]
+
+        // Feature: Nobody, Property 23: sentence-level fact coverage ratio invariant
+        #[test]
+        fn prop_export_sentence_fact_coverage_ratio_is_bounded(
+            descriptions in proptest::collection::vec("[a-zA-Z0-9 ]{1,40}", 2..80)
+        ) {
+            let events = descriptions
+                .iter()
+                .enumerate()
+                .map(|(i, d)| build_event((i + 1) as u64, (i + 1) as u64, d.clone()))
+                .collect::<Vec<GameEvent>>();
+            let fact_by_id = events
+                .iter()
+                .map(|event| (event.id, event.description.to_string()))
+                .collect::<std::collections::BTreeMap<u64, String>>();
+
+            let runtime = tokio::runtime::Runtime::new().unwrap();
+            let generator = NovelGenerator::new();
+            let novel = runtime
+                .block_on(generator.generate_novel("CoverageRatio", &events))
+                .unwrap();
+
+            for chapter in &novel.chapters {
+                let chapter_facts = chapter
+                    .source_event_ids
+                    .iter()
+                    .filter_map(|id| fact_by_id.get(id).cloned())
+                    .collect::<BTreeSet<String>>();
+                let ratio = sentence_fact_coverage_ratio(&chapter.content, &chapter_facts);
+                prop_assert!(
+                    ratio >= 1.0,
+                    "chapter {} sentence-level fact coverage ratio too low: {}",
+                    chapter.index,
+                    ratio
+                );
+            }
         }
     }
 
