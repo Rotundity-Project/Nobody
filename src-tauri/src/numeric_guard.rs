@@ -172,3 +172,74 @@ pub fn validate_character_combat_power(realm_level: u32, combat_power: u64) -> N
         )),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use proptest::prelude::*;
+
+    #[test]
+    fn map_danger_out_of_range_is_rejected() {
+        let cfg = rules();
+        let low = cfg.map_danger_min.saturating_sub(1);
+        let high = cfg.map_danger_max.saturating_add(1);
+        let low_result = validate_map_numbers(low, cfg.aura_density_min);
+        let high_result = validate_map_numbers(high, cfg.aura_density_max);
+        assert!(!low_result.accepted);
+        assert!(!high_result.accepted);
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(100))]
+
+        #[test]
+        fn prop_map_aura_normalization_is_bounded(
+            danger in 0u8..=12u8,
+            aura in -10.0f64..10.0f64
+        ) {
+            let cfg = rules();
+            let result = validate_map_numbers(danger, aura);
+
+            if danger < cfg.map_danger_min || danger > cfg.map_danger_max {
+                prop_assert!(!result.accepted);
+            } else if aura < cfg.aura_density_min || aura > cfg.aura_density_max {
+                prop_assert!(result.accepted);
+                prop_assert!(result.normalized);
+                let value = result.normalized_value.unwrap_or_default();
+                prop_assert!(value >= cfg.aura_density_min && value <= cfg.aura_density_max);
+            } else {
+                prop_assert!(result.accepted);
+                prop_assert!(!result.normalized);
+            }
+        }
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(100))]
+
+        #[test]
+        fn prop_technique_power_normalization_hits_band(
+            realm in 0u32..=20u32,
+            power in -1000.0f64..100000.0f64
+        ) {
+            let cfg = rules();
+            let result = validate_technique_power(realm, power);
+            let band = cfg.technique_power_bands.iter().find(|b| b.realm_requirement == realm);
+            match band {
+                None => {
+                    prop_assert!(!result.accepted);
+                }
+                Some(b) => {
+                    prop_assert!(result.accepted);
+                    if power < b.min_power || power > b.max_power {
+                        prop_assert!(result.normalized);
+                        let v = result.normalized_value.unwrap_or_default();
+                        prop_assert!(v >= b.min_power && v <= b.max_power);
+                    } else {
+                        prop_assert!(!result.normalized);
+                    }
+                }
+            }
+        }
+    }
+}

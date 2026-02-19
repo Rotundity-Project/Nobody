@@ -80,7 +80,7 @@
 
 | 任务 | 计划状态 | 代码审计状态 | 证据 |
 |---|---|---|---|
-| 23. 属性测试与回归扩展 | 未完成 | 部分完成（增强中） | 已新增章节目录完整性与导出事实覆盖率属性测试（`src-tauri/src/novel_generator.rs`），仍待补地图/功法不变量 |
+| 23. 属性测试与回归扩展 | 未完成 | 部分完成（增强中） | 已新增章节目录完整性、导出事实覆盖率、地图/数值边界属性测试（`src-tauri/src/novel_generator.rs`, `src-tauri/src/numeric_guard.rs`），仍待补功法适配不变量 |
 | 24. 性能目标 | 未完成 | 部分完成（增强中） | 已新增基线报告 `docs/qa/v2-performance-report.md` 与可复现实验（`src-tauri/src/tests.rs`） |
 | 25. 发布准备 | 未完成 | 部分完成（增强中） | 已补发布草案（`docs/release/v2-release-prep.md`），待补最终版本号与灰度结果 |
 
