@@ -14,6 +14,10 @@ pub struct SaveLoadSystem {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SaveData {
     pub version: String,
+    #[serde(default = "default_schema_version")]
+    pub schema_version: String,
+    #[serde(default)]
+    pub migration_history: Vec<String>,
     pub timestamp: u64,
     pub game_state: GameState,
     pub plot_state: Option<PlotState>,
@@ -104,7 +108,8 @@ impl SaveLoadSystem {
         }
 
         let json = fs::read_to_string(save_path)?;
-        let save_data: SaveData = serde_json::from_str(&json)?;
+        let mut save_data: SaveData = serde_json::from_str(&json)?;
+        self.migrate_save_data(&mut save_data);
 
         // 验证加载的数据
         self.validate_save_data(&save_data)?;
@@ -180,6 +185,9 @@ impl SaveLoadSystem {
         if save_data.version.is_empty() {
             return Err(anyhow!("存档数据版本为空"));
         }
+        if save_data.schema_version.is_empty() {
+            return Err(anyhow!("存档 schema_version 为空"));
+        }
 
         // 检查版本兼容性（当前仅支持 1.0.0）
         if !save_data.version.starts_with("1.") {
@@ -201,6 +209,21 @@ impl SaveLoadSystem {
 
         Ok(())
     }
+
+    /// 迁移旧存档到当前 schema（内存态迁移，不覆盖原文件）
+    fn migrate_save_data(&self, save_data: &mut SaveData) {
+        if save_data.schema_version.trim().is_empty() {
+            save_data.schema_version = default_schema_version();
+            save_data
+                .migration_history
+                .push("migrated: set default schema_version".to_string());
+        }
+        if save_data.migration_history.is_empty() {
+            save_data
+                .migration_history
+                .push(format!("loaded:{} -> {}", save_data.version, save_data.schema_version));
+        }
+    }
 }
 
 impl Default for SaveLoadSystem {
@@ -214,6 +237,8 @@ impl SaveData {
     pub fn from_game_state(game_state: GameState) -> Self {
         Self {
             version: "1.0.0".to_string(),
+            schema_version: default_schema_version(),
+            migration_history: vec!["created:v2_0".to_string()],
             timestamp: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
@@ -226,6 +251,8 @@ impl SaveData {
     pub fn from_game_state_with_plot(game_state: GameState, plot_state: Option<PlotState>) -> Self {
         Self {
             version: "1.0.0".to_string(),
+            schema_version: default_schema_version(),
+            migration_history: vec!["created:v2_0".to_string()],
             timestamp: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
@@ -234,6 +261,10 @@ impl SaveData {
             plot_state,
         }
     }
+}
+
+fn default_schema_version() -> String {
+    "v2_0".to_string()
 }
 
 #[cfg(test)]
@@ -473,7 +504,31 @@ mod tests {
         let save_data = SaveData::from_game_state(game_state);
 
         assert_eq!(save_data.version, "1.0.0");
+        assert_eq!(save_data.schema_version, "v2_0");
+        assert!(!save_data.migration_history.is_empty());
         assert!(save_data.timestamp > 0);
+    }
+
+    #[test]
+    fn test_load_legacy_save_without_schema_version() {
+        let temp_dir = TempDir::new().unwrap();
+        let system = SaveLoadSystem::with_directory(temp_dir.path().to_path_buf());
+
+        let game_state = create_test_game_state();
+        let save_data = SaveData::from_game_state(game_state);
+        let mut value = serde_json::to_value(save_data).unwrap();
+        let obj = value.as_object_mut().unwrap();
+        obj.remove("schema_version");
+        obj.remove("migration_history");
+        std::fs::write(
+            temp_dir.path().join("save_1.json"),
+            serde_json::to_string_pretty(&value).unwrap(),
+        )
+        .unwrap();
+
+        let loaded = system.load_game(1).unwrap();
+        assert_eq!(loaded.schema_version, "v2_0");
+        assert!(!loaded.migration_history.is_empty());
     }
 
     #[test]
