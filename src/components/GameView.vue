@@ -30,42 +30,53 @@
           <div class="relative">
             <button
               class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors duration-200"
-              @click="toggleAudioPanel"
+              @click="toggleSystemMenu"
             >
-              音量
+              系统中心
             </button>
             <div
-              v-if="showAudioPanel"
-              class="absolute right-0 mt-2 w-64 panel-surface rounded-xl p-4"
+              v-if="showSystemMenu"
+              class="absolute right-0 z-20 mt-2 w-72 panel-surface rounded-xl p-4 space-y-2"
             >
-              <AudioControlPanel />
+              <button
+                class="w-full rounded-md bg-slate-800 px-3 py-2 text-left text-sm text-slate-100 transition-colors hover:bg-slate-700"
+                title="查看快捷键"
+                @click="showShortcutsDialog = true"
+              >
+                快捷键
+              </button>
+              <button
+                class="w-full rounded-md bg-emerald-600 px-3 py-2 text-left text-sm text-slate-900 transition-colors hover:bg-emerald-500"
+                @click="showLLMDialog = true"
+              >
+                LLM 设置
+              </button>
+              <button
+                class="w-full rounded-md bg-slate-800 px-3 py-2 text-left text-sm text-slate-100 transition-colors hover:bg-slate-700"
+                @click="showStorySettings = true"
+              >
+                剧情设置
+              </button>
+              <button
+                class="w-full rounded-md bg-slate-800 px-3 py-2 text-left text-sm text-slate-100 transition-colors hover:bg-slate-700"
+                @click="openConsistencySettings"
+              >
+                一致性设置
+              </button>
+              <button
+                class="w-full rounded-md bg-slate-800 px-3 py-2 text-left text-sm text-slate-100 transition-colors hover:bg-slate-700"
+                @click="toggleAudioPanel"
+              >
+                音量设置
+              </button>
+              <div
+                v-if="showAudioPanel"
+                class="mt-1 rounded-lg border border-slate-700 bg-slate-900/50 p-3"
+              >
+                <AudioControlPanel />
+              </div>
             </div>
           </div>
-          <button
-            class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors duration-200"
-            title="查看快捷键"
-            @click="showShortcutsDialog = true"
-          >
-            ⌨️
-          </button>
-          <button
-            class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-slate-900 rounded-lg transition-colors duration-200"
-            @click="showLLMDialog = true"
-          >
-            LLM 设置
-          </button>
-          <button
-            class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors duration-200"
-            @click="showStorySettings = true"
-          >
-            剧情设置
-          </button>
-          <button
-            class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors duration-200"
-            @click="openConsistencySettings"
-          >
-            一致性设置
-          </button>
           <button
             class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors duration-200"
             @click="showCharacterInfo = true"
@@ -434,6 +445,7 @@ const showAudioPanel = ref(false);
 const showStorySettings = ref(false);
 const showInfoTabs = ref(false);
 const showConsistencySettings = ref(false);
+const showSystemMenu = ref(false);
 const showCharacterInfo = ref(false);
 const showShortcutsDialog = ref(false);
 const storySettings = ref<StorySettings>(getStorySettings());
@@ -701,6 +713,14 @@ const toggleAudioPanel = () => {
   showAudioPanel.value = !showAudioPanel.value;
 };
 
+const toggleSystemMenu = () => {
+  playClick();
+  showSystemMenu.value = !showSystemMenu.value;
+  if (!showSystemMenu.value) {
+    showAudioPanel.value = false;
+  }
+};
+
 const applyStorySettings = async (settings: StorySettings) => {
   storySettings.value = settings;
   saveStorySettings(settings);
@@ -808,6 +828,7 @@ const handleKeydown = (event: KeyboardEvent) => {
     showLLMDialog.value = false;
     showStorySettings.value = false;
     showConsistencySettings.value = false;
+    showSystemMenu.value = false;
     showCharacterInfo.value = false;
     showAudioPanel.value = false;
   }

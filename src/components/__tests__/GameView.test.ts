@@ -374,6 +374,13 @@ describe('GameView', () => {
     });
 
     const wrapper = mount(GameView);
+    const systemCenterBtn = wrapper
+      .findAll('button')
+      .find((btn) => btn.text().includes('系统中心'));
+    expect(systemCenterBtn).toBeTruthy();
+    await systemCenterBtn!.trigger('click');
+    await flushPromises();
+
     const settingsBtn = wrapper
       .findAll('button')
       .find((btn) => btn.text().includes('一致性设置'));
