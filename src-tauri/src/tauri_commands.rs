@@ -288,6 +288,87 @@ fn evaluate_environment_combat_modifier(game_state: &GameState) -> (i32, String)
     (delta.clamp(-20, 20), reason)
 }
 
+fn detect_player_styles(stats: &crate::models::CharacterStats) -> Vec<&'static str> {
+    let mut styles = std::collections::BTreeSet::new();
+    for tech in &stats.techniques {
+        let t = tech.to_lowercase();
+        if t.contains("剑") || t.contains("sword") {
+            styles.insert("sword");
+        }
+        if t.contains("刀") || t.contains("blade") {
+            styles.insert("blade");
+        }
+        if t.contains("拳") || t.contains("体") || t.contains("body") {
+            styles.insert("body");
+        }
+        if t.contains("符") || t.contains("阵") || t.contains("talisman") || t.contains("array") {
+            styles.insert("talisman");
+        }
+    }
+    styles.into_iter().collect::<Vec<_>>()
+}
+
+fn detect_enemy_style(hint: &str) -> Option<&'static str> {
+    let h = hint.to_lowercase();
+    if h.contains("剑") || h.contains("sword") {
+        return Some("sword");
+    }
+    if h.contains("刀") || h.contains("blade") {
+        return Some("blade");
+    }
+    if h.contains("拳") || h.contains("体修") || h.contains("body") {
+        return Some("body");
+    }
+    if h.contains("符") || h.contains("阵") || h.contains("talisman") || h.contains("array") {
+        return Some("talisman");
+    }
+    None
+}
+
+fn style_counter_delta(player_style: &str, enemy_style: &str) -> i32 {
+    match (player_style, enemy_style) {
+        ("sword", "body") => 5,
+        ("blade", "talisman") => 6,
+        ("body", "sword") => 4,
+        ("talisman", "blade") => 5,
+        (a, b) if a == b => -2,
+        _ => 0,
+    }
+}
+
+fn evaluate_style_counter_modifier(
+    stats: &crate::models::CharacterStats,
+    combat_hint: &str,
+) -> (i32, String) {
+    let enemy_style = detect_enemy_style(combat_hint);
+    let player_styles = detect_player_styles(stats);
+    let Some(enemy_style) = enemy_style else {
+        return (0, "未识别敌方流派".to_string());
+    };
+    if player_styles.is_empty() {
+        return (0, "我方流派未成型".to_string());
+    }
+    let mut best = 0;
+    let mut best_style = "";
+    for style in &player_styles {
+        let d = style_counter_delta(style, enemy_style);
+        if d > best {
+            best = d;
+            best_style = style;
+        }
+    }
+    if best == 0 {
+        return (
+            0,
+            format!("未形成明确克制（我方={:?}, 敌方={}）", player_styles, enemy_style),
+        );
+    }
+    (
+        best,
+        format!("流派克制：{} 克制 {}", best_style, enemy_style),
+    )
+}
+
 fn build_combat_explanation(
     action_result: &crate::numerical_system::ActionResult,
     player_realm_level: u32,
@@ -1127,6 +1208,31 @@ pub async fn execute_player_action(
                         action_result.description =
                             format!("{}；环境依据：{}", action_result.description, env_reason);
                     }
+                    let (style_delta_pct, style_reason) =
+                        evaluate_style_counter_modifier(&game_state.player.stats, &option_hint);
+                    if style_delta_pct != 0 {
+                        let old_power = game_state.player.stats.combat_power;
+                        let scaled = (old_power as i128)
+                            .saturating_mul((100 + style_delta_pct) as i128)
+                            / 100i128;
+                        let new_power = scaled.max(1) as u64;
+                        game_state.player.stats.combat_power = new_power;
+                        action_result.stat_changes.push(StatChange {
+                            stat_name: "combat_power".to_string(),
+                            old_value: old_power.to_string(),
+                            new_value: new_power.to_string(),
+                        });
+                        action_result.description = format!(
+                            "{}（流派克制修正: {}%）",
+                            action_result.description, style_delta_pct
+                        );
+                        push_growth_log(
+                            &mut game_state,
+                            format!("流派克制影响：战力 {} -> {}（{}）", old_power, new_power, style_reason),
+                        );
+                    }
+                    action_result.description =
+                        format!("{}；克制依据：{}", action_result.description, style_reason);
                     let (semantic_delta_pct, semantic_reasons, high_risk_technique) =
                         evaluate_technique_semantic_modifier(&game_state.player.stats);
                     if semantic_delta_pct != 0 {
@@ -2982,6 +3088,52 @@ mod tests {
         let (delta, reason) = evaluate_environment_combat_modifier(&state);
         assert!(delta > 0);
         assert!(reason.contains("高灵气场域增幅"));
+    }
+
+    #[test]
+    fn test_evaluate_style_counter_modifier_detects_counter_bonus() {
+        let stats = crate::models::CharacterStats {
+            spiritual_root: crate::models::SpiritualRoot {
+                element: crate::models::Element::Fire,
+                elements: vec![crate::models::Element::Fire],
+                grade: crate::models::Grade::Heavenly,
+                affinity: 0.8,
+            },
+            cultivation_realm: crate::models::CultivationRealm::new("Qi".to_string(), 2, 0, 1.0),
+            techniques: vec!["青霜剑诀".to_string()],
+            lifespan: crate::models::Lifespan {
+                current_age: 18,
+                max_age: 100,
+                realm_bonus: 0,
+            },
+            combat_power: 220,
+        };
+        let (delta, reason) = evaluate_style_counter_modifier(&stats, "敌方体修强攻");
+        assert!(delta > 0);
+        assert!(reason.contains("克制"));
+    }
+
+    #[test]
+    fn test_evaluate_style_counter_modifier_handles_unknown_enemy_style() {
+        let stats = crate::models::CharacterStats {
+            spiritual_root: crate::models::SpiritualRoot {
+                element: crate::models::Element::Fire,
+                elements: vec![crate::models::Element::Fire],
+                grade: crate::models::Grade::Heavenly,
+                affinity: 0.8,
+            },
+            cultivation_realm: crate::models::CultivationRealm::new("Qi".to_string(), 2, 0, 1.0),
+            techniques: vec!["青霜剑诀".to_string()],
+            lifespan: crate::models::Lifespan {
+                current_age: 18,
+                max_age: 100,
+                realm_bonus: 0,
+            },
+            combat_power: 220,
+        };
+        let (delta, reason) = evaluate_style_counter_modifier(&stats, "敌方神秘修士");
+        assert_eq!(delta, 0);
+        assert!(reason.contains("未识别"));
     }
 }
 
