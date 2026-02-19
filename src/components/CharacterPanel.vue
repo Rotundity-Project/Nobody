@@ -1,6 +1,6 @@
 <template>
-  <div class="panel-surface rounded-2xl p-5 max-h-[70vh] overflow-y-auto">
-    <h3 class="text-xl font-display mb-4 text-amber-200">
+  <div class="panel-surface max-h-[70vh] overflow-y-auto rounded-2xl p-5">
+    <h3 class="mb-4 text-xl font-display text-amber-200">
       角色信息
     </h3>
 
@@ -8,103 +8,79 @@
       v-if="character"
       class="space-y-4"
     >
-      <div class="pb-4 border-b border-slate-700">
-        <p class="text-slate-400 text-sm">
-          姓名
-        </p>
-        <p class="text-white font-medium text-lg">
-          {{ character.name }}
-        </p>
-      </div>
+      <section class="border-b border-slate-700 pb-4">
+        <p class="text-sm text-slate-400">姓名</p>
+        <p class="text-lg font-medium text-white">{{ character.name }}</p>
+      </section>
 
-      <div>
-        <p class="text-slate-400 text-sm">
-          修为境界
-        </p>
-        <p class="text-white font-medium">
-          {{ realmName }}
-        </p>
-        <p class="text-slate-500 text-xs">
+      <section>
+        <p class="text-sm text-slate-400">修为境界</p>
+        <p class="font-medium text-white">{{ realmLabel }}</p>
+        <p class="text-xs text-slate-500">
           等级 {{ character.stats.cultivation_realm.level }}.{{ character.stats.cultivation_realm.sub_level }}
         </p>
-      </div>
+      </section>
 
-      <div>
-        <p class="text-slate-400 text-sm">
-          灵根
-        </p>
+      <section>
+        <p class="text-sm text-slate-400">灵根</p>
         <div class="flex items-center gap-2">
-          <span class="text-white font-medium">{{ elementLabel }}</span>
+          <span class="font-medium text-white">{{ elementLabel }}</span>
           <span
-            class="px-2 py-0.5 rounded text-xs font-medium"
-            :class="getRootGradeClass(character.stats.spiritual_root.grade)"
+            class="rounded px-2 py-0.5 text-xs font-medium"
+            :class="rootGradeClass(character.stats.spiritual_root.grade)"
           >
             {{ gradeLabel }}
           </span>
         </div>
-        <p class="text-slate-500 text-xs">
-          亲和度 {{ affinityLabel }}
-        </p>
-        <p class="text-slate-500 text-xs">
-          天赋提示：{{ gradeHint }}
-        </p>
-      </div>
+        <p class="text-xs text-slate-500">亲和度 {{ affinityLabel }}</p>
+        <p class="text-xs text-slate-500">天赋提示：{{ gradeHint }}</p>
+      </section>
 
-      <div>
-        <p class="text-slate-400 text-sm">
-          寿元
-        </p>
-        <p class="text-white font-medium">
+      <section>
+        <p class="text-sm text-slate-400">寿元</p>
+        <p class="font-medium text-white">
           {{ character.stats.lifespan.current_age }} / {{ character.stats.lifespan.max_age }}
         </p>
-        <div class="w-full bg-slate-700 rounded-full h-2 mt-1">
+        <div class="mt-1 h-2 w-full rounded-full bg-slate-700">
           <div
             class="h-2 rounded-full transition-all duration-300"
-            :class="getLifespanBarClass(character.stats.lifespan)"
-            :style="{ width: `${getLifespanPercentage(character.stats.lifespan)}%` }"
+            :class="lifespanBarClass(character.stats.lifespan)"
+            :style="{ width: `${lifespanPercent(character.stats.lifespan)}%` }"
           />
         </div>
-      </div>
+      </section>
 
-      <div>
-        <p class="text-slate-400 text-sm">
-          战斗力
-        </p>
-        <p class="text-white font-medium">
-          {{ character.stats.combat_power.toLocaleString() }}
-        </p>
-      </div>
+      <section>
+        <p class="text-sm text-slate-400">战斗力</p>
+        <p class="font-medium text-white">{{ character.stats.combat_power.toLocaleString() }}</p>
+      </section>
 
-      <div v-if="character.combat_status">
-        <p class="text-slate-400 text-sm">
-          战后状态
-        </p>
-        <p class="text-white text-sm">
+      <section v-if="character.combat_status">
+        <p class="text-sm text-slate-400">战后状态</p>
+        <p class="text-sm text-white">
           伤势 {{ character.combat_status.injury_level }} /
           声望 {{ character.combat_status.reputation }} /
           仇恨 {{ character.combat_status.enmity }} /
           气机紊乱 {{ character.combat_status.qi_deviation ?? 0 }}
         </p>
-      </div>
+      </section>
 
-      <div v-if="recentGrowthLog.length > 0">
-        <p class="text-slate-400 text-sm">
-          最近成长记录
-        </p>
-        <ul class="space-y-1 text-xs text-slate-300">
-          <li
-            v-for="(entry, index) in recentGrowthLog"
-            :key="`${index}-${entry}`"
+      <section v-if="socialProfileItems.length > 0">
+        <p class="text-sm text-slate-400">关系画像</p>
+        <div class="grid grid-cols-2 gap-2 text-xs text-slate-200">
+          <div
+            v-for="item in socialProfileItems"
+            :key="item.label"
+            class="rounded border border-slate-700 bg-slate-900/40 p-2"
           >
-            {{ entry }}
-          </li>
-        </ul>
-      </div>
+            <p class="text-slate-400">{{ item.label }}</p>
+            <p class="mt-0.5">{{ item.value }}</p>
+          </div>
+        </div>
+      </section>
 
-      <div v-if="personalityTags.length > 0">
-        <p class="text-slate-400 text-sm">
-          人格标签
-        </p>
+      <section v-if="personalityTags.length > 0">
+        <p class="text-sm text-slate-400">人格标签</p>
         <div class="flex flex-wrap gap-2">
           <span
             v-for="tag in personalityTags"
@@ -114,12 +90,10 @@
             {{ tag }}
           </span>
         </div>
-      </div>
+      </section>
 
-      <div v-if="techniqueGroups.length > 0">
-        <p class="text-slate-400 text-sm">
-          功法流派
-        </p>
+      <section v-if="techniqueGroups.length > 0">
+        <p class="text-sm text-slate-400">功法流派</p>
         <div class="space-y-2">
           <div
             v-for="group in techniqueGroups"
@@ -130,16 +104,24 @@
             <p class="text-xs text-slate-200">{{ group.items.join(' / ') }}</p>
           </div>
         </div>
-      </div>
+      </section>
 
-      <div>
-        <p class="text-slate-400 text-sm">
-          位置
-        </p>
-        <p class="text-white font-medium">
-          {{ locationLabel }}
-        </p>
-      </div>
+      <section v-if="recentGrowthLog.length > 0">
+        <p class="text-sm text-slate-400">最近成长记录</p>
+        <ul class="space-y-1 text-xs text-slate-300">
+          <li
+            v-for="(entry, index) in recentGrowthLog"
+            :key="`${index}-${entry}`"
+          >
+            {{ entry }}
+          </li>
+        </ul>
+      </section>
+
+      <section>
+        <p class="text-sm text-slate-400">位置</p>
+        <p class="font-medium text-white">{{ locationLabel }}</p>
+      </section>
     </div>
 
     <div
@@ -153,14 +135,12 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { Character, Lifespan } from '../types/game';
+import type { Character, Lifespan, SocialProfile } from '../types/game';
 import { Element, Grade } from '../types/game';
 
-interface Props {
+const props = defineProps<{
   character: Character | null;
-}
-
-const props = defineProps<Props>();
+}>();
 
 const elementLabel = computed(() => {
   if (!props.character) return '';
@@ -173,9 +153,7 @@ const elementLabel = computed(() => {
   };
   const root = props.character.stats.spiritual_root;
   const elements = root.elements && root.elements.length > 0 ? root.elements : [root.element];
-  return elements
-    .map((element) => mapping[element] ?? '未知灵根')
-    .join(' / ');
+  return elements.map((item) => mapping[item] ?? '未知灵根').join(' / ');
 });
 
 const gradeLabel = computed(() => {
@@ -193,25 +171,26 @@ const gradeHint = computed(() => {
   if (!props.character) return '';
   switch (props.character.stats.spiritual_root.grade) {
     case Grade.Heavenly:
-      return '极其稀有，修行速度快，最受宗门重视';
+      return '修炼效率极高，适合冲击高阶境界';
     case Grade.Double:
-      return '较为出众，修行效率高，资源倾斜明显';
+      return '资质良好，修炼与战斗成长较平衡';
     case Grade.Triple:
-      return '中等资质，稳扎稳打可成材';
+      return '中等资质，适合稳扎稳打路线';
     case Grade.Pseudo:
-      return '资质普通，需要更多机缘与努力';
+      return '基础资质一般，需要更多机缘支撑';
     default:
-      return '暂无评价';
+      return '暂无评估';
   }
 });
 
 const affinityLabel = computed(() => {
   if (!props.character) return '';
-  const pct = Math.round(props.character.stats.spiritual_root.affinity * 100);
+  const affinity = props.character.stats.spiritual_root.affinity;
+  const pct = affinity <= 1 ? Math.round(affinity * 100) : Math.round(affinity);
   return `${pct}%`;
 });
 
-const realmName = computed(() => {
+const realmLabel = computed(() => {
   if (!props.character) return '';
   const raw = props.character.stats.cultivation_realm.name;
   const mapping: Record<string, string> = {
@@ -236,13 +215,13 @@ const locationLabel = computed(() => {
 });
 
 const recentGrowthLog = computed(() => {
-  if (!props.character?.growth_log?.length) return [];
-  return props.character.growth_log.slice(-5).reverse();
+  const list = props.character?.growth_log ?? [];
+  return list.slice(-6).reverse();
 });
 
 const personalityTags = computed(() => {
-  if (!props.character?.personality_tags?.length) return [];
-  return props.character.personality_tags.slice(0, 6);
+  const list = props.character?.personality_tags ?? [];
+  return list.slice(0, 6);
 });
 
 const classifyTechniqueStyle = (name: string): string => {
@@ -251,12 +230,12 @@ const classifyTechniqueStyle = (name: string): string => {
   if (lower.includes('刀') || lower.includes('blade')) return '刀修';
   if (lower.includes('拳') || lower.includes('体') || lower.includes('body')) return '体修';
   if (lower.includes('符') || lower.includes('阵') || lower.includes('array') || lower.includes('talisman')) return '符阵';
-  if (lower.includes('火') || lower.includes('炎') || lower.includes('water') || lower.includes('冰')) return '术法';
+  if (lower.includes('火') || lower.includes('雷') || lower.includes('water') || lower.includes('冰')) return '术法';
   return '杂学';
 };
 
 const techniqueGroups = computed(() => {
-  const techniques = props.character?.stats?.techniques ?? [];
+  const techniques = props.character?.stats.techniques ?? [];
   if (techniques.length === 0) return [];
   const grouped = new Map<string, string[]>();
   for (const tech of techniques) {
@@ -268,7 +247,19 @@ const techniqueGroups = computed(() => {
   return Array.from(grouped.entries()).map(([style, items]) => ({ style, items }));
 });
 
-const getRootGradeClass = (grade: Grade): string => {
+const socialProfileItems = computed(() => {
+  const profile: SocialProfile | undefined = props.character?.social_profile;
+  if (!profile) return [];
+  return [
+    { label: '宗门亲和', value: profile.sect_affinity },
+    { label: '师徒羁绊', value: profile.mentor_bond },
+    { label: '宿怨值', value: profile.vendetta },
+    { label: '人情值', value: profile.favor },
+    { label: '阵营立场', value: profile.camp_stance },
+  ].map((item) => ({ label: item.label, value: String(item.value) }));
+});
+
+const rootGradeClass = (grade: Grade): string => {
   switch (grade) {
     case Grade.Heavenly:
       return 'bg-amber-600 text-white';
@@ -283,12 +274,13 @@ const getRootGradeClass = (grade: Grade): string => {
   }
 };
 
-const getLifespanPercentage = (lifespan: Lifespan): number => {
+const lifespanPercent = (lifespan: Lifespan): number => {
+  if (lifespan.max_age <= 0) return 0;
   return Math.min(100, (lifespan.current_age / lifespan.max_age) * 100);
 };
 
-const getLifespanBarClass = (lifespan: Lifespan): string => {
-  const percentage = getLifespanPercentage(lifespan);
+const lifespanBarClass = (lifespan: Lifespan): string => {
+  const percentage = lifespanPercent(lifespan);
   if (percentage < 30) return 'bg-emerald-500';
   if (percentage < 70) return 'bg-amber-500';
   return 'bg-rose-500';
