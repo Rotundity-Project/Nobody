@@ -84,6 +84,18 @@
               灵气差 {{ Number(loc.energyGap).toFixed(2) }}
             </p>
             <p
+              v-if="typeof loc.estimatedSteps === 'number'"
+              class="text-[11px] text-slate-400"
+            >
+              预计步数 {{ loc.estimatedSteps }}
+            </p>
+            <p
+              v-if="loc.suggestedPath.length > 1"
+              class="text-[11px] text-slate-400"
+            >
+              建议路径 {{ loc.suggestedPath.join(' -> ') }}
+            </p>
+            <p
               class="mt-1 text-[11px]"
               :class="loc.reachable ? 'text-emerald-300' : 'text-amber-300'"
             >
@@ -192,6 +204,34 @@ import StatusBanner from './StatusBanner.vue';
 
 type TabId = 'character' | 'progress' | 'map' | 'review' | 'export' | 'debug' | 'system';
 
+type WorldLocation = {
+  id: string;
+  name: string;
+  spiritual_energy: number;
+};
+
+type MapOverviewNodeInput = {
+  location_id: string;
+  name: string;
+  spiritual_energy: number;
+  energy_gap: number;
+  reachable: boolean;
+  risk_tier: string;
+  estimated_steps?: number;
+  suggested_path?: string[];
+};
+
+type MapOverviewNodeView = {
+  id: string;
+  name: string;
+  spiritual_energy: number;
+  energyGap: number;
+  reachable: boolean;
+  riskLabel: string;
+  estimatedSteps?: number;
+  suggestedPath: string[];
+};
+
 defineProps<{
   isOpen: boolean;
   playerName: string;
@@ -202,20 +242,9 @@ defineProps<{
   chapterInteraction: string;
   segmentCount: number;
   isWaitingForInput: boolean;
-  worldLocations: Array<{
-    id: string;
-    name: string;
-    spiritual_energy: number;
-  }>;
+  worldLocations: WorldLocation[];
   reachableLocationIds: string[];
-  mapOverview: Array<{
-    location_id: string;
-    name: string;
-    spiritual_energy: number;
-    energy_gap: number;
-    reachable: boolean;
-    risk_tier: string;
-  }>;
+  mapOverview: MapOverviewNodeInput[];
   recentCombatExplanations: string[];
   currentLocationId: string;
   isTraveling: boolean;
@@ -253,23 +282,19 @@ const locationRiskLabel = (spiritualEnergy: number): string => {
   return '低';
 };
 
+const riskTierLabel = (riskTier: string): string => {
+  if (riskTier === 'high') return '高';
+  if (riskTier === 'medium') return '中';
+  if (riskTier === 'low') return '低';
+  return riskTier;
+};
+
 const mapOverviewNodes = (
-  mapOverview: Array<{
-    location_id: string;
-    name: string;
-    spiritual_energy: number;
-    energy_gap: number;
-    reachable: boolean;
-    risk_tier: string;
-  }>,
-  worldLocations: Array<{
-    id: string;
-    name: string;
-    spiritual_energy: number;
-  }>,
+  mapOverview: MapOverviewNodeInput[],
+  worldLocations: WorldLocation[],
   currentLocationId: string,
   reachableLocationIds: string[],
-) => {
+): MapOverviewNodeView[] => {
   if (mapOverview.length > 0) {
     return mapOverview.map((item) => ({
       id: item.location_id,
@@ -277,9 +302,12 @@ const mapOverviewNodes = (
       spiritual_energy: item.spiritual_energy,
       energyGap: item.energy_gap,
       reachable: item.reachable || item.location_id === currentLocationId,
-      riskLabel: item.risk_tier === 'high' ? '高' : item.risk_tier === 'medium' ? '中' : '低',
+      riskLabel: riskTierLabel(item.risk_tier),
+      estimatedSteps: item.estimated_steps,
+      suggestedPath: item.suggested_path ?? [],
     }));
   }
+
   return worldLocations.map((loc) => ({
     id: loc.id,
     name: loc.name,
@@ -287,6 +315,8 @@ const mapOverviewNodes = (
     energyGap: 0,
     reachable: loc.id === currentLocationId || reachableLocationIds.includes(loc.id),
     riskLabel: locationRiskLabel(loc.spiritual_energy),
+    estimatedSteps: undefined,
+    suggestedPath: [],
   }));
 };
 </script>

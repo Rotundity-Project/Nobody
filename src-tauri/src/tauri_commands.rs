@@ -607,6 +607,7 @@ fn apply_travel_and_encounter(
 }
 
 fn compute_reachable_location_ids(game_state: &GameState) -> Vec<String> {
+    let cfg = crate::travel_rules::rules();
     let current_id = game_state.player.location.clone();
     let Some(current_node) = game_state.world_state.locations.get(&current_id) else {
         let mut all = game_state
@@ -620,18 +621,7 @@ fn compute_reachable_location_ids(game_state: &GameState) -> Vec<String> {
     };
     let realm = &game_state.player.stats.cultivation_realm;
     let status = &game_state.player.combat_status;
-    let cfg = crate::travel_rules::rules();
-
-    let mobility = (cfg.mobility_base
-        + (realm.level as f32 * cfg.mobility_per_realm)
-        + ((realm.sub_level.min(3)) as f32 * cfg.mobility_per_sub_level)
-        - (status.injury_level as f32 * cfg.mobility_injury_penalty)
-        - (status.qi_deviation as f32 * cfg.mobility_qi_penalty))
-        .clamp(cfg.mobility_min, cfg.mobility_max);
-    let max_energy = (cfg.max_energy_base
-        + (realm.level as f32 * cfg.max_energy_per_realm)
-        - (status.injury_level as f32 * cfg.max_energy_injury_penalty))
-        .clamp(cfg.max_energy_min, cfg.max_energy_max);
+    let (mobility, max_energy) = compute_travel_capabilities(realm, status);
 
     let mut by_gap = game_state
         .world_state
@@ -665,6 +655,70 @@ fn compute_reachable_location_ids(game_state: &GameState) -> Vec<String> {
     reachable
 }
 
+fn compute_travel_capabilities(
+    realm: &crate::models::CultivationRealm,
+    status: &crate::game_state::CombatAftermathStatus,
+) -> (f32, f32) {
+    let cfg = crate::travel_rules::rules();
+    let mobility = (cfg.mobility_base
+        + (realm.level as f32 * cfg.mobility_per_realm)
+        + ((realm.sub_level.min(3)) as f32 * cfg.mobility_per_sub_level)
+        - (status.injury_level as f32 * cfg.mobility_injury_penalty)
+        - (status.qi_deviation as f32 * cfg.mobility_qi_penalty))
+        .clamp(cfg.mobility_min, cfg.mobility_max);
+    let max_energy = (cfg.max_energy_base
+        + (realm.level as f32 * cfg.max_energy_per_realm)
+        - (status.injury_level as f32 * cfg.max_energy_injury_penalty))
+        .clamp(cfg.max_energy_min, cfg.max_energy_max);
+    (mobility, max_energy)
+}
+
+fn build_energy_path(
+    game_state: &GameState,
+    target_id: &str,
+    mobility: f32,
+    max_energy: f32,
+) -> Option<Vec<String>> {
+    let current_id = game_state.player.location.clone();
+    if current_id == target_id {
+        return Some(vec![current_id]);
+    }
+    let current_energy = game_state.world_state.locations.get(&current_id)?.spiritual_energy;
+    let target_energy = game_state.world_state.locations.get(target_id)?.spiritual_energy;
+    if (current_energy - target_energy).abs() <= mobility && target_energy <= max_energy + 0.05 {
+        return Some(vec![current_id, target_id.to_string()]);
+    }
+
+    let mut path = vec![current_id.clone()];
+    let mut cursor_energy = current_energy;
+    let mut visited = std::collections::BTreeSet::new();
+    visited.insert(current_id.clone());
+
+    for _ in 0..6 {
+        let mut candidates = game_state
+            .world_state
+            .locations
+            .values()
+            .filter(|loc| !visited.contains(&loc.id))
+            .filter(|loc| (loc.spiritual_energy - cursor_energy).abs() <= mobility)
+            .filter(|loc| loc.spiritual_energy <= max_energy + 0.05)
+            .collect::<Vec<_>>();
+        candidates.sort_by(|a, b| {
+            let da = (a.spiritual_energy - target_energy).abs();
+            let db = (b.spiritual_energy - target_energy).abs();
+            da.partial_cmp(&db).unwrap_or(std::cmp::Ordering::Equal)
+        });
+        let next = candidates.first()?;
+        path.push(next.id.clone());
+        if next.id == target_id {
+            return Some(path);
+        }
+        visited.insert(next.id.clone());
+        cursor_energy = next.spiritual_energy;
+    }
+    None
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct MapLocationOverview {
@@ -674,10 +728,16 @@ pub struct MapLocationOverview {
     pub energy_gap: f32,
     pub reachable: bool,
     pub risk_tier: String,
+    pub estimated_steps: u32,
+    pub suggested_path: Vec<String>,
 }
 
 fn compute_map_overview(game_state: &GameState) -> Vec<MapLocationOverview> {
     let current_id = game_state.player.location.clone();
+    let (mobility, max_energy) = compute_travel_capabilities(
+        &game_state.player.stats.cultivation_realm,
+        &game_state.player.combat_status,
+    );
     let reachable = compute_reachable_location_ids(game_state)
         .into_iter()
         .collect::<std::collections::BTreeSet<_>>();
@@ -700,6 +760,9 @@ fn compute_map_overview(game_state: &GameState) -> Vec<MapLocationOverview> {
             } else {
                 "low"
             };
+            let suggested_path =
+                build_energy_path(game_state, &loc.id, mobility, max_energy).unwrap_or_default();
+            let estimated_steps = suggested_path.len().saturating_sub(1) as u32;
             MapLocationOverview {
                 location_id: loc.id.clone(),
                 name: loc.name.clone(),
@@ -707,6 +770,8 @@ fn compute_map_overview(game_state: &GameState) -> Vec<MapLocationOverview> {
                 energy_gap: (loc.spiritual_energy - current_energy).abs(),
                 reachable: reachable.contains(&loc.id),
                 risk_tier: risk_tier.to_string(),
+                estimated_steps,
+                suggested_path,
             }
         })
         .collect::<Vec<_>>();

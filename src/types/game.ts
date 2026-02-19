@@ -162,6 +162,8 @@ export interface MapLocationOverview {
   energy_gap: number;
   reachable: boolean;
   risk_tier: 'low' | 'medium' | 'high' | string;
+  estimated_steps?: number;
+  suggested_path?: string[];
 }
 
 export interface PlotState {
