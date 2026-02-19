@@ -928,6 +928,29 @@ mod property_tests {
             }
         }
     }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(100))]
+
+        // Feature: Nobody, Property 23: map position consistency invariant
+        #[test]
+        fn test_property_map_location_consistency_after_roundtrip(
+            game_state in arb_game_state()
+        ) {
+            let temp_dir = TempDir::new().unwrap();
+            let system = SaveLoadSystem::with_directory(temp_dir.path().to_path_buf());
+            let save_data = SaveData::from_game_state(game_state.clone());
+            system.save_game(1, &save_data).unwrap();
+            let loaded = system.load_game(1).unwrap();
+
+            let location = loaded.game_state.player.location.clone();
+            prop_assert!(
+                loaded.game_state.world_state.locations.contains_key(&location),
+                "loaded player location must exist in world map nodes: {}",
+                location
+            );
+        }
+    }
 }
 
 
