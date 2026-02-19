@@ -53,6 +53,9 @@
    - `.github/workflows/ci.yml`
    - `.github/workflows/perf-benchmark.yml`（手动触发）
 
+验收记录模板:
+- `docs/release/v2-go-live-checklist.md`
+
 ## 已知限制
 
 - Plot State Machine 仍未完全独立化（当前已是增强版显式状态，但未形成单独模块边界）。
