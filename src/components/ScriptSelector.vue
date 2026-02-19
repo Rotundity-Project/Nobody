@@ -4,6 +4,9 @@
       <div class="mb-6 space-y-2">
         <p class="text-xs uppercase tracking-[0.35em] text-amber-200/70">Choose Your Path</p>
         <h2 class="text-2xl sm:text-3xl font-display text-amber-100">选择剧本类型</h2>
+        <p class="text-xs text-slate-400">
+          当前流程：{{ flowHint }}
+        </p>
       </div>
 
       <div class="mb-6 rounded-lg border border-slate-700/80 bg-slate-900/60 p-4">
@@ -18,16 +21,19 @@
         <p class="mt-2 text-xs text-slate-500">将覆盖随机/自定义剧本中的主角姓名。</p>
       </div>
 
-      <div class="space-y-4">
+      <div class="space-y-4" data-testid="script-type-container">
         <div
           v-for="scriptType in scriptTypes"
           :key="scriptType.type"
           class="p-6 rounded-lg border-2 transition-all duration-200"
           :class="[
-            scriptType.available
-              ? 'border-amber-400/60 bg-slate-800/70 hover:bg-slate-700 cursor-pointer'
+            scriptType.available && selectedType === scriptType.type
+              ? 'border-amber-300 bg-slate-700/90'
+              : scriptType.available
+                ? 'border-amber-400/60 bg-slate-800/70 hover:bg-slate-700 cursor-pointer'
               : 'border-slate-700 bg-slate-900/60 opacity-60 cursor-not-allowed'
           ]"
+          :data-testid="`script-type-${scriptType.type}`"
           @click="scriptType.available && selectScriptType(scriptType.type)"
         >
           <div class="flex items-center justify-between">
@@ -106,7 +112,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { open } from '@tauri-apps/plugin-dialog';
 import { invokeWithTimeout } from '../utils/tauriInvoke';
@@ -123,6 +129,7 @@ const loadingProgress = ref<number | null>(null);
 const loadingProgressText = ref('');
 const error = ref<string | null>(null);
 const playerName = ref('');
+const selectedType = ref<ScriptType | null>(null);
 
 interface ScriptTypeOption {
   type: ScriptType;
@@ -155,6 +162,7 @@ const scriptTypes = ref<ScriptTypeOption[]>([
 const selectScriptType = async (type: ScriptType) => {
   error.value = null;
   resetNovelSelection();
+  selectedType.value = type;
   playClick();
 
   if (type === 'custom') {
@@ -328,6 +336,16 @@ const resetNovelSelection = () => {
 const handleBack = () => {
   playClick();
   resetNovelSelection();
+  selectedType.value = null;
   router.push('/');
 };
+
+const flowHint = computed(() => {
+  if (isLoading.value) return loadingMessage.value;
+  if (showCharacterSelect.value) return '第 2 步：确认角色并导入';
+  if (selectedType.value === 'existing_novel') return '第 1 步：选择小说文件';
+  if (selectedType.value === 'custom') return '第 1 步：选择自定义剧本文件';
+  if (selectedType.value === 'random_generated') return '第 1 步：生成随机剧本';
+  return '第 1 步：选择剧本类型';
+});
 </script>

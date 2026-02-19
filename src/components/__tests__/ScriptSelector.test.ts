@@ -19,8 +19,8 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({
   open: (...args: unknown[]) => openMock(...args),
 }));
 
-vi.mock('@tauri-apps/api/core', () => ({
-  invoke: (...args: unknown[]) => invokeMock(...args),
+vi.mock('../../utils/tauriInvoke', () => ({
+  invokeWithTimeout: (...args: unknown[]) => invokeMock(...args),
 }));
 
 vi.mock('../../stores/gameStore', () => ({
@@ -35,8 +35,11 @@ const flushPromises = async () => {
   await Promise.resolve();
 };
 
-const getScriptTypeCards = (wrapper: ReturnType<typeof mount>) =>
-  wrapper.findAll('.space-y-4 > div');
+const getScriptTypeCards = (wrapper: ReturnType<typeof mount>) => ([
+  wrapper.get('[data-testid="script-type-custom"]'),
+  wrapper.get('[data-testid="script-type-random_generated"]'),
+  wrapper.get('[data-testid="script-type-existing_novel"]'),
+]);
 
 describe('ScriptSelector', () => {
   beforeEach(() => {
@@ -60,13 +63,17 @@ describe('ScriptSelector', () => {
     const cards = getScriptTypeCards(wrapper);
     expect(cards.length).toBeGreaterThanOrEqual(3);
 
-    // existing_novel card
     await cards[2]!.trigger('click');
     await flushPromises();
 
-    expect(invokeMock).toHaveBeenCalledWith('parse_novel_characters', {
-      novelPath: 'C:\\novel.txt',
-    });
+    expect(invokeMock).toHaveBeenCalledWith(
+      'parse_novel_characters',
+      {
+        novelPath: 'C:\\novel.txt',
+      },
+      60000,
+      '解析小说超时，请检查文件或重试',
+    );
     expect(wrapper.text()).toContain('Lin Mo');
     expect(wrapper.text()).toContain('Su Wan');
   });
@@ -110,15 +117,23 @@ describe('ScriptSelector', () => {
     expect(radioButtons.length).toBe(2);
     await radioButtons[0]!.setValue();
 
-    const startButton = wrapper.find('.mt-4 button');
-    expect(startButton.exists()).toBe(true);
-    await startButton.trigger('click');
+    const startButton = wrapper
+      .findAll('button')
+      .find((btn) => btn.text() === '开始导入');
+    expect(startButton).toBeTruthy();
+    await startButton!.trigger('click');
     await flushPromises();
 
-    expect(invokeMock).toHaveBeenCalledWith('load_existing_novel', {
-      novelPath: 'C:\\novel.txt',
-      selectedCharacter: 'Lin Mo',
-    });
+    expect(invokeMock).toHaveBeenNthCalledWith(
+      2,
+      'load_existing_novel',
+      {
+        novelPath: 'C:\\novel.txt',
+        selectedCharacter: 'Lin Mo',
+      },
+      90000,
+      '导入小说超时，请重试',
+    );
     expect(initializeGameMock).toHaveBeenCalled();
     expect(pushMock).toHaveBeenCalledWith('/game');
   });
@@ -130,7 +145,6 @@ describe('ScriptSelector', () => {
     const cards = getScriptTypeCards(wrapper);
     expect(cards.length).toBeGreaterThanOrEqual(2);
 
-    // random_generated card
     await cards[1]!.trigger('click');
     await flushPromises();
 
@@ -138,7 +152,7 @@ describe('ScriptSelector', () => {
     expect(pushMock).toHaveBeenCalledWith('/game');
   });
 
-  it('shows random generation progress text without ellipsis dot', async () => {
+  it('shows random generation progress text without redundant dots', async () => {
     let resolveInit: (() => void) | undefined;
     initializeRandomGameMock.mockImplementation(
       () =>
