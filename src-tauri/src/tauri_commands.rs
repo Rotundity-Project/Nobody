@@ -542,6 +542,10 @@ fn apply_breakthrough_failure_consequences(
     );
 }
 
+fn breakthrough_blocked_by_qi_deviation(qi_deviation: u8) -> bool {
+    qi_deviation >= 8
+}
+
 fn evaluate_technique_semantic_modifier(
     stats: &crate::models::CharacterStats,
 ) -> (i32, Vec<String>, bool) {
@@ -923,7 +927,21 @@ pub async fn execute_player_action(
                         .techniques
                         .iter()
                         .any(|t| is_high_risk_technique_name(t));
-                    if action_result.success
+                    if breakthrough_blocked_by_qi_deviation(
+                        game_state.player.combat_status.qi_deviation,
+                    ) {
+                        action_result.success = false;
+                        action_result.events.push("突破被中断：气机紊乱接近失控".to_string());
+                        action_result.description = format!(
+                            "{}（气机紊乱过高，强行突破失败）",
+                            action_result.description
+                        );
+                        apply_breakthrough_failure_consequences(
+                            &mut game_state,
+                            &mut action_result,
+                            high_risk_technique,
+                        );
+                    } else if action_result.success
                         && game_state.player.stats.cultivation_realm.sub_level < 3
                     {
                         let old_sub = game_state.player.stats.cultivation_realm.sub_level;
@@ -2402,6 +2420,13 @@ mod tests {
             .growth_log
             .iter()
             .any(|e| e.contains("突破受挫：气机紊乱")));
+    }
+
+    #[test]
+    fn test_breakthrough_blocked_by_qi_deviation_threshold() {
+        assert!(!breakthrough_blocked_by_qi_deviation(7));
+        assert!(breakthrough_blocked_by_qi_deviation(8));
+        assert!(breakthrough_blocked_by_qi_deviation(10));
     }
 
     #[test]
