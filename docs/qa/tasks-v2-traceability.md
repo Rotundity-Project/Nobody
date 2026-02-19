@@ -29,7 +29,7 @@
 
 | 任务 | 计划状态 | 代码审计状态 | 证据 |
 |---|---|---|---|
-| 8. 角色档案系统重构 | 未完成 | 部分完成（增强中） | 已新增可持久成长轨迹日志并接入修炼/突破/战斗写入链路（`src-tauri/src/game_state.rs`, `src-tauri/src/tauri_commands.rs`）；仍待功法树/人格标签前后端展示闭环 |
+| 8. 角色档案系统重构 | 未完成 | 部分完成（增强中） | 已新增可持久成长轨迹日志并接入修炼/突破/战斗写入链路；补齐基础人格标签生成与前端展示（`src-tauri/src/game_state.rs`, `src-tauri/src/tauri_commands.rs`, `src/components/CharacterPanel.vue`）；仍待功法树可视化闭环 |
 | 9. 关系与声望系统 | 已完成 | 已完成 | 已接入关系维度（宗门倾向/师徒羁绊/仇恨/恩义/阵营立场）到 NPC 事件影响计算，并写入关系变动事件；同一事件在不同关系立场下反馈强度不同（`src-tauri/src/game_state.rs`, `src-tauri/src/game_engine.rs`） |
 
 ## 阶段 D

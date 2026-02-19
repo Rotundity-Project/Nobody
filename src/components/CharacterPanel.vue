@@ -101,6 +101,21 @@
         </ul>
       </div>
 
+      <div v-if="personalityTags.length > 0">
+        <p class="text-slate-400 text-sm">
+          人格标签
+        </p>
+        <div class="flex flex-wrap gap-2">
+          <span
+            v-for="tag in personalityTags"
+            :key="tag"
+            class="rounded bg-indigo-700/40 px-2 py-0.5 text-xs text-indigo-100"
+          >
+            {{ tag }}
+          </span>
+        </div>
+      </div>
+
       <div>
         <p class="text-slate-400 text-sm">
           位置
@@ -207,6 +222,11 @@ const locationLabel = computed(() => {
 const recentGrowthLog = computed(() => {
   if (!props.character?.growth_log?.length) return [];
   return props.character.growth_log.slice(-5).reverse();
+});
+
+const personalityTags = computed(() => {
+  if (!props.character?.personality_tags?.length) return [];
+  return props.character.personality_tags.slice(0, 6);
 });
 
 const getRootGradeClass = (grade: Grade): string => {

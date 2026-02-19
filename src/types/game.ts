@@ -107,6 +107,7 @@ export interface Character {
   stats: CharacterStats;
   inventory: string[];
   location: string;
+  personality_tags?: string[];
   combat_status?: CombatAftermathStatus;
   growth_log?: string[];
   social_profile?: SocialProfile;

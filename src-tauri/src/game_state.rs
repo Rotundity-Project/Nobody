@@ -28,6 +28,8 @@ pub struct Character {
     pub growth_log: Vec<String>,
     #[serde(default)]
     pub social_profile: SocialProfile,
+    #[serde(default)]
+    pub personality_tags: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
@@ -131,12 +133,33 @@ impl GameTime {
 }
 
 impl Character {
+    fn derive_personality_tags(stats: &CharacterStats) -> Vec<String> {
+        let mut tags = Vec::new();
+        if stats.spiritual_root.affinity >= 0.75 {
+            tags.push("悟性敏锐".to_string());
+        } else if stats.spiritual_root.affinity <= 0.35 {
+            tags.push("根基薄弱".to_string());
+        }
+        match stats.spiritual_root.grade {
+            crate::models::Grade::Heavenly => tags.push("天资卓绝".to_string()),
+            crate::models::Grade::Pseudo => tags.push("逆境求存".to_string()),
+            crate::models::Grade::Double => tags.push("资质均衡".to_string()),
+            crate::models::Grade::Triple => tags.push("稳扎稳打".to_string()),
+        }
+        if stats.techniques.is_empty() {
+            tags.push("功法待定型".to_string());
+        }
+        tags.truncate(4);
+        tags
+    }
+
     pub fn new(
         id: String,
         name: String,
         stats: CharacterStats,
         location: String,
     ) -> Self {
+        let personality_tags = Self::derive_personality_tags(&stats);
         Self {
             id,
             name,
@@ -146,6 +169,7 @@ impl Character {
             combat_status: CombatAftermathStatus::default(),
             growth_log: Vec::new(),
             social_profile: SocialProfile::default(),
+            personality_tags,
         }
     }
 }
@@ -254,6 +278,7 @@ mod tests {
         assert_eq!(character.combat_status.qi_deviation, 0);
         assert!(character.growth_log.is_empty());
         assert_eq!(character.social_profile.camp_stance, "neutral");
+        assert!(!character.personality_tags.is_empty());
     }
 
     #[test]
