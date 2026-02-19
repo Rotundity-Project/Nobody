@@ -44,25 +44,25 @@
               <button
                 class="w-full rounded-md bg-slate-800 px-3 py-2 text-left text-sm text-slate-100 transition-colors hover:bg-slate-700"
                 title="查看快捷键"
-                @click="showShortcutsDialog = true"
+                @click="openShortcutsDialog"
               >
                 快捷键
               </button>
               <button
                 class="w-full rounded-md bg-emerald-600 px-3 py-2 text-left text-sm text-slate-900 transition-colors hover:bg-emerald-500"
-                @click="showLLMDialog = true"
+                @click="openLlmDialog"
               >
                 LLM 设置
               </button>
               <button
                 class="w-full rounded-md bg-slate-800 px-3 py-2 text-left text-sm text-slate-100 transition-colors hover:bg-slate-700"
-                @click="showStorySettings = true"
+                @click="openStorySettingsDialog"
               >
                 剧情设置
               </button>
               <button
                 class="w-full rounded-md bg-slate-800 px-3 py-2 text-left text-sm text-slate-100 transition-colors hover:bg-slate-700"
-                @click="openConsistencySettings"
+                @click="openConsistencySettingsFromMenu"
               >
                 一致性设置
               </button>
@@ -723,6 +723,31 @@ const toggleSystemMenu = () => {
   if (!showSystemMenu.value) {
     showAudioPanel.value = false;
   }
+};
+
+const closeSystemMenu = () => {
+  showSystemMenu.value = false;
+  showAudioPanel.value = false;
+};
+
+const openShortcutsDialog = () => {
+  closeSystemMenu();
+  showShortcutsDialog.value = true;
+};
+
+const openLlmDialog = () => {
+  closeSystemMenu();
+  showLLMDialog.value = true;
+};
+
+const openStorySettingsDialog = () => {
+  closeSystemMenu();
+  showStorySettings.value = true;
+};
+
+const openConsistencySettingsFromMenu = async () => {
+  closeSystemMenu();
+  await openConsistencySettings();
 };
 
 const handleDocumentClick = (event: MouseEvent) => {
