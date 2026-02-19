@@ -164,22 +164,11 @@
                     title="自动推进中"
                     message="当前状态无需玩家输入。"
                   />
-                  <div v-if="gameStore.availableOptions.length > 0" class="flex items-center gap-2">
-                    <button
-                      class="px-3 py-1 rounded"
-                      :class="inputMode === 'options' ? 'bg-amber-500 text-slate-900' : 'bg-slate-700 text-gray-300'"
-                      @click="inputMode = 'options'"
-                    >
-                      选项
-                    </button>
-                    <button
-                      class="px-3 py-1 rounded"
-                      :class="inputMode === 'freeText' ? 'bg-amber-500 text-slate-900' : 'bg-slate-700 text-gray-300'"
-                      @click="inputMode = 'freeText'"
-                    >
-                      自由输入
-                    </button>
-                  </div>
+                  <InputModeTabs
+                    :visible="gameStore.availableOptions.length > 0"
+                    :mode="inputMode"
+                    @switch-mode="setInputMode"
+                  />
 
                   <div
                     v-if="inputMode === 'options' && gameStore.availableOptions.length > 0"
@@ -370,6 +359,7 @@ import { useRouter } from 'vue-router';
 import { useGameStore } from '../stores/gameStore';
 import CharacterPanel from './CharacterPanel.vue';
 import ChapterStatusStrip from './ChapterStatusStrip.vue';
+import InputModeTabs from './InputModeTabs.vue';
 import LLMConfigDialog from './LLMConfigDialog.vue';
 import KeyboardShortcutsDialog from './KeyboardShortcutsDialog.vue';
 import LoadingIndicator from './LoadingIndicator.vue';
@@ -538,6 +528,9 @@ const optionSourceLabel = computed(() => {
   };
   return labels[source] ?? source;
 });
+const setInputMode = (mode: 'options' | 'freeText') => {
+  inputMode.value = mode;
+};
 const interactionStateLabel = computed(() => {
   const mapping: Record<string, string> = {
     auto_advance: '自动推进',
