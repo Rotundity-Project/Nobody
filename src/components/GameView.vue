@@ -329,6 +329,7 @@
       :is-waiting-for-input="gameStore.isWaitingForInput"
       :world-locations="worldLocationList"
       :reachable-location-ids="gameStore.reachableLocationIds"
+      :map-overview="gameStore.mapOverview"
       :recent-combat-explanations="recentCombatReview"
       :current-location-id="gameStore.playerCharacter?.location || ''"
       :is-traveling="travelPending"

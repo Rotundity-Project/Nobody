@@ -63,7 +63,7 @@
           class="grid gap-2 sm:grid-cols-2"
         >
           <div
-            v-for="loc in worldLocations"
+            v-for="loc in mapOverviewNodes(mapOverview, worldLocations, currentLocationId, reachableLocationIds)"
             :key="loc.id"
             class="rounded border border-slate-700 bg-slate-900/50 p-2"
           >
@@ -78,21 +78,24 @@
             </p>
             <p class="text-xs text-slate-400">id: {{ loc.id }}</p>
             <p class="text-xs text-slate-300">
-              灵气强度 {{ Number(loc.spiritual_energy).toFixed(2) }} / 风险 {{ locationRiskLabel(loc.spiritual_energy) }}
+              灵气强度 {{ Number(loc.spiritual_energy).toFixed(2) }} / 风险 {{ loc.riskLabel }}
+            </p>
+            <p class="text-[11px] text-slate-400">
+              灵气差 {{ Number(loc.energyGap).toFixed(2) }}
             </p>
             <p
               class="mt-1 text-[11px]"
-              :class="isReachable(loc.id, currentLocationId, reachableLocationIds) ? 'text-emerald-300' : 'text-amber-300'"
+              :class="loc.reachable ? 'text-emerald-300' : 'text-amber-300'"
             >
-              {{ isReachable(loc.id, currentLocationId, reachableLocationIds) ? '可达' : '暂不可达' }}
+              {{ loc.reachable ? '可达' : '暂不可达' }}
             </p>
             <button
               v-if="loc.id !== currentLocationId"
               class="mt-2 rounded bg-sky-700 px-2 py-1 text-xs text-white hover:bg-sky-600 disabled:cursor-not-allowed disabled:opacity-60"
-              :disabled="isTraveling || !isReachable(loc.id, currentLocationId, reachableLocationIds)"
+              :disabled="isTraveling || !loc.reachable"
               @click="$emit('travel', loc.id)"
             >
-              {{ isReachable(loc.id, currentLocationId, reachableLocationIds) ? '前往此地' : '需分段行进' }}
+              {{ loc.reachable ? '前往此地' : '需分段行进' }}
             </button>
           </div>
         </div>
@@ -205,6 +208,14 @@ defineProps<{
     spiritual_energy: number;
   }>;
   reachableLocationIds: string[];
+  mapOverview: Array<{
+    location_id: string;
+    name: string;
+    spiritual_energy: number;
+    energy_gap: number;
+    reachable: boolean;
+    risk_tier: string;
+  }>;
   recentCombatExplanations: string[];
   currentLocationId: string;
   isTraveling: boolean;
@@ -242,11 +253,40 @@ const locationRiskLabel = (spiritualEnergy: number): string => {
   return '低';
 };
 
-const isReachable = (
-  locationId: string,
+const mapOverviewNodes = (
+  mapOverview: Array<{
+    location_id: string;
+    name: string;
+    spiritual_energy: number;
+    energy_gap: number;
+    reachable: boolean;
+    risk_tier: string;
+  }>,
+  worldLocations: Array<{
+    id: string;
+    name: string;
+    spiritual_energy: number;
+  }>,
   currentLocationId: string,
   reachableLocationIds: string[],
-): boolean => {
-  return locationId === currentLocationId || reachableLocationIds.includes(locationId);
+) => {
+  if (mapOverview.length > 0) {
+    return mapOverview.map((item) => ({
+      id: item.location_id,
+      name: item.name,
+      spiritual_energy: item.spiritual_energy,
+      energyGap: item.energy_gap,
+      reachable: item.reachable || item.location_id === currentLocationId,
+      riskLabel: item.risk_tier === 'high' ? '高' : item.risk_tier === 'medium' ? '中' : '低',
+    }));
+  }
+  return worldLocations.map((loc) => ({
+    id: loc.id,
+    name: loc.name,
+    spiritual_energy: loc.spiritual_energy,
+    energyGap: 0,
+    reachable: loc.id === currentLocationId || reachableLocationIds.includes(loc.id),
+    riskLabel: locationRiskLabel(loc.spiritual_energy),
+  }));
 };
 </script>

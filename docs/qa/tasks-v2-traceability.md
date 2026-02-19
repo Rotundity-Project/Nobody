@@ -70,7 +70,7 @@
 | 任务 | 计划状态 | 代码审计状态 | 证据 |
 |---|---|---|---|
 | 20. 成长面板与战斗复盘 | 未完成 | 部分完成（增强中） | 角色面板已展示战后状态与最近成长记录；信息面板新增“战斗复盘”页签，可回看近期 `combat_explanation/combat/encounter` 事件；仍待更完整图形化复盘视图（`src/components/CharacterPanel.vue`, `src/components/InfoTabsDialog.vue`, `src/components/GameView.vue`, `src-tauri/src/tauri_commands.rs`） |
-| 21. 地图与行程 UI | 未完成 | 部分完成（增强中） | 信息面板已新增地图行程页签，可展示当前位置、世界地点列表与基础风险提示；仍待可达路径、热区层和移动决策交互（`src/components/InfoTabsDialog.vue`, `src/components/GameView.vue`） |
+| 21. 地图与行程 UI | 未完成 | 部分完成（增强中） | 信息面板地图页签已接入结构化地图总览（可达性、风险层级、灵气差）并支持移动交互；仍待可视化路径图与热区层（`src-tauri/src/tauri_commands.rs`, `src/components/InfoTabsDialog.vue`, `src/components/GameView.vue`, `src/stores/gameStore.ts`） |
 | 22. 剧情推进控制增强 | 已完成 | 已完成 | 自动推进到交互点逻辑（`src/components/GameView.vue`） |
 | 22A. UI 体验优化 | 已完成 | 已完成 | 状态反馈与信息层次已调整 |
 | 22B. 小说导出重定义 | 已完成 | 已完成 | `generate_chronicle_from_plot` |

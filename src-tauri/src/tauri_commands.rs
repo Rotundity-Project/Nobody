@@ -665,6 +665,55 @@ fn compute_reachable_location_ids(game_state: &GameState) -> Vec<String> {
     reachable
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct MapLocationOverview {
+    pub location_id: String,
+    pub name: String,
+    pub spiritual_energy: f32,
+    pub energy_gap: f32,
+    pub reachable: bool,
+    pub risk_tier: String,
+}
+
+fn compute_map_overview(game_state: &GameState) -> Vec<MapLocationOverview> {
+    let current_id = game_state.player.location.clone();
+    let reachable = compute_reachable_location_ids(game_state)
+        .into_iter()
+        .collect::<std::collections::BTreeSet<_>>();
+    let current_energy = game_state
+        .world_state
+        .locations
+        .get(&current_id)
+        .map(|loc| loc.spiritual_energy)
+        .unwrap_or(0.0);
+
+    let mut nodes = game_state
+        .world_state
+        .locations
+        .values()
+        .map(|loc| {
+            let risk_tier = if loc.spiritual_energy >= 0.85 {
+                "high"
+            } else if loc.spiritual_energy >= 0.5 {
+                "medium"
+            } else {
+                "low"
+            };
+            MapLocationOverview {
+                location_id: loc.id.clone(),
+                name: loc.name.clone(),
+                spiritual_energy: loc.spiritual_energy,
+                energy_gap: (loc.spiritual_energy - current_energy).abs(),
+                reachable: reachable.contains(&loc.id),
+                risk_tier: risk_tier.to_string(),
+            }
+        })
+        .collect::<Vec<_>>();
+    nodes.sort_by(|a, b| a.energy_gap.partial_cmp(&b.energy_gap).unwrap_or(std::cmp::Ordering::Equal));
+    nodes
+}
+
 fn is_high_risk_technique_name(name: &str) -> bool {
     let t = name.to_lowercase();
     t.contains("禁")
@@ -1778,6 +1827,18 @@ pub async fn get_reachable_locations(
     };
     let game_state = engine.get_current_state().map_err(|e| e.to_string())?;
     Ok(compute_reachable_location_ids(&game_state))
+}
+
+#[tauri::command]
+pub async fn get_map_overview(
+    engine: State<'_, Mutex<GameEngine>>,
+) -> Result<Vec<MapLocationOverview>, String> {
+    let engine = match engine.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    let game_state = engine.get_current_state().map_err(|e| e.to_string())?;
+    Ok(compute_map_overview(&game_state))
 }
 
 #[tauri::command]
@@ -3114,6 +3175,77 @@ mod tests {
         let (delta, reason) = evaluate_environment_combat_modifier(&state);
         assert!(delta > 0);
         assert!(reason.contains("高灵气场域增幅"));
+    }
+
+    #[test]
+    fn test_compute_map_overview_contains_reachability() {
+        let mut world_setting = crate::script::WorldSetting::new();
+        world_setting.locations = vec![
+            crate::script::Location {
+                id: "sect".to_string(),
+                name: "青云宗".to_string(),
+                description: "宗门驻地".to_string(),
+                spiritual_energy: 0.3,
+            },
+            crate::script::Location {
+                id: "market".to_string(),
+                name: "坊市".to_string(),
+                description: "交易区域".to_string(),
+                spiritual_energy: 0.35,
+            },
+        ];
+        let script = crate::script::Script::new(
+            "id".to_string(),
+            "name".to_string(),
+            crate::script::ScriptType::Custom,
+            world_setting.clone(),
+            crate::script::InitialState {
+                player_name: "p".to_string(),
+                player_spiritual_root: crate::models::SpiritualRoot {
+                    element: crate::models::Element::Fire,
+                    elements: vec![crate::models::Element::Fire],
+                    grade: crate::models::Grade::Heavenly,
+                    affinity: 0.8,
+                },
+                starting_location: "sect".to_string(),
+                starting_age: 16,
+            },
+        );
+        let state = crate::game_state::GameState {
+            player: crate::game_state::Character::new(
+                "player".to_string(),
+                "Tester".to_string(),
+                crate::models::CharacterStats {
+                    spiritual_root: crate::models::SpiritualRoot {
+                        element: crate::models::Element::Fire,
+                        elements: vec![crate::models::Element::Fire],
+                        grade: crate::models::Grade::Heavenly,
+                        affinity: 0.8,
+                    },
+                    cultivation_realm: crate::models::CultivationRealm::new(
+                        "Qi".to_string(),
+                        1,
+                        0,
+                        1.0,
+                    ),
+                    techniques: vec![],
+                    lifespan: crate::models::Lifespan {
+                        current_age: 16,
+                        max_age: 100,
+                        realm_bonus: 0,
+                    },
+                    combat_power: 120,
+                },
+                "sect".to_string(),
+            ),
+            world_state: crate::game_state::WorldState::from_script(&script),
+            game_time: crate::game_state::GameTime::new(1, 1, 1),
+            event_history: vec![],
+            script,
+        };
+        let overview = compute_map_overview(&state);
+        assert_eq!(overview.len(), 2);
+        assert!(overview.iter().any(|node| node.location_id == "sect" && node.reachable));
     }
 
     #[test]

@@ -155,6 +155,15 @@ export interface GameTime {
   total_days: number;
 }
 
+export interface MapLocationOverview {
+  location_id: string;
+  name: string;
+  spiritual_energy: number;
+  energy_gap: number;
+  reachable: boolean;
+  risk_tier: 'low' | 'medium' | 'high' | string;
+}
+
 export interface PlotState {
   current_scene: Scene;
   plot_history: string[];

@@ -46,6 +46,7 @@ pub fn run() {
             tauri_commands::execute_player_action,
             tauri_commands::travel_to_location,
             tauri_commands::get_reachable_locations,
+            tauri_commands::get_map_overview,
             tauri_commands::get_game_state,
             tauri_commands::save_game,
             tauri_commands::load_game,

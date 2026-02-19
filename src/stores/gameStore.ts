@@ -7,6 +7,7 @@ import type {
   PlotState,
   PlayerAction,
   PlayerOption,
+  MapLocationOverview,
   SaveInfo,
 } from '../types/game';
 
@@ -15,6 +16,7 @@ interface GameStoreState {
   gameState: GameState | null;
   plotState: PlotState | null;
   reachableLocationIds: string[];
+  mapOverview: MapLocationOverview[];
   isLoading: boolean;
   error: string | null;
 }
@@ -25,6 +27,7 @@ export const useGameStore = defineStore('game', {
     gameState: null,
     plotState: null,
     reachableLocationIds: [],
+    mapOverview: [],
     isLoading: false,
     error: null,
   }),
@@ -50,6 +53,15 @@ export const useGameStore = defineStore('game', {
       }
     },
 
+    async refreshMapOverview() {
+      try {
+        const nodes = await invoke<MapLocationOverview[]>('get_map_overview');
+        this.mapOverview = Array.isArray(nodes) ? nodes : [];
+      } catch {
+        this.mapOverview = [];
+      }
+    },
+
     async initializeGame(script: Script, playerName?: string) {
       this.isLoading = true;
       this.error = null;
@@ -64,6 +76,7 @@ export const useGameStore = defineStore('game', {
         const plotState = await invoke<PlotState>('initialize_plot');
         this.plotState = plotState;
         await this.refreshReachableLocations();
+        await this.refreshMapOverview();
       } catch (error) {
         this.error = error instanceof Error ? error.message : String(error);
         throw error;
@@ -100,6 +113,7 @@ export const useGameStore = defineStore('game', {
         );
         this.plotState = plotState;
         await this.refreshReachableLocations();
+        await this.refreshMapOverview();
 
         // 显示 LLM 诊断信息（如果有）
         if (plotState.last_generation_diagnostics) {
@@ -155,6 +169,7 @@ export const useGameStore = defineStore('game', {
         const plotState = await invoke<PlotState>('get_plot_state');
         this.plotState = plotState;
         await this.refreshReachableLocations();
+        await this.refreshMapOverview();
       } catch (error) {
         this.error = error instanceof Error ? error.message : String(error);
         throw error;
@@ -173,6 +188,7 @@ export const useGameStore = defineStore('game', {
         this.gameState = gameState;
         this.plotState = plotState;
         await this.refreshReachableLocations();
+        await this.refreshMapOverview();
       } catch (error) {
         this.error = error instanceof Error ? error.message : String(error);
         throw error;
@@ -214,6 +230,7 @@ export const useGameStore = defineStore('game', {
         const plotState = await invoke<PlotState>('initialize_plot');
         this.plotState = plotState;
         await this.refreshReachableLocations();
+        await this.refreshMapOverview();
       } catch (error) {
         this.error = error instanceof Error ? error.message : String(error);
         throw error;
@@ -240,6 +257,7 @@ export const useGameStore = defineStore('game', {
       this.gameState = null;
       this.plotState = null;
       this.reachableLocationIds = [];
+      this.mapOverview = [];
       this.error = null;
     },
   },
