@@ -995,6 +995,90 @@ fn breakthrough_blocked_by_qi_deviation(qi_deviation: u8) -> bool {
     qi_deviation >= 8
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct TechniqueSemanticProfile {
+    technique_name: String,
+    type_tags: Vec<String>,
+    trait_tags: Vec<String>,
+    condition_tags: Vec<String>,
+    counter_tags: Vec<String>,
+    risk_level: i32,
+    required_realm_level: u32,
+}
+
+fn infer_technique_semantics(name: &str) -> TechniqueSemanticProfile {
+    let lower = name.to_lowercase();
+    let mut type_tags = Vec::new();
+    let mut trait_tags = Vec::new();
+    let mut condition_tags = Vec::new();
+    let mut counter_tags = Vec::new();
+    let mut risk_level = 0;
+    let mut required_realm_level = 1u32;
+
+    if lower.contains("剑") || lower.contains("sword") {
+        type_tags.push("sword".to_string());
+        counter_tags.push("body".to_string());
+    }
+    if lower.contains("刀") || lower.contains("blade") {
+        type_tags.push("blade".to_string());
+        counter_tags.push("talisman".to_string());
+    }
+    if lower.contains("拳") || lower.contains("体") || lower.contains("body") {
+        type_tags.push("body".to_string());
+        counter_tags.push("sword".to_string());
+    }
+    if lower.contains("符") || lower.contains("阵") || lower.contains("talisman") || lower.contains("array") {
+        type_tags.push("talisman".to_string());
+        counter_tags.push("blade".to_string());
+    }
+    if lower.contains("fire") || lower.contains("炎") || lower.contains("焰") || lower.contains("火") {
+        trait_tags.push("fire".to_string());
+    }
+    if lower.contains("ice") || lower.contains("寒") || lower.contains("冰") {
+        trait_tags.push("ice".to_string());
+    }
+    if lower.contains("water") || lower.contains("水") {
+        trait_tags.push("water".to_string());
+    }
+    if lower.contains("thunder") || lower.contains("雷") {
+        trait_tags.push("thunder".to_string());
+    }
+    if lower.contains("元婴") || lower.contains("nascent") {
+        required_realm_level = 4;
+        condition_tags.push("realm>=4".to_string());
+    } else if lower.contains("金丹") || lower.contains("golden core") {
+        required_realm_level = 3;
+        condition_tags.push("realm>=3".to_string());
+    } else if lower.contains("筑基") || lower.contains("foundation") {
+        required_realm_level = 2;
+        condition_tags.push("realm>=2".to_string());
+    }
+    if is_high_risk_technique_name(name) {
+        risk_level += 2;
+        trait_tags.push("high_risk".to_string());
+        condition_tags.push("qi_stable_required".to_string());
+    }
+
+    type_tags.sort();
+    type_tags.dedup();
+    trait_tags.sort();
+    trait_tags.dedup();
+    condition_tags.sort();
+    condition_tags.dedup();
+    counter_tags.sort();
+    counter_tags.dedup();
+
+    TechniqueSemanticProfile {
+        technique_name: name.to_string(),
+        type_tags,
+        trait_tags,
+        condition_tags,
+        counter_tags,
+        risk_level,
+        required_realm_level,
+    }
+}
+
 fn evaluate_technique_semantic_modifier(
     stats: &crate::models::CharacterStats,
 ) -> (i32, Vec<String>, bool) {
@@ -1009,27 +1093,32 @@ fn evaluate_technique_semantic_modifier(
     let mut has_high_risk = false;
 
     for tech in &stats.techniques {
-        let t = tech.to_lowercase();
-        if (t.contains("fire") || t.contains("炎") || t.contains("焰") || t.contains("火"))
-            && roots.iter().any(|r| r == "fire")
-        {
+        let semantic = infer_technique_semantics(tech);
+        if semantic.trait_tags.iter().any(|tag| tag == "fire") && roots.iter().any(|r| r == "fire") {
             percent_delta += 8;
-            reasons.push(format!("功法 `{}` 与火灵根适配", tech));
+            reasons.push(format!("功法 `{}` 与火灵根适配", semantic.technique_name));
         }
-        if (t.contains("ice") || t.contains("寒") || t.contains("冰"))
+        if semantic.trait_tags.iter().any(|tag| tag == "ice")
             && (roots.iter().any(|r| r == "water") || roots.iter().any(|r| r == "ice"))
         {
             percent_delta += 6;
-            reasons.push(format!("功法 `{}` 与水/冰灵根适配", tech));
+            reasons.push(format!("功法 `{}` 与水/冰灵根适配", semantic.technique_name));
         }
-        if t.contains("元婴") && stats.cultivation_realm.level < 4 {
+        if semantic.trait_tags.iter().any(|tag| tag == "water") && roots.iter().any(|r| r == "water") {
+            percent_delta += 5;
+            reasons.push(format!("功法 `{}` 与水灵根适配", semantic.technique_name));
+        }
+        if stats.cultivation_realm.level < semantic.required_realm_level {
             percent_delta -= 10;
-            reasons.push(format!("功法 `{}` 境界门槛偏高，发挥受限", tech));
+            reasons.push(format!(
+                "功法 `{}` 境界门槛偏高（需 {}），发挥受限",
+                semantic.technique_name, semantic.required_realm_level
+            ));
         }
-        if is_high_risk_technique_name(tech) {
+        if semantic.risk_level > 0 {
             has_high_risk = true;
             percent_delta += 5;
-            reasons.push(format!("功法 `{}` 高风险强行驱动，短时增益", tech));
+            reasons.push(format!("功法 `{}` 高风险强行驱动，短时增益", semantic.technique_name));
         }
     }
 
@@ -2910,6 +2999,16 @@ mod tests {
         assert!(delta > 0);
         assert!(!reasons.is_empty());
         assert!(risk);
+    }
+
+    #[test]
+    fn test_infer_technique_semantics_contains_core_dimensions() {
+        let semantic = infer_technique_semantics("元婴禁术爆炎剑");
+        assert!(semantic.type_tags.iter().any(|t| t == "sword"));
+        assert!(semantic.trait_tags.iter().any(|t| t == "fire"));
+        assert!(semantic.condition_tags.iter().any(|t| t.contains("realm>=")));
+        assert!(semantic.risk_level > 0);
+        assert!(semantic.required_realm_level >= 4);
     }
 
     #[test]
