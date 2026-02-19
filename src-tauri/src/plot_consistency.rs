@@ -283,8 +283,36 @@ fn needs_chapter_goal_hint(text: &str, interaction_count: u8, chapter_end: bool)
     if chapter_end || interaction_count < 1 {
         return false;
     }
-    let goal_words = ["目标", "线索", "计划", "决定", "下一步", "调查", "突破", "冲突", "抉择"];
-    !contains_any(text, &goal_words)
+    !has_any_chapter_goal_hit(text)
+}
+
+fn has_any_chapter_goal_hit(text: &str) -> bool {
+    let conflict_words = ["冲突", "对抗", "危险", "交锋", "敌意"];
+    let growth_words = ["成长", "突破", "领悟", "精进", "修行"];
+    let resource_words = ["资源", "灵材", "灵石", "奖励", "消耗"];
+    let relationship_words = ["关系", "信任", "恩怨", "仇恨", "声望"];
+    let foreshadow_words = ["伏笔", "线索", "异象", "提示", "征兆"];
+    contains_any(text, &conflict_words)
+        || contains_any(text, &growth_words)
+        || contains_any(text, &resource_words)
+        || contains_any(text, &relationship_words)
+        || contains_any(text, &foreshadow_words)
+}
+
+fn chapter_goal_anchor(interaction_count: u8, action_result: &ActionResult) -> String {
+    let action_suffix = if action_result.description.trim().is_empty() {
+        "本回合仍需为章节推进提供可验证变化。".to_string()
+    } else {
+        "该回合行动结果已并入章节主线。".to_string()
+    };
+    let goal = match interaction_count % 5 {
+        0 => "冲突升级",
+        1 => "角色成长",
+        2 => "资源变化",
+        3 => "关系变化",
+        _ => "伏笔建立",
+    };
+    format!("本回合推进命中：{}。{}", goal, action_suffix)
 }
 
 fn fallback_summary(text: &str) -> Option<String> {
@@ -456,7 +484,7 @@ pub fn validate_and_repair_plot_update(
             code: "chapter_goal_weak",
             message: "章节目标不够清晰，已注入目标锚点".to_string(),
         });
-        let hint = "本章目标已明确：围绕当前冲突提取关键线索，完成一次可验证的推进。";
+        let hint = chapter_goal_anchor(plot_state.current_chapter.interaction_count, action_result);
         let merged = if let Some(existing) = report.repaired_plot_text.clone() {
             format!("{}\n\n{}", existing.trim(), hint)
         } else if current_text.is_empty() {
@@ -673,6 +701,11 @@ mod tests {
         };
         let report = validate_and_repair_plot_update(&state, &update, &action_result(), 2, 500, "无名弟子");
         assert!(report.issues.iter().any(|i| i.code == "chapter_goal_weak"));
+        assert!(report
+            .repaired_plot_text
+            .as_deref()
+            .unwrap_or_default()
+            .contains("本回合推进命中："));
     }
 
     #[test]

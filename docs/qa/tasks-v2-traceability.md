@@ -21,7 +21,7 @@
 |---|---|---|---|
 | 4. Plot State Machine | 未完成 | 部分完成 | 已引入 `interaction_state`（`src-tauri/src/plot_engine.rs`）并接入前端/命令层，仍待补状态流转属性测试 |
 | 5. 去重与记忆检索层 | 已完成 | 已完成 | `src-tauri/src/plot_consistency.rs`, `src-tauri/src/context_builder.rs` |
-| 6. 章节目标驱动生成 | 未完成 | 部分完成 | 有 `chapter_goal_weak` 检测与提示（`src-tauri/src/plot_consistency.rs`），未见“未命中则重生成”闭环 |
+| 6. 章节目标驱动生成 | 未完成 | 部分完成（增强中） | 已将“目标弱”从纯提示升级为强制补入“目标命中锚点”（`src-tauri/src/plot_consistency.rs`），仍待补真实重生成链路 |
 | 7. 剧情一致性验证器 V2 | 已完成 | 已完成 | `validate_and_repair_plot_update`（`src-tauri/src/plot_consistency.rs`）并接入 `execute_player_action` |
 | 7A. 叙事厚度与张力增强 | 未完成 | 部分完成 | 有部分约束提示，缺少模板库/空洞表达检测完整体系 |
 
