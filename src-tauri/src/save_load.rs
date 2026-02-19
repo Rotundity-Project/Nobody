@@ -109,10 +109,14 @@ impl SaveLoadSystem {
 
         let json = fs::read_to_string(save_path)?;
         let mut save_data: SaveData = serde_json::from_str(&json)?;
-        self.migrate_save_data(&mut save_data);
+        let migrated = self.migrate_save_data(&mut save_data);
 
         // 验证加载的数据
         self.validate_save_data(&save_data)?;
+        if migrated {
+            let migrated_json = serde_json::to_string_pretty(&save_data)?;
+            fs::write(self.get_save_path(slot_id), migrated_json)?;
+        }
 
         Ok(save_data)
     }
@@ -211,10 +215,12 @@ impl SaveLoadSystem {
     }
 
     /// 迁移旧存档到当前 schema（内存态迁移，不覆盖原文件）
-    fn migrate_save_data(&self, save_data: &mut SaveData) {
+    fn migrate_save_data(&self, save_data: &mut SaveData) -> bool {
+        let mut migrated = false;
         let mut legacy_schema = save_data.migration_history.is_empty();
         if save_data.schema_version.trim().is_empty() {
             legacy_schema = true;
+            migrated = true;
             save_data.schema_version = default_schema_version();
             save_data
                 .migration_history
@@ -222,6 +228,7 @@ impl SaveLoadSystem {
         }
         if !save_data.schema_version.starts_with("v2_") {
             legacy_schema = true;
+            migrated = true;
             save_data
                 .migration_history
                 .push(format!(
@@ -241,6 +248,7 @@ impl SaveLoadSystem {
                     PlotInteractionState::WaitingForChoice
                 };
                 if plot_state.interaction_state != expected {
+                    migrated = true;
                     plot_state.interaction_state = expected;
                     save_data
                         .migration_history
@@ -249,10 +257,12 @@ impl SaveLoadSystem {
             }
         }
         if save_data.migration_history.is_empty() {
+            migrated = true;
             save_data
                 .migration_history
                 .push(format!("loaded:{} -> {}", save_data.version, save_data.schema_version));
         }
+        migrated
     }
 }
 
@@ -560,6 +570,8 @@ mod tests {
         let loaded = system.load_game(1).unwrap();
         assert_eq!(loaded.schema_version, "v2_0");
         assert!(!loaded.migration_history.is_empty());
+        let rewritten = std::fs::read_to_string(temp_dir.path().join("save_1.json")).unwrap();
+        assert!(rewritten.contains("\"schema_version\""));
     }
 
     #[test]

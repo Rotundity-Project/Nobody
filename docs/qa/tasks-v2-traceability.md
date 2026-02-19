@@ -13,7 +13,7 @@
 |---|---|---|---|
 | 1. 剧情一致性问题清单与复现库 | 未完成 | 部分完成 | 已新增 `docs/qa/consistency-cases.md`，待补实测样例数据 |
 | 2. 领域模型重构方案设计 | 未完成 | 部分完成 | 已新增 `docs/architecture/domain-model-v2.md`，待按实现持续同步 |
-| 3. 数据迁移与兼容策略 | 未完成 | 部分完成（增强中） | 已落地 `schema_version`/`migration_history` 字段、旧档交互态归一化迁移（`src-tauri/src/save_load.rs`），待补存档文件级迁移日志归档 |
+| 3. 数据迁移与兼容策略 | 未完成 | 部分完成（增强中） | 已落地 `schema_version`/`migration_history`、旧档交互态归一化、迁移回写（`src-tauri/src/save_load.rs`），待补批量迁移工具与失败回滚日志 |
 
 ## 阶段 B
 
