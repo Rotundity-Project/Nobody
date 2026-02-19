@@ -75,6 +75,32 @@
         </p>
       </div>
 
+      <div v-if="character.combat_status">
+        <p class="text-slate-400 text-sm">
+          战后状态
+        </p>
+        <p class="text-white text-sm">
+          伤势 {{ character.combat_status.injury_level }} /
+          声望 {{ character.combat_status.reputation }} /
+          仇恨 {{ character.combat_status.enmity }} /
+          气机紊乱 {{ character.combat_status.qi_deviation ?? 0 }}
+        </p>
+      </div>
+
+      <div v-if="recentGrowthLog.length > 0">
+        <p class="text-slate-400 text-sm">
+          最近成长记录
+        </p>
+        <ul class="space-y-1 text-xs text-slate-300">
+          <li
+            v-for="(entry, index) in recentGrowthLog"
+            :key="`${index}-${entry}`"
+          >
+            {{ entry }}
+          </li>
+        </ul>
+      </div>
+
       <div>
         <p class="text-slate-400 text-sm">
           位置
@@ -176,6 +202,11 @@ const locationLabel = computed(() => {
     city: '凡人城镇',
   };
   return mapping[raw] ?? raw.split('_').join(' ');
+});
+
+const recentGrowthLog = computed(() => {
+  if (!props.character?.growth_log?.length) return [];
+  return props.character.growth_log.slice(-5).reverse();
 });
 
 const getRootGradeClass = (grade: Grade): string => {

@@ -107,6 +107,24 @@ export interface Character {
   stats: CharacterStats;
   inventory: string[];
   location: string;
+  combat_status?: CombatAftermathStatus;
+  growth_log?: string[];
+  social_profile?: SocialProfile;
+}
+
+export interface CombatAftermathStatus {
+  injury_level: number;
+  reputation: number;
+  enmity: number;
+  qi_deviation?: number;
+}
+
+export interface SocialProfile {
+  sect_affinity: number;
+  mentor_bond: number;
+  vendetta: number;
+  favor: number;
+  camp_stance: string;
 }
 
 export interface CharacterStats {
