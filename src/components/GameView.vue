@@ -66,33 +66,26 @@
       </div>
     </div>
 
-    <SaveLoadDialog
-      :is-open="showSaveDialog"
-      mode="save"
-      @close="showSaveDialog = false"
+    <GameSystemDialogs
+      :show-save-dialog="showSaveDialog"
+      :show-load-dialog="showLoadDialog"
+      :show-shortcuts-dialog="showShortcutsDialog"
+      :show-l-l-m-dialog="showLLMDialog"
+      :show-story-settings="showStorySettings"
+      :show-consistency-settings="showConsistencySettings"
+      :story-settings="storySettings"
+      :consistency-policy="consistencyPolicy"
+      @close-save="showSaveDialog = false"
       @saved="handleSaved"
-    />
-
-    <SaveLoadDialog
-      :is-open="showLoadDialog"
-      mode="load"
-      @close="showLoadDialog = false"
+      @close-load="showLoadDialog = false"
       @loaded="handleLoaded"
-    />
-
-    <KeyboardShortcutsDialog
-      :is-open="showShortcutsDialog"
-      @close="showShortcutsDialog = false"
-    />
-    <LLMConfigDialog
-      :is-open="showLLMDialog"
-      @close="showLLMDialog = false"
-    />
-    <StorySettingsDialog
-      :is-open="showStorySettings"
-      :settings="storySettings"
-      @close="showStorySettings = false"
-      @save="applyStorySettings"
+      @close-shortcuts="showShortcutsDialog = false"
+      @close-llm="showLLMDialog = false"
+      @close-story-settings="showStorySettings = false"
+      @save-story-settings="applyStorySettings"
+      @close-consistency="showConsistencySettings = false"
+      @save-consistency="applyConsistencyPolicy"
+      @reset-consistency="resetConsistencyPolicy"
     />
     <InfoTabsDialog
       :is-open="showInfoTabs"
@@ -122,13 +115,6 @@
       @clear-error="gameStore.clearError"
       @travel="handleTravel"
     />
-    <ConsistencySettingsDialog
-      :is-open="showConsistencySettings"
-      :policy="consistencyPolicy"
-      @close="showConsistencySettings = false"
-      @save="applyConsistencyPolicy"
-      @reset="resetConsistencyPolicy"
-    />
     <CharacterInfoModal
       :is-open="showCharacterInfo"
       :character="gameStore.playerCharacter"
@@ -146,13 +132,9 @@ import CharacterInfoModal from './CharacterInfoModal.vue';
 import ChapterStatusStrip from './ChapterStatusStrip.vue';
 import GameTopBar from './GameTopBar.vue';
 import GameInteractionPanel from './GameInteractionPanel.vue';
+import GameSystemDialogs from './GameSystemDialogs.vue';
 import StoryViewport from './StoryViewport.vue';
-import LLMConfigDialog from './LLMConfigDialog.vue';
-import KeyboardShortcutsDialog from './KeyboardShortcutsDialog.vue';
 import InfoTabsDialog from './InfoTabsDialog.vue';
-import SaveLoadDialog from './SaveLoadDialog.vue';
-import StorySettingsDialog from './StorySettingsDialog.vue';
-import ConsistencySettingsDialog from './ConsistencySettingsDialog.vue';
 import type { ConsistencyPolicy, PlayerOption } from '../types/game';
 import {
   createFreeTextAction,
