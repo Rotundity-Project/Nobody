@@ -163,33 +163,12 @@
                     @switch-mode="setInputMode"
                   />
 
-                  <div
-                    v-if="inputMode === 'options' && gameStore.availableOptions.length > 0"
-                    class="space-y-2"
-                  >
-                    <button
-                      v-for="(option, index) in gameStore.availableOptions"
-                      :key="index"
-                      :disabled="isLoading"
-                      class="w-full text-left p-4 rounded-lg border-2 transition-all duration-200"
-                      :class="[
-                        isLoading
-                          ? 'border-gray-600 bg-slate-700 opacity-50 cursor-not-allowed'
-                          : 'border-amber-400/60 bg-slate-800/80 hover:bg-slate-700 cursor-pointer'
-                      ]"
-                      @click="handleOptionSelect(option)"
-                    >
-                      <p class="text-slate-100">
-                        {{ option.description }}
-                      </p>
-                      <p
-                        v-if="option.requirements && option.requirements.length > 0"
-                        class="text-sm text-slate-400 mt-1"
-                      >
-                        条件：{{ option.requirements.join('，') }}
-                      </p>
-                    </button>
-                  </div>
+                  <OptionListPanel
+                    :visible="inputMode === 'options' && gameStore.availableOptions.length > 0"
+                    :options="gameStore.availableOptions"
+                    :disabled="isLoading"
+                    @select="handleOptionSelect"
+                  />
 
                   <div
                     v-if="inputMode === 'freeText' || gameStore.availableOptions.length === 0"
@@ -354,6 +333,7 @@ import CharacterPanel from './CharacterPanel.vue';
 import ChapterStatusStrip from './ChapterStatusStrip.vue';
 import ChapterRecapCard from './ChapterRecapCard.vue';
 import InputModeTabs from './InputModeTabs.vue';
+import OptionListPanel from './OptionListPanel.vue';
 import LLMConfigDialog from './LLMConfigDialog.vue';
 import KeyboardShortcutsDialog from './KeyboardShortcutsDialog.vue';
 import LoadingIndicator from './LoadingIndicator.vue';
