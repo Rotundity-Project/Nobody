@@ -58,6 +58,12 @@
 - `docs/release/v2-canary-report-sample.md`
 - `docs/release/v2-post-release-regression-template.md`
 
+当前验收进展（2026-02-19）:
+- 本地已完成 `npm run test`（12 文件 / 36 用例通过）。
+- 已完成 `npm run tauri build`，产出测试版安装包:
+  - `src-tauri/target/release/bundle/msi/Nobody_1.1.0_x64_en-US.msi`
+  - `src-tauri/target/release/bundle/nsis/Nobody_1.1.0_x64-setup.exe`
+
 ## 已知限制
 
 - Plot State Machine 仍未完全独立化（当前已是增强版显式状态，但未形成单独模块边界）。

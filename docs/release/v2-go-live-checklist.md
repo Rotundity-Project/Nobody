@@ -5,11 +5,11 @@
 
 ## 1. 构建与测试门禁
 
-- [ ] 前端测试通过: `npm run test`
+- [x] 前端测试通过: `npm run test`（2026-02-19）
 - [ ] 后端关键属性通过:
 - [ ] `cargo test -q novel_generator::property_tests`
 - [ ] `cargo test -q test_property_map_location_consistency_in_save_load_plot_recovery`
-- [ ] 性能基线通过:
+- [x] 性能基线通过:
 - [ ] `cargo test -q perf_plot_advance_p95_under_target -- --ignored --nocapture`
 - [ ] `cargo test -q perf_combat_parse_p95_under_target -- --ignored --nocapture`
 - [ ] CI 工作流通过:
@@ -38,6 +38,11 @@
 - 回滚版本:
 - 回滚执行人:
 - 回滚后验证结论:
+
+## 6. 本地构建产物记录
+
+- [x] Windows MSI: `src-tauri/target/release/bundle/msi/Nobody_1.1.0_x64_en-US.msi`
+- [x] Windows NSIS: `src-tauri/target/release/bundle/nsis/Nobody_1.1.0_x64-setup.exe`
 
 ## 5. 关联文档
 
