@@ -31,26 +31,16 @@
       <div class="flex-1 overflow-hidden p-4 sm:p-6 lg:p-8">
         <div class="mx-auto h-full max-w-7xl">
           <div class="flex h-full min-h-0 flex-col rounded-2xl border border-slate-800/90 bg-slate-950/45">
-            <div
-              ref="storyScrollRef"
-              class="relative flex-1 overflow-y-auto p-6 sm:p-8"
-            >
-              <ScrollToBottomButton
-                :visible="gameStore.isGameInitialized"
-                @scroll="scrollToBottom"
-              />
-              <StoryScenePanel
-                :has-scene="Boolean(gameStore.plotState && gameStore.currentScene)"
-                :chapter-title="currentChapterTitle"
-                :show-recap="shouldShowRecap"
-                :recap-summary="lastChapterSummary"
-                :paragraphs="currentChapterParagraphs"
-                :option-source-label="optionSourceLabel"
-                :is-game-initialized="gameStore.isGameInitialized"
-                :scroll-element="storyScrollRef"
-              />
-              <div class="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-slate-950 to-transparent" />
-            </div>
+            <StoryViewport
+              ref="storyViewportRef"
+              :has-scene="Boolean(gameStore.plotState && gameStore.currentScene)"
+              :chapter-title="currentChapterTitle"
+              :show-recap="shouldShowRecap"
+              :recap-summary="lastChapterSummary"
+              :paragraphs="currentChapterParagraphs"
+              :option-source-label="optionSourceLabel"
+              :is-game-initialized="gameStore.isGameInitialized"
+            />
 
             <div class="border-t border-slate-700 bg-slate-900/80 p-6 backdrop-blur">
               <GameInteractionPanel
@@ -168,8 +158,7 @@ import CharacterPanel from './CharacterPanel.vue';
 import ChapterStatusStrip from './ChapterStatusStrip.vue';
 import GameTopBar from './GameTopBar.vue';
 import GameInteractionPanel from './GameInteractionPanel.vue';
-import ScrollToBottomButton from './ScrollToBottomButton.vue';
-import StoryScenePanel from './StoryScenePanel.vue';
+import StoryViewport from './StoryViewport.vue';
 import LLMConfigDialog from './LLMConfigDialog.vue';
 import KeyboardShortcutsDialog from './KeyboardShortcutsDialog.vue';
 import InfoTabsDialog from './InfoTabsDialog.vue';
@@ -214,7 +203,7 @@ const consistencyPolicy = ref<ConsistencyPolicy>({
 });
 const inputMode = ref<'options' | 'freeText'>('options');
 const freeTextInput = ref('');
-const storyScrollRef = ref<HTMLElement | null>(null);
+const storyViewportRef = ref<{ scrollToBottom: () => void } | null>(null);
 const previousChapterParagraphs = ref<string[]>([]);
 const isDevMode = import.meta.env.DEV;
 const MAX_AUTO_ADVANCE_STEPS = 48;
@@ -568,12 +557,7 @@ const resetConsistencyPolicy = async () => {
 };
 
 const scrollToBottom = () => {
-  if (storyScrollRef.value && typeof storyScrollRef.value.scrollTo === 'function') {
-    storyScrollRef.value.scrollTo({
-      top: storyScrollRef.value.scrollHeight,
-      behavior: 'smooth'
-    });
-  }
+  storyViewportRef.value?.scrollToBottom();
 };
 
 watchEffect(() => {
@@ -584,16 +568,10 @@ watchEffect(() => {
 
 // 监听章节内容变化，自动滚动到底部
 watch(currentChapterParagraphs, (newParagraphs) => {
-  if (newParagraphs.length > previousChapterParagraphs.value.length && storyScrollRef.value) {
+  if (newParagraphs.length > previousChapterParagraphs.value.length) {
     // 只有当有新内容时才滚动到底部
     requestAnimationFrame(() => {
-      if (!storyScrollRef.value || typeof storyScrollRef.value.scrollTo !== 'function') {
-        return;
-      }
-      storyScrollRef.value.scrollTo({
-        top: storyScrollRef.value.scrollHeight,
-        behavior: 'smooth'
-      });
+      scrollToBottom();
     });
   }
   previousChapterParagraphs.value = [...newParagraphs];
