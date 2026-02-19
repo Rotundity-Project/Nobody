@@ -148,16 +148,10 @@
                   />
                 </div>
 
-                <div
+                <LoadingStatePanel
                   v-else-if="isLoading"
-                  class="text-center"
-                >
-                  <LoadingIndicator
-                    :message="loadingMessage"
-                    detail="请稍候，剧情正在推进..."
-                    size="lg"
-                  />
-                </div>
+                  :message="loadingMessage"
+                />
 
                 <div
                   v-else-if="gameStore.isGameInitialized && !gameStore.isWaitingForInput"
@@ -269,7 +263,7 @@ import QuickActionsBar from './QuickActionsBar.vue';
 import StoryScenePanel from './StoryScenePanel.vue';
 import LLMConfigDialog from './LLMConfigDialog.vue';
 import KeyboardShortcutsDialog from './KeyboardShortcutsDialog.vue';
-import LoadingIndicator from './LoadingIndicator.vue';
+import LoadingStatePanel from './LoadingStatePanel.vue';
 import InfoTabsDialog from './InfoTabsDialog.vue';
 import SaveLoadDialog from './SaveLoadDialog.vue';
 import SystemCenterMenu from './SystemCenterMenu.vue';

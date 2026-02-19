@@ -47,14 +47,20 @@ describe('responsive layout classes', () => {
           SaveLoadDialog: true,
           LLMConfigDialog: true,
           NovelExporter: true,
-          LoadingIndicator: true,
+          LoadingStatePanel: true,
         },
       },
     });
     const classes = wrapper.classes();
     expect(classes).toContain('flex');
     expect(classes).toContain('flex-col');
-    expect(wrapper.text()).toContain('信息面板');
+    const hasResponsiveHeader = wrapper.findAll('div').some((node) => {
+      const nodeClasses = node.classes();
+      return nodeClasses.includes('sm:flex-row')
+        && nodeClasses.includes('sm:items-center')
+        && nodeClasses.includes('sm:justify-between');
+    });
+    expect(hasResponsiveHeader).toBe(true);
   });
 
   it('MainMenu buttons have responsive width classes', () => {
