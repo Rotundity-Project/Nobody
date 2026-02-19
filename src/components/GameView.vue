@@ -27,59 +27,17 @@
           </h1>
         </div>
         <div class="flex flex-wrap gap-2">
-          <div
-            ref="systemMenuRef"
-            class="relative"
-          >
-            <button
-              class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors duration-200"
-              @click="toggleSystemMenu"
-            >
-              系统中心
-            </button>
-            <div
-              v-if="showSystemMenu"
-              class="absolute right-0 z-20 mt-2 w-72 panel-surface rounded-xl p-4 space-y-2"
-            >
-              <button
-                class="w-full rounded-md bg-slate-800 px-3 py-2 text-left text-sm text-slate-100 transition-colors hover:bg-slate-700"
-                title="查看快捷键"
-                @click="openShortcutsDialog"
-              >
-                快捷键
-              </button>
-              <button
-                class="w-full rounded-md bg-emerald-600 px-3 py-2 text-left text-sm text-slate-900 transition-colors hover:bg-emerald-500"
-                @click="openLlmDialog"
-              >
-                LLM 设置
-              </button>
-              <button
-                class="w-full rounded-md bg-slate-800 px-3 py-2 text-left text-sm text-slate-100 transition-colors hover:bg-slate-700"
-                @click="openStorySettingsDialog"
-              >
-                剧情设置
-              </button>
-              <button
-                class="w-full rounded-md bg-slate-800 px-3 py-2 text-left text-sm text-slate-100 transition-colors hover:bg-slate-700"
-                @click="openConsistencySettingsFromMenu"
-              >
-                一致性设置
-              </button>
-              <button
-                class="w-full rounded-md bg-slate-800 px-3 py-2 text-left text-sm text-slate-100 transition-colors hover:bg-slate-700"
-                @click="toggleAudioPanel"
-              >
-                音量设置
-              </button>
-              <div
-                v-if="showAudioPanel"
-                class="mt-1 rounded-lg border border-slate-700 bg-slate-900/50 p-3"
-              >
-                <AudioControlPanel />
-              </div>
-            </div>
-          </div>
+          <SystemCenterMenu
+            :is-open="showSystemMenu"
+            :show-audio-panel="showAudioPanel"
+            @toggle-menu="toggleSystemMenu"
+            @close-menu="closeSystemMenu"
+            @toggle-audio="toggleAudioPanel"
+            @open-shortcuts="openShortcutsDialog"
+            @open-llm="openLlmDialog"
+            @open-story-settings="openStorySettingsDialog"
+            @open-consistency="openConsistencySettingsFromMenu"
+          />
           <button
             class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors duration-200"
             @click="showCharacterInfo = true"
@@ -414,13 +372,13 @@
 import { computed, ref, watchEffect, onMounted, onUnmounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useGameStore } from '../stores/gameStore';
-import AudioControlPanel from './AudioControlPanel.vue';
 import CharacterPanel from './CharacterPanel.vue';
 import LLMConfigDialog from './LLMConfigDialog.vue';
 import KeyboardShortcutsDialog from './KeyboardShortcutsDialog.vue';
 import LoadingIndicator from './LoadingIndicator.vue';
 import InfoTabsDialog from './InfoTabsDialog.vue';
 import SaveLoadDialog from './SaveLoadDialog.vue';
+import SystemCenterMenu from './SystemCenterMenu.vue';
 import StatusBanner from './StatusBanner.vue';
 import StorySettingsDialog from './StorySettingsDialog.vue';
 import ConsistencySettingsDialog from './ConsistencySettingsDialog.vue';
@@ -464,7 +422,6 @@ const consistencyPolicy = ref<ConsistencyPolicy>({
 const inputMode = ref<'options' | 'freeText'>('options');
 const freeTextInput = ref('');
 const storyScrollRef = ref<HTMLElement | null>(null);
-const systemMenuRef = ref<HTMLElement | null>(null);
 const previousChapterParagraphs = ref<string[]>([]);
 const isDevMode = import.meta.env.DEV;
 const MAX_AUTO_ADVANCE_STEPS = 48;
@@ -750,17 +707,6 @@ const openConsistencySettingsFromMenu = async () => {
   await openConsistencySettings();
 };
 
-const handleDocumentClick = (event: MouseEvent) => {
-  if (!showSystemMenu.value) {
-    return;
-  }
-  const target = event.target as Node | null;
-  if (systemMenuRef.value && target && !systemMenuRef.value.contains(target)) {
-    showSystemMenu.value = false;
-    showAudioPanel.value = false;
-  }
-};
-
 const applyStorySettings = async (settings: StorySettings) => {
   storySettings.value = settings;
   saveStorySettings(settings);
@@ -907,11 +853,9 @@ const handleKeydown = (event: KeyboardEvent) => {
 
 onMounted(() => {
   window.addEventListener('keydown', handleKeydown);
-  window.addEventListener('mousedown', handleDocumentClick);
 });
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown);
-  window.removeEventListener('mousedown', handleDocumentClick);
 });
 </script>
