@@ -52,6 +52,10 @@
         class="space-y-3 text-sm text-slate-200"
       >
         <p>当前位置：{{ currentLocationId || playerLocation }}</p>
+        <p class="text-xs text-slate-400">
+          可达节点：{{ mapOverviewNodes(mapOverview, worldLocations, currentLocationId, reachableLocationIds).filter((node) => node.reachable).length }}
+          / {{ mapOverviewNodes(mapOverview, worldLocations, currentLocationId, reachableLocationIds).length }}
+        </p>
         <div
           v-if="worldLocations.length === 0"
           class="text-slate-400"
@@ -270,7 +274,7 @@ const tabs: Array<{ id: TabId; label: string }> = [
   { id: 'map', label: '地图行程' },
   { id: 'review', label: '战斗复盘' },
   { id: 'export', label: '经历导出' },
-  { id: 'debug', label: 'Debug Context' },
+  { id: 'debug', label: '调试上下文' },
   { id: 'system', label: '系统提示' },
 ];
 
