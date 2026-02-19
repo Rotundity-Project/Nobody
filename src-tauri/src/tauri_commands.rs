@@ -132,11 +132,79 @@ struct CombatExplanation {
     summary: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CombatStrategy {
+    Cautious,
+    Aggressive,
+    Survival,
+}
+
+fn strategy_label(strategy: CombatStrategy) -> &'static str {
+    match strategy {
+        CombatStrategy::Cautious => "谨慎周旋",
+        CombatStrategy::Aggressive => "强攻压制",
+        CombatStrategy::Survival => "保命脱战",
+    }
+}
+
+fn choose_combat_strategy(
+    status: &crate::game_state::CombatAftermathStatus,
+    option_hint: &str,
+) -> (CombatStrategy, &'static str) {
+    let hint = option_hint.to_lowercase();
+    if status.injury_level >= 6 || status.qi_deviation >= 6 {
+        return (CombatStrategy::Survival, "伤势/气机压力过高");
+    }
+    if hint.contains("保命") || hint.contains("撤") || hint.contains("脱战") {
+        return (CombatStrategy::Survival, "玩家指令倾向保命");
+    }
+    if hint.contains("强攻")
+        || hint.contains("硬拼")
+        || hint.contains("冲锋")
+        || hint.contains("搏命")
+        || status.enmity >= 4
+    {
+        return (CombatStrategy::Aggressive, "高压进攻意图");
+    }
+    if hint.contains("试探")
+        || hint.contains("防守")
+        || hint.contains("周旋")
+        || status.injury_level >= 3
+    {
+        return (CombatStrategy::Cautious, "以稳为主降低风险");
+    }
+    (CombatStrategy::Aggressive, "默认进攻策略")
+}
+
+fn strategy_power_modifier_pct(
+    strategy: CombatStrategy,
+    status: &crate::game_state::CombatAftermathStatus,
+) -> i32 {
+    match strategy {
+        CombatStrategy::Aggressive => {
+            if status.injury_level <= 2 && status.qi_deviation <= 3 {
+                8
+            } else {
+                -6
+            }
+        }
+        CombatStrategy::Cautious => {
+            if status.injury_level >= 3 || status.qi_deviation >= 3 {
+                5
+            } else {
+                -2
+            }
+        }
+        CombatStrategy::Survival => -8,
+    }
+}
+
 fn build_combat_explanation(
     action_result: &crate::numerical_system::ActionResult,
     player_realm_level: u32,
     player_combat_power: u64,
     numeric_guard_reason: Option<&str>,
+    strategy_note: Option<&str>,
 ) -> CombatExplanation {
     let mut dominant_factors = vec![
         format!("境界层级: {}", player_realm_level),
@@ -146,6 +214,9 @@ fn build_combat_explanation(
         dominant_factors.push("行动结果: 成功".to_string());
     } else {
         dominant_factors.push("行动结果: 受阻".to_string());
+    }
+    if let Some(note) = strategy_note {
+        dominant_factors.push(format!("策略匹配: {}", note));
     }
 
     let mut reversal_factors = Vec::new();
@@ -172,18 +243,32 @@ fn build_combat_explanation(
     }
 }
 
-fn apply_combat_aftermath(game_state: &mut GameState, combat_success: bool) -> String {
+fn apply_combat_aftermath(
+    game_state: &mut GameState,
+    combat_success: bool,
+    strategy: Option<CombatStrategy>,
+) -> String {
     let status = &mut game_state.player.combat_status;
+    let strategy = strategy.unwrap_or(CombatStrategy::Aggressive);
     if combat_success {
         status.reputation = status.reputation.saturating_add(2);
-        status.enmity = status.enmity.saturating_add(1);
-        if status.injury_level > 0 {
+        status.enmity = status
+            .enmity
+            .saturating_add(if strategy == CombatStrategy::Aggressive { 2 } else { 1 });
+        if status.injury_level > 0 && strategy != CombatStrategy::Aggressive {
             status.injury_level = status.injury_level.saturating_sub(1);
         }
     } else {
         status.reputation = status.reputation.saturating_sub(1);
-        status.enmity = status.enmity.saturating_add(2);
-        status.injury_level = status.injury_level.saturating_add(2).min(10);
+        status.enmity = status
+            .enmity
+            .saturating_add(if strategy == CombatStrategy::Survival { 1 } else { 2 });
+        let injury_gain = if strategy == CombatStrategy::Survival {
+            1
+        } else {
+            2
+        };
+        status.injury_level = status.injury_level.saturating_add(injury_gain).min(10);
     }
 
     format!(
@@ -799,6 +884,7 @@ pub async fn execute_player_action(
         .map_err(|e| e.to_string())?;
 
     let mut combat_guard_reason: Option<String> = None;
+    let mut combat_strategy_note: Option<String> = None;
     let mut should_emit_combat_explanation = false;
     if let Some(selected_option_id) = action.selected_option_id {
         if let Some(selected_option) = plot_state.current_scene.available_options.get(selected_option_id)
@@ -869,6 +955,44 @@ pub async fn execute_player_action(
                 }
                 Action::Combat { .. } => {
                     should_emit_combat_explanation = true;
+                    let option_hint = format!("{} {}", selected_option.description, action.content);
+                    let (strategy, strategy_reason) =
+                        choose_combat_strategy(&game_state.player.combat_status, &option_hint);
+                    let strategy_delta_pct =
+                        strategy_power_modifier_pct(strategy, &game_state.player.combat_status);
+                    if strategy_delta_pct != 0 {
+                        let old_power = game_state.player.stats.combat_power;
+                        let scaled = (old_power as i128)
+                            .saturating_mul((100 + strategy_delta_pct) as i128)
+                            / 100i128;
+                        let new_power = scaled.max(1) as u64;
+                        game_state.player.stats.combat_power = new_power;
+                        action_result.stat_changes.push(StatChange {
+                            stat_name: "combat_power".to_string(),
+                            old_value: old_power.to_string(),
+                            new_value: new_power.to_string(),
+                        });
+                        action_result.description = format!(
+                            "{}（行为策略修正: {} {}%）",
+                            action_result.description,
+                            strategy_label(strategy),
+                            strategy_delta_pct
+                        );
+                        push_growth_log(
+                            &mut game_state,
+                            format!(
+                                "战斗策略影响：{}，战力 {} -> {}",
+                                strategy_label(strategy),
+                                old_power,
+                                new_power
+                            ),
+                        );
+                    }
+                    combat_strategy_note = Some(format!(
+                        "{}（{}）",
+                        strategy_label(strategy),
+                        strategy_reason
+                    ));
                     let (semantic_delta_pct, semantic_reasons, high_risk_technique) =
                         evaluate_technique_semantic_modifier(&game_state.player.stats);
                     if semantic_delta_pct != 0 {
@@ -931,7 +1055,8 @@ pub async fn execute_player_action(
                             check.reason.unwrap_or_else(|| "未知原因".to_string())
                         );
                     }
-                    let aftermath_summary = apply_combat_aftermath(&mut game_state, action_result.success);
+                    let aftermath_summary =
+                        apply_combat_aftermath(&mut game_state, action_result.success, Some(strategy));
                     if high_risk_technique {
                         let status = &mut game_state.player.combat_status;
                         status.injury_level = status.injury_level.saturating_add(1).min(10);
@@ -1232,6 +1357,7 @@ pub async fn execute_player_action(
             game_state.player.stats.cultivation_realm.level,
             game_state.player.stats.combat_power,
             combat_guard_reason.as_deref(),
+            combat_strategy_note.as_deref(),
         );
         let payload = serde_json::to_string(&explanation).unwrap_or(explanation.summary);
         engine.log_event(
@@ -2037,6 +2163,7 @@ mod tests {
             3,
             4200,
             Some("combat_power above maximum for realm 3"),
+            Some("强攻压制（高压进攻意图）"),
         );
         assert!(explanation.summary.contains("主导因素="));
         assert!(explanation.summary.contains("反转因素="));
@@ -2097,16 +2224,18 @@ mod tests {
             event_history: vec![],
         };
 
-        let success_summary = apply_combat_aftermath(&mut state, true);
+        let success_summary =
+            apply_combat_aftermath(&mut state, true, Some(CombatStrategy::Aggressive));
         assert!(success_summary.contains("战后状态更新"));
         assert_eq!(state.player.combat_status.reputation, 2);
-        assert_eq!(state.player.combat_status.enmity, 1);
+        assert_eq!(state.player.combat_status.enmity, 2);
 
-        let fail_summary = apply_combat_aftermath(&mut state, false);
+        let fail_summary =
+            apply_combat_aftermath(&mut state, false, Some(CombatStrategy::Survival));
         assert!(fail_summary.contains("战后状态更新"));
         assert_eq!(state.player.combat_status.reputation, 1);
         assert_eq!(state.player.combat_status.enmity, 3);
-        assert_eq!(state.player.combat_status.injury_level, 2);
+        assert_eq!(state.player.combat_status.injury_level, 1);
     }
 
     #[test]
@@ -2568,6 +2697,33 @@ mod tests {
         assert!(low.contains("散修") || low.contains("灵兽") || low.contains("路匪"));
         assert!(mid.contains("阵法") || mid.contains("巡逻") || mid.contains("乱流"));
         assert!(high.contains("魔息") || high.contains("妖潮") || high.contains("威压"));
+    }
+
+    #[test]
+    fn test_choose_combat_strategy_prefers_survival_when_status_is_bad() {
+        let status = crate::game_state::CombatAftermathStatus {
+            injury_level: 7,
+            reputation: 0,
+            enmity: 0,
+            qi_deviation: 6,
+        };
+        let (strategy, reason) = choose_combat_strategy(&status, "强攻压制");
+        assert_eq!(strategy, CombatStrategy::Survival);
+        assert!(reason.contains("伤势/气机"));
+    }
+
+    #[test]
+    fn test_strategy_power_modifier_pct_matches_expected_bias() {
+        let status = crate::game_state::CombatAftermathStatus {
+            injury_level: 1,
+            reputation: 0,
+            enmity: 2,
+            qi_deviation: 1,
+        };
+        let aggressive = strategy_power_modifier_pct(CombatStrategy::Aggressive, &status);
+        let survival = strategy_power_modifier_pct(CombatStrategy::Survival, &status);
+        assert!(aggressive > 0);
+        assert!(survival < 0);
     }
 }
 

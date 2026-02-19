@@ -50,7 +50,7 @@
 
 | 任务 | 计划状态 | 代码审计状态 | 证据 |
 |---|---|---|---|
-| 14. 战斗判定引擎 V2 | 未完成 | 部分完成 | 有数值守门（`src-tauri/src/numeric_guard.rs`）与战斗分支校验，未见完整规则矩阵 4 步流程 |
+| 14. 战斗判定引擎 V2 | 未完成 | 部分完成（增强中） | 已接入硬约束校验（数值守门）、功法语义克制、行为策略匹配（谨慎/强攻/保命）并写入战斗解释；仍待更完整环境/兵器克制矩阵（`src-tauri/src/numeric_guard.rs`, `src-tauri/src/tauri_commands.rs`） |
 | 15. 战斗结果解释器 | 已完成 | 已完成 | 已新增结构化战斗解释（主导因素/反转因素/摘要）并写入 `combat_explanation` 事件日志，供导出与复盘链路使用（`src-tauri/src/tauri_commands.rs`） |
 | 16. 战斗与剧情耦合 | 已完成 | 已完成 | 已将战斗后长期状态（伤势/威望/仇恨）写入玩家状态并注入后续剧情上下文，同时记录战后状态事件（`src-tauri/src/game_state.rs`, `src-tauri/src/tauri_commands.rs`） |
 
