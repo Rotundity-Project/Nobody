@@ -308,6 +308,26 @@ fn detect_player_styles(stats: &crate::models::CharacterStats) -> Vec<&'static s
     styles.into_iter().collect::<Vec<_>>()
 }
 
+fn extract_styles_from_text(hint: &str) -> Vec<&'static str> {
+    let h = hint.to_lowercase();
+    let mut styles = Vec::new();
+    if h.contains("剑") || h.contains("sword") {
+        styles.push("sword");
+    }
+    if h.contains("刀") || h.contains("blade") {
+        styles.push("blade");
+    }
+    if h.contains("拳") || h.contains("体修") || h.contains("body") {
+        styles.push("body");
+    }
+    if h.contains("符") || h.contains("阵") || h.contains("talisman") || h.contains("array") {
+        styles.push("talisman");
+    }
+    styles.sort();
+    styles.dedup();
+    styles
+}
+
 fn detect_enemy_style(hint: &str) -> Option<&'static str> {
     let h = hint.to_lowercase();
     if h.contains("剑") || h.contains("sword") {
@@ -334,7 +354,20 @@ fn evaluate_style_counter_modifier(
     combat_hint: &str,
 ) -> (i32, String) {
     let enemy_style = detect_enemy_style(combat_hint);
-    let player_styles = detect_player_styles(stats);
+    let mut player_styles = detect_player_styles(stats);
+    if player_styles.is_empty() {
+        let hint_styles = extract_styles_from_text(combat_hint);
+        if let Some(enemy) = enemy_style {
+            if let Some(style) = hint_styles.iter().find(|s| **s != enemy) {
+                player_styles.push(*style);
+            }
+        }
+        if player_styles.is_empty() {
+            if let Some(style) = hint_styles.first() {
+                player_styles.push(*style);
+            }
+        }
+    }
     let Some(enemy_style) = enemy_style else {
         return (0, "未识别敌方流派".to_string());
     };
@@ -3127,6 +3160,36 @@ mod tests {
         let (delta, reason) = evaluate_style_counter_modifier(&stats, "敌方神秘修士");
         assert_eq!(delta, 0);
         assert!(reason.contains("未识别"));
+    }
+
+    #[test]
+    fn test_extract_styles_from_text_extracts_styles() {
+        assert!(extract_styles_from_text("我以剑诀起手").contains(&"sword"));
+        assert!(extract_styles_from_text("贴身体修对轰").contains(&"body"));
+        assert!(extract_styles_from_text("普通描述").is_empty());
+    }
+
+    #[test]
+    fn test_evaluate_style_counter_modifier_uses_hint_when_technique_empty() {
+        let stats = crate::models::CharacterStats {
+            spiritual_root: crate::models::SpiritualRoot {
+                element: crate::models::Element::Fire,
+                elements: vec![crate::models::Element::Fire],
+                grade: crate::models::Grade::Heavenly,
+                affinity: 0.8,
+            },
+            cultivation_realm: crate::models::CultivationRealm::new("Qi".to_string(), 2, 0, 1.0),
+            techniques: vec![],
+            lifespan: crate::models::Lifespan {
+                current_age: 18,
+                max_age: 100,
+                realm_bonus: 0,
+            },
+            combat_power: 220,
+        };
+        let (delta, reason) = evaluate_style_counter_modifier(&stats, "我以剑诀迎战体修强攻");
+        assert!(delta > 0);
+        assert!(reason.contains("克制"));
     }
 }
 
