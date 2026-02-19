@@ -70,17 +70,13 @@
           </button>
         </div>
       </div>
-      <div
-        v-if="gameStore.isGameInitialized"
-        class="border-b border-slate-800/80 bg-slate-900/60 px-6 py-2"
-      >
-        <div class="mx-auto flex max-w-7xl flex-wrap items-center gap-x-5 gap-y-1 text-xs text-slate-300">
-          <span>章节：{{ chapterProgressLabel }}</span>
-          <span>交互：{{ chapterInteractionLabel }}</span>
-          <span>状态：{{ interactionStateLabel }}</span>
-          <span v-if="optionSourceLabel">来源：{{ optionSourceLabel }}</span>
-        </div>
-      </div>
+      <ChapterStatusStrip
+        :visible="gameStore.isGameInitialized"
+        :chapter-progress="chapterProgressLabel"
+        :chapter-interaction="chapterInteractionLabel"
+        :interaction-state="interactionStateLabel"
+        :option-source-label="optionSourceLabel"
+      />
 
       <div class="flex-1 overflow-hidden p-4 sm:p-6 lg:p-8">
         <div class="mx-auto h-full max-w-7xl">
@@ -373,6 +369,7 @@ import { computed, ref, watchEffect, onMounted, onUnmounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useGameStore } from '../stores/gameStore';
 import CharacterPanel from './CharacterPanel.vue';
+import ChapterStatusStrip from './ChapterStatusStrip.vue';
 import LLMConfigDialog from './LLMConfigDialog.vue';
 import KeyboardShortcutsDialog from './KeyboardShortcutsDialog.vue';
 import LoadingIndicator from './LoadingIndicator.vue';
