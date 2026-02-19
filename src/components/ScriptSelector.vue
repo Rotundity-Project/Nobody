@@ -97,9 +97,13 @@
         />
       </div>
 
-      <div v-if="error" class="mt-6 p-4 bg-red-900 bg-opacity-50 border border-red-500 rounded-lg">
-        <p class="text-red-200">{{ error }}</p>
-      </div>
+      <StatusBanner
+        v-if="error"
+        class="mt-6"
+        kind="error"
+        title="操作失败"
+        :message="error"
+      />
 
       <button
         @click="handleBack"
@@ -118,6 +122,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { invokeWithTimeout } from '../utils/tauriInvoke';
 import { useGameStore } from '../stores/gameStore';
 import LoadingIndicator from './LoadingIndicator.vue';
+import StatusBanner from './StatusBanner.vue';
 import { playClick } from '../utils/audioSystem';
 import type { ScriptType, Script } from '../types/game';
 
