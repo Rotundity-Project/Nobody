@@ -58,17 +58,9 @@
                   v-if="shouldShowInputPanel"
                   class="space-y-4"
                 >
-                  <StatusBanner
-                    v-if="gameStore.error"
-                    kind="error"
-                    title="系统提示"
-                    :message="gameStore.error"
-                  />
-                  <StatusBanner
-                    v-else-if="isNoInputAdvanceState"
-                    kind="auto_advance"
-                    title="自动推进中"
-                    message="当前状态无需玩家输入。"
+                  <InputStatusNotice
+                    :error="gameStore.error"
+                    :show-auto-advance-hint="isNoInputAdvanceState"
                   />
                   <InputModeTabs
                     :visible="gameStore.availableOptions.length > 0"
@@ -216,6 +208,7 @@ import ContinueActionPanel from './ContinueActionPanel.vue';
 import FreeTextInputPanel from './FreeTextInputPanel.vue';
 import GameTopBar from './GameTopBar.vue';
 import InputModeTabs from './InputModeTabs.vue';
+import InputStatusNotice from './InputStatusNotice.vue';
 import OptionListPanel from './OptionListPanel.vue';
 import ScrollToBottomButton from './ScrollToBottomButton.vue';
 import StoryScenePanel from './StoryScenePanel.vue';
@@ -224,7 +217,6 @@ import KeyboardShortcutsDialog from './KeyboardShortcutsDialog.vue';
 import LoadingStatePanel from './LoadingStatePanel.vue';
 import InfoTabsDialog from './InfoTabsDialog.vue';
 import SaveLoadDialog from './SaveLoadDialog.vue';
-import StatusBanner from './StatusBanner.vue';
 import StorySettingsDialog from './StorySettingsDialog.vue';
 import ConsistencySettingsDialog from './ConsistencySettingsDialog.vue';
 import type { ConsistencyPolicy, PlayerOption } from '../types/game';
