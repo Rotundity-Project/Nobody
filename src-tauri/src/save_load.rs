@@ -778,6 +778,54 @@ mod tests {
             .iter()
             .any(|it| !it.success && it.file_name == "save_2.json"));
     }
+
+    #[test]
+    fn test_legacy_migration_success_rate_over_95_percent() {
+        let temp_dir = TempDir::new().unwrap();
+        let system = SaveLoadSystem::with_directory(temp_dir.path().to_path_buf());
+
+        let total = 100u32;
+        for slot in 1..=total {
+            let mut game_state = create_test_game_state();
+            game_state.player.name = format!("Player{}", slot);
+            let save_data = SaveData::from_game_state(game_state);
+            let mut value = serde_json::to_value(save_data).unwrap();
+            let obj = value.as_object_mut().unwrap();
+            obj.remove("schema_version");
+            obj.remove("migration_history");
+            std::fs::write(
+                temp_dir.path().join(format!("save_{}.json", slot)),
+                serde_json::to_string_pretty(&value).unwrap(),
+            )
+            .unwrap();
+        }
+
+        let report = system.migrate_all_saves().unwrap();
+        let success_rate = report.succeeded as f64 / report.total_files as f64;
+        assert!(
+            success_rate >= 0.95,
+            "legacy migration success rate should be >=95%, got {:.2}%",
+            success_rate * 100.0
+        );
+        assert_eq!(report.total_files, total as usize);
+    }
+
+    #[test]
+    fn test_migrate_all_saves_failure_message_is_readable() {
+        let temp_dir = TempDir::new().unwrap();
+        let system = SaveLoadSystem::with_directory(temp_dir.path().to_path_buf());
+        std::fs::write(temp_dir.path().join("save_9.json"), "{broken").unwrap();
+
+        let report = system.migrate_all_saves().unwrap();
+        assert_eq!(report.failed, 1);
+        let item = report
+            .items
+            .iter()
+            .find(|i| i.file_name == "save_9.json")
+            .unwrap();
+        assert!(!item.success);
+        assert!(item.error.as_deref().unwrap_or_default().contains("解析失败"));
+    }
 }
 
 // 存档系统的属性测试

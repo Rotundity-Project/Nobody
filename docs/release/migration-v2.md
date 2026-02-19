@@ -62,6 +62,10 @@
 - 迁移失败用例 100% 返回可读错误。
 - 迁移后的剧情与章节状态可继续推进，不出现死锁。
 
+当前验证:
+- `test_legacy_migration_success_rate_over_95_percent` 通过（100 份 legacy 样本）。
+- `test_migrate_all_saves_failure_message_is_readable` 通过。
+
 ## 当前实现状态
 
 - 已实现:
