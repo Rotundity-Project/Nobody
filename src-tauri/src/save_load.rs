@@ -36,6 +36,27 @@ pub struct SaveInfo {
     pub game_time: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct MigrationItemReport {
+    pub file_name: String,
+    pub slot_id: Option<u32>,
+    pub success: bool,
+    pub migrated: bool,
+    pub rollback_applied: bool,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct MigrationBatchReport {
+    pub total_files: usize,
+    pub succeeded: usize,
+    pub migrated: usize,
+    pub failed: usize,
+    pub items: Vec<MigrationItemReport>,
+}
+
 impl SaveLoadSystem {
     /// 使用默认存档目录创建新的SaveLoadSystem
     pub fn new() -> Self {
@@ -212,6 +233,94 @@ impl SaveLoadSystem {
         }
 
         Ok(())
+    }
+
+    /// 批量迁移目录中的存档并输出报告
+    pub fn migrate_all_saves(&self) -> Result<MigrationBatchReport> {
+        self.ensure_save_directory()?;
+
+        let mut report = MigrationBatchReport::default();
+        for entry in fs::read_dir(&self.save_directory)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.extension().and_then(|s| s.to_str()) != Some("json") {
+                continue;
+            }
+
+            report.total_files += 1;
+            let file_name = path
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or_default()
+                .to_string();
+            let slot_id = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .and_then(|stem| stem.strip_prefix("save_"))
+                .and_then(|id| id.parse::<u32>().ok());
+
+            let mut item = MigrationItemReport {
+                file_name,
+                slot_id,
+                ..Default::default()
+            };
+
+            let raw = match fs::read_to_string(&path) {
+                Ok(content) => content,
+                Err(err) => {
+                    item.error = Some(format!("读取失败: {}", err));
+                    report.failed += 1;
+                    report.items.push(item);
+                    continue;
+                }
+            };
+
+            let mut save_data: SaveData = match serde_json::from_str(&raw) {
+                Ok(data) => data,
+                Err(err) => {
+                    item.error = Some(format!("解析失败: {}", err));
+                    report.failed += 1;
+                    report.items.push(item);
+                    continue;
+                }
+            };
+
+            let migrated = self.migrate_save_data(&mut save_data);
+            if let Err(err) = self.validate_save_data(&save_data) {
+                item.error = Some(format!("校验失败: {}", err));
+                report.failed += 1;
+                report.items.push(item);
+                continue;
+            }
+
+            if migrated {
+                let migrated_json = match serde_json::to_string_pretty(&save_data) {
+                    Ok(json) => json,
+                    Err(err) => {
+                        item.error = Some(format!("序列化失败: {}", err));
+                        report.failed += 1;
+                        report.items.push(item);
+                        continue;
+                    }
+                };
+
+                if let Err(err) = fs::write(&path, &migrated_json) {
+                    item.error = Some(format!("写回失败: {}", err));
+                    item.rollback_applied = fs::write(&path, &raw).is_ok();
+                    report.failed += 1;
+                    report.items.push(item);
+                    continue;
+                }
+                item.migrated = true;
+                report.migrated += 1;
+            }
+
+            item.success = true;
+            report.succeeded += 1;
+            report.items.push(item);
+        }
+
+        Ok(report)
     }
 
     /// 迁移旧存档到当前 schema（内存态迁移，不覆盖原文件）
@@ -637,6 +746,37 @@ mod tests {
 
         assert_eq!(loaded1.game_state.player.name, "Player 1");
         assert_eq!(loaded2.game_state.player.name, "Player 2");
+    }
+
+    #[test]
+    fn test_migrate_all_saves_reports_success_and_failure() {
+        let temp_dir = TempDir::new().unwrap();
+        let system = SaveLoadSystem::with_directory(temp_dir.path().to_path_buf());
+
+        let game_state = create_test_game_state();
+        let save_data = SaveData::from_game_state(game_state);
+        let mut value = serde_json::to_value(save_data).unwrap();
+        let obj = value.as_object_mut().unwrap();
+        obj.remove("schema_version");
+        obj.remove("migration_history");
+        std::fs::write(
+            temp_dir.path().join("save_1.json"),
+            serde_json::to_string_pretty(&value).unwrap(),
+        )
+        .unwrap();
+
+        std::fs::write(temp_dir.path().join("save_2.json"), "{invalid-json").unwrap();
+
+        let report = system.migrate_all_saves().unwrap();
+        assert_eq!(report.total_files, 2);
+        assert_eq!(report.succeeded, 1);
+        assert_eq!(report.failed, 1);
+        assert!(report.migrated >= 1);
+        assert!(report.items.iter().any(|it| it.success && it.file_name == "save_1.json"));
+        assert!(report
+            .items
+            .iter()
+            .any(|it| !it.success && it.file_name == "save_2.json"));
     }
 }
 

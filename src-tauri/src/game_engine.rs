@@ -5,7 +5,7 @@ use crate::npc::{CoreValue, Goal, NPC, NPCMemory, Personality, PersonalityTrait}
 use crate::npc_engine::{NPCDecision, NPCEngine, NPCEvent};
 use crate::numerical_system::NumericalSystem;
 use crate::plot_engine::{PlotEngine, PlotState, Scene};
-use crate::save_load::{SaveData, SaveInfo, SaveLoadSystem};
+use crate::save_load::{MigrationBatchReport, SaveData, SaveInfo, SaveLoadSystem};
 use crate::script::{Script, ScriptType};
 use crate::script_manager::ScriptManager;
 use anyhow::{anyhow, Result};
@@ -580,6 +580,10 @@ impl GameEngine {
     /// 列出存档槽信息
     pub fn list_saves(&self) -> Result<Vec<SaveInfo>> {
         self.save_load_system.list_saves()
+    }
+
+    pub fn migrate_all_saves(&self) -> Result<MigrationBatchReport> {
+        self.save_load_system.migrate_all_saves()
     }
 
     pub fn log_event(

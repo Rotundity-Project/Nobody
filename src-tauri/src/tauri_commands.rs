@@ -22,7 +22,7 @@ use crate::plot_consistency::{
 use crate::plot_engine::{
     PlayerAction, PlayerOption, PlotEngine, PlotInteractionState, PlotSettings, PlotState,
 };
-use crate::save_load::SaveInfo;
+use crate::save_load::{MigrationBatchReport, SaveInfo};
 use crate::script::Script;
 use crate::app_error::AppError;
 use serde::{Deserialize, Serialize};
@@ -863,6 +863,17 @@ pub async fn list_save_slots(engine: State<'_, Mutex<GameEngine>>) -> Result<Vec
         Err(poisoned) => poisoned.into_inner(),
     };
     engine.list_saves().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn migrate_all_saves(
+    engine: State<'_, Mutex<GameEngine>>,
+) -> Result<MigrationBatchReport, String> {
+    let engine = match engine.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    engine.migrate_all_saves().map_err(|e| e.to_string())
 }
 
 #[tauri::command]

@@ -46,6 +46,7 @@ pub fn run() {
             tauri_commands::save_game,
             tauri_commands::load_game,
             tauri_commands::list_save_slots,
+            tauri_commands::migrate_all_saves,
             tauri_commands::load_script,
             tauri_commands::generate_random_script,
             tauri_commands::parse_novel_characters,
