@@ -147,6 +147,23 @@ export const useGameStore = defineStore('game', {
       }
     },
 
+    async travelToLocation(locationId: string) {
+      this.isLoading = true;
+      this.error = null;
+      try {
+        await invoke<string>('travel_to_location', { locationId });
+        const gameState = await invoke<GameState>('get_game_state');
+        const plotState = await invoke<PlotState>('get_plot_state');
+        this.gameState = gameState;
+        this.plotState = plotState;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : String(error);
+        throw error;
+      } finally {
+        this.isLoading = false;
+      }
+    },
+
     async getPlayerOptions() {
       try {
         const options = await invoke<PlayerOption[]>('get_player_options');

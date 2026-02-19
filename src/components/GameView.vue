@@ -329,6 +329,7 @@
       :is-waiting-for-input="gameStore.isWaitingForInput"
       :world-locations="worldLocationList"
       :current-location-id="gameStore.playerCharacter?.location || ''"
+      :is-traveling="travelPending"
       :is-game-running="gameStore.isGameInitialized"
       :event-count="gameStore.gameState?.event_history?.length ?? 0"
       :is-dev-mode="isDevMode"
@@ -339,6 +340,7 @@
       :system-error="gameStore.error"
       @close="showInfoTabs = false"
       @clear-error="gameStore.clearError"
+      @travel="handleTravel"
     />
     <ConsistencySettingsDialog
       :is-open="showConsistencySettings"
@@ -423,6 +425,7 @@ const storyScrollRef = ref<HTMLElement | null>(null);
 const previousChapterParagraphs = ref<string[]>([]);
 const isDevMode = import.meta.env.DEV;
 const MAX_AUTO_ADVANCE_STEPS = 48;
+const travelPending = ref(false);
 
 const inputValidation = computed(() => validateFreeTextInput(freeTextInput.value));
 const currentChapterTitle = computed(
@@ -631,6 +634,18 @@ const handleSaved = (slotId: number) => {
 
 const handleLoaded = (slotId: number) => {
   console.log(`已从槽位 ${slotId} 加载游戏`);
+};
+
+const handleTravel = async (locationId: string) => {
+  if (!locationId) return;
+  try {
+    travelPending.value = true;
+    await gameStore.travelToLocation(locationId);
+  } catch (error) {
+    console.error('地点移动失败：', error);
+  } finally {
+    travelPending.value = false;
+  }
 };
 
 const toggleAudioPanel = () => {

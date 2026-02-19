@@ -202,6 +202,66 @@ fn push_growth_log(game_state: &mut GameState, entry: impl Into<String>) {
     }
 }
 
+fn apply_travel_and_encounter(
+    game_state: &mut GameState,
+    plot_state: &mut PlotState,
+    target_location: &str,
+) -> Result<(String, bool), String> {
+    let target_node = game_state
+        .world_state
+        .locations
+        .get(target_location)
+        .cloned()
+        .ok_or_else(|| format!("目标地点不存在: {}", target_location))?;
+    let from_location = game_state.player.location.clone();
+    if from_location == target_location {
+        return Ok(("你已在当前地点，无需移动。".to_string(), false));
+    }
+
+    let from_name = game_state
+        .world_state
+        .locations
+        .get(&from_location)
+        .map(|loc| loc.name.clone())
+        .unwrap_or_else(|| from_location.clone());
+    let target_name = target_node.name.clone();
+
+    game_state.player.location = target_location.to_string();
+    plot_state.current_scene.location = target_location.to_string();
+    game_state.game_time.advance_days(1);
+
+    let total_days = game_state.game_time.total_days;
+    let energy = target_node.spiritual_energy;
+    let hazard_score = ((energy * 100.0).round() as u32 + total_days) % 100;
+    let encounter_triggered = hazard_score >= 65;
+    let mut message = format!("你从{}前往{}，行程耗时1日。", from_name, target_name);
+
+    if encounter_triggered {
+        let status = &mut game_state.player.combat_status;
+        status.enmity = status.enmity.saturating_add(1);
+        if energy >= 0.8 {
+            status.injury_level = status.injury_level.saturating_add(1).min(10);
+            message.push_str(" 路遇高危灵压冲击，伤势+1。");
+        } else {
+            message.push_str(" 途中遭遇试探性冲突，仇恨+1。");
+        }
+    } else {
+        message.push_str(" 途中未遭遇显著冲突。");
+    }
+
+    push_growth_log(
+        game_state,
+        format!(
+            "行程变更：{} -> {}{}",
+            from_name,
+            target_name,
+            if encounter_triggered { "（触发遭遇）" } else { "" }
+        ),
+    );
+    plot_state.current_chapter.content.push(message.clone());
+    Ok((message, encounter_triggered))
+}
+
 fn is_high_risk_technique_name(name: &str) -> bool {
     let t = name.to_lowercase();
     t.contains("禁")
@@ -1146,6 +1206,48 @@ pub async fn list_save_slots(engine: State<'_, Mutex<GameEngine>>) -> Result<Vec
 }
 
 #[tauri::command]
+pub async fn travel_to_location(
+    location_id: String,
+    engine: State<'_, Mutex<GameEngine>>,
+) -> Result<String, String> {
+    validate_non_empty(&location_id, "目标地点")
+        .map_err(|e| map_error("移动失败", e))?;
+    let engine = match engine.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    let mut game_state = engine.get_current_state().map_err(|e| e.to_string())?;
+    let mut plot_state = engine.get_plot_state().map_err(|e| e.to_string())?;
+    let timestamp_before = u64::from(game_state.game_time.total_days);
+
+    let (message, encounter_triggered) =
+        apply_travel_and_encounter(&mut game_state, &mut plot_state, &location_id)?;
+    let timestamp = u64::from(game_state.game_time.total_days.max(timestamp_before as u32));
+    engine.log_event(
+        timestamp,
+        "travel",
+        message.clone(),
+        EventImportance::Normal,
+    );
+    if encounter_triggered {
+        engine.log_event(
+            timestamp,
+            "encounter",
+            format!("移动遭遇：{}", message),
+            EventImportance::Important,
+        );
+    }
+
+    engine
+        .update_current_state(game_state)
+        .map_err(|e| e.to_string())?;
+    engine
+        .update_plot_state(plot_state)
+        .map_err(|e| e.to_string())?;
+    Ok(message)
+}
+
+#[tauri::command]
 pub async fn migrate_all_saves(
     engine: State<'_, Mutex<GameEngine>>,
 ) -> Result<MigrationBatchReport, String> {
@@ -2030,6 +2132,139 @@ mod tests {
             .growth_log
             .iter()
             .any(|e| e.contains("突破受挫：气机紊乱")));
+    }
+
+    #[test]
+    fn test_apply_travel_and_encounter_moves_location_and_advances_time() {
+        let mut world_setting = crate::script::WorldSetting::new();
+        world_setting.locations = vec![
+            crate::script::Location {
+                id: "sect".to_string(),
+                name: "青云宗".to_string(),
+                description: "宗门驻地".to_string(),
+                spiritual_energy: 0.3,
+            },
+            crate::script::Location {
+                id: "valley".to_string(),
+                name: "幽风谷".to_string(),
+                description: "灵压紊乱".to_string(),
+                spiritual_energy: 0.9,
+            },
+        ];
+        let script = crate::script::Script::new(
+            "id".to_string(),
+            "name".to_string(),
+            crate::script::ScriptType::Custom,
+            world_setting.clone(),
+            crate::script::InitialState {
+                player_name: "p".to_string(),
+                player_spiritual_root: crate::models::SpiritualRoot {
+                    element: crate::models::Element::Fire,
+                    elements: vec![crate::models::Element::Fire],
+                    grade: crate::models::Grade::Heavenly,
+                    affinity: 0.8,
+                },
+                starting_location: "sect".to_string(),
+                starting_age: 16,
+            },
+        );
+        let mut state = crate::game_state::GameState {
+            player: crate::game_state::Character::new(
+                "player".to_string(),
+                "Tester".to_string(),
+                crate::models::CharacterStats {
+                    spiritual_root: crate::models::SpiritualRoot {
+                        element: crate::models::Element::Fire,
+                        elements: vec![crate::models::Element::Fire],
+                        grade: crate::models::Grade::Heavenly,
+                        affinity: 0.8,
+                    },
+                    cultivation_realm: crate::models::CultivationRealm::new(
+                        "Qi".to_string(),
+                        1,
+                        0,
+                        1.0,
+                    ),
+                    techniques: vec![],
+                    lifespan: crate::models::Lifespan {
+                        current_age: 16,
+                        max_age: 100,
+                        realm_bonus: 0,
+                    },
+                    combat_power: 120,
+                },
+                "sect".to_string(),
+            ),
+            world_state: crate::game_state::WorldState::from_script(&script),
+            game_time: crate::game_state::GameTime::new(1, 1, 1),
+            event_history: vec![],
+            script,
+        };
+        let mut plot_state = crate::plot_engine::PlotState::new(crate::plot_engine::Scene::new(
+            "s1".to_string(),
+            "scene".to_string(),
+            "desc".to_string(),
+            "sect".to_string(),
+        ));
+
+        let result = apply_travel_and_encounter(&mut state, &mut plot_state, "valley").unwrap();
+
+        assert_eq!(state.player.location, "valley");
+        assert_eq!(plot_state.current_scene.location, "valley");
+        assert_eq!(state.game_time.total_days, 2);
+        assert!(result.0.contains("前往"));
+        assert!(state
+            .player
+            .growth_log
+            .iter()
+            .any(|entry| entry.contains("行程变更")));
+    }
+
+    #[test]
+    fn test_apply_travel_and_encounter_rejects_unknown_location() {
+        let script = create_test_script();
+        let mut state = crate::game_state::GameState {
+            player: crate::game_state::Character::new(
+                "player".to_string(),
+                "Tester".to_string(),
+                crate::models::CharacterStats {
+                    spiritual_root: crate::models::SpiritualRoot {
+                        element: crate::models::Element::Fire,
+                        elements: vec![crate::models::Element::Fire],
+                        grade: crate::models::Grade::Heavenly,
+                        affinity: 0.8,
+                    },
+                    cultivation_realm: crate::models::CultivationRealm::new(
+                        "Qi".to_string(),
+                        1,
+                        0,
+                        1.0,
+                    ),
+                    techniques: vec![],
+                    lifespan: crate::models::Lifespan {
+                        current_age: 16,
+                        max_age: 100,
+                        realm_bonus: 0,
+                    },
+                    combat_power: 120,
+                },
+                "sect".to_string(),
+            ),
+            world_state: crate::game_state::WorldState::from_script(&script),
+            game_time: crate::game_state::GameTime::new(1, 1, 1),
+            event_history: vec![],
+            script,
+        };
+        let mut plot_state = crate::plot_engine::PlotState::new(crate::plot_engine::Scene::new(
+            "s1".to_string(),
+            "scene".to_string(),
+            "desc".to_string(),
+            "sect".to_string(),
+        ));
+
+        let err = apply_travel_and_encounter(&mut state, &mut plot_state, "unknown")
+            .expect_err("unknown location should be rejected");
+        assert!(err.contains("目标地点不存在"));
     }
 }
 

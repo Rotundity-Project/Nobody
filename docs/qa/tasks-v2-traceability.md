@@ -44,7 +44,7 @@
 | 任务 | 计划状态 | 代码审计状态 | 证据 |
 |---|---|---|---|
 | 12. 世界地图与区域生态 | 未完成 | 部分完成 | `MapNodeDef` 与 schema 存在（`src-tauri/schema/map_node_def.v1.json`），但运行期地图生态规则未完整接入主循环 |
-| 13. 移动与遭遇机制 | 未完成 | 部分完成 | 有 location 字段和场景位置，未见完整路径/时间消耗/遭遇池机制 |
+| 13. 移动与遭遇机制 | 未完成 | 部分完成（增强中） | 已新增移动命令 `travel_to_location`，接入地点校验、时间消耗（+1日）、基础遭遇触发与事件日志回写；前端地图页签可触发移动。仍待完整路径图、遭遇池和区域事件权重（`src-tauri/src/tauri_commands.rs`, `src/components/InfoTabsDialog.vue`, `src/components/GameView.vue`） |
 
 ## 阶段 F
 

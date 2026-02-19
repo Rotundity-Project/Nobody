@@ -225,4 +225,32 @@ describe('gameStore', () => {
     expect(store.gameState).toEqual(gameState);
     expect(store.plotState).toEqual(plotState);
   });
+
+  it('travels to location and refreshes game/plot state', async () => {
+    const script = baseScript();
+    const gameState = baseGameState(script);
+    const plotState = basePlotState();
+    plotState.current_scene.location = 'valley';
+    gameState.player.location = 'valley';
+
+    invokeMock.mockImplementation((command: string) => {
+      if (command === 'travel_to_location') {
+        return Promise.resolve('ok');
+      }
+      if (command === 'get_game_state') {
+        return Promise.resolve(gameState);
+      }
+      if (command === 'get_plot_state') {
+        return Promise.resolve(plotState);
+      }
+      return Promise.resolve(null);
+    });
+
+    const store = useGameStore();
+    await store.travelToLocation('valley');
+
+    expect(invokeMock).toHaveBeenCalledWith('travel_to_location', { locationId: 'valley' });
+    expect(store.gameState?.player.location).toBe('valley');
+    expect(store.plotState?.current_scene.location).toBe('valley');
+  });
 });

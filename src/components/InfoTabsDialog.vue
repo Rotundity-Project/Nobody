@@ -80,6 +80,14 @@
             <p class="text-xs text-slate-300">
               灵气强度 {{ Number(loc.spiritual_energy).toFixed(2) }} / 风险 {{ locationRiskLabel(loc.spiritual_energy) }}
             </p>
+            <button
+              v-if="loc.id !== currentLocationId"
+              class="mt-2 rounded bg-sky-700 px-2 py-1 text-xs text-white hover:bg-sky-600 disabled:cursor-not-allowed disabled:opacity-60"
+              :disabled="isTraveling"
+              @click="$emit('travel', loc.id)"
+            >
+              前往此地
+            </button>
           </div>
         </div>
       </section>
@@ -166,6 +174,7 @@ defineProps<{
     spiritual_energy: number;
   }>;
   currentLocationId: string;
+  isTraveling: boolean;
   isGameRunning: boolean;
   eventCount: number;
   isDevMode: boolean;
@@ -179,6 +188,7 @@ defineProps<{
 defineEmits<{
   close: [];
   clearError: [];
+  travel: [locationId: string];
 }>();
 
 const tabs: Array<{ id: TabId; label: string }> = [

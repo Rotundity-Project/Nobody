@@ -42,6 +42,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             tauri_commands::initialize_game,
             tauri_commands::execute_player_action,
+            tauri_commands::travel_to_location,
             tauri_commands::get_game_state,
             tauri_commands::save_game,
             tauri_commands::load_game,
