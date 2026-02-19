@@ -12,7 +12,7 @@
 | 任务 | 计划状态 | 代码审计状态 | 证据 |
 |---|---|---|---|
 | 1. 剧情一致性问题清单与复现库 | 已完成 | 已完成 | 已形成四类问题清单 + 20 条最小复现实测样例（每类≥5，`docs/qa/consistency-cases.md`），满足任务1文档交付与样例数量验收 |
-| 2. 领域模型重构方案设计 | 未完成 | 部分完成 | 已新增 `docs/architecture/domain-model-v2.md`，待按实现持续同步 |
+| 2. 领域模型重构方案设计 | 已完成 | 已完成 | 已形成字段级实体定义、跨模块不变量与生命周期链路说明（`docs/architecture/domain-model-v2.md`） |
 | 3. 数据迁移与兼容策略 | 未完成 | 部分完成（增强中） | 已落地 `schema_version`/`migration_history`、旧档交互态归一化、迁移回写，并新增批量迁移与失败报告能力（`src-tauri/src/save_load.rs`, `src-tauri/src/tauri_commands.rs`）；待补大样本迁移成功率统计与自动修复建议模板 |
 
 ## 阶段 B

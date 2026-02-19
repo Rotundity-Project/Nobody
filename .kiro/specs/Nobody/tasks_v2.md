@@ -30,7 +30,7 @@
   - 输出 `docs/qa/consistency-cases.md`
   - _验收: 每类至少 5 个可复现样例_
 
-- [ ] 2. 领域模型重构方案设计
+- [x] 2. 领域模型重构方案设计
   - 梳理并冻结核心实体：Character / Technique / Equipment / Realm / MapNode / Encounter / CombatContext
   - 定义跨模块不变量（例如“大境界压制不可被低阶法器无条件逆转”）
   - 输出 `docs/architecture/domain-model-v2.md`
