@@ -124,6 +124,70 @@ fn chapter_goal_regeneration_hint(interaction_count: u8) -> String {
     )
 }
 
+fn chapter_pacing_stage(interaction_count: u8) -> &'static str {
+    match interaction_count % 4 {
+        0 => "铺垫",
+        1 => "冲突",
+        2 => "转折",
+        _ => "回落",
+    }
+}
+
+fn narrative_segment_templates(stage: &str) -> Vec<&'static str> {
+    match stage {
+        "铺垫" => vec![
+            "环境：风声与地形细节交代当前局势压力。",
+            "动作：主角先做试探性动作，为后续冲突埋钩子。",
+            "心理：写出动机与犹疑，不只报事件结果。",
+        ],
+        "冲突" => vec![
+            "环境：声光与位移变化体现冲突升级。",
+            "动作：至少一轮攻防转换，并带来可验证后果。",
+            "心理：主角在风险下作出明确取舍。",
+        ],
+        "转折" => vec![
+            "因果：上一段动作引发新变量（资源/关系/情报）。",
+            "动作：给出打破僵局的新策略或代价。",
+            "心理：执念或判断发生变化，推动下一步行动。",
+        ],
+        _ => vec![
+            "环境：余波与现场状态交代局面收束。",
+            "因果：明确本段收获/损失，形成下一段入口。",
+            "心理：角色复盘本轮得失并调整目标。",
+        ],
+    }
+}
+
+fn narrative_dimension_coverage(text: &str) -> usize {
+    let t = text.trim();
+    if t.is_empty() {
+        return 0;
+    }
+    let sensory_words = ["风", "雨", "雾", "声", "光", "影", "冷", "热", "血", "震"];
+    let action_words = ["挥", "斩", "踏", "退", "冲", "挡", "运转", "催动", "闪", "击"];
+    let mental_words = ["犹豫", "执念", "惊", "怒", "惧", "定神", "思索", "决意", "迟疑", "判断"];
+    let mut covered = 0usize;
+    if sensory_words.iter().any(|w| t.contains(w)) {
+        covered += 1;
+    }
+    if action_words.iter().any(|w| t.contains(w)) {
+        covered += 1;
+    }
+    if mental_words.iter().any(|w| t.contains(w)) {
+        covered += 1;
+    }
+    covered
+}
+
+fn narrative_density_and_pacing_hint(interaction_count: u8) -> String {
+    let stage = chapter_pacing_stage(interaction_count);
+    let templates = narrative_segment_templates(stage);
+    format!(
+        "\n\n[叙事节奏与厚度约束]\n当前章节节奏阶段：{}；至少命中环境/动作/心理三类中的两类；必须显化角色内在状态（动机/犹疑/执念）并给出可验证因果。\n可参考片段模板：\n- {}\n- {}\n- {}",
+        stage, templates[0], templates[1], templates[2]
+    )
+}
+
 fn hollow_expression_regeneration_hint() -> &'static str {
     "\n\n[叙事厚度重生成约束]\n禁止空洞套话与重复句式；至少补足环境、动作、心理三类中的两类，并给出可验证的因果变化。"
 }
@@ -1903,6 +1967,12 @@ pub async fn execute_player_action(
 
     let context_bundle = build_plot_context_for_generation(&game_state, &plot_state, &action);
     let mut plot_state_for_generation = plot_state.clone();
+    let narrative_hint =
+        narrative_density_and_pacing_hint(plot_state.current_chapter.interaction_count);
+    plot_state_for_generation.current_scene.description = format!(
+        "{}{}",
+        plot_state_for_generation.current_scene.description, narrative_hint
+    );
     if let Some(bundle) = &context_bundle {
         let inject = render_generation_context(bundle);
         if !inject.is_empty() {
@@ -1988,12 +2058,19 @@ pub async fn execute_player_action(
         }
     }
 
-    if is_hollow_expression(&plot_update.plot_text) {
+    if is_hollow_expression(&plot_update.plot_text)
+        || narrative_dimension_coverage(&plot_update.plot_text) < 2
+    {
         let mut regenerated_state = plot_state_for_generation.clone();
+        let regen_hint = format!(
+            "{}{}",
+            hollow_expression_regeneration_hint(),
+            narrative_density_and_pacing_hint(plot_state.current_chapter.interaction_count)
+        );
         regenerated_state.current_scene.description = format!(
             "{}{}",
             regenerated_state.current_scene.description,
-            hollow_expression_regeneration_hint()
+            regen_hint
         );
         let mut regenerated_update = plot_engine
             .advance_plot_async(&regenerated_state, &action_result)
@@ -3040,6 +3117,20 @@ mod tests {
     fn test_is_hollow_expression_allows_dense_text() {
         let text = "山风掠过石阶，你踏前半步催动灵力，心神却在师门旧训与眼前杀机间迅速权衡。";
         assert!(!is_hollow_expression(text));
+    }
+
+    #[test]
+    fn test_narrative_dimension_coverage_counts_multiple_dimensions() {
+        let text = "冷风卷过石阶，你踏步逼近，心中迟疑却仍决定先试探一剑。";
+        assert!(narrative_dimension_coverage(text) >= 2);
+    }
+
+    #[test]
+    fn test_narrative_density_and_pacing_hint_contains_stage_and_templates() {
+        let hint = narrative_density_and_pacing_hint(2);
+        assert!(hint.contains("转折"));
+        assert!(hint.contains("片段模板"));
+        assert!(hint.contains("内在状态"));
     }
 
     #[test]
