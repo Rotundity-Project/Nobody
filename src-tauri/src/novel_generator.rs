@@ -656,5 +656,48 @@ mod property_tests {
             }
         }
     }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(100))]
+
+        // Feature: Nobody, Property 23: technique risk-tag traceability in chapter export
+        #[test]
+        fn prop_export_keeps_technique_risk_tags_traceable(
+            risk_tags in proptest::collection::vec("[a-z]{3,12}", 1..20)
+        ) {
+            let events = risk_tags
+                .iter()
+                .enumerate()
+                .map(|(i, tag)| {
+                    build_event(
+                        (i + 1) as u64,
+                        (i + 1) as u64,
+                        format!("Technique turbulence detected, risk_tag={}", tag),
+                    )
+                })
+                .collect::<Vec<GameEvent>>();
+
+            let runtime = tokio::runtime::Runtime::new().unwrap();
+            let generator = NovelGenerator::new();
+            let novel = runtime
+                .block_on(generator.generate_novel("RiskTagTrace", &events))
+                .unwrap();
+            let joined = novel
+                .chapters
+                .iter()
+                .map(|chapter| chapter.content.as_str())
+                .collect::<Vec<&str>>()
+                .join("\n");
+
+            for tag in risk_tags {
+                let marker = format!("risk_tag={}", tag);
+                prop_assert!(
+                    joined.contains(&marker),
+                    "export content missing risk tag marker: {}",
+                    marker
+                );
+            }
+        }
+    }
 }
 
