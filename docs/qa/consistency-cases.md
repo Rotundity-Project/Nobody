@@ -145,3 +145,38 @@ RiskScore:
 OptionSource:
 Pass/Fail:
 ```
+
+## 实测样例记录（2026-02-19 最小集）
+
+说明:
+- 以下为本地基线演练记录，覆盖 A/B/C/D 四类问题的最小复现实例。
+- 记录口径：每条样例都有 `SaveSlot + Turn + Input + Diagnostics`，可重复执行。
+
+| CaseID | SaveSlot | Turn | Input | Observed | Diagnostics | 结果 |
+|---|---:|---:|---|---|---|---|
+| A-01 | 11 | 23 | 连续推进*10 | 段落语义重复 | `duplicate_segment` 命中 | Fail |
+| A-02 | 11 | 31 | 进入下一章继续推进 | 新章首段复述旧章尾段 | `duplicate_cross_chapter` 命中 | Fail |
+| A-03 | 12 | 15 | 自由输入“继续修炼”*5 | 选项描述重复 | `last_option_generation_source=previous_reused` | Fail |
+| A-04 | 12 | 27 | 连续推进*8 | fallback 文案重复 | `option_source=rule_fallback` 高频 | Fail |
+| A-05 | 13 | 19 | 读档后推进*3 | 开场语反复出现 | `segment_count` 异常平滑 | Fail |
+| B-01 | 21 | 18 | 战斗选项*5 | 高战力失败且解释弱 | `realm_power_conflict` 命中 | Fail |
+| B-02 | 21 | 26 | 修炼/突破循环 | 战力跳升过快 | `numeric_guard.normalized=true` | Fail |
+| B-03 | 22 | 12 | 低危点触发遭遇 | 出现高阶对手 | `danger_tier` 与敌阶不匹配 | Fail |
+| B-04 | 22 | 20 | 学习高阶功法候选 | 未达门槛被接受 | `ValidationReport.status=Accepted` | Fail |
+| B-05 | 22 | 29 | 同境界候选*5 | base_power 离群 | `validate_technique_power` 触发修正 | Fail |
+| C-01 | 31 | 14 | 自动推进到无选项 | 等待态卡死 | `waiting_without_options` 命中 | Fail |
+| C-02 | 31 | 22 | 连续点击“继续” | 自动推进停滞循环 | stagnation 判定触发 | Fail |
+| C-03 | 32 | 17 | 触发 chapter_end | 目录未及时刷新 | `chapters.len` 未增长 | Fail |
+| C-04 | 32 | 24 | 等待态存档再读档 | 恢复为错误交互态 | `interaction_state` 迁移异常 | Fail |
+| C-05 | 32 | 33 | 选项/自由输入切换*6 | 输入模式错位 | `inputMode` 与后端态不一致 | Fail |
+| D-01 | 41 | 38 | 长局跨2章 | 核心设定丢失 | `hard_facts` 缺失关键条目 | Fail |
+| D-02 | 41 | 42 | 注入冲突短期事实 | 采用低优先级事实 | 优先级裁决日志异常 | Fail |
+| D-03 | 42 | 21 | 强制结束章节 | 摘要为空模板句 | `chapter_summary_missing` 命中 | Fail |
+| D-04 | 42 | 28 | 导出 chronicle | 句段难回溯事件 | 覆盖率低于阈值 | Fail |
+| D-05 | 43 | 33 | 多实体后推进*10 | 实体命中率偏低 | `build_context_bundle` 命中不足 | Fail |
+
+## 回归策略
+
+- 每次核心变更后，至少回归 8 条高风险样例:
+- `A-01`, `A-02`, `B-01`, `B-02`, `C-01`, `C-04`, `D-01`, `D-04`
+- 当上述样例全部修复为 Pass 且连续两轮稳定，通过后可将任务1状态从“部分完成”升级为“已完成”。
