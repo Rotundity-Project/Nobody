@@ -1,4 +1,4 @@
-import { defineStore } from 'pinia';
+﻿import { defineStore } from 'pinia';
 import { invoke } from '@tauri-apps/api/core';
 import { invokeWithTimeout } from '../utils/tauriInvoke';
 import type {
@@ -14,6 +14,7 @@ interface GameStoreState {
   currentScript: Script | null;
   gameState: GameState | null;
   plotState: PlotState | null;
+  reachableLocationIds: string[];
   isLoading: boolean;
   error: string | null;
 }
@@ -23,6 +24,7 @@ export const useGameStore = defineStore('game', {
     currentScript: null,
     gameState: null,
     plotState: null,
+    reachableLocationIds: [],
     isLoading: false,
     error: null,
   }),
@@ -37,19 +39,31 @@ export const useGameStore = defineStore('game', {
   },
 
   actions: {
+    async refreshReachableLocations() {
+      try {
+        const ids = await invoke<unknown>('get_reachable_locations');
+        this.reachableLocationIds = Array.isArray(ids)
+          ? ids.filter((id): id is string => typeof id === 'string')
+          : [];
+      } catch {
+        this.reachableLocationIds = [];
+      }
+    },
+
     async initializeGame(script: Script, playerName?: string) {
       this.isLoading = true;
       this.error = null;
 
       try {
         const trimmedName = playerName?.trim();
-        script.initial_state.player_name = trimmedName || '无名弟子';
+        script.initial_state.player_name = trimmedName || '鏃犲悕寮熷瓙';
         const gameState = await invoke<GameState>('initialize_game', { script });
         this.currentScript = script;
         this.gameState = gameState;
 
         const plotState = await invoke<PlotState>('initialize_plot');
         this.plotState = plotState;
+        await this.refreshReachableLocations();
       } catch (error) {
         this.error = error instanceof Error ? error.message : String(error);
         throw error;
@@ -85,6 +99,7 @@ export const useGameStore = defineStore('game', {
           '获取剧情状态超时，请重试',
         );
         this.plotState = plotState;
+        await this.refreshReachableLocations();
 
         // 显示 LLM 诊断信息（如果有）
         if (plotState.last_generation_diagnostics) {
@@ -105,7 +120,7 @@ export const useGameStore = defineStore('game', {
             this.plotState = latestPlotState;
             this.error = latestPlotState.last_generation_diagnostics ?? '剧情推进超时，请稍后重试';
           } catch {
-            this.error = '剧情推进超时，请稍后重试。您可以尝试重新连接或调整 LLM 设置。';
+            this.error = '剧情推进超时，请稍后重试。你可以尝试重连或调整 LLM 设置。';
           }
         } else {
           this.error = `操作失败: ${message}`;
@@ -139,6 +154,7 @@ export const useGameStore = defineStore('game', {
 
         const plotState = await invoke<PlotState>('get_plot_state');
         this.plotState = plotState;
+        await this.refreshReachableLocations();
       } catch (error) {
         this.error = error instanceof Error ? error.message : String(error);
         throw error;
@@ -156,6 +172,7 @@ export const useGameStore = defineStore('game', {
         const plotState = await invoke<PlotState>('get_plot_state');
         this.gameState = gameState;
         this.plotState = plotState;
+        await this.refreshReachableLocations();
       } catch (error) {
         this.error = error instanceof Error ? error.message : String(error);
         throw error;
@@ -186,16 +203,17 @@ export const useGameStore = defineStore('game', {
           'generate_random_script',
           undefined,
           120000,
-          '随机剧本生成超时，请稍后重试',
+          '闅忔満鍓ф湰鐢熸垚瓒呮椂锛岃绋嶅悗閲嶈瘯',
         );
         const trimmedName = playerName?.trim();
-        script.initial_state.player_name = trimmedName || '无名弟子';
+        script.initial_state.player_name = trimmedName || '鏃犲悕寮熷瓙';
         const gameState = await invoke<GameState>('initialize_game', { script });
         this.currentScript = script;
         this.gameState = gameState;
 
         const plotState = await invoke<PlotState>('initialize_plot');
         this.plotState = plotState;
+        await this.refreshReachableLocations();
       } catch (error) {
         this.error = error instanceof Error ? error.message : String(error);
         throw error;
@@ -221,7 +239,10 @@ export const useGameStore = defineStore('game', {
       this.currentScript = null;
       this.gameState = null;
       this.plotState = null;
+      this.reachableLocationIds = [];
       this.error = null;
     },
   },
 });
+
+

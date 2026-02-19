@@ -19,6 +19,7 @@ vi.mock('../../stores/gameStore', () => ({
     playerCharacter: null,
     plotState: null,
     gameState: null,
+    reachableLocationIds: [],
     error: null,
     clearError: vi.fn(),
   }),

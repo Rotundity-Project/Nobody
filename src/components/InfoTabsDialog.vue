@@ -80,13 +80,19 @@
             <p class="text-xs text-slate-300">
               灵气强度 {{ Number(loc.spiritual_energy).toFixed(2) }} / 风险 {{ locationRiskLabel(loc.spiritual_energy) }}
             </p>
+            <p
+              class="mt-1 text-[11px]"
+              :class="isReachable(loc.id, currentLocationId, reachableLocationIds) ? 'text-emerald-300' : 'text-amber-300'"
+            >
+              {{ isReachable(loc.id, currentLocationId, reachableLocationIds) ? '可达' : '暂不可达' }}
+            </p>
             <button
               v-if="loc.id !== currentLocationId"
               class="mt-2 rounded bg-sky-700 px-2 py-1 text-xs text-white hover:bg-sky-600 disabled:cursor-not-allowed disabled:opacity-60"
-              :disabled="isTraveling"
+              :disabled="isTraveling || !isReachable(loc.id, currentLocationId, reachableLocationIds)"
               @click="$emit('travel', loc.id)"
             >
-              前往此地
+              {{ isReachable(loc.id, currentLocationId, reachableLocationIds) ? '前往此地' : '需分段行进' }}
             </button>
           </div>
         </div>
@@ -173,6 +179,7 @@ defineProps<{
     name: string;
     spiritual_energy: number;
   }>;
+  reachableLocationIds: string[];
   currentLocationId: string;
   isTraveling: boolean;
   isGameRunning: boolean;
@@ -206,5 +213,13 @@ const locationRiskLabel = (spiritualEnergy: number): string => {
   if (spiritualEnergy >= 0.8) return '高';
   if (spiritualEnergy >= 0.4) return '中';
   return '低';
+};
+
+const isReachable = (
+  locationId: string,
+  currentLocationId: string,
+  reachableLocationIds: string[],
+): boolean => {
+  return locationId === currentLocationId || reachableLocationIds.includes(locationId);
 };
 </script>

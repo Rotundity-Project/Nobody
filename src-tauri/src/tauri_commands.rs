@@ -207,6 +207,13 @@ fn apply_travel_and_encounter(
     plot_state: &mut PlotState,
     target_location: &str,
 ) -> Result<(String, bool), String> {
+    let reachable_ids = compute_reachable_location_ids(game_state);
+    if !reachable_ids.iter().any(|id| id == target_location) {
+        return Err(format!(
+            "当前状态下无法前往该地点: {}（请先降低伤势或分段行进）",
+            target_location
+        ));
+    }
     let target_node = game_state
         .world_state
         .locations
@@ -232,8 +239,18 @@ fn apply_travel_and_encounter(
 
     let total_days = game_state.game_time.total_days;
     let energy = target_node.spiritual_energy;
-    let hazard_score = ((energy * 100.0).round() as u32 + total_days) % 100;
-    let encounter_triggered = hazard_score >= 65;
+    let status = &game_state.player.combat_status;
+    let weighted_prob = (0.18
+        + (energy as f64 * 0.42)
+        + (status.enmity.max(0) as f64 * 0.025)
+        + (status.qi_deviation as f64 * 0.02))
+        .clamp(0.1, 0.92);
+    let mut hash_acc = total_days as u64;
+    for b in target_location.as_bytes() {
+        hash_acc = hash_acc.wrapping_mul(131).wrapping_add(u64::from(*b));
+    }
+    let roll = (hash_acc % 100) as f64 / 100.0;
+    let encounter_triggered = roll < weighted_prob;
     let mut message = format!("你从{}前往{}，行程耗时1日。", from_name, target_name);
 
     if encounter_triggered {
@@ -260,6 +277,62 @@ fn apply_travel_and_encounter(
     );
     plot_state.current_chapter.content.push(message.clone());
     Ok((message, encounter_triggered))
+}
+
+fn compute_reachable_location_ids(game_state: &GameState) -> Vec<String> {
+    let current_id = game_state.player.location.clone();
+    let Some(current_node) = game_state.world_state.locations.get(&current_id) else {
+        let mut all = game_state
+            .world_state
+            .locations
+            .keys()
+            .cloned()
+            .collect::<Vec<_>>();
+        all.sort();
+        return all;
+    };
+    let realm = &game_state.player.stats.cultivation_realm;
+    let status = &game_state.player.combat_status;
+
+    let mobility = (0.22
+        + (realm.level as f32 * 0.09)
+        + ((realm.sub_level.min(3)) as f32 * 0.03)
+        - (status.injury_level as f32 * 0.025)
+        - (status.qi_deviation as f32 * 0.01))
+        .clamp(0.12, 0.95);
+    let max_energy = (0.35 + (realm.level as f32 * 0.16) - (status.injury_level as f32 * 0.02))
+        .clamp(0.35, 1.2);
+
+    let mut by_gap = game_state
+        .world_state
+        .locations
+        .values()
+        .map(|loc| {
+            let gap = (loc.spiritual_energy - current_node.spiritual_energy).abs();
+            (loc.id.clone(), loc.spiritual_energy, gap)
+        })
+        .collect::<Vec<_>>();
+    by_gap.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap_or(std::cmp::Ordering::Equal));
+    let nearest_two = if by_gap.len() > 3 {
+        by_gap
+            .iter()
+            .take(2)
+            .map(|(id, _, _)| id.clone())
+            .collect::<Vec<_>>()
+    } else {
+        Vec::new()
+    };
+
+    let mut reachable = by_gap
+        .into_iter()
+        .filter(|(_, energy, gap)| *gap <= mobility && *energy <= max_energy + 0.05)
+        .map(|(id, _, _)| id)
+        .collect::<Vec<_>>();
+    reachable.push(current_id);
+    reachable.extend(nearest_two);
+    reachable.sort();
+    reachable.dedup();
+    reachable
 }
 
 fn is_high_risk_technique_name(name: &str) -> bool {
@@ -1203,6 +1276,18 @@ pub async fn list_save_slots(engine: State<'_, Mutex<GameEngine>>) -> Result<Vec
         Err(poisoned) => poisoned.into_inner(),
     };
     engine.list_saves().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_reachable_locations(
+    engine: State<'_, Mutex<GameEngine>>,
+) -> Result<Vec<String>, String> {
+    let engine = match engine.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    let game_state = engine.get_current_state().map_err(|e| e.to_string())?;
+    Ok(compute_reachable_location_ids(&game_state))
 }
 
 #[tauri::command]
@@ -2265,6 +2350,87 @@ mod tests {
         let err = apply_travel_and_encounter(&mut state, &mut plot_state, "unknown")
             .expect_err("unknown location should be rejected");
         assert!(err.contains("目标地点不存在"));
+    }
+
+    #[test]
+    fn test_apply_travel_and_encounter_rejects_unreachable_location() {
+        let mut world_setting = crate::script::WorldSetting::new();
+        world_setting.locations = vec![
+            crate::script::Location {
+                id: "sect".to_string(),
+                name: "青云宗".to_string(),
+                description: "宗门驻地".to_string(),
+                spiritual_energy: 0.2,
+            },
+            crate::script::Location {
+                id: "abyss".to_string(),
+                name: "魔渊".to_string(),
+                description: "极高灵压".to_string(),
+                spiritual_energy: 1.5,
+            },
+        ];
+        let script = crate::script::Script::new(
+            "id".to_string(),
+            "name".to_string(),
+            crate::script::ScriptType::Custom,
+            world_setting.clone(),
+            crate::script::InitialState {
+                player_name: "p".to_string(),
+                player_spiritual_root: crate::models::SpiritualRoot {
+                    element: crate::models::Element::Fire,
+                    elements: vec![crate::models::Element::Fire],
+                    grade: crate::models::Grade::Triple,
+                    affinity: 0.3,
+                },
+                starting_location: "sect".to_string(),
+                starting_age: 16,
+            },
+        );
+
+        let mut state = crate::game_state::GameState {
+            player: crate::game_state::Character::new(
+                "player".to_string(),
+                "Tester".to_string(),
+                crate::models::CharacterStats {
+                    spiritual_root: crate::models::SpiritualRoot {
+                        element: crate::models::Element::Fire,
+                        elements: vec![crate::models::Element::Fire],
+                        grade: crate::models::Grade::Triple,
+                        affinity: 0.3,
+                    },
+                    cultivation_realm: crate::models::CultivationRealm::new(
+                        "Qi".to_string(),
+                        1,
+                        0,
+                        1.0,
+                    ),
+                    techniques: vec![],
+                    lifespan: crate::models::Lifespan {
+                        current_age: 16,
+                        max_age: 100,
+                        realm_bonus: 0,
+                    },
+                    combat_power: 80,
+                },
+                "sect".to_string(),
+            ),
+            world_state: crate::game_state::WorldState::from_script(&script),
+            game_time: crate::game_state::GameTime::new(1, 1, 1),
+            event_history: vec![],
+            script,
+        };
+        state.player.combat_status.injury_level = 8;
+        state.player.combat_status.qi_deviation = 8;
+        let mut plot_state = crate::plot_engine::PlotState::new(crate::plot_engine::Scene::new(
+            "s1".to_string(),
+            "scene".to_string(),
+            "desc".to_string(),
+            "sect".to_string(),
+        ));
+
+        let err = apply_travel_and_encounter(&mut state, &mut plot_state, "abyss")
+            .expect_err("unreachable location should be rejected");
+        assert!(err.contains("无法前往"));
     }
 }
 
