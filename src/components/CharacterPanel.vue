@@ -116,6 +116,22 @@
         </div>
       </div>
 
+      <div v-if="techniqueGroups.length > 0">
+        <p class="text-slate-400 text-sm">
+          功法流派
+        </p>
+        <div class="space-y-2">
+          <div
+            v-for="group in techniqueGroups"
+            :key="group.style"
+            class="rounded border border-slate-700 bg-slate-900/40 p-2"
+          >
+            <p class="text-xs text-slate-300">{{ group.style }}（{{ group.items.length }}）</p>
+            <p class="text-xs text-slate-200">{{ group.items.join(' / ') }}</p>
+          </div>
+        </div>
+      </div>
+
       <div>
         <p class="text-slate-400 text-sm">
           位置
@@ -227,6 +243,29 @@ const recentGrowthLog = computed(() => {
 const personalityTags = computed(() => {
   if (!props.character?.personality_tags?.length) return [];
   return props.character.personality_tags.slice(0, 6);
+});
+
+const classifyTechniqueStyle = (name: string): string => {
+  const lower = name.toLowerCase();
+  if (lower.includes('剑') || lower.includes('sword')) return '剑修';
+  if (lower.includes('刀') || lower.includes('blade')) return '刀修';
+  if (lower.includes('拳') || lower.includes('体') || lower.includes('body')) return '体修';
+  if (lower.includes('符') || lower.includes('阵') || lower.includes('array') || lower.includes('talisman')) return '符阵';
+  if (lower.includes('火') || lower.includes('炎') || lower.includes('water') || lower.includes('冰')) return '术法';
+  return '杂学';
+};
+
+const techniqueGroups = computed(() => {
+  const techniques = props.character?.stats?.techniques ?? [];
+  if (techniques.length === 0) return [];
+  const grouped = new Map<string, string[]>();
+  for (const tech of techniques) {
+    const style = classifyTechniqueStyle(tech);
+    const list = grouped.get(style) ?? [];
+    list.push(tech);
+    grouped.set(style, list);
+  }
+  return Array.from(grouped.entries()).map(([style, items]) => ({ style, items }));
 });
 
 const getRootGradeClass = (grade: Grade): string => {
