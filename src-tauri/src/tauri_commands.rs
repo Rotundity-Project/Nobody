@@ -454,6 +454,25 @@ fn apply_combat_aftermath(
         if status.injury_level > 0 && strategy != CombatStrategy::Aggressive {
             status.injury_level = status.injury_level.saturating_sub(1);
         }
+        game_state.player.social_profile.favor = game_state
+            .player
+            .social_profile
+            .favor
+            .saturating_add(if strategy == CombatStrategy::Aggressive {
+                2
+            } else {
+                1
+            });
+        if strategy == CombatStrategy::Cautious {
+            game_state.player.social_profile.mentor_bond =
+                game_state.player.social_profile.mentor_bond.saturating_add(1);
+        }
+        game_state.player.social_profile.vendetta = game_state
+            .player
+            .social_profile
+            .vendetta
+            .saturating_sub(1)
+            .max(0);
     } else {
         status.reputation = status.reputation.saturating_sub(1);
         status.enmity = status
@@ -465,7 +484,21 @@ fn apply_combat_aftermath(
             2
         };
         status.injury_level = status.injury_level.saturating_add(injury_gain).min(10);
+        game_state.player.social_profile.vendetta = game_state
+            .player
+            .social_profile
+            .vendetta
+            .saturating_add(if strategy == CombatStrategy::Survival {
+                1
+            } else {
+                2
+            });
+        if strategy == CombatStrategy::Aggressive {
+            game_state.player.social_profile.sect_affinity =
+                game_state.player.social_profile.sect_affinity.saturating_sub(1);
+        }
     }
+    normalize_social_profile(&mut game_state.player.social_profile);
 
     format!(
         "战后状态更新：伤势={}, 威望={}, 仇恨={}",
@@ -521,6 +554,23 @@ fn push_growth_log(game_state: &mut GameState, entry: impl Into<String>) {
         let overflow = log.len() - MAX_GROWTH_LOG;
         log.drain(0..overflow);
     }
+}
+
+fn normalize_social_profile(profile: &mut crate::game_state::SocialProfile) {
+    profile.sect_affinity = profile.sect_affinity.clamp(-50, 50);
+    profile.mentor_bond = profile.mentor_bond.clamp(-50, 50);
+    profile.favor = profile.favor.clamp(-50, 50);
+    profile.vendetta = profile.vendetta.clamp(0, 100);
+
+    let stance_score =
+        profile.sect_affinity + profile.mentor_bond + profile.favor - profile.vendetta;
+    profile.camp_stance = if stance_score >= 12 {
+        "righteous".to_string()
+    } else if stance_score <= -8 {
+        "demonic".to_string()
+    } else {
+        "neutral".to_string()
+    };
 }
 
 fn apply_travel_and_encounter(
@@ -579,6 +629,8 @@ fn apply_travel_and_encounter(
         let status = &mut game_state.player.combat_status;
         let encounter_text = select_encounter_text(energy, hash_acc);
         status.enmity = status.enmity.saturating_add(1);
+        game_state.player.social_profile.vendetta =
+            game_state.player.social_profile.vendetta.saturating_add(1);
         if energy >= 0.8 {
             status.injury_level = status.injury_level.saturating_add(1).min(10);
             message.push(' ');
@@ -591,7 +643,14 @@ fn apply_travel_and_encounter(
         }
     } else {
         message.push_str(" 途中未遭遇显著冲突。");
+        game_state.player.social_profile.favor =
+            game_state.player.social_profile.favor.saturating_add(1);
     }
+    if target_location.contains("sect") || target_name.contains("宗") {
+        game_state.player.social_profile.sect_affinity =
+            game_state.player.social_profile.sect_affinity.saturating_add(1);
+    }
+    normalize_social_profile(&mut game_state.player.social_profile);
 
     push_growth_log(
         game_state,
@@ -3177,6 +3236,54 @@ mod tests {
         let survival = strategy_power_modifier_pct(CombatStrategy::Survival, &status);
         assert!(aggressive > 0);
         assert!(survival < 0);
+    }
+
+    #[test]
+    fn test_apply_combat_aftermath_updates_social_profile() {
+        let script = create_test_script();
+        let mut state = crate::game_state::GameState {
+            player: crate::game_state::Character::new(
+                "player".to_string(),
+                "Tester".to_string(),
+                crate::models::CharacterStats {
+                    spiritual_root: crate::models::SpiritualRoot {
+                        element: crate::models::Element::Fire,
+                        elements: vec![crate::models::Element::Fire],
+                        grade: crate::models::Grade::Heavenly,
+                        affinity: 0.8,
+                    },
+                    cultivation_realm: crate::models::CultivationRealm::new(
+                        "Qi".to_string(),
+                        1,
+                        0,
+                        1.0,
+                    ),
+                    techniques: vec![],
+                    lifespan: crate::models::Lifespan {
+                        current_age: 16,
+                        max_age: 100,
+                        realm_bonus: 0,
+                    },
+                    combat_power: 120,
+                },
+                "sect".to_string(),
+            ),
+            world_state: crate::game_state::WorldState::from_script(&script),
+            game_time: crate::game_state::GameTime::new(1, 1, 1),
+            event_history: vec![],
+            script,
+        };
+        state.player.social_profile.sect_affinity = 10;
+        state.player.social_profile.vendetta = 4;
+
+        let _ = apply_combat_aftermath(&mut state, true, Some(CombatStrategy::Cautious));
+        assert!(state.player.social_profile.favor >= 1);
+        assert!(state.player.social_profile.mentor_bond >= 1);
+        assert!(state.player.social_profile.vendetta <= 4);
+        assert!(
+            state.player.social_profile.camp_stance == "righteous"
+                || state.player.social_profile.camp_stance == "neutral"
+        );
     }
 
     #[test]
