@@ -48,7 +48,7 @@ fn build_plot_context_for_generation(
     plot_state: &PlotState,
     action: &PlayerAction,
 ) -> Option<ContextBundle> {
-    let recent_context_lines = plot_state
+    let mut recent_context_lines = plot_state
         .current_chapter
         .content
         .iter()
@@ -59,6 +59,12 @@ fn build_plot_context_for_generation(
         .into_iter()
         .rev()
         .collect::<Vec<_>>();
+    recent_context_lines.push(format!(
+        "战斗后状态: injury_level={}, reputation={}, enmity={}",
+        game_state.player.combat_status.injury_level,
+        game_state.player.combat_status.reputation,
+        game_state.player.combat_status.enmity
+    ));
 
     let input = ContextBuildInput {
         world_id: game_state.script.id.clone(),
@@ -164,6 +170,26 @@ fn build_combat_explanation(
         reversal_factors,
         summary,
     }
+}
+
+fn apply_combat_aftermath(game_state: &mut GameState, combat_success: bool) -> String {
+    let status = &mut game_state.player.combat_status;
+    if combat_success {
+        status.reputation = status.reputation.saturating_add(2);
+        status.enmity = status.enmity.saturating_add(1);
+        if status.injury_level > 0 {
+            status.injury_level = status.injury_level.saturating_sub(1);
+        }
+    } else {
+        status.reputation = status.reputation.saturating_sub(1);
+        status.enmity = status.enmity.saturating_add(2);
+        status.injury_level = status.injury_level.saturating_add(2).min(10);
+    }
+
+    format!(
+        "战后状态更新：伤势={}, 威望={}, 仇恨={}",
+        status.injury_level, status.reputation, status.enmity
+    )
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -541,6 +567,10 @@ pub async fn execute_player_action(
                             check.reason.unwrap_or_else(|| "未知原因".to_string())
                         );
                     }
+                    let aftermath_summary = apply_combat_aftermath(&mut game_state, action_result.success);
+                    action_result.events.push(aftermath_summary.clone());
+                    action_result.description =
+                        format!("{}；{}", action_result.description, aftermath_summary);
                 }
                 Action::Rest | Action::Custom { .. } => {}
             }
@@ -1590,6 +1620,69 @@ mod tests {
             .reversal_factors
             .iter()
             .any(|item| item.contains("数值守门裁决")));
+    }
+
+    #[test]
+    fn test_apply_combat_aftermath_updates_persistent_status() {
+        let mut state = crate::game_state::GameState {
+            script: crate::script::Script::new(
+                "id".to_string(),
+                "name".to_string(),
+                crate::script::ScriptType::Custom,
+                crate::script::WorldSetting::new(),
+                crate::script::InitialState {
+                    player_name: "p".to_string(),
+                    player_spiritual_root: crate::models::SpiritualRoot {
+                        element: crate::models::Element::Fire,
+                        elements: vec![crate::models::Element::Fire],
+                        grade: crate::models::Grade::Heavenly,
+                        affinity: 0.8,
+                    },
+                    starting_location: "sect".to_string(),
+                    starting_age: 16,
+                },
+            ),
+            player: crate::game_state::Character::new(
+                "player".to_string(),
+                "Tester".to_string(),
+                crate::models::CharacterStats {
+                    spiritual_root: crate::models::SpiritualRoot {
+                        element: crate::models::Element::Fire,
+                        elements: vec![crate::models::Element::Fire],
+                        grade: crate::models::Grade::Heavenly,
+                        affinity: 0.8,
+                    },
+                    cultivation_realm: crate::models::CultivationRealm::new(
+                        "Qi".to_string(),
+                        1,
+                        0,
+                        1.0,
+                    ),
+                    techniques: vec![],
+                    lifespan: crate::models::Lifespan {
+                        current_age: 16,
+                        max_age: 100,
+                        realm_bonus: 0,
+                    },
+                    combat_power: 120,
+                },
+                "sect".to_string(),
+            ),
+            world_state: crate::game_state::WorldState::new(),
+            game_time: crate::game_state::GameTime::new(1, 1, 1),
+            event_history: vec![],
+        };
+
+        let success_summary = apply_combat_aftermath(&mut state, true);
+        assert!(success_summary.contains("战后状态更新"));
+        assert_eq!(state.player.combat_status.reputation, 2);
+        assert_eq!(state.player.combat_status.enmity, 1);
+
+        let fail_summary = apply_combat_aftermath(&mut state, false);
+        assert!(fail_summary.contains("战后状态更新"));
+        assert_eq!(state.player.combat_status.reputation, 1);
+        assert_eq!(state.player.combat_status.enmity, 3);
+        assert_eq!(state.player.combat_status.injury_level, 2);
     }
 }
 

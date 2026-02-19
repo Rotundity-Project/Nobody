@@ -22,6 +22,15 @@ pub struct Character {
     pub stats: CharacterStats,
     pub inventory: Vec<Item>,
     pub location: String,
+    #[serde(default)]
+    pub combat_status: CombatAftermathStatus,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct CombatAftermathStatus {
+    pub injury_level: u8,
+    pub reputation: i32,
+    pub enmity: i32,
 }
 
 /// 角色背包中的物品
@@ -107,6 +116,7 @@ impl Character {
             stats,
             inventory: Vec::new(),
             location,
+            combat_status: CombatAftermathStatus::default(),
         }
     }
 }
@@ -211,6 +221,7 @@ mod tests {
         assert_eq!(character.name, "Test Player");
         assert_eq!(character.location, "sect");
         assert!(character.inventory.is_empty());
+        assert_eq!(character.combat_status.injury_level, 0);
     }
 
     #[test]
