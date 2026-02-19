@@ -192,6 +192,19 @@ fn apply_combat_aftermath(game_state: &mut GameState, combat_success: bool) -> S
     )
 }
 
+fn location_spiritual_energy(game_state: &GameState) -> Option<f32> {
+    game_state
+        .world_state
+        .locations
+        .get(&game_state.player.location)
+        .map(|loc| loc.spiritual_energy)
+}
+
+fn cultivation_gain_multiplier_from_location(spiritual_energy: Option<f32>) -> f32 {
+    let e = spiritual_energy.unwrap_or(0.5);
+    (0.8 + e * 0.6).clamp(0.6, 1.6)
+}
+
 fn push_growth_log(game_state: &mut GameState, entry: impl Into<String>) {
     let log = &mut game_state.player.growth_log;
     log.push(entry.into());
@@ -761,7 +774,9 @@ pub async fn execute_player_action(
             match &selected_option.action {
                 Action::Cultivate => {
                     let old_power = game_state.player.stats.combat_power;
-                    let gain = ((old_power as f32 * 0.03).round() as u64).max(1);
+                    let energy = location_spiritual_energy(&game_state);
+                    let gain_multiplier = cultivation_gain_multiplier_from_location(energy);
+                    let gain = ((old_power as f32 * 0.03 * gain_multiplier).round() as u64).max(1);
                     let new_power = old_power.saturating_add(gain);
                     game_state.player.stats.combat_power = new_power;
                     action_result.stat_changes.push(StatChange {
@@ -770,12 +785,17 @@ pub async fn execute_player_action(
                         new_value: new_power.to_string(),
                     });
                     action_result.description = format!(
-                        "{} 战力提升了 {}。",
-                        action_result.description, gain
+                        "{} 战力提升了 {}（区域灵气修正 {:.2}x）。",
+                        action_result.description, gain, gain_multiplier
                     );
                     push_growth_log(
                         &mut game_state,
-                        format!("修炼成长：战力 {} -> {}", old_power, new_power),
+                        format!(
+                            "修炼成长：战力 {} -> {}（灵气 {:.2}）",
+                            old_power,
+                            new_power,
+                            energy.unwrap_or(0.5)
+                        ),
                     );
                 }
                 Action::Breakthrough => {
@@ -2435,6 +2455,77 @@ mod tests {
         let err = apply_travel_and_encounter(&mut state, &mut plot_state, "abyss")
             .expect_err("unreachable location should be rejected");
         assert!(err.contains("无法前往"));
+    }
+
+    #[test]
+    fn test_cultivation_gain_multiplier_from_location_is_monotonic() {
+        let low = cultivation_gain_multiplier_from_location(Some(0.1));
+        let mid = cultivation_gain_multiplier_from_location(Some(0.5));
+        let high = cultivation_gain_multiplier_from_location(Some(1.0));
+        assert!(low <= mid);
+        assert!(mid <= high);
+        assert!(low >= 0.6 && high <= 1.6);
+    }
+
+    #[test]
+    fn test_location_spiritual_energy_reads_current_node() {
+        let mut world_setting = crate::script::WorldSetting::new();
+        world_setting.locations = vec![crate::script::Location {
+            id: "cave".to_string(),
+            name: "灵息洞".to_string(),
+            description: "灵气汇聚".to_string(),
+            spiritual_energy: 0.95,
+        }];
+        let script = crate::script::Script::new(
+            "id".to_string(),
+            "name".to_string(),
+            crate::script::ScriptType::Custom,
+            world_setting.clone(),
+            crate::script::InitialState {
+                player_name: "p".to_string(),
+                player_spiritual_root: crate::models::SpiritualRoot {
+                    element: crate::models::Element::Fire,
+                    elements: vec![crate::models::Element::Fire],
+                    grade: crate::models::Grade::Heavenly,
+                    affinity: 0.8,
+                },
+                starting_location: "cave".to_string(),
+                starting_age: 16,
+            },
+        );
+        let state = crate::game_state::GameState {
+            player: crate::game_state::Character::new(
+                "player".to_string(),
+                "Tester".to_string(),
+                crate::models::CharacterStats {
+                    spiritual_root: crate::models::SpiritualRoot {
+                        element: crate::models::Element::Fire,
+                        elements: vec![crate::models::Element::Fire],
+                        grade: crate::models::Grade::Heavenly,
+                        affinity: 0.8,
+                    },
+                    cultivation_realm: crate::models::CultivationRealm::new(
+                        "Qi".to_string(),
+                        1,
+                        0,
+                        1.0,
+                    ),
+                    techniques: vec![],
+                    lifespan: crate::models::Lifespan {
+                        current_age: 16,
+                        max_age: 100,
+                        realm_bonus: 0,
+                    },
+                    combat_power: 120,
+                },
+                "cave".to_string(),
+            ),
+            world_state: crate::game_state::WorldState::from_script(&script),
+            game_time: crate::game_state::GameTime::new(1, 1, 1),
+            event_history: vec![],
+            script,
+        };
+        assert_eq!(location_spiritual_energy(&state), Some(0.95));
     }
 }
 
