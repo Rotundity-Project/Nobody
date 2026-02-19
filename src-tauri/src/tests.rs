@@ -9,6 +9,7 @@ mod perf_benchmarks {
     use crate::numerical_system::{Action, ActionResult, Context};
     use crate::plot_engine::{ActionType, PlayerAction, PlayerOption, PlotEngine, PlotState, Scene};
     use std::time::Instant;
+    use std::hint::black_box;
 
     fn sample_character() -> CharacterStats {
         CharacterStats {
@@ -39,6 +40,22 @@ mod perf_benchmarks {
         sorted[idx.min(sorted.len() - 1)]
     }
 
+    fn sample_batch_per_op_ms<F>(outer_rounds: usize, inner_iters: usize, mut f: F) -> Vec<f64>
+    where
+        F: FnMut(),
+    {
+        let mut samples = Vec::with_capacity(outer_rounds);
+        for _ in 0..outer_rounds {
+            let start = Instant::now();
+            for _ in 0..inner_iters {
+                f();
+            }
+            let elapsed_ms = start.elapsed().as_secs_f64() * 1000.0;
+            samples.push(elapsed_ms / inner_iters as f64);
+        }
+        samples
+    }
+
     #[test]
     #[ignore = "manual perf benchmark"]
     fn perf_plot_advance_p95_under_target() {
@@ -63,16 +80,18 @@ mod perf_benchmarks {
             events: vec!["cultivation tick".to_string()],
         };
 
-        let rounds = 200usize;
-        let mut samples = Vec::with_capacity(rounds);
-        for _ in 0..rounds {
-            let start = Instant::now();
-            let _ = engine.advance_plot(&state, &action_result);
-            samples.push(start.elapsed().as_secs_f64() * 1000.0);
-        }
+        let samples = sample_batch_per_op_ms(120, 200, || {
+            let update = engine.advance_plot(&state, &action_result);
+            black_box(update);
+        });
 
+        let p50 = percentile_ms(&samples, 0.50);
         let p95 = percentile_ms(&samples, 0.95);
-        println!("PERF plot_advance p95_ms={:.3}", p95);
+        let p99 = percentile_ms(&samples, 0.99);
+        println!(
+            "PERF plot_advance per_op_ms p50={:.3} p95={:.3} p99={:.3}",
+            p50, p95, p99
+        );
         assert!(p95 < 2500.0, "plot advance p95 exceeds target: {:.3}ms", p95);
     }
 
@@ -101,18 +120,20 @@ mod perf_benchmarks {
             meta: None,
         };
 
-        let rounds = 500usize;
-        let mut samples = Vec::with_capacity(rounds);
-        for _ in 0..rounds {
-            let start = Instant::now();
-            let _ = engine
+        let samples = sample_batch_per_op_ms(160, 240, || {
+            let parsed = engine
                 .process_player_action(&action, &character, &options, &context)
                 .expect("combat parse should succeed");
-            samples.push(start.elapsed().as_secs_f64() * 1000.0);
-        }
+            black_box(parsed);
+        });
 
+        let p50 = percentile_ms(&samples, 0.50);
         let p95 = percentile_ms(&samples, 0.95);
-        println!("PERF combat_parse p95_ms={:.3}", p95);
+        let p99 = percentile_ms(&samples, 0.99);
+        println!(
+            "PERF combat_parse per_op_ms p50={:.3} p95={:.3} p99={:.3}",
+            p50, p95, p99
+        );
         assert!(p95 < 1000.0, "combat parse p95 exceeds target: {:.3}ms", p95);
     }
 }

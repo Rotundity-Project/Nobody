@@ -12,6 +12,10 @@ Environment: local dev machine, no LLM network calls, Rust test harness
 - Added manual benchmark tests in `src-tauri/src/tests.rs`:
   - `perf_plot_advance_p95_under_target` (`#[ignore]`)
   - `perf_combat_parse_p95_under_target` (`#[ignore]`)
+- Sampling strategy:
+  - batch sampling (`outer_rounds * inner_iters`) to reduce timer jitter
+  - report per-op `P50/P95/P99` (ms)
+  - use `std::hint::black_box` to avoid unrealistic compiler optimization effects
 - Added runtime timing diagnostics in `execute_player_action`:
   - `total`
   - `plot_gen`
@@ -22,8 +26,8 @@ Environment: local dev machine, no LLM network calls, Rust test harness
   - `cargo test -q perf_combat_parse_p95_under_target -- --ignored --nocapture`
 
 ## Results
-- Plot advance P95: `0.001 ms`
-- Combat parse P95: `0.000 ms`
+- Plot advance per-op: `P50=0.001 ms`, `P95=0.002 ms`, `P99=0.003 ms`
+- Combat parse per-op: `P50=0.000 ms`, `P95=0.000 ms`, `P99=0.001 ms`
 
 ## Interpretation
 - Both metrics are far below the target thresholds.
