@@ -45,4 +45,4 @@ Environment: local dev machine, no LLM network calls, Rust test harness
 ## Next
 1. Add diagnostics exporter to aggregate `耗时(ms)` fields into percentile stats.
 2. Add repeat runs on CI runners for cross-platform comparability.
-3. Track trend by commit in `docs/qa/perf-history.md`.
+3. Track trend by commit in `docs/qa/perf-history.md` (initialized).
