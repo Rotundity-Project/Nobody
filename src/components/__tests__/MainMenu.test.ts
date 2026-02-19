@@ -64,4 +64,24 @@ describe('MainMenu', () => {
     expect(dialog.exists()).toBe(true);
     expect(dialog.props('isOpen')).toBe(true);
   });
+
+  it('navigates to game on continue action', async () => {
+    const wrapper = mount(MainMenu, {
+      global: {
+        stubs: {
+          AudioControlPanel: AudioStub,
+          LLMConfigDialog: LlmStub,
+        },
+      },
+    });
+
+    const continueButton = wrapper
+      .findAll('button')
+      .find((btn) => btn.text() === '继续游戏');
+    expect(continueButton).toBeTruthy();
+    await continueButton!.trigger('click');
+
+    expect(playClickMock).toHaveBeenCalled();
+    expect(pushMock).toHaveBeenCalledWith('/game');
+  });
 });
