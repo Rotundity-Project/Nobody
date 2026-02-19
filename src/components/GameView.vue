@@ -2,50 +2,23 @@
   <div class="min-h-screen text-white flex flex-col">
     <div class="flex-1 flex flex-col">
       <div class="bg-slate-900/80 border-b border-slate-700 px-6 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between backdrop-blur">
-        <div class="flex items-center gap-4">
-          <button
-            class="text-gray-400 hover:text-white transition-colors"
-            title="返回"
-            @click="router.push('/')"
-          >
-            <svg
-              class="w-6 h-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M10 19l-7-7m0 0l7-7m-7 7h18"
-              />
-            </svg>
-          </button>
-          <h1 class="text-xl font-display text-amber-200">
-            Nobody
-          </h1>
-        </div>
-        <div class="flex flex-wrap gap-2">
-          <SystemCenterMenu
-            :is-open="showSystemMenu"
-            :show-audio-panel="showAudioPanel"
-            @toggle-menu="toggleSystemMenu"
-            @close-menu="closeSystemMenu"
-            @toggle-audio="toggleAudioPanel"
-            @open-shortcuts="openShortcutsDialog"
-            @open-llm="openLlmDialog"
-            @open-story-settings="openStorySettingsDialog"
-            @open-consistency="openConsistencySettingsFromMenu"
-          />
-          <QuickActionsBar
-            :is-game-initialized="gameStore.isGameInitialized"
-            @open-character="showCharacterInfo = true"
-            @open-info="showInfoTabs = true"
-            @open-save="showSaveDialog = true"
-            @open-load="showLoadDialog = true"
-          />
-        </div>
+        <GameTopBar
+          :is-system-menu-open="showSystemMenu"
+          :show-audio-panel="showAudioPanel"
+          :is-game-initialized="gameStore.isGameInitialized"
+          @back="handleBackToMenu"
+          @toggle-menu="toggleSystemMenu"
+          @close-menu="closeSystemMenu"
+          @toggle-audio="toggleAudioPanel"
+          @open-shortcuts="openShortcutsDialog"
+          @open-llm="openLlmDialog"
+          @open-story-settings="openStorySettingsDialog"
+          @open-consistency="openConsistencySettingsFromMenu"
+          @open-character="showCharacterInfo = true"
+          @open-info="showInfoTabs = true"
+          @open-save="showSaveDialog = true"
+          @open-load="showLoadDialog = true"
+        />
       </div>
       <ChapterStatusStrip
         :visible="gameStore.isGameInitialized"
@@ -257,16 +230,15 @@ import CharacterPanel from './CharacterPanel.vue';
 import ChapterStatusStrip from './ChapterStatusStrip.vue';
 import ContinueActionPanel from './ContinueActionPanel.vue';
 import FreeTextInputPanel from './FreeTextInputPanel.vue';
+import GameTopBar from './GameTopBar.vue';
 import InputModeTabs from './InputModeTabs.vue';
 import OptionListPanel from './OptionListPanel.vue';
-import QuickActionsBar from './QuickActionsBar.vue';
 import StoryScenePanel from './StoryScenePanel.vue';
 import LLMConfigDialog from './LLMConfigDialog.vue';
 import KeyboardShortcutsDialog from './KeyboardShortcutsDialog.vue';
 import LoadingStatePanel from './LoadingStatePanel.vue';
 import InfoTabsDialog from './InfoTabsDialog.vue';
 import SaveLoadDialog from './SaveLoadDialog.vue';
-import SystemCenterMenu from './SystemCenterMenu.vue';
 import StatusBanner from './StatusBanner.vue';
 import StorySettingsDialog from './StorySettingsDialog.vue';
 import ConsistencySettingsDialog from './ConsistencySettingsDialog.vue';
@@ -430,6 +402,9 @@ const optionSourceLabel = computed(() => {
 });
 const setInputMode = (mode: 'options' | 'freeText') => {
   inputMode.value = mode;
+};
+const handleBackToMenu = () => {
+  router.push('/');
 };
 const interactionStateLabel = computed(() => {
   const mapping: Record<string, string> = {
