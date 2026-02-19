@@ -332,6 +332,12 @@ fn apply_travel_and_encounter(
     plot_state: &mut PlotState,
     target_location: &str,
 ) -> Result<(String, bool), String> {
+    let target_node = game_state
+        .world_state
+        .locations
+        .get(target_location)
+        .cloned()
+        .ok_or_else(|| format!("目标地点不存在: {}", target_location))?;
     let reachable_ids = compute_reachable_location_ids(game_state);
     if !reachable_ids.iter().any(|id| id == target_location) {
         return Err(format!(
@@ -339,12 +345,6 @@ fn apply_travel_and_encounter(
             target_location
         ));
     }
-    let target_node = game_state
-        .world_state
-        .locations
-        .get(target_location)
-        .cloned()
-        .ok_or_else(|| format!("目标地点不存在: {}", target_location))?;
     let from_location = game_state.player.location.clone();
     if from_location == target_location {
         return Ok(("你已在当前地点，无需移动。".to_string(), false));
@@ -2443,7 +2443,7 @@ mod tests {
                 id: "valley".to_string(),
                 name: "幽风谷".to_string(),
                 description: "灵压紊乱".to_string(),
-                spiritual_energy: 0.45,
+                spiritual_energy: 0.3,
             },
         ];
         let script = crate::script::Script::new(
