@@ -493,6 +493,40 @@ mod property_tests {
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(100))]
 
+        // Feature: Nobody, Property 23: export fact coverage invariant
+        #[test]
+        fn prop_export_source_event_coverage_is_complete(
+            descriptions in proptest::collection::vec("[a-zA-Z0-9 ]{1,40}", 1..80)
+        ) {
+            let events = descriptions
+                .iter()
+                .enumerate()
+                .map(|(i, d)| build_event((i + 1) as u64, (i + 1) as u64, d.clone()))
+                .collect::<Vec<GameEvent>>();
+            let expected = events.iter().map(|e| e.id).collect::<std::collections::BTreeSet<u64>>();
+
+            let runtime = tokio::runtime::Runtime::new().unwrap();
+            let generator = NovelGenerator::new();
+            let novel = runtime
+                .block_on(generator.generate_novel("Coverage", &events))
+                .unwrap();
+
+            let mut covered = std::collections::BTreeSet::new();
+            for chapter in &novel.chapters {
+                prop_assert!(!chapter.source_event_ids.is_empty());
+                for id in &chapter.source_event_ids {
+                    prop_assert!(expected.contains(id));
+                    covered.insert(*id);
+                }
+            }
+
+            prop_assert_eq!(covered, expected);
+        }
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(100))]
+
         // Feature: Nobody, Property 11: novel export capability
         #[test]
         fn prop_any_novel_can_be_exported(
