@@ -170,34 +170,15 @@
                     @select="handleOptionSelect"
                   />
 
-                  <div
-                    v-if="inputMode === 'freeText' || gameStore.availableOptions.length === 0"
-                    class="space-y-2"
-                  >
-                    <textarea
-                      v-model="freeTextInput"
-                      :disabled="isLoading"
-                      rows="3"
-                      maxlength="200"
-                      placeholder="输入你想执行的行为，例如：我去后山修炼。"
-                      class="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white outline-none focus:border-amber-400"
-                    />
-                    <p
-                      v-if="inputValidation.message"
-                      class="text-sm"
-                      :class="inputValidation.valid ? 'text-gray-300' : 'text-amber-300'"
-                    >
-                      {{ inputValidation.message }}
-                    </p>
-                    <button
-                      :disabled="isLoading || !inputValidation.valid"
-                      class="px-4 py-2 rounded-lg transition-colors"
-                      :class="isLoading || !inputValidation.valid ? 'bg-gray-600 text-gray-400 cursor-not-allowed' : 'bg-amber-500 hover:bg-amber-400 text-slate-900'"
-                      @click="handleFreeTextSubmit"
-                    >
-                      提交自由输入
-                    </button>
-                  </div>
+                  <FreeTextInputPanel
+                    :visible="inputMode === 'freeText' || gameStore.availableOptions.length === 0"
+                    :model-value="freeTextInput"
+                    :disabled="isLoading"
+                    :valid="inputValidation.valid"
+                    :validation-message="inputValidation.message"
+                    @update:model-value="freeTextInput = $event"
+                    @submit="handleFreeTextSubmit"
+                  />
                 </div>
 
                 <div
@@ -332,6 +313,7 @@ import { useGameStore } from '../stores/gameStore';
 import CharacterPanel from './CharacterPanel.vue';
 import ChapterStatusStrip from './ChapterStatusStrip.vue';
 import ChapterRecapCard from './ChapterRecapCard.vue';
+import FreeTextInputPanel from './FreeTextInputPanel.vue';
 import InputModeTabs from './InputModeTabs.vue';
 import OptionListPanel from './OptionListPanel.vue';
 import LLMConfigDialog from './LLMConfigDialog.vue';
