@@ -38,36 +38,13 @@
             @open-story-settings="openStorySettingsDialog"
             @open-consistency="openConsistencySettingsFromMenu"
           />
-          <button
-            class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors duration-200"
-            @click="showCharacterInfo = true"
-          >
-            角色信息
-          </button>
-          <button
-            class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors duration-200"
-            @click="showInfoTabs = true"
-          >
-            信息面板
-          </button>
-          <button
-            :disabled="!gameStore.isGameInitialized"
-            class="px-4 py-2 rounded-lg transition-colors duration-200"
-            :class="[
-              gameStore.isGameInitialized
-                ? 'bg-amber-500 hover:bg-amber-400 text-slate-900'
-                : 'bg-gray-600 text-gray-400 cursor-not-allowed'
-            ]"
-            @click="showSaveDialog = true"
-          >
-            保存
-          </button>
-          <button
-            class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors duration-200"
-            @click="showLoadDialog = true"
-          >
-            加载
-          </button>
+          <QuickActionsBar
+            :is-game-initialized="gameStore.isGameInitialized"
+            @open-character="showCharacterInfo = true"
+            @open-info="showInfoTabs = true"
+            @open-save="showSaveDialog = true"
+            @open-load="showLoadDialog = true"
+          />
         </div>
       </div>
       <ChapterStatusStrip
@@ -310,6 +287,7 @@ import ContinueActionPanel from './ContinueActionPanel.vue';
 import FreeTextInputPanel from './FreeTextInputPanel.vue';
 import InputModeTabs from './InputModeTabs.vue';
 import OptionListPanel from './OptionListPanel.vue';
+import QuickActionsBar from './QuickActionsBar.vue';
 import LLMConfigDialog from './LLMConfigDialog.vue';
 import KeyboardShortcutsDialog from './KeyboardShortcutsDialog.vue';
 import LoadingIndicator from './LoadingIndicator.vue';
