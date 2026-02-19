@@ -2123,6 +2123,40 @@ mod tests {
     }
 
     #[test]
+    fn test_plot_state_recalculate_auto_advance() {
+        let scene = create_test_scene();
+        let mut state = PlotState::new(scene);
+        state.is_waiting_for_input = false;
+        state.recalculate_interaction_state();
+        assert_eq!(state.interaction_state, PlotInteractionState::AutoAdvance);
+    }
+
+    #[test]
+    fn test_plot_state_recalculate_waiting_for_choice() {
+        let scene = create_test_scene();
+        let mut state = PlotState::new(scene);
+        state.is_waiting_for_input = true;
+        state.current_scene.available_options = vec![PlayerOption {
+            id: 0,
+            description: "继续探索".to_string(),
+            requirements: vec![],
+            action: Action::Rest,
+        }];
+        state.recalculate_interaction_state();
+        assert_eq!(state.interaction_state, PlotInteractionState::WaitingForChoice);
+    }
+
+    #[test]
+    fn test_plot_state_recalculate_waiting_for_free_text() {
+        let scene = create_test_scene();
+        let mut state = PlotState::new(scene);
+        state.is_waiting_for_input = true;
+        state.current_scene.available_options.clear();
+        state.recalculate_interaction_state();
+        assert_eq!(state.interaction_state, PlotInteractionState::WaitingForFreeText);
+    }
+
+    #[test]
     fn test_validate_selected_option_valid() {
         let engine = PlotEngine::new();
         let scene = create_test_scene();

@@ -19,7 +19,7 @@
 
 | 任务 | 计划状态 | 代码审计状态 | 证据 |
 |---|---|---|---|
-| 4. Plot State Machine | 未完成 | 部分完成（增强中） | 已引入 `interaction_state` 并接入前端/命令层/读档恢复（`src-tauri/src/plot_engine.rs`, `src-tauri/src/tauri_commands.rs`, `src-tauri/src/game_engine.rs`） |
+| 4. Plot State Machine | 未完成 | 部分完成（增强中） | 已引入 `interaction_state` 并接入前端/命令层/读档恢复，新增状态流转单测（`src-tauri/src/plot_engine.rs`, `src-tauri/src/tauri_commands.rs`, `src-tauri/src/game_engine.rs`） |
 | 5. 去重与记忆检索层 | 已完成 | 已完成 | `src-tauri/src/plot_consistency.rs`, `src-tauri/src/context_builder.rs` |
 | 6. 章节目标驱动生成 | 未完成 | 部分完成（增强中） | 已将“目标弱”从纯提示升级为强制补入“目标命中锚点”（`src-tauri/src/plot_consistency.rs`），仍待补真实重生成链路 |
 | 7. 剧情一致性验证器 V2 | 已完成 | 已完成 | `validate_and_repair_plot_update`（`src-tauri/src/plot_consistency.rs`）并接入 `execute_player_action` |
