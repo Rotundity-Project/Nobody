@@ -23,7 +23,7 @@
 | 5. 去重与记忆检索层 | 已完成 | 已完成 | `src-tauri/src/plot_consistency.rs`, `src-tauri/src/context_builder.rs` |
 | 6. 章节目标驱动生成 | 已完成 | 已完成 | 已实现“章节目标弱命中触发重生成”闭环：首次校验命中 `chapter_goal_weak` 时自动单次重生成并按风险裁决采用结果（`src-tauri/src/tauri_commands.rs`, `src-tauri/src/plot_consistency.rs`） |
 | 7. 剧情一致性验证器 V2 | 已完成 | 已完成 | `validate_and_repair_plot_update`（`src-tauri/src/plot_consistency.rs`）并接入 `execute_player_action` |
-| 7A. 叙事厚度与张力增强 | 未完成 | 部分完成 | 有部分约束提示，缺少模板库/空洞表达检测完整体系 |
+| 7A. 叙事厚度与张力增强 | 未完成 | 部分完成（增强中） | 已新增空洞表达检测与“叙事厚度重生成”闭环，并将结果写入生成诊断；仍待更完整模板库与节奏控制器（`src-tauri/src/tauri_commands.rs`） |
 
 ## 阶段 C
 

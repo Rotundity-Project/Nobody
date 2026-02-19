@@ -124,6 +124,61 @@ fn chapter_goal_regeneration_hint(interaction_count: u8) -> String {
     )
 }
 
+fn hollow_expression_regeneration_hint() -> &'static str {
+    "\n\n[叙事厚度重生成约束]\n禁止空洞套话与重复句式；至少补足环境、动作、心理三类中的两类，并给出可验证的因果变化。"
+}
+
+fn is_hollow_expression(text: &str) -> bool {
+    let t = text.trim();
+    if t.is_empty() {
+        return true;
+    }
+    let filler_patterns = [
+        "不由得",
+        "一时间",
+        "片刻之后",
+        "气氛凝重",
+        "心中一凛",
+        "强大的气息",
+        "隐隐作痛",
+        "不禁",
+        "仿佛",
+        "似乎",
+    ];
+    let filler_hits = filler_patterns
+        .iter()
+        .filter(|p| t.contains(**p))
+        .count();
+
+    let clauses = t
+        .split(['。', '！', '？', ';', '；', '\n'])
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>();
+    let repeated_clause = if clauses.len() >= 3 {
+        let unique = clauses.iter().copied().collect::<std::collections::BTreeSet<_>>();
+        unique.len() * 10 <= clauses.len() * 7
+    } else {
+        false
+    };
+
+    let sensory_words = ["风", "雨", "雾", "声", "光", "影", "痛", "冷", "热", "血"];
+    let action_words = ["挥", "斩", "踏", "退", "冲", "挡", "运转", "催动"];
+    let mental_words = ["犹豫", "执念", "惊", "怒", "惧", "定神", "思索", "决意"];
+    let mut covered = 0usize;
+    if sensory_words.iter().any(|w| t.contains(w)) {
+        covered += 1;
+    }
+    if action_words.iter().any(|w| t.contains(w)) {
+        covered += 1;
+    }
+    if mental_words.iter().any(|w| t.contains(w)) {
+        covered += 1;
+    }
+
+    (filler_hits >= 3 && t.chars().count() >= 30) || repeated_clause || covered <= 1
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 struct CombatExplanation {
@@ -1179,6 +1234,48 @@ pub async fn execute_player_action(
             }
         }
     }
+
+    if is_hollow_expression(&plot_update.plot_text) {
+        let mut regenerated_state = plot_state_for_generation.clone();
+        regenerated_state.current_scene.description = format!(
+            "{}{}",
+            regenerated_state.current_scene.description,
+            hollow_expression_regeneration_hint()
+        );
+        let mut regenerated_update = plot_engine
+            .advance_plot_async(&regenerated_state, &action_result)
+            .await;
+        let regenerated_report = validate_and_repair_plot_update(
+            &plot_state,
+            &regenerated_update,
+            &action_result,
+            game_state.player.stats.cultivation_realm.level,
+            game_state.player.stats.combat_power,
+            &game_state.player.name,
+        );
+
+        let improved_density = !is_hollow_expression(&regenerated_update.plot_text);
+        let not_worse_risk = regenerated_report.risk_score() <= consistency_report.risk_score() + 2;
+        if improved_density || not_worse_risk {
+            match &mut regenerated_update.generation_diagnostics {
+                Some(diag) => diag.push_str("；叙事厚度重生成：accepted"),
+                None => {
+                    regenerated_update.generation_diagnostics =
+                        Some("叙事厚度重生成：accepted".to_string())
+                }
+            }
+            plot_update = regenerated_update;
+            consistency_report = regenerated_report;
+        } else {
+            match &mut plot_update.generation_diagnostics {
+                Some(diag) => diag.push_str("；叙事厚度重生成：rejected"),
+                None => {
+                    plot_update.generation_diagnostics =
+                        Some("叙事厚度重生成：rejected".to_string())
+                }
+            }
+        }
+    }
     if let Some(text) = consistency_report.repaired_plot_text.clone() {
         plot_update.plot_text = text;
     }
@@ -2166,6 +2263,18 @@ mod tests {
         let hint = chapter_goal_regeneration_hint(2);
         assert!(hint.contains("章节目标重生成约束"));
         assert!(hint.contains("资源变化"));
+    }
+
+    #[test]
+    fn test_is_hollow_expression_detects_filler_text() {
+        let text = "一时间气氛凝重，你不由得心中一凛，似乎四周都安静了下来。";
+        assert!(is_hollow_expression(text));
+    }
+
+    #[test]
+    fn test_is_hollow_expression_allows_dense_text() {
+        let text = "山风掠过石阶，你踏前半步催动灵力，心神却在师门旧训与眼前杀机间迅速权衡。";
+        assert!(!is_hollow_expression(text));
     }
 
     #[test]
