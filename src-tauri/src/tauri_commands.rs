@@ -17,7 +17,7 @@ use crate::novel_generator::{Novel, NovelGenerator};
 use crate::numerical_system::{Action, Context, StatChange};
 use crate::plot_consistency::{
     get_runtime_policy, reset_runtime_policy, update_runtime_policy, validate_and_repair_plot_update,
-    ConsistencyPolicy,
+    ConsistencyPolicy, ConsistencyReport,
 };
 use crate::plot_engine::{
     PlayerAction, PlayerOption, PlotEngine, PlotInteractionState, PlotSettings, PlotState,
@@ -98,6 +98,24 @@ fn render_generation_context(bundle: &ContextBundle) -> String {
         return String::new();
     }
     format!("\n\n[外置记忆+上下文窗口]\n{}", lines.join("\n"))
+}
+
+fn has_consistency_issue(report: &ConsistencyReport, code: &str) -> bool {
+    report.issues.iter().any(|issue| issue.code == code)
+}
+
+fn chapter_goal_regeneration_hint(interaction_count: u8) -> String {
+    let goal = match interaction_count % 5 {
+        0 => "冲突升级",
+        1 => "角色成长",
+        2 => "资源变化",
+        3 => "关系变化",
+        _ => "伏笔建立",
+    };
+    format!(
+        "\n\n[章节目标重生成约束]\n本段必须明确命中：{}；禁止原地复述，必须出现可验证的新变化。",
+        goal
+    )
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -514,7 +532,7 @@ pub async fn execute_player_action(
         }
     }
 
-    let consistency_report = validate_and_repair_plot_update(
+    let mut consistency_report = validate_and_repair_plot_update(
         &plot_state,
         &plot_update,
         &action_result,
@@ -522,6 +540,49 @@ pub async fn execute_player_action(
         game_state.player.stats.combat_power,
         &game_state.player.name,
     );
+
+    if has_consistency_issue(&consistency_report, "chapter_goal_weak") {
+        let mut regenerated_state = plot_state_for_generation.clone();
+        regenerated_state.current_scene.description = format!(
+            "{}{}",
+            regenerated_state.current_scene.description,
+            chapter_goal_regeneration_hint(plot_state.current_chapter.interaction_count)
+        );
+
+        let mut regenerated_update = plot_engine
+            .advance_plot_async(&regenerated_state, &action_result)
+            .await;
+        let regenerated_report = validate_and_repair_plot_update(
+            &plot_state,
+            &regenerated_update,
+            &action_result,
+            game_state.player.stats.cultivation_realm.level,
+            game_state.player.stats.combat_power,
+            &game_state.player.name,
+        );
+
+        let improved_goal_hit = !has_consistency_issue(&regenerated_report, "chapter_goal_weak");
+        let not_worse_risk = regenerated_report.risk_score() <= consistency_report.risk_score();
+        if improved_goal_hit || not_worse_risk {
+            match &mut regenerated_update.generation_diagnostics {
+                Some(diag) => diag.push_str("；章节目标重生成：accepted"),
+                None => {
+                    regenerated_update.generation_diagnostics =
+                        Some("章节目标重生成：accepted".to_string())
+                }
+            }
+            plot_update = regenerated_update;
+            consistency_report = regenerated_report;
+        } else {
+            match &mut plot_update.generation_diagnostics {
+                Some(diag) => diag.push_str("；章节目标重生成：rejected"),
+                None => {
+                    plot_update.generation_diagnostics =
+                        Some("章节目标重生成：rejected".to_string())
+                }
+            }
+        }
+    }
     if let Some(text) = consistency_report.repaired_plot_text.clone() {
         plot_update.plot_text = text;
     }
@@ -1408,6 +1469,25 @@ mod tests {
         assert_eq!(summary.total_p95_ms, 14);
         assert_eq!(summary.plot_gen_p95_ms, 8);
         assert_eq!(summary.option_gen_p95_ms, 4);
+    }
+
+    #[test]
+    fn test_has_consistency_issue() {
+        let mut report = ConsistencyReport::default();
+        report.issues.push(crate::plot_consistency::ConsistencyIssue {
+            level: crate::plot_consistency::IssueLevel::Warning,
+            code: "chapter_goal_weak",
+            message: "goal weak".to_string(),
+        });
+        assert!(has_consistency_issue(&report, "chapter_goal_weak"));
+        assert!(!has_consistency_issue(&report, "duplicate_segment"));
+    }
+
+    #[test]
+    fn test_chapter_goal_regeneration_hint_contains_goal_anchor() {
+        let hint = chapter_goal_regeneration_hint(2);
+        assert!(hint.contains("章节目标重生成约束"));
+        assert!(hint.contains("资源变化"));
     }
 }
 
