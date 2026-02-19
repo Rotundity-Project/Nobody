@@ -4,6 +4,7 @@
 };
 use crate::numeric_guard;
 use serde_json::{json, Value};
+use std::collections::BTreeSet;
 
 fn blank(text: &str) -> bool {
     text.trim().is_empty()
@@ -31,6 +32,35 @@ fn normalized(payload: Value, reason: impl Into<String>) -> ValidationReport {
         reasons: vec![reason.into()],
         normalized_payload: Some(payload),
     }
+}
+
+fn normalize_root_affinity(values: &[String]) -> Result<(Vec<String>, bool), String> {
+    if values.is_empty() {
+        return Ok((vec!["Neutral".to_string()], true));
+    }
+
+    let allowed = ["Metal", "Wood", "Water", "Fire", "Earth", "Neutral"];
+    let mut normalized = Vec::new();
+    let mut seen = BTreeSet::new();
+    let mut changed = false;
+
+    for raw in values {
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            return Err("rootAffinity contains blank entry".to_string());
+        }
+        if !allowed.contains(&trimmed) {
+            return Err(format!("rootAffinity contains unknown element: {}", trimmed));
+        }
+        let value = trimmed.to_string();
+        if seen.insert(value.clone()) {
+            normalized.push(value);
+        } else {
+            changed = true;
+        }
+    }
+
+    Ok((normalized, changed))
 }
 
 pub fn resolve_candidate(candidate: &EntityCandidateRequest) -> ResolvedEntity {
@@ -66,6 +96,19 @@ fn resolve_technique(candidate: &EntityCandidateRequest) -> ResolvedEntity {
         };
     }
 
+    let (root_affinity, root_changed) = match normalize_root_affinity(&t.root_affinity) {
+        Ok(v) => v,
+        Err(reason) => {
+            return ResolvedEntity {
+                entity_id: t.technique_id.clone(),
+                entity_type: EntityType::Technique,
+                payload: json!(t),
+                validation_report: reject(reason),
+            };
+        }
+    };
+    t.root_affinity = root_affinity;
+
     let check = numeric_guard::validate_technique_power(t.realm_requirement, t.base_power);
     let mut report = if !check.accepted {
         reject(check.reason.unwrap_or_else(|| "technique numeric validation failed".to_string()))
@@ -87,6 +130,14 @@ fn resolve_technique(candidate: &EntityCandidateRequest) -> ResolvedEntity {
         report
             .reasons
             .push("empty tags normalized to ['general']".to_string());
+        report.normalized_payload = Some(json!(t));
+    }
+
+    if root_changed {
+        report.status = ValidationStatus::Normalized;
+        report
+            .reasons
+            .push("duplicate rootAffinity entries deduplicated".to_string());
         report.normalized_payload = Some(json!(t));
     }
 
@@ -210,6 +261,7 @@ fn resolve_item(candidate: &EntityCandidateRequest) -> ResolvedEntity {
 mod tests {
     use super::*;
     use crate::entity_types::EntityCandidateRequest;
+    use proptest::prelude::*;
 
     #[test]
     fn normalizes_technique_power_out_of_band() {
@@ -232,5 +284,114 @@ mod tests {
             resolved.validation_report.status,
             ValidationStatus::Normalized
         ));
+    }
+
+    #[test]
+    fn normalizes_empty_root_affinity_to_neutral() {
+        let req = EntityCandidateRequest {
+            entity_type: EntityType::Technique,
+            payload: json!({
+                "techniqueId": "t_root_empty",
+                "name": "Rootless Art",
+                "tags": ["utility"],
+                "realmRequirement": 1,
+                "rootAffinity": [],
+                "basePower": 20.0,
+                "riskTags": [],
+                "description": "neutralized affinity"
+            }),
+            source_trace_id: None,
+        };
+        let resolved = resolve_candidate(&req);
+        assert!(matches!(
+            resolved.validation_report.status,
+            ValidationStatus::Normalized
+        ));
+        let arr = resolved
+            .payload
+            .get("rootAffinity")
+            .and_then(|v| v.as_array())
+            .cloned()
+            .unwrap_or_default();
+        assert_eq!(arr.len(), 1);
+        assert_eq!(arr[0], Value::String("Neutral".to_string()));
+    }
+
+    #[test]
+    fn rejects_unknown_root_affinity_element() {
+        let req = EntityCandidateRequest {
+            entity_type: EntityType::Technique,
+            payload: json!({
+                "techniqueId": "t_root_bad",
+                "name": "Bad Root Art",
+                "tags": ["utility"],
+                "realmRequirement": 1,
+                "rootAffinity": ["Chaos"],
+                "basePower": 20.0,
+                "riskTags": [],
+                "description": "invalid affinity"
+            }),
+            source_trace_id: None,
+        };
+        let resolved = resolve_candidate(&req);
+        assert!(matches!(
+            resolved.validation_report.status,
+            ValidationStatus::Rejected
+        ));
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(100))]
+
+        #[test]
+        fn prop_technique_root_affinity_never_contains_blank_or_duplicate(
+            affinities in proptest::collection::vec(
+                prop_oneof![
+                    Just("Metal".to_string()),
+                    Just("Wood".to_string()),
+                    Just("Water".to_string()),
+                    Just("Fire".to_string()),
+                    Just("Earth".to_string()),
+                    Just("Neutral".to_string()),
+                    Just("".to_string())
+                ],
+                0..8
+            )
+        ) {
+            let req = EntityCandidateRequest {
+                entity_type: EntityType::Technique,
+                payload: json!({
+                    "techniqueId": "t_prop_root",
+                    "name": "Prop Root",
+                    "tags": ["utility"],
+                    "realmRequirement": 1,
+                    "rootAffinity": affinities,
+                    "basePower": 20.0,
+                    "riskTags": [],
+                    "description": "property"
+                }),
+                source_trace_id: None,
+            };
+            let resolved = resolve_candidate(&req);
+            if matches!(resolved.validation_report.status, ValidationStatus::Rejected) {
+                let reason = resolved.validation_report.reasons.join(" ");
+                prop_assert!(reason.contains("rootAffinity"));
+            } else {
+                let arr = resolved
+                    .payload
+                    .get("rootAffinity")
+                    .and_then(|v| v.as_array())
+                    .cloned()
+                    .unwrap_or_default();
+                let strings = arr
+                    .iter()
+                    .filter_map(|v| v.as_str())
+                    .collect::<Vec<_>>();
+                prop_assert!(!strings.is_empty());
+                prop_assert!(strings.iter().all(|s| !s.trim().is_empty()));
+                let uniq = strings.iter().copied().collect::<std::collections::BTreeSet<_>>();
+                prop_assert_eq!(uniq.len(), strings.len());
+            }
+        }
     }
 }
