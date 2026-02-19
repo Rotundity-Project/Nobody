@@ -43,7 +43,7 @@
 
 ### 阶段 B: 剧情系统强化（先修可玩性）
 
-- [ ] 4. 引入剧情状态机（Plot State Machine）
+- [x] 4. 引入剧情状态机（Plot State Machine）
   - 明确状态：AutoAdvance / WaitingForChoice / WaitingForFreeText / Resolving / Cooldown
   - 修复“无需输入”连点问题：支持自动推进直到真正进入玩家交互态
   - _验收: 不再出现“无选项且无法推进”的死锁状态_
