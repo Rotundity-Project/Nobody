@@ -21,6 +21,9 @@ Environment: local dev machine, no LLM network calls, Rust test harness
   - `plot_gen`
   - `option_gen`
   - location: `src-tauri/src/tauri_commands.rs` (`last_generation_diagnostics`)
+- Added diagnostics summarizer command:
+  - `summarize_generation_diagnostics(diagnostics: Vec<String>)`
+  - output: `sampleCount / totalP50/P95/P99 / plotGenP95 / optionGenP95`
 - Commands:
   - `cargo test -q perf_plot_advance_p95_under_target -- --ignored --nocapture`
   - `cargo test -q perf_combat_parse_p95_under_target -- --ignored --nocapture`
@@ -37,6 +40,7 @@ Environment: local dev machine, no LLM network calls, Rust test harness
 - Current benchmark does not include end-to-end Tauri command overhead.
 - Current benchmark excludes LLM request latency by design.
 - Current benchmark runs in test harness, not production load profile.
+- Diagnostics summarizer currently aggregates caller-provided diagnostics only; no persistent ring buffer yet.
 
 ## Next
 1. Add diagnostics exporter to aggregate `耗时(ms)` fields into percentile stats.

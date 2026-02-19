@@ -100,6 +100,85 @@ fn render_generation_context(bundle: &ContextBundle) -> String {
     format!("\n\n[外置记忆+上下文窗口]\n{}", lines.join("\n"))
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct GenerationTimingSample {
+    total_ms: u64,
+    plot_gen_ms: u64,
+    option_gen_ms: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct GenerationTimingSummary {
+    pub sample_count: usize,
+    pub total_p50_ms: u64,
+    pub total_p95_ms: u64,
+    pub total_p99_ms: u64,
+    pub plot_gen_p95_ms: u64,
+    pub option_gen_p95_ms: u64,
+}
+
+fn percentile_u64(samples: &[u64], p: f64) -> u64 {
+    if samples.is_empty() {
+        return 0;
+    }
+    let mut sorted = samples.to_vec();
+    sorted.sort_unstable();
+    let idx = ((sorted.len() as f64 - 1.0) * p).round() as usize;
+    sorted[idx.min(sorted.len() - 1)]
+}
+
+fn parse_generation_timing_sample(diag: &str) -> Option<GenerationTimingSample> {
+    let marker = "耗时(ms)：";
+    let payload = diag.split(marker).last()?.trim();
+    let mut total_ms = None;
+    let mut plot_gen_ms = None;
+    let mut option_gen_ms = None;
+
+    for part in payload.split([',', '，', ';', '；']) {
+        let mut iter = part.trim().splitn(2, '=');
+        let key = iter.next()?.trim();
+        let value = iter.next()?.trim().parse::<u64>().ok()?;
+        match key {
+            "total" => total_ms = Some(value),
+            "plot_gen" => plot_gen_ms = Some(value),
+            "option_gen" => option_gen_ms = Some(value),
+            _ => {}
+        }
+    }
+
+    Some(GenerationTimingSample {
+        total_ms: total_ms?,
+        plot_gen_ms: plot_gen_ms?,
+        option_gen_ms: option_gen_ms?,
+    })
+}
+
+fn summarize_generation_timing_diagnostics(
+    diagnostics: &[String],
+) -> Option<GenerationTimingSummary> {
+    let samples = diagnostics
+        .iter()
+        .filter_map(|diag| parse_generation_timing_sample(diag))
+        .collect::<Vec<_>>();
+    if samples.is_empty() {
+        return None;
+    }
+
+    let total = samples.iter().map(|s| s.total_ms).collect::<Vec<_>>();
+    let plot = samples.iter().map(|s| s.plot_gen_ms).collect::<Vec<_>>();
+    let option = samples.iter().map(|s| s.option_gen_ms).collect::<Vec<_>>();
+
+    Some(GenerationTimingSummary {
+        sample_count: samples.len(),
+        total_p50_ms: percentile_u64(&total, 0.50),
+        total_p95_ms: percentile_u64(&total, 0.95),
+        total_p99_ms: percentile_u64(&total, 0.99),
+        plot_gen_p95_ms: percentile_u64(&plot, 0.95),
+        option_gen_p95_ms: percentile_u64(&option, 0.95),
+    })
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ErrorResponse {
     pub error: String,
@@ -951,6 +1030,14 @@ pub async fn export_novel(novel: Novel, output_path: String) -> Result<(), Strin
     export_novel_to_path(&novel, &output_path)
 }
 
+#[tauri::command]
+pub async fn summarize_generation_diagnostics(
+    diagnostics: Vec<String>,
+) -> Result<GenerationTimingSummary, String> {
+    summarize_generation_timing_diagnostics(&diagnostics)
+        .ok_or_else(|| "未找到可解析的耗时诊断数据".to_string())
+}
+
 async fn generate_novel_from_events(title: &str, events: &[crate::event_log::GameEvent]) -> Result<Novel, String> {
     let generator = NovelGenerator::new();
     generator.generate_novel(title.to_string(), events).await
@@ -1290,6 +1377,37 @@ mod tests {
         let result = export_novel_to_path(&novel, output.to_str().unwrap());
         assert!(result.is_ok());
         assert!(output.exists());
+    }
+
+    #[test]
+    fn test_parse_generation_timing_sample() {
+        let diag = "选项来源：rule_fallback；耗时(ms)：total=12,plot_gen=7,option_gen=3";
+        let parsed = parse_generation_timing_sample(diag).unwrap();
+        assert_eq!(
+            parsed,
+            GenerationTimingSample {
+                total_ms: 12,
+                plot_gen_ms: 7,
+                option_gen_ms: 3,
+            }
+        );
+    }
+
+    #[test]
+    fn test_summarize_generation_timing_diagnostics() {
+        let input = vec![
+            "耗时(ms)：total=10,plot_gen=6,option_gen=2".to_string(),
+            "上下文注入：facts=2；耗时(ms)：total=14,plot_gen=8,option_gen=4".to_string(),
+            "耗时(ms)：total=13,plot_gen=7,option_gen=3".to_string(),
+            "invalid-line".to_string(),
+        ];
+
+        let summary = summarize_generation_timing_diagnostics(&input).unwrap();
+        assert_eq!(summary.sample_count, 3);
+        assert_eq!(summary.total_p50_ms, 13);
+        assert_eq!(summary.total_p95_ms, 14);
+        assert_eq!(summary.plot_gen_p95_ms, 8);
+        assert_eq!(summary.option_gen_p95_ms, 4);
     }
 }
 
