@@ -798,8 +798,76 @@ pub struct MapLocationOverview {
     pub energy_gap: f32,
     pub reachable: bool,
     pub risk_tier: String,
+    pub environment_tags: Vec<String>,
+    pub resource_tags: Vec<String>,
+    pub control_faction: String,
+    pub event_hotspot: bool,
     pub estimated_steps: u32,
     pub suggested_path: Vec<String>,
+}
+
+fn infer_location_ecology(
+    location: &crate::script::Location,
+    world_setting: &crate::script::WorldSetting,
+    risk_tier: &str,
+) -> (Vec<String>, Vec<String>, String, bool) {
+    let mut environment_tags = Vec::new();
+    let mut resource_tags = Vec::new();
+    let text = format!(
+        "{} {} {}",
+        location.id.to_lowercase(),
+        location.name.to_lowercase(),
+        location.description.to_lowercase()
+    );
+
+    if text.contains("宗") || text.contains("sect") {
+        environment_tags.push("sect".to_string());
+    }
+    if text.contains("秘境") || text.contains("secret") || text.contains("realm") {
+        environment_tags.push("secret_realm".to_string());
+    }
+    if text.contains("城") || text.contains("市") || text.contains("city") || text.contains("market") {
+        environment_tags.push("town".to_string());
+    }
+    if text.contains("禁地") || text.contains("abyss") || text.contains("魔") {
+        environment_tags.push("forbidden_zone".to_string());
+    }
+    if environment_tags.is_empty() {
+        environment_tags.push("wilderness".to_string());
+    }
+
+    if location.spiritual_energy >= 0.75 {
+        resource_tags.push("high_grade_ore".to_string());
+        resource_tags.push("spirit_herb".to_string());
+    } else if location.spiritual_energy >= 0.45 {
+        resource_tags.push("spirit_herb".to_string());
+        resource_tags.push("trade_material".to_string());
+    } else {
+        resource_tags.push("common_supply".to_string());
+    }
+    if environment_tags.iter().any(|tag| tag == "town") {
+        resource_tags.push("market_goods".to_string());
+    }
+    resource_tags.sort();
+    resource_tags.dedup();
+
+    let mut control_faction = "unclaimed".to_string();
+    for faction in &world_setting.factions {
+        let f = faction.name.to_lowercase();
+        if text.contains(&f) {
+            control_faction = faction.id.clone();
+            break;
+        }
+    }
+    if control_faction == "unclaimed" && environment_tags.iter().any(|tag| tag == "sect") {
+        control_faction = "sect_alliance".to_string();
+    }
+
+    let event_hotspot = risk_tier == "high"
+        || (risk_tier == "medium" && location.spiritual_energy >= 0.65)
+        || environment_tags.iter().any(|tag| tag == "forbidden_zone" || tag == "secret_realm");
+
+    (environment_tags, resource_tags, control_faction, event_hotspot)
 }
 
 fn compute_map_overview(game_state: &GameState) -> Vec<MapLocationOverview> {
@@ -830,6 +898,8 @@ fn compute_map_overview(game_state: &GameState) -> Vec<MapLocationOverview> {
             } else {
                 "low"
             };
+            let (environment_tags, resource_tags, control_faction, event_hotspot) =
+                infer_location_ecology(loc, &game_state.script.world_setting, risk_tier);
             let suggested_path =
                 build_energy_path(game_state, &loc.id, mobility, max_energy).unwrap_or_default();
             let estimated_steps = suggested_path.len().saturating_sub(1) as u32;
@@ -840,6 +910,10 @@ fn compute_map_overview(game_state: &GameState) -> Vec<MapLocationOverview> {
                 energy_gap: (loc.spiritual_energy - current_energy).abs(),
                 reachable: reachable.contains(&loc.id),
                 risk_tier: risk_tier.to_string(),
+                environment_tags,
+                resource_tags,
+                control_faction,
+                event_hotspot,
                 estimated_steps,
                 suggested_path,
             }
@@ -3810,6 +3884,93 @@ mod tests {
         let overview = compute_map_overview(&state);
         assert_eq!(overview.len(), 2);
         assert!(overview.iter().any(|node| node.location_id == "sect" && node.reachable));
+    }
+
+    #[test]
+    fn test_compute_map_overview_contains_ecology_fields() {
+        let mut world_setting = crate::script::WorldSetting::new();
+        world_setting.factions = vec![crate::script::Faction {
+            id: "qingyun".to_string(),
+            name: "青云宗".to_string(),
+            description: "宗门势力".to_string(),
+            power_level: 8,
+        }];
+        world_setting.locations = vec![
+            crate::script::Location {
+                id: "sect".to_string(),
+                name: "青云宗驻地".to_string(),
+                description: "宗门与坊市交界".to_string(),
+                spiritual_energy: 0.62,
+            },
+            crate::script::Location {
+                id: "forbidden_valley".to_string(),
+                name: "禁地幽谷".to_string(),
+                description: "魔息波动强烈".to_string(),
+                spiritual_energy: 0.93,
+            },
+        ];
+        let script = crate::script::Script::new(
+            "id".to_string(),
+            "name".to_string(),
+            crate::script::ScriptType::Custom,
+            world_setting.clone(),
+            crate::script::InitialState {
+                player_name: "p".to_string(),
+                player_spiritual_root: crate::models::SpiritualRoot {
+                    element: crate::models::Element::Fire,
+                    elements: vec![crate::models::Element::Fire],
+                    grade: crate::models::Grade::Heavenly,
+                    affinity: 0.8,
+                },
+                starting_location: "sect".to_string(),
+                starting_age: 16,
+            },
+        );
+        let state = crate::game_state::GameState {
+            player: crate::game_state::Character::new(
+                "player".to_string(),
+                "Tester".to_string(),
+                crate::models::CharacterStats {
+                    spiritual_root: crate::models::SpiritualRoot {
+                        element: crate::models::Element::Fire,
+                        elements: vec![crate::models::Element::Fire],
+                        grade: crate::models::Grade::Heavenly,
+                        affinity: 0.8,
+                    },
+                    cultivation_realm: crate::models::CultivationRealm::new("Qi".to_string(), 1, 0, 1.0),
+                    techniques: vec![],
+                    lifespan: crate::models::Lifespan {
+                        current_age: 16,
+                        max_age: 100,
+                        realm_bonus: 0,
+                    },
+                    combat_power: 120,
+                },
+                "sect".to_string(),
+            ),
+            world_state: crate::game_state::WorldState::from_script(&script),
+            game_time: crate::game_state::GameTime::new(1, 1, 1),
+            event_history: vec![],
+            script,
+        };
+        let overview = compute_map_overview(&state);
+        let sect_node = overview.iter().find(|n| n.location_id == "sect").expect("sect node");
+        assert!(!sect_node.environment_tags.is_empty());
+        assert!(!sect_node.resource_tags.is_empty());
+        assert!(!sect_node.control_faction.is_empty());
+    }
+
+    #[test]
+    fn test_infer_location_ecology_marks_hotspot_for_high_risk_nodes() {
+        let location = crate::script::Location {
+            id: "forbidden_abyss".to_string(),
+            name: "禁地深渊".to_string(),
+            description: "魔息翻涌".to_string(),
+            spiritual_energy: 0.9,
+        };
+        let world_setting = crate::script::WorldSetting::new();
+        let (_, _, _, hotspot) = infer_location_ecology(&location, &world_setting, "high");
+        assert!(hotspot);
     }
 
     #[test]
