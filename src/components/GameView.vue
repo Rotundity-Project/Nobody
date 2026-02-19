@@ -82,37 +82,16 @@
                   />
                 </svg>
               </button>
-              <div class="mx-auto max-w-3xl space-y-4">
-                <div
-                  v-if="gameStore.plotState && gameStore.currentScene"
-                  class="prose prose-invert max-w-none"
-                >
-                  <h2 class="text-2xl font-display text-amber-200 mb-4">
-                    {{ currentChapterTitle }}
-                  </h2>
-                  <ChapterRecapCard
-                    :visible="shouldShowRecap"
-                    :summary="lastChapterSummary"
-                  />
-                  <VirtualStoryList
-                    :paragraphs="currentChapterParagraphs"
-                    :scroll-element="storyScrollRef"
-                  />
-                  <p
-                    v-if="optionSourceLabel"
-                    class="mt-3 text-xs text-slate-500 font-mono"
-                  >
-                    选项来源：{{ optionSourceLabel }}
-                  </p>
-                </div>
-
-                <div
-                  v-if="!gameStore.isGameInitialized"
-                  class="text-center text-gray-400"
-                >
-                  <p>当前没有进行中的游戏，请先开始新游戏。</p>
-                </div>
-              </div>
+              <StoryScenePanel
+                :has-scene="Boolean(gameStore.plotState && gameStore.currentScene)"
+                :chapter-title="currentChapterTitle"
+                :show-recap="shouldShowRecap"
+                :recap-summary="lastChapterSummary"
+                :paragraphs="currentChapterParagraphs"
+                :option-source-label="optionSourceLabel"
+                :is-game-initialized="gameStore.isGameInitialized"
+                :scroll-element="storyScrollRef"
+              />
               <div class="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-slate-950 to-transparent" />
             </div>
 
@@ -282,12 +261,12 @@ import { useRouter } from 'vue-router';
 import { useGameStore } from '../stores/gameStore';
 import CharacterPanel from './CharacterPanel.vue';
 import ChapterStatusStrip from './ChapterStatusStrip.vue';
-import ChapterRecapCard from './ChapterRecapCard.vue';
 import ContinueActionPanel from './ContinueActionPanel.vue';
 import FreeTextInputPanel from './FreeTextInputPanel.vue';
 import InputModeTabs from './InputModeTabs.vue';
 import OptionListPanel from './OptionListPanel.vue';
 import QuickActionsBar from './QuickActionsBar.vue';
+import StoryScenePanel from './StoryScenePanel.vue';
 import LLMConfigDialog from './LLMConfigDialog.vue';
 import KeyboardShortcutsDialog from './KeyboardShortcutsDialog.vue';
 import LoadingIndicator from './LoadingIndicator.vue';
@@ -307,7 +286,6 @@ import {
 import { playClick } from '../utils/audioSystem';
 import { getStorySettings, saveStorySettings, type StorySettings } from '../utils/storySettings';
 import { invokeWithTimeout } from '../utils/tauriInvoke';
-import VirtualStoryList from './VirtualStoryList.vue';
 
 const router = useRouter();
 const gameStore = useGameStore();
