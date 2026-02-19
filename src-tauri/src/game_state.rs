@@ -26,6 +26,8 @@ pub struct Character {
     pub combat_status: CombatAftermathStatus,
     #[serde(default)]
     pub growth_log: Vec<String>,
+    #[serde(default)]
+    pub social_profile: SocialProfile,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
@@ -33,6 +35,27 @@ pub struct CombatAftermathStatus {
     pub injury_level: u8,
     pub reputation: i32,
     pub enmity: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SocialProfile {
+    pub sect_affinity: i32,
+    pub mentor_bond: i32,
+    pub vendetta: i32,
+    pub favor: i32,
+    pub camp_stance: String,
+}
+
+impl Default for SocialProfile {
+    fn default() -> Self {
+        Self {
+            sect_affinity: 0,
+            mentor_bond: 0,
+            vendetta: 0,
+            favor: 0,
+            camp_stance: "neutral".to_string(),
+        }
+    }
 }
 
 /// 角色背包中的物品
@@ -120,6 +143,7 @@ impl Character {
             location,
             combat_status: CombatAftermathStatus::default(),
             growth_log: Vec::new(),
+            social_profile: SocialProfile::default(),
         }
     }
 }
@@ -226,6 +250,7 @@ mod tests {
         assert!(character.inventory.is_empty());
         assert_eq!(character.combat_status.injury_level, 0);
         assert!(character.growth_log.is_empty());
+        assert_eq!(character.social_profile.camp_stance, "neutral");
     }
 
     #[test]

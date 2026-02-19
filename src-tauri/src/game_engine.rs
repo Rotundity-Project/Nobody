@@ -512,15 +512,18 @@ impl GameEngine {
         events: &[String],
     ) -> Result<Vec<NPCDecision>> {
         let mut all_decisions = Vec::new();
+        let player = self.get_current_state()?.player;
         for (idx, event_text) in events.iter().enumerate() {
+            let (affinity_impact, trust_impact) =
+                Self::derive_relation_impacts(&player, event_text);
             let event = NPCEvent {
                 timestamp: idx as u64 + 1,
                 description: event_text.clone(),
                 involved_npc_ids: Vec::new(),
                 importance: 0.7,
                 emotional_impact: 0.2,
-                affinity_impact: 1,
-                trust_impact: 1,
+                affinity_impact,
+                trust_impact,
             };
             self.log_event(
                 event.timestamp,
@@ -529,6 +532,15 @@ impl GameEngine {
                 EventImportance::Normal,
             );
             let decisions = self.npc_engine.process_event(&event);
+            self.log_event(
+                event.timestamp,
+                "relationship_shift",
+                format!(
+                    "impact affinity={} trust={} on event: {}",
+                    affinity_impact, trust_impact, event.description
+                ),
+                EventImportance::Normal,
+            );
             for decision in &decisions {
                 self.log_event(
                     event.timestamp,
@@ -541,6 +553,46 @@ impl GameEngine {
         }
         self.sync_event_history_to_state();
         Ok(all_decisions)
+    }
+
+    fn derive_relation_impacts(player: &Character, event_text: &str) -> (i32, i32) {
+        let lower = event_text.to_lowercase();
+        let mut affinity = 1 + player.combat_status.reputation.clamp(-20, 20) / 10;
+        let mut trust = 1 + player.social_profile.mentor_bond.clamp(-20, 20) / 10;
+
+        let conflict_hit =
+            lower.contains("betray") || lower.contains("attack") || lower.contains("背叛") || lower.contains("袭击");
+        let aid_hit =
+            lower.contains("rescue") || lower.contains("help") || lower.contains("援助") || lower.contains("救援");
+        let justice_hit =
+            lower.contains("justice") || lower.contains("righteous") || lower.contains("正道") || lower.contains("守护");
+        let enemy_hit =
+            lower.contains("enemy") || lower.contains("仇") || lower.contains("宿敌") || lower.contains("复仇");
+
+        if conflict_hit {
+            affinity -= 1 + player.social_profile.sect_affinity.clamp(-30, 30) / 15;
+            trust -= 1;
+        }
+        if aid_hit {
+            affinity += 1 + player.social_profile.favor.clamp(0, 30) / 15;
+            trust += 1;
+        }
+        if enemy_hit && player.social_profile.vendetta > 0 {
+            trust -= 1 + player.social_profile.vendetta.clamp(0, 30) / 15;
+        }
+
+        match player.social_profile.camp_stance.as_str() {
+            "righteous" if justice_hit => {
+                affinity += 1;
+                trust += 1;
+            }
+            "demonic" if justice_hit => {
+                affinity -= 1;
+            }
+            _ => {}
+        }
+
+        (affinity.clamp(-10, 10), trust.clamp(-10, 10))
     }
 
     fn initialize_npcs_for_new_game(&mut self, game_state: &GameState) {
@@ -982,6 +1034,45 @@ mod tests {
         engine.update_plot_state(plot.clone()).unwrap();
         let current = engine.get_plot_state().unwrap();
         assert_eq!(current.current_scene.name, "更新后的章节");
+    }
+
+    #[test]
+    fn test_relation_impacts_change_with_social_profile() {
+        let mut player = Character::new(
+            "player".to_string(),
+            "Tester".to_string(),
+            CharacterStats {
+                spiritual_root: SpiritualRoot {
+                    element: Element::Fire,
+                    grade: Grade::Heavenly,
+                    affinity: 0.8,
+                    elements: Vec::new(),
+                },
+                cultivation_realm: CultivationRealm::new("Qi".to_string(), 1, 0, 1.0),
+                techniques: vec![],
+                lifespan: crate::models::Lifespan {
+                    current_age: 16,
+                    max_age: 100,
+                    realm_bonus: 0,
+                },
+                combat_power: 100,
+            },
+            "sect".to_string(),
+        );
+
+        player.social_profile.sect_affinity = 20;
+        player.social_profile.mentor_bond = 20;
+        player.social_profile.camp_stance = "righteous".to_string();
+        let positive =
+            GameEngine::derive_relation_impacts(&player, "援助宗门守护正道");
+
+        player.social_profile.vendetta = 25;
+        player.social_profile.camp_stance = "demonic".to_string();
+        let negative =
+            GameEngine::derive_relation_impacts(&player, "背叛后袭击宿敌");
+
+        assert!(positive.0 >= negative.0);
+        assert!(positive.1 >= negative.1);
     }
 }
 
