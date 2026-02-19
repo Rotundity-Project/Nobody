@@ -603,10 +603,17 @@ fn apply_travel_and_encounter(
         .map(|loc| loc.name.clone())
         .unwrap_or_else(|| from_location.clone());
     let target_name = target_node.name.clone();
+    let (mobility, max_energy) = compute_travel_capabilities(
+        &game_state.player.stats.cultivation_realm,
+        &game_state.player.combat_status,
+    );
+    let suggested_path = build_energy_path(game_state, target_location, mobility, max_energy)
+        .unwrap_or_else(|| vec![from_location.clone(), target_location.to_string()]);
+    let travel_days = suggested_path.len().saturating_sub(1).max(1) as u32;
 
     game_state.player.location = target_location.to_string();
     plot_state.current_scene.location = target_location.to_string();
-    game_state.game_time.advance_days(1);
+    game_state.game_time.advance_days(travel_days);
 
     let total_days = game_state.game_time.total_days;
     let energy = target_node.spiritual_energy;
@@ -623,7 +630,10 @@ fn apply_travel_and_encounter(
     }
     let roll = (hash_acc % 100) as f64 / 100.0;
     let encounter_triggered = roll < weighted_prob;
-    let mut message = format!("你从{}前往{}，行程耗时1日。", from_name, target_name);
+    let mut message = format!("你从{}前往{}，行程耗时{}日。", from_name, target_name, travel_days);
+    if suggested_path.len() > 2 {
+        message.push_str(&format!(" 建议分段：{}。", suggested_path.join(" -> ")));
+    }
 
     if encounter_triggered {
         let status = &mut game_state.player.combat_status;
@@ -695,6 +705,7 @@ fn compute_reachable_location_ids(game_state: &GameState) -> Vec<String> {
     let nearest_two = if cfg.nearby_fallback_enabled && by_gap.len() >= cfg.nearby_fallback_min_location_count {
         by_gap
             .iter()
+            .filter(|(id, _, _)| id != &current_id)
             .take(cfg.nearby_fallback_count)
             .map(|(id, _, _)| id.clone())
             .collect::<Vec<_>>()
@@ -3289,6 +3300,98 @@ mod tests {
             .growth_log
             .iter()
             .any(|entry| entry.contains("行程变更")));
+    }
+
+    #[test]
+    fn test_apply_travel_and_encounter_supports_segmented_travel_days() {
+        let mut world_setting = crate::script::WorldSetting::new();
+        world_setting.locations = vec![
+            crate::script::Location {
+                id: "sect".to_string(),
+                name: "青云宗".to_string(),
+                description: "宗门驻地".to_string(),
+                spiritual_energy: 0.2,
+            },
+            crate::script::Location {
+                id: "mid".to_string(),
+                name: "过渡点".to_string(),
+                description: "中继区域".to_string(),
+                spiritual_energy: 0.45,
+            },
+            crate::script::Location {
+                id: "valley".to_string(),
+                name: "幽风谷".to_string(),
+                description: "目标区域".to_string(),
+                spiritual_energy: 0.55,
+            },
+            crate::script::Location {
+                id: "far".to_string(),
+                name: "远域".to_string(),
+                description: "高风险区域".to_string(),
+                spiritual_energy: 0.95,
+            },
+        ];
+        let script = crate::script::Script::new(
+            "id".to_string(),
+            "name".to_string(),
+            crate::script::ScriptType::Custom,
+            world_setting.clone(),
+            crate::script::InitialState {
+                player_name: "p".to_string(),
+                player_spiritual_root: crate::models::SpiritualRoot {
+                    element: crate::models::Element::Fire,
+                    elements: vec![crate::models::Element::Fire],
+                    grade: crate::models::Grade::Heavenly,
+                    affinity: 0.8,
+                },
+                starting_location: "sect".to_string(),
+                starting_age: 16,
+            },
+        );
+        let mut state = crate::game_state::GameState {
+            player: crate::game_state::Character::new(
+                "player".to_string(),
+                "Tester".to_string(),
+                crate::models::CharacterStats {
+                    spiritual_root: crate::models::SpiritualRoot {
+                        element: crate::models::Element::Fire,
+                        elements: vec![crate::models::Element::Fire],
+                        grade: crate::models::Grade::Heavenly,
+                        affinity: 0.8,
+                    },
+                    cultivation_realm: crate::models::CultivationRealm::new(
+                        "Qi".to_string(),
+                        1,
+                        0,
+                        1.0,
+                    ),
+                    techniques: vec![],
+                    lifespan: crate::models::Lifespan {
+                        current_age: 16,
+                        max_age: 100,
+                        realm_bonus: 0,
+                    },
+                    combat_power: 120,
+                },
+                "sect".to_string(),
+            ),
+            world_state: crate::game_state::WorldState::from_script(&script),
+            game_time: crate::game_state::GameTime::new(1, 1, 1),
+            event_history: vec![],
+            script,
+        };
+        let mut plot_state = crate::plot_engine::PlotState::new(crate::plot_engine::Scene::new(
+            "s1".to_string(),
+            "scene".to_string(),
+            "desc".to_string(),
+            "sect".to_string(),
+        ));
+
+        let result = apply_travel_and_encounter(&mut state, &mut plot_state, "valley").unwrap();
+        assert_eq!(state.player.location, "valley");
+        assert_eq!(state.game_time.total_days, 3);
+        assert!(result.0.contains("耗时2日"));
+        assert!(result.0.contains("建议分段"));
     }
 
     #[test]
