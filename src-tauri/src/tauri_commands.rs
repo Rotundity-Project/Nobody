@@ -911,6 +911,86 @@ fn apply_breakthrough_failure_consequences(
     );
 }
 
+fn apply_cultivation_side_effects(
+    game_state: &mut GameState,
+    action_result: &mut crate::numerical_system::ActionResult,
+) -> Option<String> {
+    if game_state.player.stats.techniques.is_empty() {
+        return None;
+    }
+    let (_, _, high_risk_technique) = evaluate_technique_semantic_modifier(&game_state.player.stats);
+    let seed = game_state.game_time.total_days as usize + game_state.player.stats.techniques.len();
+
+    if high_risk_technique && seed % 2 == 0 {
+        let old_qi = game_state.player.combat_status.qi_deviation;
+        let old_injury = game_state.player.combat_status.injury_level;
+        game_state.player.combat_status.qi_deviation = game_state
+            .player
+            .combat_status
+            .qi_deviation
+            .saturating_add(1)
+            .min(10);
+        if game_state.player.combat_status.qi_deviation >= 7 {
+            game_state.player.combat_status.injury_level = game_state
+                .player
+                .combat_status
+                .injury_level
+                .saturating_add(1)
+                .min(10);
+        }
+        action_result.stat_changes.push(StatChange {
+            stat_name: "qi_deviation".to_string(),
+            old_value: old_qi.to_string(),
+            new_value: game_state.player.combat_status.qi_deviation.to_string(),
+        });
+        if old_injury != game_state.player.combat_status.injury_level {
+            action_result.stat_changes.push(StatChange {
+                stat_name: "injury_level".to_string(),
+                old_value: old_injury.to_string(),
+                new_value: game_state.player.combat_status.injury_level.to_string(),
+            });
+        }
+        action_result
+            .events
+            .push("修炼反噬：高风险功法导致气机紊乱上升".to_string());
+        push_growth_log(
+            game_state,
+            format!(
+                "修炼反噬：气机紊乱 {} -> {}",
+                old_qi, game_state.player.combat_status.qi_deviation
+            ),
+        );
+        return Some("触发高风险功法反噬".to_string());
+    }
+
+    if game_state.player.stats.spiritual_root.affinity >= 0.75
+        && game_state.player.combat_status.qi_deviation <= 3
+        && seed % 3 == 0
+        && game_state.player.stats.cultivation_realm.sub_level < 3
+    {
+        let old_sub = game_state.player.stats.cultivation_realm.sub_level;
+        game_state.player.stats.cultivation_realm.sub_level += 1;
+        game_state.player.stats.cultivation_realm.power_multiplier *= 1.08;
+        game_state.player.stats.update_combat_power();
+        let new_sub = game_state.player.stats.cultivation_realm.sub_level;
+        action_result.stat_changes.push(StatChange {
+            stat_name: "realm_sub_level".to_string(),
+            old_value: old_sub.to_string(),
+            new_value: new_sub.to_string(),
+        });
+        action_result
+            .events
+            .push("修炼顿悟：境界感悟提升".to_string());
+        push_growth_log(
+            game_state,
+            format!("修炼顿悟：小境界 {} -> {}", old_sub, new_sub),
+        );
+        return Some("触发顿悟，小境界提升".to_string());
+    }
+
+    None
+}
+
 fn breakthrough_blocked_by_qi_deviation(qi_deviation: u8) -> bool {
     qi_deviation >= 8
 }
@@ -1279,6 +1359,12 @@ pub async fn execute_player_action(
                         "{} 战力提升了 {}（区域灵气修正 {:.2}x）。",
                         action_result.description, gain, gain_multiplier
                     );
+                    if let Some(effect_note) =
+                        apply_cultivation_side_effects(&mut game_state, &mut action_result)
+                    {
+                        action_result.description =
+                            format!("{}（{}）", action_result.description, effect_note);
+                    }
                     push_growth_log(
                         &mut game_state,
                         format!(
@@ -2914,6 +3000,110 @@ mod tests {
         assert!(!breakthrough_blocked_by_qi_deviation(7));
         assert!(breakthrough_blocked_by_qi_deviation(8));
         assert!(breakthrough_blocked_by_qi_deviation(10));
+    }
+
+    #[test]
+    fn test_apply_cultivation_side_effects_triggers_backlash_for_high_risk() {
+        let mut script = create_test_script();
+        script.world_setting.locations.push(crate::script::Location {
+            id: "cave".to_string(),
+            name: "灵息洞".to_string(),
+            description: "修炼洞府".to_string(),
+            spiritual_energy: 0.6,
+        });
+        let mut state = crate::game_state::GameState {
+            player: crate::game_state::Character::new(
+                "player".to_string(),
+                "Tester".to_string(),
+                crate::models::CharacterStats {
+                    spiritual_root: crate::models::SpiritualRoot {
+                        element: crate::models::Element::Fire,
+                        elements: vec![crate::models::Element::Fire],
+                        grade: crate::models::Grade::Heavenly,
+                        affinity: 0.8,
+                    },
+                    cultivation_realm: crate::models::CultivationRealm::new(
+                        "Qi".to_string(),
+                        1,
+                        0,
+                        1.0,
+                    ),
+                    techniques: vec!["禁术爆燃".to_string()],
+                    lifespan: crate::models::Lifespan {
+                        current_age: 16,
+                        max_age: 100,
+                        realm_bonus: 0,
+                    },
+                    combat_power: 120,
+                },
+                "sect".to_string(),
+            ),
+            world_state: crate::game_state::WorldState::from_script(&script),
+            game_time: crate::game_state::GameTime::new(1, 1, 1),
+            event_history: vec![],
+            script,
+        };
+        state.game_time.total_days = 2; // seed = 3 -> not backlash, set even with techniques len 1
+        let mut result = crate::numerical_system::ActionResult {
+            success: true,
+            description: "修炼".to_string(),
+            stat_changes: vec![],
+            events: vec![],
+        };
+        state.game_time.total_days = 1; // seed = 2, backlash
+        let note = apply_cultivation_side_effects(&mut state, &mut result);
+        assert!(note.is_some());
+        assert!(state.player.combat_status.qi_deviation >= 1);
+        assert!(result.events.iter().any(|e| e.contains("修炼反噬")));
+    }
+
+    #[test]
+    fn test_apply_cultivation_side_effects_can_trigger_insight() {
+        let script = create_test_script();
+        let mut state = crate::game_state::GameState {
+            player: crate::game_state::Character::new(
+                "player".to_string(),
+                "Tester".to_string(),
+                crate::models::CharacterStats {
+                    spiritual_root: crate::models::SpiritualRoot {
+                        element: crate::models::Element::Fire,
+                        elements: vec![crate::models::Element::Fire],
+                        grade: crate::models::Grade::Heavenly,
+                        affinity: 0.9,
+                    },
+                    cultivation_realm: crate::models::CultivationRealm::new(
+                        "Qi".to_string(),
+                        1,
+                        0,
+                        1.0,
+                    ),
+                    techniques: vec!["赤炎诀".to_string(), "青霜剑诀".to_string()],
+                    lifespan: crate::models::Lifespan {
+                        current_age: 16,
+                        max_age: 100,
+                        realm_bonus: 0,
+                    },
+                    combat_power: 120,
+                },
+                "sect".to_string(),
+            ),
+            world_state: crate::game_state::WorldState::from_script(&script),
+            game_time: crate::game_state::GameTime::new(1, 1, 1),
+            event_history: vec![],
+            script,
+        };
+        state.game_time.total_days = 1; // seed = 3 -> insight
+        let mut result = crate::numerical_system::ActionResult {
+            success: true,
+            description: "修炼".to_string(),
+            stat_changes: vec![],
+            events: vec![],
+        };
+        let old_sub = state.player.stats.cultivation_realm.sub_level;
+        let note = apply_cultivation_side_effects(&mut state, &mut result);
+        assert!(note.is_some());
+        assert!(state.player.stats.cultivation_realm.sub_level >= old_sub);
+        assert!(result.events.iter().any(|e| e.contains("顿悟")));
     }
 
     #[test]
