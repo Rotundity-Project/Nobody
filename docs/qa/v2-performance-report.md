@@ -33,8 +33,8 @@ Environment: local dev machine, no LLM network calls, Rust test harness
   - Artifacts: `plot_perf.log`, `combat_perf.log`, `perf-summary.md`
 
 ## Results
-- Plot advance per-op: `P50=0.001 ms`, `P95=0.002 ms`, `P99=0.003 ms`
-- Combat parse per-op: `P50=0.000 ms`, `P95=0.000 ms`, `P99=0.001 ms`
+- Plot advance per-op: `P50=0.001 ms`, `P95=0.002 ms`, `P99=0.002 ms`
+- Combat parse per-op: `P50=0.000 ms`, `P95=0.000 ms`, `P99=0.000 ms`
 
 ## Interpretation
 - Both metrics are far below the target thresholds.
@@ -47,6 +47,5 @@ Environment: local dev machine, no LLM network calls, Rust test harness
 - Diagnostics summarizer currently aggregates caller-provided diagnostics only; no persistent ring buffer yet.
 
 ## Next
-1. Add diagnostics exporter to aggregate `耗时(ms)` fields into percentile stats.
-2. Add repeat runs on CI runners for cross-platform comparability (current workflow is manual and ubuntu-only).
-3. Track trend by commit in `docs/qa/perf-history.md` (initialized).
+1. Add repeat runs on CI runners for cross-platform comparability (current workflow is manual and ubuntu-only).
+2. Append each benchmark run to `docs/qa/perf-history.md` for trend continuity.

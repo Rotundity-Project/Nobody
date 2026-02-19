@@ -81,7 +81,7 @@
 | 任务 | 计划状态 | 代码审计状态 | 证据 |
 |---|---|---|---|
 | 23. 属性测试与回归扩展 | 已完成 | 已完成 | 已补齐剧情一致性、地图位置、功法适配与风险、导出事实与章节目录等属性测试并稳定通过（`docs/qa/property-matrix.md`；验证命令含 `cargo test -q plot_engine::property_tests`、`novel_generator::property_tests`、`numeric_guard::tests`、`entity_validator::tests`、`test_property_map_location_consistency_after_roundtrip`） |
-| 24. 性能目标 | 未完成 | 部分完成（增强中） | 已新增基线报告、批量采样 P50/P95/P99 基准、运行时耗时埋点、耗时聚合命令与手动性能工作流（`docs/qa/v2-performance-report.md`, `src-tauri/src/tests.rs`, `src-tauri/src/tauri_commands.rs`, `.github/workflows/perf-benchmark.yml`） |
+| 24. 性能目标 | 已完成 | 已完成 | 已形成基线报告、批量采样 P50/P95/P99 基准、运行时耗时埋点与聚合命令，并复跑验证阈值通过（`docs/qa/v2-performance-report.md`, `docs/qa/perf-history.md`, `src-tauri/src/tests.rs`, `src-tauri/src/tauri_commands.rs`, `.github/workflows/perf-benchmark.yml`） |
 | 25. 发布准备 | 未完成 | 部分完成（增强中） | 已补发布草案、迁移兼容策略、changelog 草案、go-live 清单、灰度结果样例与发布后回归模板（`docs/release/v2-release-prep.md`, `docs/release/migration-v2.md`, `docs/release/v2-changelog-draft.md`, `docs/release/v2-go-live-checklist.md`, `docs/release/v2-canary-report-sample.md`, `docs/release/v2-post-release-regression-template.md`），并完成版本号同步到 `1.1.0`；待补真实灰度结果 |
 
 ## 阶段 J
