@@ -23,6 +23,7 @@ Scope: `tasks_v2.md` Task 23
 | Technique root affinity invariant | `prop_technique_root_affinity_never_contains_blank_or_duplicate` | `src-tauri/src/entity_validator.rs` | `cargo test -q prop_technique_root_affinity_never_contains_blank_or_duplicate` |
 | Technique risk-tag invariant | `prop_technique_risk_tags_are_lowercase_and_unique` | `src-tauri/src/entity_validator.rs` | `cargo test -q prop_technique_risk_tags_are_lowercase_and_unique` |
 | Map position consistency after roundtrip | `test_property_map_location_consistency_after_roundtrip` | `src-tauri/src/save_load.rs` | `cargo test -q test_property_map_location_consistency_after_roundtrip` |
+| E2E map position consistency across save-load-plot recovery | `test_property_map_location_consistency_in_save_load_plot_recovery` | `src-tauri/src/game_engine.rs` | `cargo test -q test_property_map_location_consistency_in_save_load_plot_recovery` |
 
 ## Suggested Bundles
 
@@ -39,5 +40,4 @@ Scope: `tasks_v2.md` Task 23
   - `cargo test -q entity_validator::tests`
 
 ## Remaining Gaps
-- Map position consistency invariant in end-to-end state transitions.
 - Technique risk-tag invariant linked with chapter events.

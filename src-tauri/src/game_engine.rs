@@ -396,6 +396,9 @@ impl GameEngine {
 
         // 优先恢复存档中的剧情状态，避免读档后剧情丢失。
         if let Some(mut saved_plot_state) = save_data.plot_state {
+            if saved_plot_state.current_scene.location != game_state.player.location {
+                saved_plot_state.current_scene.location = game_state.player.location.clone();
+            }
             saved_plot_state.recalculate_interaction_state();
             let mut plot_lock = self.plot_state.lock().unwrap();
             *plot_lock = Some(saved_plot_state);
@@ -985,6 +988,7 @@ mod integration_tests {
     use super::*;
     use crate::models::{CultivationRealm, Element, Grade, SpiritualRoot};
     use crate::script::{InitialState, Location, ScriptType, WorldSetting};
+    use proptest::prelude::*;
     use tempfile::TempDir;
 
     fn create_test_script() -> Script {
@@ -1258,6 +1262,54 @@ mod integration_tests {
         // 状态正确
         let state = engine2.get_current_state().unwrap();
         assert_eq!(state.player.stats.lifespan.current_age, 30);
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(64))]
+
+        // Feature: Nobody, Property 23: e2e map location consistency across save-load-plot recovery
+        #[test]
+        fn test_property_map_location_consistency_in_save_load_plot_recovery(
+            slot in 1u32..=5,
+            use_city in any::<bool>()
+        ) {
+            let temp_dir = TempDir::new().unwrap();
+            let mut engine = GameEngine::new();
+            engine.save_load_system = SaveLoadSystem::with_directory(temp_dir.path().to_path_buf());
+            let script = create_test_script();
+            engine.initialize_game(script).unwrap();
+            engine.initialize_plot().unwrap();
+
+            {
+                let mut state_lock = engine.state.lock().unwrap();
+                if let Some(ref mut state) = *state_lock {
+                    state.player.location = if use_city {
+                        "city".to_string()
+                    } else {
+                        "sect".to_string()
+                    };
+                }
+            }
+
+            let mut plot = engine.get_plot_state().unwrap();
+            plot.current_scene.location = "invalid_location".to_string();
+            engine.update_plot_state(plot).unwrap();
+
+            engine.save_game(slot).unwrap();
+            let loaded_state = engine.load_game(slot).unwrap();
+            let loaded_plot = engine.get_plot_state().unwrap();
+
+            prop_assert!(
+                loaded_state
+                    .world_state
+                    .locations
+                    .contains_key(&loaded_state.player.location)
+            );
+            prop_assert_eq!(
+                loaded_plot.current_scene.location,
+                loaded_state.player.location
+            );
+        }
     }
 }
 
