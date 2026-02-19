@@ -29,6 +29,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::path::Path;
 use std::sync::{Mutex, OnceLock};
+use std::time::Instant;
 use tauri::State;
 
 static ENTITY_STORE: OnceLock<Mutex<EntityStore>> = OnceLock::new();
@@ -292,6 +293,7 @@ pub async fn execute_player_action(
     action: PlayerAction,
     engine: State<'_, Mutex<GameEngine>>,
 ) -> Result<String, String> {
+    let total_started = Instant::now();
     let (mut game_state, mut plot_state) = {
         let engine = match engine.lock() {
             Ok(guard) => guard,
@@ -411,6 +413,7 @@ pub async fn execute_player_action(
     let mut plot_update = plot_engine
         .advance_plot_async(&plot_state_for_generation, &action_result)
         .await;
+    let plot_generation_ms = total_started.elapsed().as_millis();
 
     if let Some(bundle) = context_bundle {
         let ctx_diag = format!(
@@ -531,6 +534,7 @@ pub async fn execute_player_action(
     }
 
     let previous_options = plot_state.current_scene.available_options.clone();
+    let options_started = Instant::now();
 
     let mut option_source: String = if plot_update.is_waiting_for_input {
         if !plot_update.available_options.is_empty() {
@@ -587,6 +591,7 @@ pub async fn execute_player_action(
             }
         }
     }
+    let options_generation_ms = options_started.elapsed().as_millis();
 
     plot_state.is_waiting_for_input = plot_update.is_waiting_for_input;
     plot_state.recalculate_interaction_state();
@@ -601,6 +606,21 @@ pub async fn execute_player_action(
         }
         None => {
             plot_state.last_generation_diagnostics = Some(format!("选项来源：{}", option_source));
+        }
+    }
+    let total_ms = total_started.elapsed().as_millis();
+    match &mut plot_state.last_generation_diagnostics {
+        Some(diag) => {
+            diag.push_str(&format!(
+                "；耗时(ms)：total={},plot_gen={},option_gen={}",
+                total_ms, plot_generation_ms, options_generation_ms
+            ));
+        }
+        None => {
+            plot_state.last_generation_diagnostics = Some(format!(
+                "耗时(ms)：total={},plot_gen={},option_gen={}",
+                total_ms, plot_generation_ms, options_generation_ms
+            ));
         }
     }
 
