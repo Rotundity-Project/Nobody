@@ -6,9 +6,7 @@
   >
     <div class="panel-surface w-full max-w-4xl rounded-2xl p-6">
       <div class="mb-4 flex items-center justify-between">
-        <h3 class="text-xl font-display text-amber-100">
-          信息面板
-        </h3>
+        <h3 class="text-xl font-display text-amber-100">信息面板</h3>
         <button
           class="rounded bg-slate-700 px-3 py-1 text-sm text-slate-200"
           @click="$emit('close')"
@@ -47,6 +45,43 @@
         <p>章节互动：{{ chapterInteraction }}</p>
         <p>剧情段落：{{ segmentCount }}</p>
         <p>当前状态：{{ isWaitingForInput ? '等待玩家输入' : '自动推进中' }}</p>
+      </section>
+
+      <section
+        v-else-if="activeTab === 'map'"
+        class="space-y-3 text-sm text-slate-200"
+      >
+        <p>当前位置：{{ currentLocationId || playerLocation }}</p>
+        <div
+          v-if="worldLocations.length === 0"
+          class="text-slate-400"
+        >
+          暂无地图节点
+        </div>
+        <div
+          v-else
+          class="grid gap-2 sm:grid-cols-2"
+        >
+          <div
+            v-for="loc in worldLocations"
+            :key="loc.id"
+            class="rounded border border-slate-700 bg-slate-900/50 p-2"
+          >
+            <p class="font-medium text-slate-100">
+              {{ loc.name || loc.id }}
+              <span
+                v-if="loc.id === currentLocationId"
+                class="ml-1 rounded bg-amber-500 px-1.5 py-0.5 text-[10px] text-slate-900"
+              >
+                当前
+              </span>
+            </p>
+            <p class="text-xs text-slate-400">id: {{ loc.id }}</p>
+            <p class="text-xs text-slate-300">
+              灵气强度 {{ Number(loc.spiritual_energy).toFixed(2) }} / 风险 {{ locationRiskLabel(loc.spiritual_energy) }}
+            </p>
+          </div>
+        </div>
       </section>
 
       <section
@@ -113,7 +148,7 @@ import { ref } from 'vue';
 import NovelExporter from './NovelExporter.vue';
 import StatusBanner from './StatusBanner.vue';
 
-type TabId = 'character' | 'progress' | 'export' | 'debug' | 'system';
+type TabId = 'character' | 'progress' | 'map' | 'export' | 'debug' | 'system';
 
 defineProps<{
   isOpen: boolean;
@@ -125,6 +160,12 @@ defineProps<{
   chapterInteraction: string;
   segmentCount: number;
   isWaitingForInput: boolean;
+  worldLocations: Array<{
+    id: string;
+    name: string;
+    spiritual_energy: number;
+  }>;
+  currentLocationId: string;
   isGameRunning: boolean;
   eventCount: number;
   isDevMode: boolean;
@@ -143,10 +184,17 @@ defineEmits<{
 const tabs: Array<{ id: TabId; label: string }> = [
   { id: 'character', label: '角色快照' },
   { id: 'progress', label: '剧情进度' },
+  { id: 'map', label: '地图行程' },
   { id: 'export', label: '经历导出' },
   { id: 'debug', label: 'Debug Context' },
   { id: 'system', label: '系统提示' },
 ];
 
 const activeTab = ref<TabId>('character');
+
+const locationRiskLabel = (spiritualEnergy: number): string => {
+  if (spiritualEnergy >= 0.8) return '高';
+  if (spiritualEnergy >= 0.4) return '中';
+  return '低';
+};
 </script>

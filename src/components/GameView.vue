@@ -327,6 +327,8 @@
       :chapter-interaction="chapterInteractionLabel"
       :segment-count="gameStore.plotState?.segment_count ?? 0"
       :is-waiting-for-input="gameStore.isWaitingForInput"
+      :world-locations="worldLocationList"
+      :current-location-id="gameStore.playerCharacter?.location || ''"
       :is-game-running="gameStore.isGameInitialized"
       :event-count="gameStore.gameState?.event_history?.length ?? 0"
       :is-dev-mode="isDevMode"
@@ -452,6 +454,13 @@ const chapterInteractionLabel = computed(() => {
   const min = gameStore.plotState?.settings?.min_interactions_per_chapter ?? 0;
   const max = gameStore.plotState?.settings?.max_interactions_per_chapter ?? 0;
   return `${chapter.interaction_count} / ${min}-${max}`;
+});
+const worldLocationList = computed(() => {
+  return (gameStore.gameState?.script?.world_setting?.locations ?? []).map((loc) => ({
+    id: loc.id,
+    name: loc.name,
+    spiritual_energy: loc.spiritual_energy,
+  }));
 });
 const currentChapterParagraphs = computed(() => {
   const content = gameStore.plotState?.current_chapter?.content ?? [];
