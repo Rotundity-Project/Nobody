@@ -30,6 +30,12 @@ pub struct Character {
     pub social_profile: SocialProfile,
     #[serde(default)]
     pub personality_tags: Vec<String>,
+    #[serde(default)]
+    pub technique_tree: Vec<TechniqueNode>,
+    #[serde(default)]
+    pub equipment_slots: EquipmentSlots,
+    #[serde(default = "default_combat_tendency")]
+    pub combat_tendency: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
@@ -60,6 +66,27 @@ impl Default for SocialProfile {
             camp_stance: "neutral".to_string(),
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TechniqueNode {
+    pub name: String,
+    pub style: String,
+    pub mastery: u8,
+    pub risk_level: u8,
+    pub unlocked: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct EquipmentSlots {
+    pub weapon: Option<String>,
+    pub armor: Option<String>,
+    pub accessory: Option<String>,
+    pub artifact: Option<String>,
+}
+
+fn default_combat_tendency() -> String {
+    "balanced".to_string()
 }
 
 /// 角色背包中的物品
@@ -153,6 +180,75 @@ impl Character {
         tags
     }
 
+    fn classify_technique_style(name: &str) -> String {
+        let lower = name.to_lowercase();
+        if lower.contains("剑") || lower.contains("sword") {
+            "sword".to_string()
+        } else if lower.contains("刀") || lower.contains("blade") {
+            "blade".to_string()
+        } else if lower.contains("拳") || lower.contains("体") || lower.contains("body") {
+            "body".to_string()
+        } else if lower.contains("符")
+            || lower.contains("阵")
+            || lower.contains("array")
+            || lower.contains("talisman")
+        {
+            "talisman".to_string()
+        } else {
+            "misc".to_string()
+        }
+    }
+
+    fn estimate_technique_risk(name: &str) -> u8 {
+        let lower = name.to_lowercase();
+        if lower.contains("禁")
+            || lower.contains("爆")
+            || lower.contains("噬")
+            || lower.contains("逆")
+            || lower.contains("魔")
+            || lower.contains("forbidden")
+            || lower.contains("berserk")
+        {
+            3
+        } else if lower.contains("雷") || lower.contains("thunder") {
+            2
+        } else {
+            1
+        }
+    }
+
+    fn build_technique_tree(stats: &CharacterStats) -> Vec<TechniqueNode> {
+        stats
+            .techniques
+            .iter()
+            .enumerate()
+            .map(|(idx, tech)| TechniqueNode {
+                name: tech.clone(),
+                style: Self::classify_technique_style(tech),
+                mastery: ((stats.cultivation_realm.level + stats.cultivation_realm.sub_level) * 8)
+                    .min(100) as u8,
+                risk_level: Self::estimate_technique_risk(tech),
+                unlocked: idx < stats.techniques.len(),
+            })
+            .collect::<Vec<_>>()
+    }
+
+    pub fn refresh_profile_views(&mut self) {
+        self.technique_tree = Self::build_technique_tree(&self.stats);
+        self.personality_tags = Self::derive_personality_tags(&self.stats);
+    }
+
+    pub fn set_combat_tendency(&mut self, tendency: &str) -> bool {
+        if tendency.trim().is_empty() {
+            return false;
+        }
+        if self.combat_tendency == tendency {
+            return false;
+        }
+        self.combat_tendency = tendency.to_string();
+        true
+    }
+
     pub fn new(
         id: String,
         name: String,
@@ -160,6 +256,7 @@ impl Character {
         location: String,
     ) -> Self {
         let personality_tags = Self::derive_personality_tags(&stats);
+        let technique_tree = Self::build_technique_tree(&stats);
         Self {
             id,
             name,
@@ -170,6 +267,9 @@ impl Character {
             growth_log: Vec::new(),
             social_profile: SocialProfile::default(),
             personality_tags,
+            technique_tree,
+            equipment_slots: EquipmentSlots::default(),
+            combat_tendency: default_combat_tendency(),
         }
     }
 }
@@ -279,6 +379,27 @@ mod tests {
         assert!(character.growth_log.is_empty());
         assert_eq!(character.social_profile.camp_stance, "neutral");
         assert!(!character.personality_tags.is_empty());
+        assert!(character.technique_tree.is_empty());
+        assert_eq!(character.combat_tendency, "balanced");
+        assert_eq!(character.equipment_slots.weapon, None);
+    }
+
+    #[test]
+    fn test_refresh_profile_views_generates_technique_tree() {
+        let mut character = create_test_character();
+        character.stats.techniques = vec!["青霜剑诀".to_string(), "禁术爆燃".to_string()];
+        character.refresh_profile_views();
+        assert_eq!(character.technique_tree.len(), 2);
+        assert!(character.technique_tree.iter().any(|n| n.style == "sword"));
+        assert!(character.technique_tree.iter().any(|n| n.risk_level >= 3));
+    }
+
+    #[test]
+    fn test_set_combat_tendency_updates_value() {
+        let mut character = create_test_character();
+        assert!(character.set_combat_tendency("aggressive"));
+        assert_eq!(character.combat_tendency, "aggressive");
+        assert!(!character.set_combat_tendency("aggressive"));
     }
 
     #[test]

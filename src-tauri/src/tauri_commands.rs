@@ -444,8 +444,19 @@ fn apply_combat_aftermath(
     combat_success: bool,
     strategy: Option<CombatStrategy>,
 ) -> String {
-    let status = &mut game_state.player.combat_status;
     let strategy = strategy.unwrap_or(CombatStrategy::Aggressive);
+    let tendency = match strategy {
+        CombatStrategy::Aggressive => "aggressive",
+        CombatStrategy::Cautious => "cautious",
+        CombatStrategy::Survival => "survival",
+    };
+    if game_state.player.set_combat_tendency(tendency) {
+        push_growth_log(
+            game_state,
+            format!("战斗倾向更新：{}", game_state.player.combat_tendency),
+        );
+    }
+    let status = &mut game_state.player.combat_status;
     if combat_success {
         status.reputation = status.reputation.saturating_add(2);
         status.enmity = status
@@ -2149,7 +2160,7 @@ pub async fn execute_player_action(
             object: game_state.player.location.clone(),
         });
     }
-
+    game_state.player.refresh_profile_views();
     engine
         .update_current_state(game_state)
         .map_err(|e| e.to_string())?;
@@ -2257,7 +2268,7 @@ pub async fn travel_to_location(
             EventImportance::Important,
         );
     }
-
+    game_state.player.refresh_profile_views();
     engine
         .update_current_state(game_state)
         .map_err(|e| e.to_string())?;
@@ -3746,6 +3757,7 @@ mod tests {
         assert!(state.player.social_profile.favor >= 1);
         assert!(state.player.social_profile.mentor_bond >= 1);
         assert!(state.player.social_profile.vendetta <= 4);
+        assert_eq!(state.player.combat_tendency, "cautious");
         assert!(
             state.player.social_profile.camp_stance == "righteous"
                 || state.player.social_profile.camp_stance == "neutral"
@@ -4049,5 +4061,6 @@ mod tests {
         assert!(reason.contains("克制"));
     }
 }
+
 
 
