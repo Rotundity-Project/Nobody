@@ -113,17 +113,10 @@
                   <h2 class="text-2xl font-display text-amber-200 mb-4">
                     {{ currentChapterTitle }}
                   </h2>
-                  <div
-                    v-if="shouldShowRecap"
-                    class="mb-6 rounded-lg border border-amber-500/30 bg-slate-950/70 p-4"
-                  >
-                    <p class="text-xs uppercase tracking-[0.25em] text-amber-200/70">
-                      上一章摘要
-                    </p>
-                    <p class="mt-2 text-sm text-slate-300 font-story whitespace-pre-wrap">
-                      {{ lastChapterSummary }}
-                    </p>
-                  </div>
+                  <ChapterRecapCard
+                    :visible="shouldShowRecap"
+                    :summary="lastChapterSummary"
+                  />
                   <VirtualStoryList
                     :paragraphs="currentChapterParagraphs"
                     :scroll-element="storyScrollRef"
@@ -359,6 +352,7 @@ import { useRouter } from 'vue-router';
 import { useGameStore } from '../stores/gameStore';
 import CharacterPanel from './CharacterPanel.vue';
 import ChapterStatusStrip from './ChapterStatusStrip.vue';
+import ChapterRecapCard from './ChapterRecapCard.vue';
 import InputModeTabs from './InputModeTabs.vue';
 import LLMConfigDialog from './LLMConfigDialog.vue';
 import KeyboardShortcutsDialog from './KeyboardShortcutsDialog.vue';
