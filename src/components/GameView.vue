@@ -183,15 +183,13 @@
 
                 <div
                   v-else-if="isNoInputAdvanceState && !isLoading"
-                  class="text-center space-y-3"
+                  class="text-center"
                 >
-                  <p class="text-sm text-slate-400">当前无需输入，点击继续即可推进剧情。</p>
-                  <button
-                    class="px-4 py-2 rounded-lg transition-colors bg-amber-500 hover:bg-amber-400 text-slate-900"
-                    @click="handleContinue"
-                  >
-                    继续推进剧情
-                  </button>
+                  <ContinueActionPanel
+                    message="当前无需输入，点击继续即可推进剧情。"
+                    button-text="继续推进剧情"
+                    @continue="handleContinue"
+                  />
                 </div>
 
                 <div
@@ -209,12 +207,7 @@
                   v-else-if="gameStore.isGameInitialized && !gameStore.isWaitingForInput"
                   class="text-center"
                 >
-                  <button
-                    class="px-4 py-2 rounded-lg transition-colors bg-amber-500 hover:bg-amber-400 text-slate-900"
-                    @click="handleContinue"
-                  >
-                    继续写
-                  </button>
+                  <ContinueActionPanel button-text="继续写" @continue="handleContinue" />
                 </div>
               </div>
             </div>
@@ -313,6 +306,7 @@ import { useGameStore } from '../stores/gameStore';
 import CharacterPanel from './CharacterPanel.vue';
 import ChapterStatusStrip from './ChapterStatusStrip.vue';
 import ChapterRecapCard from './ChapterRecapCard.vue';
+import ContinueActionPanel from './ContinueActionPanel.vue';
 import FreeTextInputPanel from './FreeTextInputPanel.vue';
 import InputModeTabs from './InputModeTabs.vue';
 import OptionListPanel from './OptionListPanel.vue';
