@@ -527,5 +527,35 @@ mod property_tests {
             prop_assert!(content.contains(&title));
         }
     }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(100))]
+
+        // Feature: Nobody, Property 23: chapter TOC integrity invariant
+        #[test]
+        fn prop_toc_integrity_matches_chapters(
+            chapter_count in 1usize..8,
+            body in "[A-Za-z0-9 ,.]{1,80}"
+        ) {
+            let chapters = (0..chapter_count)
+                .map(|idx| Chapter {
+                    index: (idx + 1) as u32,
+                    title: format!("Chapter {}", idx + 1),
+                    content: format!("{} {}", body, idx),
+                    source_event_ids: vec![idx as u64 + 1, idx as u64 + 100],
+                })
+                .collect::<Vec<Chapter>>();
+
+            let toc = build_toc(&chapters);
+            prop_assert_eq!(toc.len(), chapters.len());
+
+            for (entry, chapter) in toc.iter().zip(chapters.iter()) {
+                prop_assert_eq!(entry.index, chapter.index);
+                prop_assert_eq!(&entry.title, &chapter.title);
+                prop_assert_eq!(entry.source_event_count, chapter.source_event_ids.len());
+                prop_assert!(!entry.summary.trim().is_empty());
+            }
+        }
+    }
 }
 
