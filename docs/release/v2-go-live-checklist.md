@@ -1,20 +1,20 @@
 # V2 发布验收清单（Go-Live）
 
-更新时间: 2026-02-19
+更新时间: 2026-02-19  
 版本: `1.1.0`
 
 ## 1. 构建与测试门禁
 
 - [ ] 前端测试通过: `npm run test`
 - [ ] 后端关键属性通过:
-  - [ ] `cargo test -q novel_generator::property_tests`
-  - [ ] `cargo test -q test_property_map_location_consistency_in_save_load_plot_recovery`
+- [ ] `cargo test -q novel_generator::property_tests`
+- [ ] `cargo test -q test_property_map_location_consistency_in_save_load_plot_recovery`
 - [ ] 性能基线通过:
-  - [ ] `cargo test -q perf_plot_advance_p95_under_target -- --ignored --nocapture`
-  - [ ] `cargo test -q perf_combat_parse_p95_under_target -- --ignored --nocapture`
+- [ ] `cargo test -q perf_plot_advance_p95_under_target -- --ignored --nocapture`
+- [ ] `cargo test -q perf_combat_parse_p95_under_target -- --ignored --nocapture`
 - [ ] CI 工作流通过:
-  - [ ] `.github/workflows/ci.yml`
-  - [ ] `.github/workflows/perf-benchmark.yml`（手动触发）
+- [ ] `.github/workflows/ci.yml`
+- [ ] `.github/workflows/perf-benchmark.yml`（手动触发）
 
 ## 2. 迁移与兼容验收
 
@@ -38,3 +38,8 @@
 - 回滚版本:
 - 回滚执行人:
 - 回滚后验证结论:
+
+## 5. 关联文档
+
+- 灰度结果样例: `docs/release/v2-canary-report-sample.md`
+- 发布后回归模板: `docs/release/v2-post-release-regression-template.md`

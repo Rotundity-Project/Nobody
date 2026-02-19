@@ -82,7 +82,7 @@
 |---|---|---|---|
 | 23. 属性测试与回归扩展 | 未完成 | 部分完成（增强中） | 已新增章节目录完整性、导出事实覆盖率、地图位置一致性、地图/数值边界、功法适配不变量测试，并整理执行矩阵（`docs/qa/property-matrix.md`） |
 | 24. 性能目标 | 未完成 | 部分完成（增强中） | 已新增基线报告、批量采样 P50/P95/P99 基准、运行时耗时埋点、耗时聚合命令与手动性能工作流（`docs/qa/v2-performance-report.md`, `src-tauri/src/tests.rs`, `src-tauri/src/tauri_commands.rs`, `.github/workflows/perf-benchmark.yml`） |
-| 25. 发布准备 | 未完成 | 部分完成（增强中） | 已补发布草案、迁移兼容策略、changelog 草案与 go-live 清单（`docs/release/v2-release-prep.md`, `docs/release/migration-v2.md`, `docs/release/v2-changelog-draft.md`, `docs/release/v2-go-live-checklist.md`），并完成版本号同步到 `1.1.0`；待补灰度结果 |
+| 25. 发布准备 | 未完成 | 部分完成（增强中） | 已补发布草案、迁移兼容策略、changelog 草案、go-live 清单、灰度结果样例与发布后回归模板（`docs/release/v2-release-prep.md`, `docs/release/migration-v2.md`, `docs/release/v2-changelog-draft.md`, `docs/release/v2-go-live-checklist.md`, `docs/release/v2-canary-report-sample.md`, `docs/release/v2-post-release-regression-template.md`），并完成版本号同步到 `1.1.0`；待补真实灰度结果 |
 
 ## 阶段 J
 

@@ -55,6 +55,8 @@
 
 验收记录模板:
 - `docs/release/v2-go-live-checklist.md`
+- `docs/release/v2-canary-report-sample.md`
+- `docs/release/v2-post-release-regression-template.md`
 
 ## 已知限制
 
