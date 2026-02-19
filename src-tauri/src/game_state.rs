@@ -35,6 +35,8 @@ pub struct CombatAftermathStatus {
     pub injury_level: u8,
     pub reputation: i32,
     pub enmity: i32,
+    #[serde(default)]
+    pub qi_deviation: u8,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -249,6 +251,7 @@ mod tests {
         assert_eq!(character.location, "sect");
         assert!(character.inventory.is_empty());
         assert_eq!(character.combat_status.injury_level, 0);
+        assert_eq!(character.combat_status.qi_deviation, 0);
         assert!(character.growth_log.is_empty());
         assert_eq!(character.social_profile.camp_stance, "neutral");
     }

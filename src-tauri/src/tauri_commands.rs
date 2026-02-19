@@ -202,6 +202,79 @@ fn push_growth_log(game_state: &mut GameState, entry: impl Into<String>) {
     }
 }
 
+fn is_high_risk_technique_name(name: &str) -> bool {
+    let t = name.to_lowercase();
+    t.contains("禁")
+        || t.contains("爆")
+        || t.contains("噬")
+        || t.contains("逆")
+        || t.contains("魔")
+        || t.contains("forbidden")
+        || t.contains("berserk")
+}
+
+fn apply_breakthrough_failure_consequences(
+    game_state: &mut GameState,
+    action_result: &mut crate::numerical_system::ActionResult,
+    high_risk_technique: bool,
+) {
+    let old_deviation = game_state.player.combat_status.qi_deviation;
+    let old_injury = game_state.player.combat_status.injury_level;
+    let deviation_gain = if high_risk_technique { 2 } else { 1 };
+    let (new_deviation, new_injury) = {
+        let status = &mut game_state.player.combat_status;
+        status.qi_deviation = status.qi_deviation.saturating_add(deviation_gain).min(10);
+        if high_risk_technique {
+            status.injury_level = status.injury_level.saturating_add(1).min(10);
+        }
+        (status.qi_deviation, status.injury_level)
+    };
+    action_result.stat_changes.push(StatChange {
+        stat_name: "qi_deviation".to_string(),
+        old_value: old_deviation.to_string(),
+        new_value: new_deviation.to_string(),
+    });
+    action_result.events.push(format!(
+        "突破失败后果：气机紊乱+{}（当前 {}）",
+        deviation_gain, new_deviation
+    ));
+
+    if high_risk_technique {
+        action_result.stat_changes.push(StatChange {
+            stat_name: "injury_level".to_string(),
+            old_value: old_injury.to_string(),
+            new_value: new_injury.to_string(),
+        });
+        action_result
+            .events
+            .push("高风险功法反噬：伤势+1，出现走火入魔征兆".to_string());
+    }
+
+    if new_deviation >= 7 {
+        action_result
+            .events
+            .push("气机紊乱接近临界，需休整或降风险修炼".to_string());
+    }
+
+    action_result.description = format!(
+        "{}（突破失败后果：气机紊乱+{}）",
+        action_result.description, deviation_gain
+    );
+    push_growth_log(
+        game_state,
+        format!(
+            "突破受挫：气机紊乱 {} -> {}{}",
+            old_deviation,
+            new_deviation,
+            if high_risk_technique {
+                "；触发高风险反噬"
+            } else {
+                ""
+            }
+        ),
+    );
+}
+
 fn evaluate_technique_semantic_modifier(
     stats: &crate::models::CharacterStats,
 ) -> (i32, Vec<String>, bool) {
@@ -233,7 +306,7 @@ fn evaluate_technique_semantic_modifier(
             percent_delta -= 10;
             reasons.push(format!("功法 `{}` 境界门槛偏高，发挥受限", tech));
         }
-        if t.contains("禁") || t.contains("爆") || t.contains("噬") || t.contains("逆") {
+        if is_high_risk_technique_name(tech) {
             has_high_risk = true;
             percent_delta += 5;
             reasons.push(format!("功法 `{}` 高风险强行驱动，短时增益", tech));
@@ -569,6 +642,12 @@ pub async fn execute_player_action(
                     );
                 }
                 Action::Breakthrough => {
+                    let high_risk_technique = game_state
+                        .player
+                        .stats
+                        .techniques
+                        .iter()
+                        .any(|t| is_high_risk_technique_name(t));
                     if action_result.success
                         && game_state.player.stats.cultivation_realm.sub_level < 3
                     {
@@ -591,6 +670,12 @@ pub async fn execute_player_action(
                         let growth_entry =
                             format!("突破成长：{} 小境界 {} -> {}", realm_name, old_sub, new_sub);
                         push_growth_log(&mut game_state, growth_entry);
+                    } else if !action_result.success {
+                        apply_breakthrough_failure_consequences(
+                            &mut game_state,
+                            &mut action_result,
+                            high_risk_technique,
+                        );
                     }
                 }
                 Action::Combat { .. } => {
@@ -1862,6 +1947,89 @@ mod tests {
         assert!(delta > 0);
         assert!(!reasons.is_empty());
         assert!(risk);
+    }
+
+    #[test]
+    fn test_is_high_risk_technique_name_detects_cn_and_en_keywords() {
+        assert!(is_high_risk_technique_name("禁术爆燃"));
+        assert!(is_high_risk_technique_name("forbidden flame"));
+        assert!(!is_high_risk_technique_name("清心诀"));
+    }
+
+    #[test]
+    fn test_apply_breakthrough_failure_consequences_updates_qi_deviation_and_injury() {
+        let mut state = crate::game_state::GameState {
+            script: crate::script::Script::new(
+                "id".to_string(),
+                "name".to_string(),
+                crate::script::ScriptType::Custom,
+                crate::script::WorldSetting::new(),
+                crate::script::InitialState {
+                    player_name: "p".to_string(),
+                    player_spiritual_root: crate::models::SpiritualRoot {
+                        element: crate::models::Element::Fire,
+                        elements: vec![crate::models::Element::Fire],
+                        grade: crate::models::Grade::Heavenly,
+                        affinity: 0.8,
+                    },
+                    starting_location: "sect".to_string(),
+                    starting_age: 16,
+                },
+            ),
+            player: crate::game_state::Character::new(
+                "player".to_string(),
+                "Tester".to_string(),
+                crate::models::CharacterStats {
+                    spiritual_root: crate::models::SpiritualRoot {
+                        element: crate::models::Element::Fire,
+                        elements: vec![crate::models::Element::Fire],
+                        grade: crate::models::Grade::Heavenly,
+                        affinity: 0.8,
+                    },
+                    cultivation_realm: crate::models::CultivationRealm::new(
+                        "Qi".to_string(),
+                        1,
+                        2,
+                        1.0,
+                    ),
+                    techniques: vec!["禁术爆燃".to_string()],
+                    lifespan: crate::models::Lifespan {
+                        current_age: 16,
+                        max_age: 100,
+                        realm_bonus: 0,
+                    },
+                    combat_power: 120,
+                },
+                "sect".to_string(),
+            ),
+            world_state: crate::game_state::WorldState::new(),
+            game_time: crate::game_state::GameTime::new(1, 1, 1),
+            event_history: vec![],
+        };
+        let mut action_result = crate::numerical_system::ActionResult {
+            success: false,
+            description: "突破失败".to_string(),
+            stat_changes: vec![],
+            events: vec![],
+        };
+
+        apply_breakthrough_failure_consequences(&mut state, &mut action_result, true);
+
+        assert_eq!(state.player.combat_status.qi_deviation, 2);
+        assert_eq!(state.player.combat_status.injury_level, 1);
+        assert!(action_result
+            .events
+            .iter()
+            .any(|e| e.contains("突破失败后果：气机紊乱+2")));
+        assert!(action_result
+            .events
+            .iter()
+            .any(|e| e.contains("走火入魔征兆")));
+        assert!(state
+            .player
+            .growth_log
+            .iter()
+            .any(|e| e.contains("突破受挫：气机紊乱")));
     }
 }
 
