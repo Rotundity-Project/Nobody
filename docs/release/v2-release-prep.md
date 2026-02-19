@@ -16,6 +16,9 @@
 - `src-tauri/Cargo.toml` -> `version: 1.1.0`
 - 更新发布说明: `docs/release/v2-changelog-draft.md`
 
+执行状态:
+- 已完成（2026-02-19）：三端版本号同步到 `1.1.0`。
+
 ## 变更摘要
 
 - 剧情推进增强:

@@ -1,6 +1,6 @@
 [package]
 name = "nobody"
-version = "1.0.0"
+version = "1.1.0"
 description = "Nobody: A cultivation simulation game built with Tauri + Vue."
 authors = ["Rotundity Project"]
 edition = "2021"
