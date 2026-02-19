@@ -109,7 +109,9 @@
 
       <button
         @click="handleBack"
-        class="mt-6 px-6 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors duration-200"
+        :disabled="isLoading"
+        class="mt-6 rounded-lg px-6 py-2 text-white transition-colors duration-200"
+        :class="isLoading ? 'cursor-not-allowed bg-slate-800 text-slate-500' : 'bg-slate-700 hover:bg-slate-600'"
       >
         返回
       </button>
