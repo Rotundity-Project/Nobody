@@ -68,7 +68,7 @@ export const useGameStore = defineStore('game', {
 
       try {
         const trimmedName = playerName?.trim();
-        script.initial_state.player_name = trimmedName || '鏃犲悕寮熷瓙';
+        script.initial_state.player_name = trimmedName || '无名弟子';
         const gameState = await invoke<GameState>('initialize_game', { script });
         this.currentScript = script;
         this.gameState = gameState;
@@ -219,10 +219,10 @@ export const useGameStore = defineStore('game', {
           'generate_random_script',
           undefined,
           120000,
-          '闅忔満鍓ф湰鐢熸垚瓒呮椂锛岃绋嶅悗閲嶈瘯',
+          '随机剧本生成超时，请稍后重试',
         );
         const trimmedName = playerName?.trim();
-        script.initial_state.player_name = trimmedName || '鏃犲悕寮熷瓙';
+        script.initial_state.player_name = trimmedName || '无名弟子';
         const gameState = await invoke<GameState>('initialize_game', { script });
         this.currentScript = script;
         this.gameState = gameState;
