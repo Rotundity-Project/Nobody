@@ -22,9 +22,10 @@
       </div>
 
       <div class="space-y-4" data-testid="script-type-container">
-        <div
+        <button
           v-for="scriptType in scriptTypes"
           :key="scriptType.type"
+          type="button"
           class="p-6 rounded-lg border-2 transition-all duration-200"
           :class="[
             scriptType.available && selectedType === scriptType.type
@@ -33,6 +34,7 @@
                 ? 'border-amber-400/60 bg-slate-800/70 hover:bg-slate-700 cursor-pointer'
               : 'border-slate-700 bg-slate-900/60 opacity-60 cursor-not-allowed'
           ]"
+          :disabled="!scriptType.available || isLoading"
           :data-testid="`script-type-${scriptType.type}`"
           @click="scriptType.available && selectScriptType(scriptType.type)"
         >
@@ -47,7 +49,7 @@
               即将推出
             </div>
           </div>
-        </div>
+        </button>
       </div>
 
       <div v-if="showCharacterSelect" class="mt-6 p-4 border border-slate-600 rounded-lg bg-slate-900/60">
