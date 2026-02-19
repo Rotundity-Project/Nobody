@@ -202,6 +202,47 @@ fn push_growth_log(game_state: &mut GameState, entry: impl Into<String>) {
     }
 }
 
+fn evaluate_technique_semantic_modifier(
+    stats: &crate::models::CharacterStats,
+) -> (i32, Vec<String>, bool) {
+    let mut percent_delta = 0i32;
+    let mut reasons = Vec::new();
+    let roots = stats
+        .spiritual_root
+        .effective_elements()
+        .iter()
+        .map(|e| format!("{:?}", e).to_lowercase())
+        .collect::<Vec<_>>();
+    let mut has_high_risk = false;
+
+    for tech in &stats.techniques {
+        let t = tech.to_lowercase();
+        if (t.contains("fire") || t.contains("炎") || t.contains("焰") || t.contains("火"))
+            && roots.iter().any(|r| r == "fire")
+        {
+            percent_delta += 8;
+            reasons.push(format!("功法 `{}` 与火灵根适配", tech));
+        }
+        if (t.contains("ice") || t.contains("寒") || t.contains("冰"))
+            && (roots.iter().any(|r| r == "water") || roots.iter().any(|r| r == "ice"))
+        {
+            percent_delta += 6;
+            reasons.push(format!("功法 `{}` 与水/冰灵根适配", tech));
+        }
+        if t.contains("元婴") && stats.cultivation_realm.level < 4 {
+            percent_delta -= 10;
+            reasons.push(format!("功法 `{}` 境界门槛偏高，发挥受限", tech));
+        }
+        if t.contains("禁") || t.contains("爆") || t.contains("噬") || t.contains("逆") {
+            has_high_risk = true;
+            percent_delta += 5;
+            reasons.push(format!("功法 `{}` 高风险强行驱动，短时增益", tech));
+        }
+    }
+
+    (percent_delta.clamp(-30, 30), reasons, has_high_risk)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct GenerationTimingSample {
     total_ms: u64,
@@ -554,6 +595,36 @@ pub async fn execute_player_action(
                 }
                 Action::Combat { .. } => {
                     should_emit_combat_explanation = true;
+                    let (semantic_delta_pct, semantic_reasons, high_risk_technique) =
+                        evaluate_technique_semantic_modifier(&game_state.player.stats);
+                    if semantic_delta_pct != 0 {
+                        let old_power = game_state.player.stats.combat_power;
+                        let scaled = (old_power as i128)
+                            .saturating_mul((100 + semantic_delta_pct) as i128)
+                            / 100i128;
+                        let new_power = scaled.max(1) as u64;
+                        game_state.player.stats.combat_power = new_power;
+                        action_result.stat_changes.push(StatChange {
+                            stat_name: "combat_power".to_string(),
+                            old_value: old_power.to_string(),
+                            new_value: new_power.to_string(),
+                        });
+                        action_result.description = format!(
+                            "{}（功法语义修正: {}%）",
+                            action_result.description, semantic_delta_pct
+                        );
+                        push_growth_log(
+                            &mut game_state,
+                            format!("功法语义影响战斗：战力 {} -> {}", old_power, new_power),
+                        );
+                    }
+                    if !semantic_reasons.is_empty() {
+                        action_result.description = format!(
+                            "{}；语义依据：{}",
+                            action_result.description,
+                            semantic_reasons.join(" / ")
+                        );
+                    }
                     let realm_level = game_state.player.stats.cultivation_realm.level;
                     let check = crate::numeric_guard::validate_character_combat_power(
                         realm_level,
@@ -587,6 +658,11 @@ pub async fn execute_player_action(
                         );
                     }
                     let aftermath_summary = apply_combat_aftermath(&mut game_state, action_result.success);
+                    if high_risk_technique {
+                        let status = &mut game_state.player.combat_status;
+                        status.injury_level = status.injury_level.saturating_add(1).min(10);
+                        action_result.events.push("高风险功法反噬：伤势+1".to_string());
+                    }
                     action_result.events.push(aftermath_summary.clone());
                     action_result.description =
                         format!("{}；{}", action_result.description, aftermath_summary);
@@ -1762,6 +1838,30 @@ mod tests {
         assert_eq!(state.player.growth_log.len(), 240);
         assert_eq!(state.player.growth_log.first().map(String::as_str), Some("entry-20"));
         assert_eq!(state.player.growth_log.last().map(String::as_str), Some("entry-259"));
+    }
+
+    #[test]
+    fn test_evaluate_technique_semantic_modifier_affinity_and_risk() {
+        let stats = crate::models::CharacterStats {
+            spiritual_root: crate::models::SpiritualRoot {
+                element: crate::models::Element::Fire,
+                elements: vec![crate::models::Element::Fire],
+                grade: crate::models::Grade::Heavenly,
+                affinity: 0.8,
+            },
+            cultivation_realm: crate::models::CultivationRealm::new("Qi".to_string(), 2, 0, 1.0),
+            techniques: vec!["赤炎诀".to_string(), "禁术爆燃".to_string()],
+            lifespan: crate::models::Lifespan {
+                current_age: 18,
+                max_age: 100,
+                realm_bonus: 0,
+            },
+            combat_power: 200,
+        };
+        let (delta, reasons, risk) = evaluate_technique_semantic_modifier(&stats);
+        assert!(delta > 0);
+        assert!(!reasons.is_empty());
+        assert!(risk);
     }
 }
 
