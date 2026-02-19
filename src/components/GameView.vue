@@ -98,6 +98,17 @@
           </button>
         </div>
       </div>
+      <div
+        v-if="gameStore.isGameInitialized"
+        class="border-b border-slate-800/80 bg-slate-900/60 px-6 py-2"
+      >
+        <div class="mx-auto flex max-w-7xl flex-wrap items-center gap-x-5 gap-y-1 text-xs text-slate-300">
+          <span>章节：{{ chapterProgressLabel }}</span>
+          <span>交互：{{ chapterInteractionLabel }}</span>
+          <span>状态：{{ interactionStateLabel }}</span>
+          <span v-if="optionSourceLabel">来源：{{ optionSourceLabel }}</span>
+        </div>
+      </div>
 
       <div class="flex-1 overflow-hidden p-4 sm:p-6 lg:p-8">
         <div class="mx-auto h-full max-w-7xl">
@@ -173,17 +184,29 @@
                   v-if="shouldShowInputPanel"
                   class="space-y-4"
                 >
+                  <StatusBanner
+                    v-if="gameStore.error"
+                    kind="error"
+                    title="系统提示"
+                    :message="gameStore.error"
+                  />
+                  <StatusBanner
+                    v-else-if="isNoInputAdvanceState"
+                    kind="auto_advance"
+                    title="自动推进中"
+                    message="当前状态无需玩家输入。"
+                  />
                   <div v-if="gameStore.availableOptions.length > 0" class="flex items-center gap-2">
                     <button
                       class="px-3 py-1 rounded"
-                      :class="inputMode === 'options' ? 'bg-purple-600 text-white' : 'bg-slate-700 text-gray-300'"
+                      :class="inputMode === 'options' ? 'bg-amber-500 text-slate-900' : 'bg-slate-700 text-gray-300'"
                       @click="inputMode = 'options'"
                     >
                       选项
                     </button>
                     <button
                       class="px-3 py-1 rounded"
-                      :class="inputMode === 'freeText' ? 'bg-purple-600 text-white' : 'bg-slate-700 text-gray-300'"
+                      :class="inputMode === 'freeText' ? 'bg-amber-500 text-slate-900' : 'bg-slate-700 text-gray-300'"
                       @click="inputMode = 'freeText'"
                     >
                       自由输入
@@ -384,6 +407,7 @@ import KeyboardShortcutsDialog from './KeyboardShortcutsDialog.vue';
 import LoadingIndicator from './LoadingIndicator.vue';
 import InfoTabsDialog from './InfoTabsDialog.vue';
 import SaveLoadDialog from './SaveLoadDialog.vue';
+import StatusBanner from './StatusBanner.vue';
 import StorySettingsDialog from './StorySettingsDialog.vue';
 import ConsistencySettingsDialog from './ConsistencySettingsDialog.vue';
 import type { ConsistencyPolicy, PlayerOption } from '../types/game';
@@ -543,6 +567,16 @@ const optionSourceLabel = computed(() => {
     consistency_non_waiting_fallback: '一致性兜底自动推进',
   };
   return labels[source] ?? source;
+});
+const interactionStateLabel = computed(() => {
+  const mapping: Record<string, string> = {
+    auto_advance: '自动推进',
+    waiting_for_choice: '等待选项',
+    waiting_for_free_text: '等待自由输入',
+    resolving: '处理中',
+    cooldown: '冷却阶段',
+  };
+  return mapping[plotInteractionState.value] ?? plotInteractionState.value;
 });
 const consistencyRiskScore = computed(() => {
   const structured = gameStore.plotState?.last_consistency_risk_score;
