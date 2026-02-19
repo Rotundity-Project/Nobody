@@ -349,6 +349,79 @@ fn style_counter_delta(player_style: &str, enemy_style: &str) -> i32 {
     crate::combat_style_rules::counter_delta(player_style, enemy_style)
 }
 
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+struct CombatHardConstraintOutcome {
+    accepted: bool,
+    power_delta_pct: i32,
+    reasons: Vec<String>,
+}
+
+#[allow(dead_code)]
+fn infer_enemy_realm_level_from_hint(hint: &str) -> Option<u32> {
+    let h = hint.to_lowercase();
+    if h.contains("元婴") || h.contains("nascent soul") {
+        return Some(4);
+    }
+    if h.contains("金丹") || h.contains("golden core") {
+        return Some(3);
+    }
+    if h.contains("筑基") || h.contains("foundation") {
+        return Some(2);
+    }
+    if h.contains("练气") || h.contains("qi") || h.contains("杂兵") {
+        return Some(1);
+    }
+    None
+}
+
+#[allow(dead_code)]
+fn evaluate_combat_hard_constraints(
+    game_state: &GameState,
+    combat_hint: &str,
+) -> CombatHardConstraintOutcome {
+    let mut accepted = true;
+    let mut power_delta_pct = 0i32;
+    let mut reasons = Vec::new();
+
+    let player_realm = game_state.player.stats.cultivation_realm.level;
+    if let Some(enemy_realm) = infer_enemy_realm_level_from_hint(combat_hint) {
+        if enemy_realm >= player_realm + 2 {
+            accepted = false;
+            reasons.push(format!(
+                "大境界压制：敌方境界 {} 显著高于我方 {}",
+                enemy_realm, player_realm
+            ));
+        } else if enemy_realm > player_realm {
+            power_delta_pct -= 12;
+            reasons.push(format!(
+                "境界差压制：敌方境界 {} 高于我方 {}",
+                enemy_realm, player_realm
+            ));
+        }
+    }
+
+    let player_styles = detect_player_styles(&game_state.player.stats);
+    let need_weapon = player_styles.iter().any(|style| *style == "sword" || *style == "blade");
+    let has_weapon = game_state.player.equipment_slots.weapon.is_some();
+    if need_weapon && !has_weapon {
+        power_delta_pct -= 14;
+        reasons.push("兵器条件不足：剑/刀流派未装备武器".to_string());
+    }
+
+    let tendency = game_state.player.combat_tendency.as_str();
+    if tendency == "survival" && combat_hint.contains("强攻") {
+        power_delta_pct -= 6;
+        reasons.push("战斗倾向与当前战术冲突：保命倾向下强攻受限".to_string());
+    }
+
+    CombatHardConstraintOutcome {
+        accepted,
+        power_delta_pct: power_delta_pct.clamp(-40, 20),
+        reasons,
+    }
+}
+
 fn evaluate_style_counter_modifier(
     stats: &crate::models::CharacterStats,
     combat_hint: &str,
@@ -1017,7 +1090,7 @@ fn apply_cultivation_side_effects(
     let (_, _, high_risk_technique) = evaluate_technique_semantic_modifier(&game_state.player.stats);
     let seed = game_state.game_time.total_days as usize + game_state.player.stats.techniques.len();
 
-    if high_risk_technique && seed % 2 == 0 {
+    if high_risk_technique && seed.is_multiple_of(2) {
         let old_qi = game_state.player.combat_status.qi_deviation;
         let old_injury = game_state.player.combat_status.injury_level;
         game_state.player.combat_status.qi_deviation = game_state
@@ -1061,7 +1134,7 @@ fn apply_cultivation_side_effects(
 
     if game_state.player.stats.spiritual_root.affinity >= 0.75
         && game_state.player.combat_status.qi_deviation <= 3
-        && seed % 3 == 0
+        && seed.is_multiple_of(3)
         && game_state.player.stats.cultivation_realm.sub_level < 3
     {
         let old_sub = game_state.player.stats.cultivation_realm.sub_level;
@@ -1614,11 +1687,54 @@ pub async fn execute_player_action(
                 Action::Combat { .. } => {
                     should_emit_combat_explanation = true;
                     let option_hint = format!("{} {}", selected_option.description, action.content);
+                    let hard_constraints =
+                        evaluate_combat_hard_constraints(&game_state, &option_hint);
+                    if hard_constraints.power_delta_pct != 0 {
+                        let old_power = game_state.player.stats.combat_power;
+                        let scaled = (old_power as i128)
+                            .saturating_mul((100 + hard_constraints.power_delta_pct) as i128)
+                            / 100i128;
+                        let new_power = scaled.max(1) as u64;
+                        game_state.player.stats.combat_power = new_power;
+                        action_result.stat_changes.push(StatChange {
+                            stat_name: "combat_power".to_string(),
+                            old_value: old_power.to_string(),
+                            new_value: new_power.to_string(),
+                        });
+                        action_result.description = format!(
+                            "{}（硬约束修正: {}%）",
+                            action_result.description, hard_constraints.power_delta_pct
+                        );
+                        push_growth_log(
+                            &mut game_state,
+                            format!(
+                                "战斗硬约束影响：战力 {} -> {}",
+                                old_power, new_power
+                            ),
+                        );
+                    }
+                    if !hard_constraints.reasons.is_empty() {
+                        action_result.description = format!(
+                            "{}；硬约束：{}",
+                            action_result.description,
+                            hard_constraints.reasons.join(" / ")
+                        );
+                    }
+                    if !hard_constraints.accepted {
+                        action_result.success = false;
+                        let reason = hard_constraints
+                            .reasons
+                            .first()
+                            .cloned()
+                            .unwrap_or_else(|| "硬约束未通过".to_string());
+                        combat_guard_reason = Some(reason.clone());
+                        action_result.events.push(format!("战斗裁决中断：{}", reason));
+                    }
                     let (strategy, strategy_reason) =
                         choose_combat_strategy(&game_state.player.combat_status, &option_hint);
                     let strategy_delta_pct =
                         strategy_power_modifier_pct(strategy, &game_state.player.combat_status);
-                    if strategy_delta_pct != 0 {
+                    if strategy_delta_pct != 0 && hard_constraints.accepted {
                         let old_power = game_state.player.stats.combat_power;
                         let scaled = (old_power as i128)
                             .saturating_mul((100 + strategy_delta_pct) as i128)
@@ -1653,7 +1769,7 @@ pub async fn execute_player_action(
                     ));
                     let (env_delta_pct, env_reason) =
                         evaluate_environment_combat_modifier(&game_state);
-                    if env_delta_pct != 0 {
+                    if env_delta_pct != 0 && hard_constraints.accepted {
                         let old_power = game_state.player.stats.combat_power;
                         let scaled = (old_power as i128)
                             .saturating_mul((100 + env_delta_pct) as i128)
@@ -1680,7 +1796,7 @@ pub async fn execute_player_action(
                     }
                     let (style_delta_pct, style_reason) =
                         evaluate_style_counter_modifier(&game_state.player.stats, &option_hint);
-                    if style_delta_pct != 0 {
+                    if style_delta_pct != 0 && hard_constraints.accepted {
                         let old_power = game_state.player.stats.combat_power;
                         let scaled = (old_power as i128)
                             .saturating_mul((100 + style_delta_pct) as i128)
@@ -1705,7 +1821,7 @@ pub async fn execute_player_action(
                         format!("{}；克制依据：{}", action_result.description, style_reason);
                     let (semantic_delta_pct, semantic_reasons, high_risk_technique) =
                         evaluate_technique_semantic_modifier(&game_state.player.stats);
-                    if semantic_delta_pct != 0 {
+                    if semantic_delta_pct != 0 && hard_constraints.accepted {
                         let old_power = game_state.player.stats.combat_power;
                         let scaled = (old_power as i128)
                             .saturating_mul((100 + semantic_delta_pct) as i128)
@@ -3713,6 +3829,88 @@ mod tests {
         let survival = strategy_power_modifier_pct(CombatStrategy::Survival, &status);
         assert!(aggressive > 0);
         assert!(survival < 0);
+    }
+
+    #[test]
+    fn test_evaluate_combat_hard_constraints_rejects_large_realm_gap() {
+        let script = create_test_script();
+        let mut state = crate::game_state::GameState {
+            player: crate::game_state::Character::new(
+                "player".to_string(),
+                "Tester".to_string(),
+                crate::models::CharacterStats {
+                    spiritual_root: crate::models::SpiritualRoot {
+                        element: crate::models::Element::Fire,
+                        elements: vec![crate::models::Element::Fire],
+                        grade: crate::models::Grade::Heavenly,
+                        affinity: 0.8,
+                    },
+                    cultivation_realm: crate::models::CultivationRealm::new(
+                        "Qi".to_string(),
+                        1,
+                        0,
+                        1.0,
+                    ),
+                    techniques: vec!["青霜剑诀".to_string()],
+                    lifespan: crate::models::Lifespan {
+                        current_age: 16,
+                        max_age: 100,
+                        realm_bonus: 0,
+                    },
+                    combat_power: 120,
+                },
+                "sect".to_string(),
+            ),
+            world_state: crate::game_state::WorldState::from_script(&script),
+            game_time: crate::game_state::GameTime::new(1, 1, 1),
+            event_history: vec![],
+            script,
+        };
+        state.player.equipment_slots.weapon = Some("青锋剑".to_string());
+        let outcome = evaluate_combat_hard_constraints(&state, "遭遇元婴强者拦截");
+        assert!(!outcome.accepted);
+        assert!(outcome.reasons.iter().any(|r| r.contains("大境界压制")));
+    }
+
+    #[test]
+    fn test_evaluate_combat_hard_constraints_penalizes_missing_weapon_for_blade_style() {
+        let script = create_test_script();
+        let state = crate::game_state::GameState {
+            player: crate::game_state::Character::new(
+                "player".to_string(),
+                "Tester".to_string(),
+                crate::models::CharacterStats {
+                    spiritual_root: crate::models::SpiritualRoot {
+                        element: crate::models::Element::Fire,
+                        elements: vec![crate::models::Element::Fire],
+                        grade: crate::models::Grade::Heavenly,
+                        affinity: 0.8,
+                    },
+                    cultivation_realm: crate::models::CultivationRealm::new(
+                        "Qi".to_string(),
+                        2,
+                        0,
+                        1.0,
+                    ),
+                    techniques: vec!["断浪刀法".to_string()],
+                    lifespan: crate::models::Lifespan {
+                        current_age: 16,
+                        max_age: 100,
+                        realm_bonus: 0,
+                    },
+                    combat_power: 220,
+                },
+                "sect".to_string(),
+            ),
+            world_state: crate::game_state::WorldState::from_script(&script),
+            game_time: crate::game_state::GameTime::new(1, 1, 1),
+            event_history: vec![],
+            script,
+        };
+        let outcome = evaluate_combat_hard_constraints(&state, "与筑基对手近战刀拼");
+        assert!(outcome.accepted);
+        assert!(outcome.power_delta_pct < 0);
+        assert!(outcome.reasons.iter().any(|r| r.contains("未装备武器")));
     }
 
     #[test]
