@@ -254,6 +254,40 @@ fn strategy_power_modifier_pct(
     }
 }
 
+fn evaluate_environment_combat_modifier(game_state: &GameState) -> (i32, String) {
+    let energy = location_spiritual_energy(game_state).unwrap_or(0.5);
+    let status = &game_state.player.combat_status;
+    let mut delta = 0i32;
+    let mut reasons = Vec::new();
+
+    if energy >= 0.8 {
+        delta += 6;
+        reasons.push(format!("高灵气场域增幅({:.2})", energy));
+    } else if energy <= 0.25 {
+        delta -= 6;
+        reasons.push(format!("低灵气环境压制({:.2})", energy));
+    } else if energy >= 0.55 {
+        delta += 3;
+        reasons.push(format!("中高灵气稳定输出({:.2})", energy));
+    }
+
+    if status.qi_deviation >= 6 {
+        delta -= 5;
+        reasons.push("气机紊乱削弱环境适应".to_string());
+    }
+    if status.injury_level >= 6 {
+        delta -= 4;
+        reasons.push("重伤状态难以利用地利".to_string());
+    }
+
+    let reason = if reasons.is_empty() {
+        "环境影响中性".to_string()
+    } else {
+        reasons.join(" / ")
+    };
+    (delta.clamp(-20, 20), reason)
+}
+
 fn build_combat_explanation(
     action_result: &crate::numerical_system::ActionResult,
     player_realm_level: u32,
@@ -1066,6 +1100,33 @@ pub async fn execute_player_action(
                         strategy_label(strategy),
                         strategy_reason
                     ));
+                    let (env_delta_pct, env_reason) =
+                        evaluate_environment_combat_modifier(&game_state);
+                    if env_delta_pct != 0 {
+                        let old_power = game_state.player.stats.combat_power;
+                        let scaled = (old_power as i128)
+                            .saturating_mul((100 + env_delta_pct) as i128)
+                            / 100i128;
+                        let new_power = scaled.max(1) as u64;
+                        game_state.player.stats.combat_power = new_power;
+                        action_result.stat_changes.push(StatChange {
+                            stat_name: "combat_power".to_string(),
+                            old_value: old_power.to_string(),
+                            new_value: new_power.to_string(),
+                        });
+                        action_result.description = format!(
+                            "{}（环境修正: {}%）",
+                            action_result.description, env_delta_pct
+                        );
+                        push_growth_log(
+                            &mut game_state,
+                            format!("环境影响战斗：战力 {} -> {}（{}）", old_power, new_power, env_reason),
+                        );
+                    }
+                    if !env_reason.is_empty() {
+                        action_result.description =
+                            format!("{}；环境依据：{}", action_result.description, env_reason);
+                    }
                     let (semantic_delta_pct, semantic_reasons, high_risk_technique) =
                         evaluate_technique_semantic_modifier(&game_state.player.stats);
                     if semantic_delta_pct != 0 {
@@ -2858,6 +2919,69 @@ mod tests {
         let survival = strategy_power_modifier_pct(CombatStrategy::Survival, &status);
         assert!(aggressive > 0);
         assert!(survival < 0);
+    }
+
+    #[test]
+    fn test_evaluate_environment_combat_modifier_high_energy_bonus() {
+        let mut world_setting = crate::script::WorldSetting::new();
+        world_setting.locations = vec![crate::script::Location {
+            id: "peak".to_string(),
+            name: "灵峰".to_string(),
+            description: "灵气充沛".to_string(),
+            spiritual_energy: 0.9,
+        }];
+        let script = crate::script::Script::new(
+            "id".to_string(),
+            "name".to_string(),
+            crate::script::ScriptType::Custom,
+            world_setting.clone(),
+            crate::script::InitialState {
+                player_name: "p".to_string(),
+                player_spiritual_root: crate::models::SpiritualRoot {
+                    element: crate::models::Element::Fire,
+                    elements: vec![crate::models::Element::Fire],
+                    grade: crate::models::Grade::Heavenly,
+                    affinity: 0.8,
+                },
+                starting_location: "peak".to_string(),
+                starting_age: 16,
+            },
+        );
+        let state = crate::game_state::GameState {
+            player: crate::game_state::Character::new(
+                "player".to_string(),
+                "Tester".to_string(),
+                crate::models::CharacterStats {
+                    spiritual_root: crate::models::SpiritualRoot {
+                        element: crate::models::Element::Fire,
+                        elements: vec![crate::models::Element::Fire],
+                        grade: crate::models::Grade::Heavenly,
+                        affinity: 0.8,
+                    },
+                    cultivation_realm: crate::models::CultivationRealm::new(
+                        "Qi".to_string(),
+                        1,
+                        0,
+                        1.0,
+                    ),
+                    techniques: vec![],
+                    lifespan: crate::models::Lifespan {
+                        current_age: 16,
+                        max_age: 100,
+                        realm_bonus: 0,
+                    },
+                    combat_power: 120,
+                },
+                "peak".to_string(),
+            ),
+            world_state: crate::game_state::WorldState::from_script(&script),
+            game_time: crate::game_state::GameTime::new(1, 1, 1),
+            event_history: vec![],
+            script,
+        };
+        let (delta, reason) = evaluate_environment_combat_modifier(&state);
+        assert!(delta > 0);
+        assert!(reason.contains("高灵气场域增幅"));
     }
 }
 
