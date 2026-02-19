@@ -205,6 +205,33 @@ fn cultivation_gain_multiplier_from_location(spiritual_energy: Option<f32>) -> f
     (0.8 + e * 0.6).clamp(0.6, 1.6)
 }
 
+fn select_encounter_text(spiritual_energy: f32, seed: u64) -> &'static str {
+    const LOW_RISK: [&str; 3] = [
+        "途中遇到散修试探，你稳住阵脚后化解冲突。",
+        "林间突发灵兽惊扰，短暂交锋后你安全脱身。",
+        "遭遇路匪埋伏，但对方见势不妙迅速退去。",
+    ];
+    const MID_RISK: [&str; 3] = [
+        "前路突现阵法余波，你强行破阵，气息略有紊乱。",
+        "遭遇敌对门派巡逻，数轮试探后双方各自撤离。",
+        "秘径中爆发灵压乱流，你顶住冲击后继续赶路。",
+    ];
+    const HIGH_RISK: [&str; 3] = [
+        "深处魔息翻涌，突遭强敌伏击，激战后方得脱身。",
+        "禁地边缘出现失控妖潮，你强行突围，代价不小。",
+        "高阶修士威压横扫而过，你硬抗冲击后重整气机。",
+    ];
+    let bucket = if spiritual_energy >= 0.85 {
+        &HIGH_RISK
+    } else if spiritual_energy >= 0.5 {
+        &MID_RISK
+    } else {
+        &LOW_RISK
+    };
+    let idx = (seed as usize) % bucket.len();
+    bucket[idx]
+}
+
 fn push_growth_log(game_state: &mut GameState, entry: impl Into<String>) {
     let log = &mut game_state.player.growth_log;
     log.push(entry.into());
@@ -269,12 +296,17 @@ fn apply_travel_and_encounter(
 
     if encounter_triggered {
         let status = &mut game_state.player.combat_status;
+        let encounter_text = select_encounter_text(energy, hash_acc);
         status.enmity = status.enmity.saturating_add(1);
         if energy >= 0.8 {
             status.injury_level = status.injury_level.saturating_add(1).min(10);
-            message.push_str(" 路遇高危灵压冲击，伤势+1。");
+            message.push(' ');
+            message.push_str(encounter_text);
+            message.push_str(" 伤势+1。");
         } else {
-            message.push_str(" 途中遭遇试探性冲突，仇恨+1。");
+            message.push(' ');
+            message.push_str(encounter_text);
+            message.push_str(" 仇恨+1。");
         }
     } else {
         message.push_str(" 途中未遭遇显著冲突。");
@@ -2257,7 +2289,7 @@ mod tests {
                 id: "valley".to_string(),
                 name: "幽风谷".to_string(),
                 description: "灵压紊乱".to_string(),
-                spiritual_energy: 0.9,
+                spiritual_energy: 0.45,
             },
         ];
         let script = crate::script::Script::new(
@@ -2526,6 +2558,16 @@ mod tests {
             script,
         };
         assert_eq!(location_spiritual_energy(&state), Some(0.95));
+    }
+
+    #[test]
+    fn test_select_encounter_text_uses_risk_buckets() {
+        let low = select_encounter_text(0.2, 1);
+        let mid = select_encounter_text(0.6, 1);
+        let high = select_encounter_text(0.95, 1);
+        assert!(low.contains("散修") || low.contains("灵兽") || low.contains("路匪"));
+        assert!(mid.contains("阵法") || mid.contains("巡逻") || mid.contains("乱流"));
+        assert!(high.contains("魔息") || high.contains("妖潮") || high.contains("威压"));
     }
 }
 
