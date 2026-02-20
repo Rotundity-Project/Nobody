@@ -5,6 +5,8 @@ import MainMenu from '../MainMenu.vue';
 const pushMock = vi.fn();
 const playClickMock = vi.fn();
 const setMasterVolumeMock = vi.fn();
+const setBgmEnabledMock = vi.fn();
+const setSfxEnabledMock = vi.fn();
 const listSaveSlotsMock = vi.fn();
 const loadGameMock = vi.fn();
 const audioSettingsState = {
@@ -23,6 +25,8 @@ vi.mock('../../utils/audioSystem', () => ({
   getAudioSettings: () => ({ ...audioSettingsState }),
   playClick: () => playClickMock(),
   setMasterVolume: (value: number) => setMasterVolumeMock(value),
+  setBgmEnabled: (enabled: boolean) => setBgmEnabledMock(enabled),
+  setSfxEnabled: (enabled: boolean) => setSfxEnabledMock(enabled),
 }));
 
 vi.mock('../../stores/gameStore', () => ({
@@ -45,6 +49,8 @@ describe('MainMenu', () => {
     pushMock.mockReset();
     playClickMock.mockReset();
     setMasterVolumeMock.mockReset();
+    setBgmEnabledMock.mockReset();
+    setSfxEnabledMock.mockReset();
     listSaveSlotsMock.mockReset();
     loadGameMock.mockReset();
     audioSettingsState.master = 0.55;
@@ -187,6 +193,31 @@ describe('MainMenu', () => {
     expect(setMasterVolumeMock).toHaveBeenCalledWith(1);
     expect(wrapper.get('[data-testid="quick-volume-status"]').text()).toContain('当前 100%');
     expect(wrapper.get('[data-testid="quick-volume-100-btn"]').classes()).toContain('border-emerald-400');
+  });
+
+  it('toggles quick bgm and sfx buttons', async () => {
+    const wrapper = mount(MainMenu, {
+      global: {
+        stubs: {
+          AudioControlPanel: AudioStub,
+          LLMConfigDialog: LlmStub,
+          SaveLoadDialog: SaveLoadStub,
+        },
+      },
+    });
+
+    expect(wrapper.get('[data-testid="quick-bgm-btn"]').text()).toContain('BGM 开');
+    expect(wrapper.get('[data-testid="quick-sfx-btn"]').text()).toContain('音效 开');
+
+    await wrapper.get('[data-testid="quick-bgm-btn"]').trigger('click');
+    expect(setBgmEnabledMock).toHaveBeenCalledWith(false);
+    expect(wrapper.get('[data-testid="quick-bgm-btn"]').attributes('aria-pressed')).toBe('false');
+    expect(wrapper.get('[data-testid="quick-bgm-btn"]').text()).toContain('BGM 关');
+
+    await wrapper.get('[data-testid="quick-sfx-btn"]').trigger('click');
+    expect(setSfxEnabledMock).toHaveBeenCalledWith(false);
+    expect(wrapper.get('[data-testid="quick-sfx-btn"]').attributes('aria-pressed')).toBe('false');
+    expect(wrapper.get('[data-testid="quick-sfx-btn"]').text()).toContain('音效 关');
   });
 
   it('shows refresh label after initial fetch', async () => {

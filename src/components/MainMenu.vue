@@ -166,6 +166,31 @@
               {{ quickMasterVolume <= 0 ? '已静音' : `当前 ${Math.round(quickMasterVolume * 100)}%` }}
             </span>
           </div>
+          <div class="mt-2 flex flex-wrap items-center gap-2">
+            <span class="text-[11px] text-slate-400">快捷开关</span>
+            <button
+              data-testid="quick-bgm-btn"
+              class="rounded-md border px-2.5 py-1 text-[11px] transition-colors"
+              :class="quickBgmEnabled
+                ? 'border-emerald-400 bg-emerald-500/15 text-emerald-200'
+                : 'border-slate-600 text-slate-200 hover:bg-slate-800'"
+              :aria-pressed="quickBgmEnabled ? 'true' : 'false'"
+              @click="toggleQuickBgm"
+            >
+              {{ quickBgmEnabled ? 'BGM 开' : 'BGM 关' }}
+            </button>
+            <button
+              data-testid="quick-sfx-btn"
+              class="rounded-md border px-2.5 py-1 text-[11px] transition-colors"
+              :class="quickSfxEnabled
+                ? 'border-emerald-400 bg-emerald-500/15 text-emerald-200'
+                : 'border-slate-600 text-slate-200 hover:bg-slate-800'"
+              :aria-pressed="quickSfxEnabled ? 'true' : 'false'"
+              @click="toggleQuickSfx"
+            >
+              {{ quickSfxEnabled ? '音效 开' : '音效 关' }}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -193,7 +218,7 @@ import { useRouter } from 'vue-router';
 import AudioControlPanel from './AudioControlPanel.vue';
 import LLMConfigDialog from './LLMConfigDialog.vue';
 import SaveLoadDialog from './SaveLoadDialog.vue';
-import { getAudioSettings, playClick, setMasterVolume } from '../utils/audioSystem';
+import { getAudioSettings, playClick, setBgmEnabled, setMasterVolume, setSfxEnabled } from '../utils/audioSystem';
 import { useGameStore } from '../stores/gameStore';
 import type { SaveInfo } from '../types/game';
 import { formatLocationLabel } from '../shared/locationLabel';
@@ -213,6 +238,8 @@ const lastRefreshSucceeded = ref<boolean | null>(null);
 const refreshNowTick = ref(Date.now());
 let refreshTickerId: number | null = null;
 const quickMasterVolume = ref(getAudioSettings().master);
+const quickBgmEnabled = ref(getAudioSettings().bgmEnabled);
+const quickSfxEnabled = ref(getAudioSettings().sfxEnabled);
 const previousMasterVolume = ref(Math.max(0.01, quickMasterVolume.value || 0.55));
 
 const latestSaveLocationLabel = computed(() => formatLocationLabel(latestSave.value?.location));
@@ -283,6 +310,8 @@ const syncQuickVolumeFromSettings = () => {
   const settings = getAudioSettings();
   const clamped = Math.min(1, Math.max(0, settings.master));
   quickMasterVolume.value = clamped;
+  quickBgmEnabled.value = settings.bgmEnabled;
+  quickSfxEnabled.value = settings.sfxEnabled;
   if (clamped > 0) {
     previousMasterVolume.value = clamped;
   }
@@ -329,6 +358,20 @@ const toggleQuickMute = () => {
   }
   previousMasterVolume.value = quickMasterVolume.value;
   applyQuickVolume(0);
+};
+
+const toggleQuickBgm = () => {
+  const next = !quickBgmEnabled.value;
+  quickBgmEnabled.value = next;
+  setBgmEnabled(next);
+  playClick();
+};
+
+const toggleQuickSfx = () => {
+  const next = !quickSfxEnabled.value;
+  quickSfxEnabled.value = next;
+  setSfxEnabled(next);
+  playClick();
 };
 
 const loadLatestSave = async () => {
