@@ -2,6 +2,12 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import StoryViewport from '../StoryViewport.vue';
 
+const ScrollStub = {
+  name: 'ScrollToBottomButton',
+  props: ['visible'],
+  template: '<div data-testid="scroll-bottom-visible">{{ visible }}</div>',
+};
+
 const buildWrapper = () =>
   mount(StoryViewport, {
     props: {
@@ -16,7 +22,7 @@ const buildWrapper = () =>
     global: {
       stubs: {
         StoryScenePanel: true,
-        ScrollToBottomButton: true,
+        ScrollToBottomButton: ScrollStub,
       },
     },
   });
@@ -37,6 +43,19 @@ describe('StoryViewport', () => {
     expect(wrapper.text()).toContain('阅读定位');
     expect(wrapper.find('[data-testid="reading-locator"]').exists()).toBe(true);
     expect(wrapper.get('[data-testid="reading-locator-summary"]').text()).toContain('/2');
+    expect(wrapper.get('[data-testid="scroll-bottom-visible"]').text()).toBe('true');
+  });
+
+  it('hides scroll-to-bottom button when reading progress reaches bottom', async () => {
+    const wrapper = buildWrapper();
+    const host = wrapper.element as HTMLElement;
+    Object.defineProperty(host, 'scrollHeight', { configurable: true, value: 400 });
+    Object.defineProperty(host, 'clientHeight', { configurable: true, value: 200 });
+    host.scrollTop = 200;
+    host.dispatchEvent(new Event('scroll'));
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.get('[data-testid="scroll-bottom-visible"]').text()).toBe('false');
   });
 
   it('toggles reading locator details', async () => {

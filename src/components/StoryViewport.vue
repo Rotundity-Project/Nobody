@@ -48,7 +48,7 @@
     </div>
 
     <ScrollToBottomButton
-      :visible="isGameInitialized"
+      :visible="showScrollToBottomButton"
       @scroll="scrollToBottom"
     />
     <StoryScenePanel
@@ -87,6 +87,9 @@ const READING_LOCATOR_STORAGE_KEY = 'nobody_reading_locator_expanded';
 
 const showReadingLocator = computed(
   () => props.isGameInitialized && props.hasScene && props.paragraphs.length > 0,
+);
+const showScrollToBottomButton = computed(
+  () => showReadingLocator.value && readingProgress.value < 0.95,
 );
 const readingProgressPercent = computed(() => Math.round(readingProgress.value * 100));
 const currentParagraphIndex = computed(() => {
