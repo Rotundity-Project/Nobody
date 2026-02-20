@@ -1,11 +1,11 @@
 <template>
   <div
     ref="scrollElement"
-    class="relative flex-1 overflow-y-auto p-4 sm:p-6 md:p-7 xl:p-8"
+    class="relative flex-1 overflow-y-auto px-4 pb-5 pt-2 sm:px-6 sm:pb-6 sm:pt-3 md:px-7 md:pb-7 md:pt-3 xl:px-8 xl:pb-8 xl:pt-4"
   >
     <div
       v-if="showReadingLocator"
-      class="sticky top-3 z-10 ml-auto mb-3 w-fit rounded-lg border border-slate-700 bg-slate-900/85 px-3 py-2 text-xs text-slate-200 backdrop-blur"
+      class="sticky top-2 z-10 ml-auto mb-2 w-fit rounded-lg border border-slate-700 bg-slate-900/85 px-3 py-2 text-xs text-slate-200 backdrop-blur"
     >
       <p>阅读定位：{{ readingProgressPercent }}%</p>
       <p>段落进度：{{ currentParagraphIndex }} / {{ paragraphs.length }}</p>

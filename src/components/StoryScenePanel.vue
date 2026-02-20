@@ -1,10 +1,10 @@
 <template>
-  <div class="mx-auto max-w-3xl space-y-5">
+  <div class="mx-auto max-w-3xl">
     <div
       v-if="hasScene"
-      class="prose prose-invert max-w-none"
+      class="max-w-none"
     >
-      <header class="mb-5 border-b border-slate-700/70 pb-4">
+      <header class="mb-4 border-b border-slate-700/70 pb-3">
         <p class="mb-1 text-xs uppercase tracking-[0.28em] text-amber-200/75">章节阅读</p>
         <h2 class="mb-2 text-2xl font-display text-amber-200">
           {{ chapterTitle }}

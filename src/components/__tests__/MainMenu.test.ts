@@ -4,6 +4,8 @@ import MainMenu from '../MainMenu.vue';
 
 const pushMock = vi.fn();
 const playClickMock = vi.fn();
+const listSaveSlotsMock = vi.fn();
+const loadGameMock = vi.fn();
 
 vi.mock('vue-router', () => ({
   useRouter: () => ({
@@ -15,13 +17,29 @@ vi.mock('../../utils/audioSystem', () => ({
   playClick: () => playClickMock(),
 }));
 
+vi.mock('../../stores/gameStore', () => ({
+  useGameStore: () => ({
+    listSaveSlots: listSaveSlotsMock,
+    loadGame: loadGameMock,
+  }),
+}));
+
 const AudioStub = { name: 'AudioControlPanel', template: '<div />' };
 const LlmStub = { name: 'LLMConfigDialog', props: ['isOpen'], template: '<div />' };
+const SaveLoadStub = {
+  name: 'SaveLoadDialog',
+  props: ['isOpen', 'mode'],
+  template: '<div />',
+};
 
 describe('MainMenu', () => {
   beforeEach(() => {
     pushMock.mockReset();
     playClickMock.mockReset();
+    listSaveSlotsMock.mockReset();
+    loadGameMock.mockReset();
+    listSaveSlotsMock.mockResolvedValue([]);
+    loadGameMock.mockResolvedValue(undefined);
   });
 
   it('navigates to script select on new game', async () => {
@@ -30,15 +48,12 @@ describe('MainMenu', () => {
         stubs: {
           AudioControlPanel: AudioStub,
           LLMConfigDialog: LlmStub,
+          SaveLoadDialog: SaveLoadStub,
         },
       },
     });
 
-    const newGame = wrapper
-      .findAll('button')
-      .find((btn) => btn.text() === '新游戏');
-    expect(newGame).toBeTruthy();
-    await newGame!.trigger('click');
+    await wrapper.get('[data-testid="new-game-btn"]').trigger('click');
 
     expect(playClickMock).toHaveBeenCalled();
     expect(pushMock).toHaveBeenCalledWith('/script-select');
@@ -50,38 +65,54 @@ describe('MainMenu', () => {
         stubs: {
           AudioControlPanel: AudioStub,
           LLMConfigDialog: LlmStub,
+          SaveLoadDialog: SaveLoadStub,
         },
       },
     });
 
-    const settings = wrapper
-      .findAll('button')
-      .find((btn) => btn.text() === 'LLM 设置');
-    expect(settings).toBeTruthy();
-    await settings!.trigger('click');
+    await wrapper.get('[data-testid="llm-settings-btn"]').trigger('click');
 
     const dialog = wrapper.findComponent(LlmStub);
     expect(dialog.exists()).toBe(true);
     expect(dialog.props('isOpen')).toBe(true);
   });
 
-  it('navigates to game on continue action', async () => {
+  it('loads latest save and navigates to game', async () => {
+    listSaveSlotsMock.mockResolvedValue([
+      {
+        slot_id: 2,
+        timestamp: 200,
+        player_name: '无名弟子',
+        realm: '炼气',
+        location: '宗门外谷',
+        game_time: '第1年1月',
+      },
+    ]);
+
     const wrapper = mount(MainMenu, {
       global: {
         stubs: {
           AudioControlPanel: AudioStub,
           LLMConfigDialog: LlmStub,
+          SaveLoadDialog: SaveLoadStub,
         },
       },
     });
 
-    const continueButton = wrapper
-      .findAll('button')
-      .find((btn) => btn.text() === '继续游戏');
-    expect(continueButton).toBeTruthy();
-    await continueButton!.trigger('click');
+    await vi.waitFor(() => {
+      expect(listSaveSlotsMock).toHaveBeenCalled();
+    });
 
-    expect(playClickMock).toHaveBeenCalled();
-    expect(pushMock).toHaveBeenCalledWith('/game');
+    await vi.waitFor(() => {
+      expect(wrapper.get('[data-testid="recent-save-btn"]').attributes('disabled')).toBeUndefined();
+    });
+
+    await wrapper.get('[data-testid="recent-save-btn"]').trigger('click');
+
+    await vi.waitFor(() => {
+      expect(playClickMock).toHaveBeenCalled();
+      expect(loadGameMock).toHaveBeenCalledWith(2);
+      expect(pushMock).toHaveBeenCalledWith('/game');
+    });
   });
 });
