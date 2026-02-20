@@ -106,6 +106,7 @@
           </button>
           <p
             v-else-if="lastRefreshLabel"
+            id="recent-save-refresh-label"
             data-testid="recent-save-refresh-label"
             class="mt-2 text-[11px] text-slate-500"
           >
@@ -113,9 +114,11 @@
           </p>
           <p
             v-if="shouldShowRefreshStatus && lastRefreshStatusLabel"
+            id="recent-save-refresh-status"
             data-testid="recent-save-refresh-status"
             class="mt-1 text-[11px]"
             :class="refreshStatusToneClass"
+            role="status"
             aria-live="polite"
             aria-atomic="true"
           >
@@ -140,6 +143,7 @@
               class="rounded-md border border-slate-600 bg-slate-900/70 px-3 py-2 text-xs font-medium text-slate-200 transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
               :disabled="recentSaveLoading || quickLoadPending"
               aria-controls="recent-save-card"
+              aria-describedby="recent-save-refresh-label recent-save-refresh-status"
               @click="fetchLatestSave"
             >
               {{ recentSaveLoading ? '刷新中...' : '刷新存档' }}
@@ -164,6 +168,7 @@
                 data-testid="quick-volume-status"
                 class="text-[11px]"
                 :class="quickMasterVolume <= 0 ? 'text-amber-200' : 'text-slate-400'"
+                role="status"
                 aria-live="polite"
                 aria-atomic="true"
               >

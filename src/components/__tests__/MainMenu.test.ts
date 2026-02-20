@@ -254,6 +254,8 @@ describe('MainMenu', () => {
       expect(wrapper.get('[data-testid="refresh-save-btn"]').text()).toBe('刷新存档');
     });
     expect(wrapper.get('[data-testid="refresh-save-btn"]').attributes('aria-controls')).toBe('recent-save-card');
+    expect(wrapper.get('[data-testid="refresh-save-btn"]').attributes('aria-describedby'))
+      .toBe('recent-save-refresh-label recent-save-refresh-status');
     expect(wrapper.get('[data-testid="recent-save-card"]').attributes('id')).toBe('recent-save-card');
 
     await wrapper.get('[data-testid="refresh-save-btn"]').trigger('click');
@@ -376,8 +378,11 @@ describe('MainMenu', () => {
     });
 
     expect(wrapper.get('[data-testid="recent-save-refresh-label"]').text()).toContain('最近刷新：');
+    expect(wrapper.get('[data-testid="recent-save-refresh-label"]').attributes('id')).toBe('recent-save-refresh-label');
     expect(wrapper.get('[data-testid="recent-save-refresh-label"]').text()).toMatch(/刚刚|秒前|分钟前/);
     expect(wrapper.get('[data-testid="recent-save-refresh-status"]').text()).toContain('刷新状态：成功');
+    expect(wrapper.get('[data-testid="recent-save-refresh-status"]').attributes('id')).toBe('recent-save-refresh-status');
+    expect(wrapper.get('[data-testid="recent-save-refresh-status"]').attributes('role')).toBe('status');
     expect(wrapper.get('[data-testid="recent-save-refresh-status"]').attributes('aria-live')).toBe('polite');
     expect(wrapper.get('[data-testid="recent-save-refresh-status"]').attributes('aria-atomic')).toBe('true');
     expect(wrapper.get('[data-testid="no-save-hint"]').text()).toContain('暂无可用存档');
@@ -395,6 +400,7 @@ describe('MainMenu', () => {
     });
 
     expect(wrapper.get('[data-testid="quick-volume-status"]').text()).toContain('当前 55%');
+    expect(wrapper.get('[data-testid="quick-volume-status"]').attributes('role')).toBe('status');
     expect(wrapper.get('[data-testid="quick-volume-status"]').attributes('aria-live')).toBe('polite');
     expect(wrapper.get('[data-testid="quick-volume-status"]').attributes('aria-atomic')).toBe('true');
     const audioToggle = wrapper.get('[data-testid="open-audio-btn"]');
