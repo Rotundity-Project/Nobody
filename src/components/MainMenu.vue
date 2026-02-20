@@ -44,10 +44,17 @@
             class="mt-2 text-xs leading-5 text-slate-300"
           >
             槽位 {{ latestSave.slot_id }} · {{ latestSave.player_name }} · {{ latestSave.realm }}
-            <br>
-            位置：{{ latestSaveLocationLabel }} · 时间：{{ latestSave.game_time }}
-            <br>
-            最近保存：{{ latestSaveTimestampLabel }}
+            <span class="mt-1 flex flex-wrap items-center gap-1.5">
+              <span class="rounded border border-slate-600/80 bg-slate-800/70 px-1.5 py-0.5 text-[11px] text-slate-200">
+                位置：{{ latestSaveLocationLabel }}
+              </span>
+              <span class="rounded border border-slate-600/80 bg-slate-800/70 px-1.5 py-0.5 text-[11px] text-slate-200">
+                时间：{{ latestSave.game_time }}
+              </span>
+            </span>
+            <span class="mt-1 block text-[11px] text-slate-400">
+              最近保存：{{ latestSaveTimestampLabel }}（{{ latestSaveAgeLabel }}）
+            </span>
           </p>
           <p
             v-else-if="recentSaveLoading"
@@ -253,6 +260,26 @@ const latestSaveTimestampLabel = computed(() => {
     return '未知';
   }
   return date.toLocaleString();
+});
+const latestSaveAgeLabel = computed(() => {
+  const ts = latestSave.value?.timestamp;
+  if (!ts || !Number.isFinite(ts)) {
+    return '时间未知';
+  }
+  const diffSeconds = Math.max(0, Math.floor((refreshNowTick.value - ts * 1000) / 1000));
+  if (diffSeconds < 60) {
+    return `${diffSeconds} 秒前`;
+  }
+  const diffMinutes = Math.floor(diffSeconds / 60);
+  if (diffMinutes < 60) {
+    return `${diffMinutes} 分钟前`;
+  }
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) {
+    return `${diffHours} 小时前`;
+  }
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays} 天前`;
 });
 const lastRefreshLabel = computed(() => {
   if (!lastRefreshAt.value) {

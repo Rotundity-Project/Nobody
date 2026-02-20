@@ -134,6 +134,7 @@ describe('MainMenu', () => {
     });
 
     expect(wrapper.text()).toContain('最近保存：');
+    expect(wrapper.text()).toMatch(/秒前|分钟前|小时前|天前|时间未知/);
   });
 
   it('refreshes save slots when refresh button is clicked', async () => {
