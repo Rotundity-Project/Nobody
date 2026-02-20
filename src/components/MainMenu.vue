@@ -103,6 +103,8 @@
             v-if="recentSaveError && !recentSaveLoading"
             data-testid="retry-load-saves-btn"
             class="mt-2 rounded-md border border-red-400/40 px-2.5 py-1 text-[11px] text-red-200 transition-colors hover:bg-red-500/10"
+            :aria-label="retryLoadSavesAriaLabel"
+            aria-describedby="recent-save-error recent-save-refresh-label"
             @click="fetchLatestSave"
           >
             重试读取
@@ -474,6 +476,12 @@ const audioPanelToggleAriaLabel = computed(() => {
   const sfxLabel = quickSfxEnabled.value ? '音效 开' : '音效 关';
   const actionLabel = showAudioPanel.value ? '收起音量控制' : '展开音量控制';
   return `${actionLabel}，${volumeLabel}，${bgmLabel}，${sfxLabel}`;
+});
+const retryLoadSavesAriaLabel = computed(() => {
+  if (!recentSaveError.value) {
+    return '重试读取最近存档';
+  }
+  return `重试读取最近存档，最近错误：${recentSaveError.value}`;
 });
 
 const fetchLatestSave = async () => {
