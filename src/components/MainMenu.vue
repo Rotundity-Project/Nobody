@@ -206,6 +206,7 @@
               class="rounded-md border border-amber-500/40 px-2.5 py-1 text-[11px] text-amber-100 transition-colors hover:bg-amber-500/10"
               :aria-pressed="quickMasterVolume <= 0 ? 'true' : 'false'"
               :aria-label="quickMuteAriaLabel"
+              aria-describedby="quick-volume-status"
               @click="toggleQuickMute"
             >
               {{ quickMasterVolume <= 0 ? '恢复' : '静音' }}
