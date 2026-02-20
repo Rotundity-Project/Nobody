@@ -172,7 +172,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import AudioControlPanel from './AudioControlPanel.vue';
 import LLMConfigDialog from './LLMConfigDialog.vue';
@@ -238,6 +238,15 @@ const fetchLatestSave = async () => {
   }
 };
 
+const syncQuickVolumeFromSettings = () => {
+  const settings = getAudioSettings();
+  const clamped = Math.min(1, Math.max(0, settings.master));
+  quickMasterVolume.value = clamped;
+  if (clamped > 0) {
+    previousMasterVolume.value = clamped;
+  }
+};
+
 const handleNewGame = () => {
   playClick();
   router.push('/script-select');
@@ -255,6 +264,7 @@ const handleSettings = () => {
 
 const toggleAudioPanel = () => {
   playClick();
+  syncQuickVolumeFromSettings();
   showAudioPanel.value = !showAudioPanel.value;
 };
 
@@ -304,6 +314,12 @@ const handleLoadedFromDialog = () => {
 };
 
 onMounted(() => {
+  syncQuickVolumeFromSettings();
+  window.addEventListener('focus', syncQuickVolumeFromSettings);
   void fetchLatestSave();
+});
+
+onUnmounted(() => {
+  window.removeEventListener('focus', syncQuickVolumeFromSettings);
 });
 </script>

@@ -7,6 +7,11 @@ const playClickMock = vi.fn();
 const setMasterVolumeMock = vi.fn();
 const listSaveSlotsMock = vi.fn();
 const loadGameMock = vi.fn();
+const audioSettingsState = {
+  master: 0.55,
+  bgmEnabled: true,
+  sfxEnabled: true,
+};
 
 vi.mock('vue-router', () => ({
   useRouter: () => ({
@@ -15,11 +20,7 @@ vi.mock('vue-router', () => ({
 }));
 
 vi.mock('../../utils/audioSystem', () => ({
-  getAudioSettings: () => ({
-    master: 0.55,
-    bgmEnabled: true,
-    sfxEnabled: true,
-  }),
+  getAudioSettings: () => ({ ...audioSettingsState }),
   playClick: () => playClickMock(),
   setMasterVolume: (value: number) => setMasterVolumeMock(value),
 }));
@@ -46,6 +47,9 @@ describe('MainMenu', () => {
     setMasterVolumeMock.mockReset();
     listSaveSlotsMock.mockReset();
     loadGameMock.mockReset();
+    audioSettingsState.master = 0.55;
+    audioSettingsState.bgmEnabled = true;
+    audioSettingsState.sfxEnabled = true;
     listSaveSlotsMock.mockResolvedValue([]);
     loadGameMock.mockResolvedValue(undefined);
   });
@@ -205,5 +209,25 @@ describe('MainMenu', () => {
     });
 
     expect(wrapper.get('[data-testid="recent-save-refresh-label"]').text()).toContain('最近刷新：');
+  });
+
+  it('syncs quick volume status from audio settings when opening audio panel', async () => {
+    const wrapper = mount(MainMenu, {
+      global: {
+        stubs: {
+          AudioControlPanel: AudioStub,
+          LLMConfigDialog: LlmStub,
+          SaveLoadDialog: SaveLoadStub,
+        },
+      },
+    });
+
+    expect(wrapper.get('[data-testid="quick-volume-status"]').text()).toContain('当前 55%');
+
+    audioSettingsState.master = 0.3;
+    await wrapper.get('[data-testid="open-audio-btn"]').trigger('click');
+
+    expect(wrapper.get('[data-testid="quick-volume-status"]').text()).toContain('当前 30%');
+    expect(wrapper.get('[data-testid="quick-volume-30-btn"]').classes()).toContain('border-emerald-400');
   });
 });
