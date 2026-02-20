@@ -332,6 +332,8 @@ describe('MainMenu', () => {
     });
     const quickVolumeGroup = wrapper.find('[role="group"][aria-label*="快捷音量预设"]');
     expect(quickVolumeGroup.exists()).toBe(true);
+    expect(wrapper.find('#quick-audio-heading').exists()).toBe(true);
+    expect(quickVolumeGroup.attributes('aria-labelledby')).toBe('quick-audio-heading');
     expect(quickVolumeGroup.attributes('aria-describedby')).toBe('quick-volume-status');
     expect(quickVolumeGroup.attributes('aria-label')).toContain('当前音量 55%');
     expect(quickVolumeGroup.attributes('aria-label')).toContain('BGM 开');

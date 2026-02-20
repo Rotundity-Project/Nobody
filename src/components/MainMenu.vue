@@ -196,7 +196,12 @@
 
           <div class="mt-3 rounded-lg border border-slate-700/70 bg-slate-950/30 p-3">
             <div class="mb-2 flex items-center justify-between">
-              <span class="text-[11px] uppercase tracking-[0.18em] text-slate-400">音频快捷</span>
+              <span
+                id="quick-audio-heading"
+                class="text-[11px] uppercase tracking-[0.18em] text-slate-400"
+              >
+                音频快捷
+              </span>
               <span
                 id="quick-volume-status"
                 data-testid="quick-volume-status"
@@ -212,6 +217,7 @@
             <div
               class="flex flex-wrap items-center gap-2"
               role="group"
+              aria-labelledby="quick-audio-heading"
               :aria-label="quickAudioGroupAriaLabel"
               aria-describedby="quick-volume-status"
             >
