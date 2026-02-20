@@ -34,7 +34,13 @@
           @keydown="handleMobileStatusSummaryKeydown"
         >
           <div class="min-w-0 flex-1 flex items-center gap-1.5">
-            <p class="truncate">{{ mobileStatusSummary }}</p>
+            <p
+              data-testid="mobile-status-summary-text"
+              class="truncate"
+              aria-live="polite"
+            >
+              {{ mobileStatusSummary }}
+            </p>
             <span
               v-if="optionSourceLabel"
               class="shrink-0 rounded border border-slate-700/70 bg-slate-900/70 px-1.5 py-0.5 text-[10px] text-slate-300"

@@ -434,8 +434,10 @@ describe('GameView', () => {
   it('toggles mobile status card by tapping summary bar', async () => {
     const wrapper = mount(GameView);
     const summaryBar = wrapper.get('[data-testid="mobile-status-summary-bar"]');
+    const summaryText = wrapper.get('[data-testid="mobile-status-summary-text"]');
     const toggleBtn = wrapper.get('[data-testid="toggle-mobile-status-card"]');
     expect(summaryBar.attributes('aria-expanded')).toBe('false');
+    expect(summaryText.attributes('aria-live')).toBe('polite');
     expect(toggleBtn.attributes('aria-expanded')).toBe('false');
 
     await summaryBar.trigger('click');
