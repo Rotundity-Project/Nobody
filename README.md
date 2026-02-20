@@ -60,7 +60,9 @@ release/screenshots/    # 界面截图清单与产物目录
 
 ## 界面截图
 
-截图规范与命名见：`release/screenshots/README.md`
+- 截图清单与命名规范：`release/screenshots/README.md`
+- 建议分辨率：`1920x1080`（最低）
+- 推荐覆盖页面：主菜单、剧本选择、游戏主界面、信息抽屉、系统中心、存档对话框
 
 ## 开发规范
 
