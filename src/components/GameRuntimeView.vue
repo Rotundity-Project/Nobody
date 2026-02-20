@@ -26,6 +26,7 @@
         :chapter-interaction="chapterInteractionLabel"
         :interaction-state="interactionStateLabel"
         :option-source-label="optionSourceLabel"
+        :option-source-hint="optionSourceHint || undefined"
       />
       <div class="px-3 pb-2 pt-2 sm:px-5 md:px-6 xl:px-8">
         <ContextStatusCard
@@ -331,11 +332,23 @@ const optionSourceLabel = computed(() => {
     llm_structured: 'LLM-结构化',
     llm_regenerated: 'LLM-再生成',
     rule_fallback: '规则回退',
+    rule_fallback_latency_budget: '规则回退（时延预算）',
     previous_reused: '复用上一组选项',
     not_waiting_for_input: '当前无需输入',
     consistency_non_waiting_fallback: '一致性兜底自动推进',
   };
   return labels[source] ?? source;
+});
+const optionSourceHint = computed(() => {
+  const source = gameStore.plotState?.last_option_generation_source ?? '';
+  const diag = gameStore.plotState?.last_generation_diagnostics ?? '';
+  if (source === 'rule_fallback_latency_budget') {
+    return '受时延预算影响，已跳过 LLM 选项再生成';
+  }
+  if (diag.includes('skipped(latency_budget)')) {
+    return '部分增强步骤因时延预算被跳过';
+  }
+  return '';
 });
 const handleBackToMenu = () => {
   router.push('/');
