@@ -483,7 +483,7 @@ const recentSaveActionAriaLabel = computed(() => {
   if (!latestSave.value) {
     return '继续最近存档，当前没有可用存档';
   }
-  return `继续最近存档，槽位 ${latestSave.value.slot_id}`;
+  return `继续最近存档，槽位 ${latestSave.value.slot_id}，${latestSavePlayerLabel.value}，${latestSaveRealmLabel.value}`;
 });
 const recentSaveActionDescribedBy = computed(() => {
   const ids: string[] = [];

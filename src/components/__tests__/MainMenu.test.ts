@@ -127,6 +127,10 @@ describe('MainMenu', () => {
     });
     expect(wrapper.get('[data-testid="recent-save-btn"]').attributes('aria-label'))
       .toContain('槽位 2');
+    expect(wrapper.get('[data-testid="recent-save-btn"]').attributes('aria-label'))
+      .toContain('无名弟子');
+    expect(wrapper.get('[data-testid="recent-save-btn"]').attributes('aria-label'))
+      .toContain('炼气');
     expect(wrapper.get('[data-testid="recent-save-btn"]').attributes('aria-describedby'))
       .toBe('latest-save-summary');
 
