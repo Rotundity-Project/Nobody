@@ -64,4 +64,18 @@ describe('StoryViewport', () => {
     const wrapper = buildWrapper();
     expect(typeof (wrapper.vm as { scrollToBottom?: unknown }).scrollToBottom).toBe('function');
   });
+
+  it('resets scroll to top when chapter changes', async () => {
+    const wrapper = buildWrapper();
+    const host = wrapper.element as HTMLElement;
+    host.scrollTop = 120;
+
+    await wrapper.setProps({
+      chapterTitle: '第二章',
+      paragraphs: ['新段落一', '新段落二'],
+    });
+    await wrapper.vm.$nextTick();
+
+    expect(host.scrollTop).toBe(0);
+  });
 });

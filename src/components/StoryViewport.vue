@@ -60,7 +60,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import ScrollToBottomButton from './ScrollToBottomButton.vue';
 import StoryScenePanel from './StoryScenePanel.vue';
 
@@ -144,6 +144,19 @@ const scrollToBottom = () => {
   });
 };
 
+const resetViewportScroll = async () => {
+  await nextTick();
+  const el = scrollElement.value;
+  if (!el) {
+    return;
+  }
+  if (typeof el.scrollTo === 'function') {
+    el.scrollTo({ top: 0, behavior: 'auto' });
+  }
+  el.scrollTop = 0;
+  updateReadingProgress();
+};
+
 onMounted(() => {
   scrollElement.value?.addEventListener('scroll', updateReadingProgress, { passive: true });
   const stored = getStoredLocatorExpanded();
@@ -161,6 +174,13 @@ watch(
   () => props.paragraphs.length,
   () => {
     updateReadingProgress();
+  },
+);
+
+watch(
+  () => [props.chapterTitle, props.paragraphs[0] ?? ''],
+  () => {
+    void resetViewportScroll();
   },
 );
 
