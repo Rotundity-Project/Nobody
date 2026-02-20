@@ -5,7 +5,8 @@
   >
     <div
       v-if="showReadingLocator"
-      class="sticky top-2 z-10 ml-auto mb-2 w-fit rounded-lg border border-slate-700 bg-slate-900/85 px-3 py-2 text-xs text-slate-200 backdrop-blur"
+      data-testid="reading-locator"
+      class="absolute right-4 top-3 z-10 w-fit rounded-lg border border-slate-700 bg-slate-900/85 px-3 py-2 text-xs text-slate-200 backdrop-blur"
     >
       <p>阅读定位：{{ readingProgressPercent }}%</p>
       <p>段落进度：{{ currentParagraphIndex }} / {{ paragraphs.length }}</p>

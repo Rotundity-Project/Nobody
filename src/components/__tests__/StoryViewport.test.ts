@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils';
+﻿import { mount } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
 import StoryViewport from '../StoryViewport.vue';
 
@@ -32,6 +32,7 @@ describe('StoryViewport', () => {
     const wrapper = buildWrapper();
     expect(wrapper.text()).toContain('阅读定位');
     expect(wrapper.text()).toContain('段落进度');
+    expect(wrapper.find('[data-testid="reading-locator"]').exists()).toBe(true);
   });
 
   it('exposes scrollToBottom method', () => {
