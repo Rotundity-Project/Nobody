@@ -21,6 +21,7 @@
     :is-dev-mode="isDevMode"
     :debug-chapter="`${gameStore.plotState?.current_chapter?.index ?? 0} / ${gameStore.plotState?.current_chapter?.title ?? 'n/a'}`"
     :debug-option-source="optionSourceLabel || 'n/a'"
+    :debug-option-hint="optionSourceHint || ''"
     :debug-risk-score="consistencyRiskScore"
     :debug-diagnostics="gameStore.plotState?.last_generation_diagnostics || ''"
     :system-error="gameStore.error"
@@ -80,6 +81,7 @@ const props = defineProps<{
   travelPending: boolean;
   isDevMode: boolean;
   optionSourceLabel: string;
+  optionSourceHint?: string;
   consistencyRiskScore: number | null;
 }>();
 

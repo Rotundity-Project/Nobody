@@ -114,6 +114,7 @@
       :travel-pending="travelPending"
       :is-dev-mode="isDevMode"
       :option-source-label="optionSourceLabel"
+      :option-source-hint="optionSourceHint || undefined"
       :consistency-risk-score="consistencyRiskScore"
       @close="showInfoTabs = false"
       @clear-error="gameStore.clearError()"

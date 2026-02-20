@@ -104,6 +104,7 @@
           <template v-else>
             <p>章节：{{ debugChapter }}</p>
             <p>选项来源：{{ debugOptionSource || 'n/a' }}</p>
+            <p v-if="debugOptionHint">来源说明：{{ debugOptionHint }}</p>
             <p>等待输入：{{ isWaitingForInput ? 'yes' : 'no' }}</p>
             <p>一致性风险分：{{ debugRiskScore ?? 'n/a' }}</p>
             <p class="whitespace-pre-wrap text-slate-400">诊断：{{ debugDiagnostics || '无' }}</p>
@@ -181,6 +182,7 @@ const props = defineProps<{
   isDevMode: boolean;
   debugChapter: string;
   debugOptionSource: string;
+  debugOptionHint?: string;
   debugRiskScore: number | null;
   debugDiagnostics: string;
   systemError: string | null;
