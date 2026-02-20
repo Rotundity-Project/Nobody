@@ -4,12 +4,12 @@
       v-if="hasScene"
       class="max-w-none"
     >
-      <header class="mb-2.5 border-b border-slate-700/70 pb-2 sm:mb-3 sm:pb-3">
+      <header class="mb-2 border-b border-slate-700/70 pb-1.5 sm:mb-2.5 sm:pb-2.5">
         <p class="mb-1 text-[11px] uppercase tracking-[0.24em] text-amber-200/75 sm:text-xs sm:tracking-[0.28em]">章节阅读</p>
-        <h2 class="mb-1 text-xl font-display text-amber-200 sm:mb-2 sm:text-2xl">
+        <h2 class="mb-0.5 text-xl font-display text-amber-200 sm:mb-1.5 sm:text-2xl">
           {{ chapterTitle }}
         </h2>
-        <div class="flex flex-wrap items-center gap-1.5 text-xs text-slate-200 sm:gap-2 sm:text-sm">
+        <div class="flex flex-wrap items-center gap-1 text-xs text-slate-200 sm:gap-1.5 sm:text-sm">
           <span class="rounded border border-slate-600/70 bg-slate-800/50 px-2 py-0.5">
             本章 {{ displayParagraphs.length }} 段
           </span>
@@ -27,7 +27,7 @@
         :summary="recapSummary"
       />
 
-      <section class="space-y-1.5 sm:space-y-2">
+      <section class="space-y-1 sm:space-y-1.5">
         <h3 class="m-0 text-sm font-semibold tracking-wide text-slate-300">正文</h3>
         <VirtualStoryList
           v-if="displayParagraphs.length > 0"
