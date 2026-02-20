@@ -5,9 +5,12 @@
   >
     <div
       v-if="showReadingLocator"
-      data-testid="reading-locator"
-      class="absolute right-4 top-2 z-10 w-fit rounded-lg border border-slate-700 bg-slate-900/85 px-3 py-2 text-xs text-slate-200 backdrop-blur"
+      class="sticky top-1 z-10 mb-2 flex justify-end"
     >
+      <div
+        data-testid="reading-locator"
+        class="w-fit rounded-lg border border-slate-700/90 bg-slate-900/90 px-3 py-2 text-xs text-slate-200 shadow-sm backdrop-blur"
+      >
       <div class="flex items-center justify-between gap-3">
         <p>阅读定位：{{ readingProgressPercent }}%</p>
         <button
@@ -39,6 +42,7 @@
           </button>
         </div>
       </div>
+    </div>
     </div>
 
     <ScrollToBottomButton

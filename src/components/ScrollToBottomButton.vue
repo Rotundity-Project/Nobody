@@ -1,7 +1,7 @@
 ﻿<template>
   <button
     v-if="visible"
-    class="absolute bottom-24 right-4 z-10 rounded-lg bg-slate-700 p-2 text-white shadow-lg transition-colors hover:bg-slate-600"
+    class="absolute bottom-20 right-4 z-10 inline-flex items-center gap-1.5 rounded-full border border-slate-500/70 bg-slate-800/95 px-3 py-1.5 text-xs text-slate-100 shadow-lg transition-colors hover:bg-slate-700"
     title="滚动到底部"
     aria-label="滚动到底部"
     @click="$emit('scroll')"
@@ -19,6 +19,7 @@
         d="M19 14l-7 7m0 0l-7-7m7 7V3"
       />
     </svg>
+    <span>回到底部</span>
   </button>
 </template>
 

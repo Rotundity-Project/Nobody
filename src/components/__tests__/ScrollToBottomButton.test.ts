@@ -13,6 +13,7 @@ describe('ScrollToBottomButton', () => {
       props: { visible: true },
     });
     expect(visibleWrapper.find('button').exists()).toBe(true);
+    expect(visibleWrapper.text()).toContain('回到底部');
   });
 
   it('emits scroll event when clicked', async () => {
