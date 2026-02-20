@@ -172,6 +172,36 @@ describe('MainMenu', () => {
     expect(wrapper.text()).toContain('时间：第1年2月');
   });
 
+  it('uses fallback labels when latest save player and realm are empty', async () => {
+    listSaveSlotsMock.mockResolvedValue([
+      {
+        slot_id: 7,
+        timestamp: 1700000000,
+        player_name: '  ',
+        realm: '',
+        location: 'sect_valley',
+        game_time: '第2年3月',
+      },
+    ]);
+
+    const wrapper = mount(MainMenu, {
+      global: {
+        stubs: {
+          AudioControlPanel: AudioStub,
+          LLMConfigDialog: LlmStub,
+          SaveLoadDialog: SaveLoadStub,
+        },
+      },
+    });
+
+    await vi.waitFor(() => {
+      expect(wrapper.find('[data-testid="latest-save-summary"]').exists()).toBe(true);
+    });
+
+    const summary = wrapper.get('[data-testid="latest-save-summary"]').text();
+    expect(summary).toContain('槽位 7 · 未命名角色 · 境界未知');
+  });
+
   it('refreshes save slots when refresh button is clicked', async () => {
     const wrapper = mount(MainMenu, {
       global: {

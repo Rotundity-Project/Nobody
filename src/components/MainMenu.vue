@@ -50,7 +50,7 @@
             aria-live="polite"
             aria-atomic="true"
           >
-            槽位 {{ latestSave.slot_id }} · {{ latestSave.player_name }} · {{ latestSave.realm }}
+            槽位 {{ latestSave.slot_id }} · {{ latestSavePlayerLabel }} · {{ latestSaveRealmLabel }}
               <span class="mt-1 flex flex-wrap items-center gap-1.5">
               <span
                 v-if="showLatestSaveLocationTag"
@@ -279,6 +279,19 @@ const quickBgmEnabled = ref(getAudioSettings().bgmEnabled);
 const quickSfxEnabled = ref(getAudioSettings().sfxEnabled);
 const previousMasterVolume = ref(Math.max(0.01, quickMasterVolume.value || 0.55));
 
+const normalizeSaveText = (value: string | null | undefined, fallback: string): string => {
+  if (!value) {
+    return fallback;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : fallback;
+};
+const latestSavePlayerLabel = computed(() =>
+  normalizeSaveText(latestSave.value?.player_name, '未命名角色'),
+);
+const latestSaveRealmLabel = computed(() =>
+  normalizeSaveText(latestSave.value?.realm, '境界未知'),
+);
 const latestSaveLocationLabel = computed(() => formatLocationLabel(latestSave.value?.location));
 const showLatestSaveLocationTag = computed(
   () => latestSaveLocationLabel.value.trim().length > 0 && latestSaveLocationLabel.value !== '未知',
