@@ -14,6 +14,9 @@ if ($specFiles) {
 $fixedFiles = @(
   "README.md",
   "UI_REDESIGN_GUIDE.md",
+  "docs/USER_MANUAL.md",
+  "docs/ARCHITECTURE.md",
+  "docs/API.md",
   "release/screenshots/README.md",
   "docs/qa/ui-manual-test-v3-2026-02-20.md"
 )
