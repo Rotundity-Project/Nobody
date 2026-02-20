@@ -125,6 +125,8 @@ describe('MainMenu', () => {
     await vi.waitFor(() => {
       expect(wrapper.get('[data-testid="recent-save-btn"]').attributes('disabled')).toBeUndefined();
     });
+    expect(wrapper.get('[data-testid="recent-save-btn"]').attributes('aria-label'))
+      .toContain('槽位 2');
 
     await wrapper.get('[data-testid="recent-save-btn"]').trigger('click');
 
@@ -253,6 +255,8 @@ describe('MainMenu', () => {
     await vi.waitFor(() => {
       expect(wrapper.get('[data-testid="refresh-save-btn"]').text()).toBe('刷新存档');
     });
+    expect(wrapper.get('[data-testid="recent-save-btn"]').attributes('aria-label'))
+      .toBe('继续最近存档，当前没有可用存档');
     expect(wrapper.get('[data-testid="refresh-save-btn"]').attributes('aria-controls')).toBe('recent-save-card');
     expect(wrapper.get('[data-testid="refresh-save-btn"]').attributes('aria-label'))
       .toContain('最近一次刷新成功');

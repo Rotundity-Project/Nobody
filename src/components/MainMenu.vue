@@ -133,6 +133,7 @@
               data-testid="recent-save-btn"
               class="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-100 transition-colors hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60"
               :disabled="!latestSave || quickLoadPending || recentSaveLoading"
+              :aria-label="recentSaveActionAriaLabel"
               @click="loadLatestSave"
             >
               {{ quickLoadPending ? '加载中...' : '继续最近存档' }}
@@ -425,6 +426,18 @@ const refreshActionAriaLabel = computed(() => {
     return `刷新存档，最近一次刷新失败，${suffix}`;
   }
   return '刷新存档，尚未执行刷新';
+});
+const recentSaveActionAriaLabel = computed(() => {
+  if (quickLoadPending.value) {
+    return '继续最近存档，当前正在加载';
+  }
+  if (recentSaveLoading.value) {
+    return '继续最近存档，正在读取可用存档';
+  }
+  if (!latestSave.value) {
+    return '继续最近存档，当前没有可用存档';
+  }
+  return `继续最近存档，槽位 ${latestSave.value.slot_id}`;
 });
 
 const fetchLatestSave = async () => {
