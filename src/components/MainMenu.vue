@@ -44,8 +44,11 @@
             class="mt-2 text-xs leading-5 text-slate-300"
           >
             槽位 {{ latestSave.slot_id }} · {{ latestSave.player_name }} · {{ latestSave.realm }}
-            <span class="mt-1 flex flex-wrap items-center gap-1.5">
-              <span class="rounded border border-slate-600/80 bg-slate-800/70 px-1.5 py-0.5 text-[11px] text-slate-200">
+              <span class="mt-1 flex flex-wrap items-center gap-1.5">
+              <span
+                v-if="showLatestSaveLocationTag"
+                class="rounded border border-slate-600/80 bg-slate-800/70 px-1.5 py-0.5 text-[11px] text-slate-200"
+              >
                 位置：{{ latestSaveLocationLabel }}
               </span>
               <span class="rounded border border-slate-600/80 bg-slate-800/70 px-1.5 py-0.5 text-[11px] text-slate-200">
@@ -270,6 +273,9 @@ const quickSfxEnabled = ref(getAudioSettings().sfxEnabled);
 const previousMasterVolume = ref(Math.max(0.01, quickMasterVolume.value || 0.55));
 
 const latestSaveLocationLabel = computed(() => formatLocationLabel(latestSave.value?.location));
+const showLatestSaveLocationTag = computed(
+  () => latestSaveLocationLabel.value.trim().length > 0 && latestSaveLocationLabel.value !== '未知',
+);
 const latestSaveTimestampLabel = computed(() => {
   const ts = latestSave.value?.timestamp;
   if (!ts || !Number.isFinite(ts)) {

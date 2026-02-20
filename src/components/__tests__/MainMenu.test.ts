@@ -137,6 +137,39 @@ describe('MainMenu', () => {
     expect(wrapper.text()).toMatch(/秒前|分钟前|小时前|天前|时间未知/);
   });
 
+  it('hides location tag when latest save location is unknown', async () => {
+    listSaveSlotsMock.mockResolvedValue([
+      {
+        slot_id: 3,
+        timestamp: 1700000000,
+        player_name: '无名弟子',
+        realm: '炼气',
+        location: '',
+        game_time: '第1年2月',
+      },
+    ]);
+
+    const wrapper = mount(MainMenu, {
+      global: {
+        stubs: {
+          AudioControlPanel: AudioStub,
+          LLMConfigDialog: LlmStub,
+          SaveLoadDialog: SaveLoadStub,
+        },
+      },
+    });
+
+    await vi.waitFor(() => {
+      expect(listSaveSlotsMock).toHaveBeenCalled();
+    });
+    await vi.waitFor(() => {
+      expect(wrapper.get('[data-testid="refresh-save-btn"]').text()).toBe('刷新存档');
+    });
+
+    expect(wrapper.text()).not.toContain('位置：未知');
+    expect(wrapper.text()).toContain('时间：第1年2月');
+  });
+
   it('refreshes save slots when refresh button is clicked', async () => {
     const wrapper = mount(MainMenu, {
       global: {
