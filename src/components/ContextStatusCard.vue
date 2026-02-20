@@ -7,17 +7,17 @@
       <div class="rounded-lg bg-slate-900/60 px-3 py-2">
         <p class="text-[11px] uppercase tracking-[0.2em] text-slate-400">角色快照</p>
         <p class="mt-1 font-medium text-slate-100">{{ playerName }}</p>
-        <p class="text-xs text-slate-300">{{ playerRealm }}</p>
+        <p class="hidden text-xs text-slate-300 sm:block">{{ playerRealm }}</p>
       </div>
       <div class="rounded-lg bg-slate-900/60 px-3 py-2">
         <p class="text-[11px] uppercase tracking-[0.2em] text-slate-400">章节进度</p>
         <p class="mt-1 text-slate-100">{{ chapterProgress }}</p>
-        <p class="text-xs text-slate-300">{{ chapterInteraction }}</p>
+        <p class="hidden text-xs text-slate-300 sm:block">{{ chapterInteraction }}</p>
       </div>
       <div class="rounded-lg bg-slate-900/60 px-3 py-2">
         <p class="text-[11px] uppercase tracking-[0.2em] text-slate-400">当前位置</p>
         <p class="mt-1 text-slate-100">{{ normalizedLocationLabel }}</p>
-        <p class="text-xs text-slate-300">{{ interactionStateLabel }}</p>
+        <p class="hidden text-xs text-slate-300 sm:block">{{ interactionStateLabel }}</p>
       </div>
     </div>
   </div>
