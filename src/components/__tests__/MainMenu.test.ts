@@ -378,6 +378,8 @@ describe('MainMenu', () => {
     expect(wrapper.get('[data-testid="quick-sfx-btn"]').text()).toContain('音效 开');
     expect(wrapper.get('[data-testid="quick-bgm-btn"]').attributes('aria-label')).toBe('关闭 BGM，当前已开启');
     expect(wrapper.get('[data-testid="quick-sfx-btn"]').attributes('aria-label')).toBe('关闭音效，当前已开启');
+    expect(wrapper.get('[data-testid="quick-bgm-btn"]').attributes('aria-describedby')).toBe('quick-volume-status');
+    expect(wrapper.get('[data-testid="quick-sfx-btn"]').attributes('aria-describedby')).toBe('quick-volume-status');
 
     await wrapper.get('[data-testid="quick-bgm-btn"]').trigger('click');
     expect(setBgmEnabledMock).toHaveBeenCalledWith(false);

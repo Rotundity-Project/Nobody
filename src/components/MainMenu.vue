@@ -261,6 +261,7 @@
                 : 'border-slate-600 text-slate-200 hover:bg-slate-800'"
               :aria-pressed="quickBgmEnabled ? 'true' : 'false'"
               :aria-label="quickBgmAriaLabel"
+              aria-describedby="quick-volume-status"
               @click="toggleQuickBgm"
             >
               {{ quickBgmEnabled ? 'BGM 开' : 'BGM 关' }}
@@ -274,6 +275,7 @@
                 : 'border-slate-600 text-slate-200 hover:bg-slate-800'"
               :aria-pressed="quickSfxEnabled ? 'true' : 'false'"
               :aria-label="quickSfxAriaLabel"
+              aria-describedby="quick-volume-status"
               @click="toggleQuickSfx"
             >
               {{ quickSfxEnabled ? '音效 开' : '音效 关' }}
