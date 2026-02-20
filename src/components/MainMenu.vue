@@ -92,10 +92,10 @@
             最近刷新：{{ lastRefreshLabel }}（{{ relativeRefreshLabel }}）
           </p>
           <p
-            v-if="lastRefreshStatusLabel"
+            v-if="shouldShowRefreshStatus && lastRefreshStatusLabel"
             data-testid="recent-save-refresh-status"
             class="mt-1 text-[11px]"
-            :class="lastRefreshSucceeded ? 'text-emerald-300' : 'text-amber-300'"
+            :class="isRefreshStatusSuccess ? 'text-emerald-300' : 'text-amber-300'"
             aria-live="polite"
             aria-atomic="true"
           >
@@ -263,6 +263,7 @@ const lastRefreshAt = ref<number | null>(null);
 const lastRefreshSucceeded = ref<boolean | null>(null);
 const refreshNowTick = ref(Date.now());
 let refreshTickerId: number | null = null;
+const REFRESH_SUCCESS_TOAST_MS = 8000;
 const quickMasterVolume = ref(getAudioSettings().master);
 const quickBgmEnabled = ref(getAudioSettings().bgmEnabled);
 const quickSfxEnabled = ref(getAudioSettings().sfxEnabled);
@@ -326,11 +327,29 @@ const relativeRefreshLabel = computed(() => {
   return `${minutes} 分钟前`;
 });
 const lastRefreshStatusLabel = computed(() => {
+  if (recentSaveLoading.value) {
+    return '刷新中';
+  }
   if (lastRefreshSucceeded.value == null) {
     return '';
   }
   return lastRefreshSucceeded.value ? '成功' : '失败';
 });
+const shouldShowRefreshStatus = computed(() => {
+  if (recentSaveLoading.value) {
+    return true;
+  }
+  if (lastRefreshSucceeded.value === false) {
+    return true;
+  }
+  if (lastRefreshSucceeded.value === true && lastRefreshAt.value) {
+    return refreshNowTick.value - lastRefreshAt.value < REFRESH_SUCCESS_TOAST_MS;
+  }
+  return false;
+});
+const isRefreshStatusSuccess = computed(
+  () => !recentSaveLoading.value && lastRefreshSucceeded.value === true,
+);
 
 const fetchLatestSave = async () => {
   recentSaveLoading.value = true;

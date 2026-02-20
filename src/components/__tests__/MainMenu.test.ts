@@ -314,4 +314,34 @@ describe('MainMenu', () => {
     });
     expect(wrapper.get('[data-testid="recent-save-refresh-status"]').text()).toContain('刷新状态：成功');
   });
+
+  it('hides success refresh status after a short duration', async () => {
+    vi.useFakeTimers();
+    try {
+      const wrapper = mount(MainMenu, {
+        global: {
+          stubs: {
+            AudioControlPanel: AudioStub,
+            LLMConfigDialog: LlmStub,
+            SaveLoadDialog: SaveLoadStub,
+          },
+        },
+      });
+
+      await vi.waitFor(() => {
+        expect(listSaveSlotsMock).toHaveBeenCalledTimes(1);
+      });
+
+      await vi.waitFor(() => {
+        expect(wrapper.get('[data-testid="recent-save-refresh-status"]').text()).toContain('刷新状态：成功');
+      });
+
+      vi.advanceTimersByTime(9000);
+      await wrapper.vm.$nextTick();
+
+      expect(wrapper.find('[data-testid="recent-save-refresh-status"]').exists()).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
