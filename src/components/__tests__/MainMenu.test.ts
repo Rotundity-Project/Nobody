@@ -4,6 +4,7 @@ import MainMenu from '../MainMenu.vue';
 
 const pushMock = vi.fn();
 const playClickMock = vi.fn();
+const setMasterVolumeMock = vi.fn();
 const listSaveSlotsMock = vi.fn();
 const loadGameMock = vi.fn();
 
@@ -14,7 +15,13 @@ vi.mock('vue-router', () => ({
 }));
 
 vi.mock('../../utils/audioSystem', () => ({
+  getAudioSettings: () => ({
+    master: 0.55,
+    bgmEnabled: true,
+    sfxEnabled: true,
+  }),
   playClick: () => playClickMock(),
+  setMasterVolume: (value: number) => setMasterVolumeMock(value),
 }));
 
 vi.mock('../../stores/gameStore', () => ({
@@ -36,6 +43,7 @@ describe('MainMenu', () => {
   beforeEach(() => {
     pushMock.mockReset();
     playClickMock.mockReset();
+    setMasterVolumeMock.mockReset();
     listSaveSlotsMock.mockReset();
     loadGameMock.mockReset();
     listSaveSlotsMock.mockResolvedValue([]);
@@ -142,5 +150,26 @@ describe('MainMenu', () => {
     await vi.waitFor(() => {
       expect(listSaveSlotsMock).toHaveBeenCalledTimes(2);
     });
+  });
+
+  it('applies quick volume preset and mute toggle', async () => {
+    const wrapper = mount(MainMenu, {
+      global: {
+        stubs: {
+          AudioControlPanel: AudioStub,
+          LLMConfigDialog: LlmStub,
+          SaveLoadDialog: SaveLoadStub,
+        },
+      },
+    });
+
+    await wrapper.get('[data-testid="quick-volume-60-btn"]').trigger('click');
+    expect(setMasterVolumeMock).toHaveBeenCalledWith(0.6);
+
+    await wrapper.get('[data-testid="quick-mute-btn"]').trigger('click');
+    expect(setMasterVolumeMock).toHaveBeenCalledWith(0);
+
+    await wrapper.get('[data-testid="quick-mute-btn"]').trigger('click');
+    expect(setMasterVolumeMock).toHaveBeenCalledWith(0.6);
   });
 });

@@ -94,6 +94,31 @@
               {{ showAudioPanel ? '收起音量控制' : '音量控制' }}
             </button>
           </div>
+
+          <div class="mt-3 flex flex-wrap items-center gap-2">
+            <span class="text-[11px] text-slate-400">快捷音量</span>
+            <button
+              data-testid="quick-mute-btn"
+              class="rounded-md border border-amber-500/40 px-2.5 py-1 text-[11px] text-amber-100 transition-colors hover:bg-amber-500/10"
+              @click="toggleQuickMute"
+            >
+              {{ quickMasterVolume <= 0 ? '恢复' : '静音' }}
+            </button>
+            <button
+              data-testid="quick-volume-30-btn"
+              class="rounded-md border border-slate-600 px-2.5 py-1 text-[11px] text-slate-200 transition-colors hover:bg-slate-800"
+              @click="applyQuickVolume(0.3)"
+            >
+              30%
+            </button>
+            <button
+              data-testid="quick-volume-60-btn"
+              class="rounded-md border border-slate-600 px-2.5 py-1 text-[11px] text-slate-200 transition-colors hover:bg-slate-800"
+              @click="applyQuickVolume(0.6)"
+            >
+              60%
+            </button>
+          </div>
         </div>
       </div>
 
@@ -121,7 +146,7 @@ import { useRouter } from 'vue-router';
 import AudioControlPanel from './AudioControlPanel.vue';
 import LLMConfigDialog from './LLMConfigDialog.vue';
 import SaveLoadDialog from './SaveLoadDialog.vue';
-import { playClick } from '../utils/audioSystem';
+import { getAudioSettings, playClick, setMasterVolume } from '../utils/audioSystem';
 import { useGameStore } from '../stores/gameStore';
 import type { SaveInfo } from '../types/game';
 import { formatLocationLabel } from '../shared/locationLabel';
@@ -136,6 +161,9 @@ const recentSaveLoading = ref(false);
 const quickLoadPending = ref(false);
 const recentSaveError = ref('');
 const latestSave = ref<SaveInfo | null>(null);
+const quickMasterVolume = ref(getAudioSettings().master);
+const previousMasterVolume = ref(Math.max(0.01, quickMasterVolume.value || 0.55));
+
 const latestSaveLocationLabel = computed(() => formatLocationLabel(latestSave.value?.location));
 const latestSaveTimestampLabel = computed(() => {
   const ts = latestSave.value?.timestamp;
@@ -185,6 +213,25 @@ const handleSettings = () => {
 const toggleAudioPanel = () => {
   playClick();
   showAudioPanel.value = !showAudioPanel.value;
+};
+
+const applyQuickVolume = (value: number) => {
+  const clamped = Math.min(1, Math.max(0, value));
+  quickMasterVolume.value = clamped;
+  if (clamped > 0) {
+    previousMasterVolume.value = clamped;
+  }
+  setMasterVolume(clamped);
+  playClick();
+};
+
+const toggleQuickMute = () => {
+  if (quickMasterVolume.value <= 0) {
+    applyQuickVolume(previousMasterVolume.value);
+    return;
+  }
+  previousMasterVolume.value = quickMasterVolume.value;
+  applyQuickVolume(0);
 };
 
 const loadLatestSave = async () => {
