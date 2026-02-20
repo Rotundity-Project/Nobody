@@ -105,7 +105,7 @@
             v-if="shouldShowRefreshStatus && lastRefreshStatusLabel"
             data-testid="recent-save-refresh-status"
             class="mt-1 text-[11px]"
-            :class="isRefreshStatusSuccess ? 'text-emerald-300' : 'text-amber-300'"
+            :class="refreshStatusToneClass"
             aria-live="polite"
             aria-atomic="true"
           >
@@ -363,6 +363,12 @@ const shouldShowRefreshStatus = computed(() => {
 const isRefreshStatusSuccess = computed(
   () => !recentSaveLoading.value && lastRefreshSucceeded.value === true,
 );
+const refreshStatusToneClass = computed(() => {
+  if (recentSaveLoading.value) {
+    return 'text-sky-300';
+  }
+  return isRefreshStatusSuccess.value ? 'text-emerald-300' : 'text-amber-300';
+});
 
 const fetchLatestSave = async () => {
   recentSaveLoading.value = true;
