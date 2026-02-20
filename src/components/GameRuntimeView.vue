@@ -374,6 +374,9 @@ const shouldAutoAdvance = computed(
       || plotInteractionState.value === 'cooldown'
       || isNoInputAdvanceState.value)
 );
+const shouldAutoFollowNewParagraph = computed(
+  () => shouldAutoAdvance.value && !hasBlockingOverlay.value,
+);
 const hasBlockingOverlay = computed(
   () =>
     showSaveDialog.value
@@ -665,10 +668,12 @@ watchEffect(() => {
   }
 });
 
-// 监听章节内容变化，自动滚动到底部
+// 仅在自动推进阶段跟随新段落，避免手动阅读时强制跳动到底部
 watch(currentChapterParagraphs, (newParagraphs) => {
-  if (newParagraphs.length > previousChapterParagraphs.value.length) {
-    // 只有当有新内容时才滚动到底部
+  if (
+    shouldAutoFollowNewParagraph.value
+    && newParagraphs.length > previousChapterParagraphs.value.length
+  ) {
     requestAnimationFrame(() => {
       scrollToBottom();
     });
