@@ -42,7 +42,9 @@ describe('StoryViewport', () => {
     const wrapper = buildWrapper();
     expect(wrapper.text()).toContain('阅读定位');
     expect(wrapper.find('[data-testid="reading-locator"]').exists()).toBe(true);
-    expect(wrapper.get('[data-testid="reading-locator-summary"]').text()).toContain('/2');
+    const locatorSummary = wrapper.get('[data-testid="reading-locator-summary"]');
+    expect(locatorSummary.text()).toContain('/2');
+    expect(locatorSummary.attributes('aria-live')).toBe('polite');
     expect(wrapper.get('[data-testid="scroll-bottom-visible"]').text()).toBe('true');
   });
 

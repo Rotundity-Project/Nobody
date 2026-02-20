@@ -12,7 +12,10 @@
         class="pointer-events-auto w-fit max-w-[min(84vw,22rem)] rounded-lg border border-slate-700/90 bg-slate-900/90 px-2 py-1.5 text-[11px] text-slate-200 shadow-sm backdrop-blur sm:px-3 sm:py-2 sm:text-xs"
       >
         <div class="flex items-center justify-between gap-2 sm:gap-3">
-          <p data-testid="reading-locator-summary">
+          <p
+            data-testid="reading-locator-summary"
+            aria-live="polite"
+          >
             阅读定位：{{ readingProgressPercent }}% · {{ readingProgressCompact }}
           </p>
           <button
