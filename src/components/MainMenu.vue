@@ -63,7 +63,12 @@
               </span>
             </span>
             <span class="mt-1 block text-[11px] text-slate-400">
-              最近保存：{{ latestSaveTimestampLabel }}（{{ latestSaveAgeLabel }}）
+              <template v-if="hasLatestSaveTimestamp">
+                最近保存：{{ latestSaveTimestampLabel }}（{{ latestSaveAgeLabel }}）
+              </template>
+              <template v-else>
+                最近保存：时间未知
+              </template>
             </span>
           </p>
           <p
@@ -310,6 +315,7 @@ const latestSaveTimestampLabel = computed(() => {
   }
   return date.toLocaleString();
 });
+const hasLatestSaveTimestamp = computed(() => latestSaveTimestampLabel.value !== '未知');
 const latestSaveAgeLabel = computed(() => {
   const ts = latestSave.value?.timestamp;
   if (!ts || !Number.isFinite(ts)) {

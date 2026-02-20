@@ -203,6 +203,37 @@ describe('MainMenu', () => {
     expect(summary).toContain('时间：时间未知');
   });
 
+  it('shows concise unknown text when latest save timestamp is invalid', async () => {
+    listSaveSlotsMock.mockResolvedValue([
+      {
+        slot_id: 9,
+        timestamp: Number.NaN,
+        player_name: '无名弟子',
+        realm: '炼气',
+        location: 'sect_valley',
+        game_time: '第3年1月',
+      },
+    ]);
+
+    const wrapper = mount(MainMenu, {
+      global: {
+        stubs: {
+          AudioControlPanel: AudioStub,
+          LLMConfigDialog: LlmStub,
+          SaveLoadDialog: SaveLoadStub,
+        },
+      },
+    });
+
+    await vi.waitFor(() => {
+      expect(wrapper.find('[data-testid="latest-save-summary"]').exists()).toBe(true);
+    });
+
+    const summary = wrapper.get('[data-testid="latest-save-summary"]').text();
+    expect(summary).toContain('最近保存：时间未知');
+    expect(summary).not.toContain('未知（时间未知）');
+  });
+
   it('refreshes save slots when refresh button is clicked', async () => {
     const wrapper = mount(MainMenu, {
       global: {
