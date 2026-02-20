@@ -73,10 +73,18 @@
             <button
               data-testid="recent-save-btn"
               class="rounded-md border border-slate-600 px-3 py-1.5 text-xs text-slate-200 transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-              :disabled="!latestSave || quickLoadPending"
+              :disabled="!latestSave || quickLoadPending || recentSaveLoading"
               @click="loadLatestSave"
             >
               {{ quickLoadPending ? '加载中...' : '继续最近存档' }}
+            </button>
+            <button
+              data-testid="refresh-save-btn"
+              class="rounded-md border border-slate-600 px-3 py-1.5 text-xs text-slate-200 transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              :disabled="recentSaveLoading || quickLoadPending"
+              @click="fetchLatestSave"
+            >
+              {{ recentSaveLoading ? '刷新中...' : '刷新存档' }}
             </button>
             <button
               data-testid="open-audio-btn"

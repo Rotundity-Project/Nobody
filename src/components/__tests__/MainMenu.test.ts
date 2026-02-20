@@ -117,4 +117,30 @@ describe('MainMenu', () => {
 
     expect(wrapper.text()).toContain('最近保存：');
   });
+
+  it('refreshes save slots when refresh button is clicked', async () => {
+    const wrapper = mount(MainMenu, {
+      global: {
+        stubs: {
+          AudioControlPanel: AudioStub,
+          LLMConfigDialog: LlmStub,
+          SaveLoadDialog: SaveLoadStub,
+        },
+      },
+    });
+
+    await vi.waitFor(() => {
+      expect(listSaveSlotsMock).toHaveBeenCalledTimes(1);
+    });
+
+    await vi.waitFor(() => {
+      expect(wrapper.get('[data-testid="refresh-save-btn"]').text()).toBe('刷新存档');
+    });
+
+    await wrapper.get('[data-testid="refresh-save-btn"]').trigger('click');
+
+    await vi.waitFor(() => {
+      expect(listSaveSlotsMock).toHaveBeenCalledTimes(2);
+    });
+  });
 });
