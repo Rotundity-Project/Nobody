@@ -209,6 +209,7 @@ describe('MainMenu', () => {
     });
 
     expect(wrapper.get('[data-testid="recent-save-refresh-label"]').text()).toContain('最近刷新：');
+    expect(wrapper.get('[data-testid="recent-save-refresh-label"]').text()).toMatch(/刚刚|秒前|分钟前/);
     expect(wrapper.get('[data-testid="recent-save-refresh-status"]').text()).toContain('刷新状态：成功');
   });
 

@@ -81,7 +81,7 @@
             data-testid="recent-save-refresh-label"
             class="mt-2 text-[11px] text-slate-500"
           >
-            最近刷新：{{ lastRefreshLabel }}
+            最近刷新：{{ lastRefreshLabel }}（{{ relativeRefreshLabel }}）
           </p>
           <p
             v-if="lastRefreshStatusLabel"
@@ -210,6 +210,8 @@ const recentSaveError = ref('');
 const latestSave = ref<SaveInfo | null>(null);
 const lastRefreshAt = ref<number | null>(null);
 const lastRefreshSucceeded = ref<boolean | null>(null);
+const refreshNowTick = ref(Date.now());
+let refreshTickerId: number | null = null;
 const quickMasterVolume = ref(getAudioSettings().master);
 const previousMasterVolume = ref(Math.max(0.01, quickMasterVolume.value || 0.55));
 
@@ -234,6 +236,21 @@ const lastRefreshLabel = computed(() => {
     return '';
   }
   return date.toLocaleTimeString();
+});
+const relativeRefreshLabel = computed(() => {
+  if (!lastRefreshAt.value) {
+    return '';
+  }
+  const diffMs = Math.max(0, refreshNowTick.value - lastRefreshAt.value);
+  const seconds = Math.floor(diffMs / 1000);
+  if (seconds < 3) {
+    return '刚刚';
+  }
+  if (seconds < 60) {
+    return `${seconds} 秒前`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  return `${minutes} 分钟前`;
 });
 const lastRefreshStatusLabel = computed(() => {
   if (lastRefreshSucceeded.value == null) {
@@ -339,11 +356,18 @@ const handleLoadedFromDialog = () => {
 
 onMounted(() => {
   syncQuickVolumeFromSettings();
+  refreshNowTick.value = Date.now();
+  refreshTickerId = window.setInterval(() => {
+    refreshNowTick.value = Date.now();
+  }, 1000);
   window.addEventListener('focus', syncQuickVolumeFromSettings);
   void fetchLatestSave();
 });
 
 onUnmounted(() => {
+  if (refreshTickerId != null) {
+    window.clearInterval(refreshTickerId);
+  }
   window.removeEventListener('focus', syncQuickVolumeFromSettings);
 });
 </script>
