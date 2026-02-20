@@ -95,6 +95,8 @@
             v-if="recentSaveError"
             id="recent-save-error"
             class="mt-2 text-xs text-red-300"
+            role="alert"
+            aria-atomic="true"
           >
             {{ recentSaveError }}
           </p>
