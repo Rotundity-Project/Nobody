@@ -249,6 +249,7 @@ describe('MainMenu', () => {
     expect(wrapper.get('[data-testid="recent-save-refresh-label"]').text()).toContain('最近刷新：');
     expect(wrapper.get('[data-testid="recent-save-refresh-label"]').text()).toMatch(/刚刚|秒前|分钟前/);
     expect(wrapper.get('[data-testid="recent-save-refresh-status"]').text()).toContain('刷新状态：成功');
+    expect(wrapper.get('[data-testid="recent-save-refresh-status"]').attributes('aria-live')).toBe('polite');
   });
 
   it('syncs quick volume status from audio settings when opening audio panel', async () => {
@@ -263,6 +264,7 @@ describe('MainMenu', () => {
     });
 
     expect(wrapper.get('[data-testid="quick-volume-status"]').text()).toContain('当前 55%');
+    expect(wrapper.get('[data-testid="quick-volume-status"]').attributes('aria-live')).toBe('polite');
     const audioToggle = wrapper.get('[data-testid="open-audio-btn"]');
     expect(audioToggle.attributes('aria-expanded')).toBe('false');
     expect(wrapper.find('#main-menu-audio-panel').exists()).toBe(false);
