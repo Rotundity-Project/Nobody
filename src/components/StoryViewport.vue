@@ -8,9 +8,22 @@
       data-testid="reading-locator"
       class="absolute right-4 top-3 z-10 w-fit rounded-lg border border-slate-700 bg-slate-900/85 px-3 py-2 text-xs text-slate-200 backdrop-blur"
     >
-      <p>阅读定位：{{ readingProgressPercent }}%</p>
-      <p>段落进度：{{ currentParagraphIndex }} / {{ paragraphs.length }}</p>
-      <div class="mt-2 flex gap-2">
+      <div class="flex items-center justify-between gap-3">
+        <p>阅读定位：{{ readingProgressPercent }}%</p>
+        <button
+          data-testid="toggle-reading-locator"
+          class="rounded bg-slate-700 px-2 py-0.5 text-[11px] text-slate-100 hover:bg-slate-600"
+          @click="showReadingLocatorDetails = !showReadingLocatorDetails"
+        >
+          {{ showReadingLocatorDetails ? '收起' : '展开' }}
+        </button>
+      </div>
+      <div
+        v-if="showReadingLocatorDetails"
+        class="mt-2 space-y-2"
+      >
+        <p>段落进度：{{ currentParagraphIndex }} / {{ paragraphs.length }}</p>
+        <div class="flex gap-2">
         <button
           class="rounded bg-slate-700 px-2 py-1 text-[11px] text-slate-100 hover:bg-slate-600"
           @click="scrollToTop"
@@ -23,6 +36,7 @@
         >
           底部
         </button>
+        </div>
       </div>
     </div>
 
@@ -61,6 +75,7 @@ const props = defineProps<{
 
 const scrollElement = ref<HTMLElement | null>(null);
 const readingProgress = ref(0);
+const showReadingLocatorDetails = ref(true);
 
 const showReadingLocator = computed(
   () => props.isGameInitialized && props.hasScene && props.paragraphs.length > 0,
@@ -106,6 +121,13 @@ const scrollToBottom = () => {
 
 onMounted(() => {
   scrollElement.value?.addEventListener('scroll', updateReadingProgress, { passive: true });
+  if (
+    typeof window !== 'undefined'
+    && window.innerWidth > 0
+    && window.innerWidth < 768
+  ) {
+    showReadingLocatorDetails.value = false;
+  }
   updateReadingProgress();
 });
 

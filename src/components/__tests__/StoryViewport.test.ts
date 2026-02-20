@@ -31,8 +31,21 @@ describe('StoryViewport', () => {
   it('shows reading locator when story paragraphs exist', () => {
     const wrapper = buildWrapper();
     expect(wrapper.text()).toContain('阅读定位');
-    expect(wrapper.text()).toContain('段落进度');
     expect(wrapper.find('[data-testid="reading-locator"]').exists()).toBe(true);
+  });
+
+  it('toggles reading locator details', async () => {
+    const wrapper = buildWrapper();
+    const toggleBtn = wrapper.get('[data-testid="toggle-reading-locator"]');
+
+    if (wrapper.text().includes('段落进度')) {
+      await toggleBtn.trigger('click');
+      expect(wrapper.text()).not.toContain('段落进度');
+      return;
+    }
+
+    await toggleBtn.trigger('click');
+    expect(wrapper.text()).toContain('段落进度');
   });
 
   it('exposes scrollToBottom method', () => {
