@@ -320,8 +320,11 @@ describe('MainMenu', () => {
         },
       },
     });
-    const quickVolumeGroup = wrapper.find('[role="group"][aria-label="快捷音量预设"]');
+    const quickVolumeGroup = wrapper.find('[role="group"]');
     expect(quickVolumeGroup.exists()).toBe(true);
+    expect(quickVolumeGroup.attributes('aria-label')).toContain('当前音量 55%');
+    expect(quickVolumeGroup.attributes('aria-label')).toContain('BGM 开');
+    expect(quickVolumeGroup.attributes('aria-label')).toContain('音效 开');
 
     await wrapper.get('[data-testid="quick-volume-60-btn"]').trigger('click');
     expect(setMasterVolumeMock).toHaveBeenCalledWith(0.6);
@@ -333,6 +336,7 @@ describe('MainMenu', () => {
     await wrapper.get('[data-testid="quick-mute-btn"]').trigger('click');
     expect(setMasterVolumeMock).toHaveBeenCalledWith(0);
     expect(wrapper.get('[data-testid="quick-volume-status"]').text()).toContain('已静音');
+    expect(quickVolumeGroup.attributes('aria-label')).toContain('当前静音');
     expect(wrapper.get('[data-testid="quick-mute-btn"]').attributes('aria-pressed')).toBe('true');
 
     await wrapper.get('[data-testid="quick-mute-btn"]').trigger('click');
@@ -343,6 +347,7 @@ describe('MainMenu', () => {
     await wrapper.get('[data-testid="quick-volume-100-btn"]').trigger('click');
     expect(setMasterVolumeMock).toHaveBeenCalledWith(1);
     expect(wrapper.get('[data-testid="quick-volume-status"]').text()).toContain('当前 100%');
+    expect(quickVolumeGroup.attributes('aria-label')).toContain('当前音量 100%');
     expect(wrapper.get('[data-testid="quick-volume-100-btn"]').classes()).toContain('border-emerald-400');
     expect(wrapper.get('[data-testid="quick-volume-100-btn"]').attributes('aria-pressed')).toBe('true');
     expect(wrapper.get('[data-testid="quick-volume-60-btn"]').attributes('aria-pressed')).toBe('false');

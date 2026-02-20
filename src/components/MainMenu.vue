@@ -198,7 +198,7 @@
             <div
               class="flex flex-wrap items-center gap-2"
               role="group"
-              aria-label="快捷音量预设"
+              :aria-label="quickAudioGroupAriaLabel"
             >
             <button
               type="button"
@@ -485,6 +485,14 @@ const audioPanelToggleAriaLabel = computed(() => {
   const sfxLabel = quickSfxEnabled.value ? '音效 开' : '音效 关';
   const actionLabel = showAudioPanel.value ? '收起音量控制' : '展开音量控制';
   return `${actionLabel}，${volumeLabel}，${bgmLabel}，${sfxLabel}`;
+});
+const quickAudioGroupAriaLabel = computed(() => {
+  const volumeLabel = quickMasterVolume.value <= 0
+    ? '当前静音'
+    : `当前音量 ${Math.round(quickMasterVolume.value * 100)}%`;
+  const bgmLabel = quickBgmEnabled.value ? 'BGM 开' : 'BGM 关';
+  const sfxLabel = quickSfxEnabled.value ? '音效 开' : '音效 关';
+  return `快捷音量预设，${volumeLabel}，${bgmLabel}，${sfxLabel}`;
 });
 const retryLoadSavesAriaLabel = computed(() => {
   if (!recentSaveError.value) {
