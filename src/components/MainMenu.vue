@@ -99,10 +99,12 @@
             刷新状态：{{ lastRefreshStatusLabel }}
           </p>
 
-          <div class="mt-3 flex flex-wrap gap-2">
+          <div class="mt-4 rounded-lg border border-slate-700/70 bg-slate-950/30 p-3">
+            <p class="mb-2 text-[11px] uppercase tracking-[0.18em] text-slate-400">存档操作</p>
+            <div class="grid gap-2 sm:grid-cols-3">
             <button
               data-testid="recent-save-btn"
-              class="rounded-md border border-slate-600 px-3 py-1.5 text-xs text-slate-200 transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              class="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-100 transition-colors hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60"
               :disabled="!latestSave || quickLoadPending || recentSaveLoading"
               @click="loadLatestSave"
             >
@@ -110,7 +112,7 @@
             </button>
             <button
               data-testid="refresh-save-btn"
-              class="rounded-md border border-slate-600 px-3 py-1.5 text-xs text-slate-200 transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              class="rounded-md border border-slate-600 bg-slate-900/70 px-3 py-2 text-xs font-medium text-slate-200 transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
               :disabled="recentSaveLoading || quickLoadPending"
               @click="fetchLatestSave"
             >
@@ -118,15 +120,26 @@
             </button>
             <button
               data-testid="open-audio-btn"
-              class="rounded-md border border-amber-500/40 px-3 py-1.5 text-xs text-amber-100 transition-colors hover:bg-amber-500/10"
+              class="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-100 transition-colors hover:bg-amber-500/20"
               @click="toggleAudioPanel"
             >
               {{ showAudioPanel ? '收起音量控制' : '音量控制' }}
             </button>
           </div>
+          </div>
 
-          <div class="mt-3 flex flex-wrap items-center gap-2">
-            <span class="text-[11px] text-slate-400">快捷音量</span>
+          <div class="mt-3 rounded-lg border border-slate-700/70 bg-slate-950/30 p-3">
+            <div class="mb-2 flex items-center justify-between">
+              <span class="text-[11px] uppercase tracking-[0.18em] text-slate-400">音频快捷</span>
+              <span
+                data-testid="quick-volume-status"
+                class="text-[11px]"
+                :class="quickMasterVolume <= 0 ? 'text-amber-200' : 'text-slate-400'"
+              >
+                {{ quickMasterVolume <= 0 ? '已静音' : `当前 ${Math.round(quickMasterVolume * 100)}%` }}
+              </span>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
             <button
               data-testid="quick-mute-btn"
               class="rounded-md border border-amber-500/40 px-2.5 py-1 text-[11px] text-amber-100 transition-colors hover:bg-amber-500/10"
@@ -165,16 +178,6 @@
             >
               100%
             </button>
-            <span
-              data-testid="quick-volume-status"
-              class="text-[11px]"
-              :class="quickMasterVolume <= 0 ? 'text-amber-200' : 'text-slate-400'"
-            >
-              {{ quickMasterVolume <= 0 ? '已静音' : `当前 ${Math.round(quickMasterVolume * 100)}%` }}
-            </span>
-          </div>
-          <div class="mt-2 flex flex-wrap items-center gap-2">
-            <span class="text-[11px] text-slate-400">快捷开关</span>
             <button
               data-testid="quick-bgm-btn"
               class="rounded-md border px-2.5 py-1 text-[11px] transition-colors"
@@ -197,6 +200,7 @@
             >
               {{ quickSfxEnabled ? '音效 开' : '音效 关' }}
             </button>
+          </div>
           </div>
         </div>
       </div>
