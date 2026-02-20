@@ -80,7 +80,7 @@ impl Default for ConsistencyPolicy {
         Self {
             recent_window: 3,
             cross_chapter_window: 3,
-            duplicate_recent_threshold: 0.92,
+            duplicate_recent_threshold: 0.88,
             duplicate_cross_chapter_threshold: 0.88,
             weight_warning: 5,
             weight_critical: 12,
@@ -286,6 +286,25 @@ fn needs_chapter_goal_hint(text: &str, interaction_count: u8, chapter_end: bool)
     !has_any_chapter_goal_hit(text)
 }
 
+fn is_semantically_near_duplicate(a: &str, b: &str, threshold: f32) -> bool {
+    if a.is_empty() || b.is_empty() {
+        return false;
+    }
+    if a == b {
+        return true;
+    }
+    if jaccard_similarity(a, b) >= threshold {
+        return true;
+    }
+    let (shorter, longer) = if a.chars().count() <= b.chars().count() {
+        (a, b)
+    } else {
+        (b, a)
+    };
+    // Catch "almost same paragraph with small edits" cases.
+    shorter.chars().count() >= 10 && longer.contains(shorter)
+}
+
 fn has_any_chapter_goal_hit(text: &str) -> bool {
     let conflict_words = ["冲突", "对抗", "危险", "交锋", "敌意"];
     let growth_words = ["成长", "突破", "领悟", "精进", "修行"];
@@ -364,9 +383,11 @@ pub fn validate_and_repair_plot_update(
                 if normalized_old.is_empty() {
                     return false;
                 }
-                normalized_old == normalized_current
-                    || jaccard_similarity(&normalized_old, &normalized_current)
-                        >= policy.duplicate_recent_threshold
+                is_semantically_near_duplicate(
+                    &normalized_old,
+                    &normalized_current,
+                    policy.duplicate_recent_threshold,
+                )
             });
         if duplicate {
             report.issues.push(ConsistencyIssue {
@@ -388,8 +409,11 @@ pub fn validate_and_repair_plot_update(
                 if normalized_old.is_empty() {
                     return false;
                 }
-                jaccard_similarity(&normalized_old, &normalized_current)
-                    >= policy.duplicate_cross_chapter_threshold
+                is_semantically_near_duplicate(
+                    &normalized_old,
+                    &normalized_current,
+                    policy.duplicate_cross_chapter_threshold,
+                )
             });
         if cross_dup {
             report.issues.push(ConsistencyIssue {
@@ -603,6 +627,27 @@ mod tests {
         let report = validate_and_repair_plot_update(&state, &update, &action_result(), 1, 100, "无名弟子");
         assert!(report.repaired_plot_text.is_some());
         assert!(report.issues.iter().any(|i| i.code == "duplicate_segment"));
+    }
+
+    #[test]
+    fn detects_near_duplicate_by_containment() {
+        let mut state = test_plot_state();
+        state.current_chapter.content = vec!["你推开山门，风声呼啸。".to_string()];
+        let update = PlotUpdate {
+            new_scene: None,
+            plot_text: "你推开山门，风声呼啸。抬眼望去，石阶尽头隐约有灯火摇动。".to_string(),
+            triggered_events: vec![],
+            state_changes: vec![],
+            is_waiting_for_input: false,
+            available_options: vec![],
+            chapter_title: None,
+            chapter_summary: None,
+            chapter_end: false,
+            generation_diagnostics: None,
+        };
+        let report = validate_and_repair_plot_update(&state, &update, &action_result(), 1, 100, "无名弟子");
+        assert!(report.issues.iter().any(|i| i.code == "duplicate_segment"));
+        assert!(report.repaired_plot_text.is_some());
     }
 
     #[test]

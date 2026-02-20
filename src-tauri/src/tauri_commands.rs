@@ -188,6 +188,9 @@ fn narrative_density_and_pacing_hint(interaction_count: u8) -> String {
     )
 }
 
+const REGEN_LATENCY_BUDGET_MS: u128 = 2500;
+const OPTION_LLM_LATENCY_BUDGET_MS: u128 = 3200;
+
 fn hollow_expression_regeneration_hint() -> &'static str {
     "\n\n[叙事厚度重生成约束]\n禁止空洞套话与重复句式；至少补足环境、动作、心理三类中的两类，并给出可验证的因果变化。"
 }
@@ -2015,7 +2018,9 @@ pub async fn execute_player_action(
         &game_state.player.name,
     );
 
-    if has_consistency_issue(&consistency_report, "chapter_goal_weak") {
+    if has_consistency_issue(&consistency_report, "chapter_goal_weak")
+        && total_started.elapsed().as_millis() <= REGEN_LATENCY_BUDGET_MS
+    {
         let mut regenerated_state = plot_state_for_generation.clone();
         regenerated_state.current_scene.description = format!(
             "{}{}",
@@ -2056,10 +2061,19 @@ pub async fn execute_player_action(
                 }
             }
         }
+    } else if has_consistency_issue(&consistency_report, "chapter_goal_weak") {
+        match &mut plot_update.generation_diagnostics {
+            Some(diag) => diag.push_str("；章节目标重生成：skipped(latency_budget)"),
+            None => {
+                plot_update.generation_diagnostics =
+                    Some("章节目标重生成：skipped(latency_budget)".to_string())
+            }
+        }
     }
 
-    if is_hollow_expression(&plot_update.plot_text)
-        || narrative_dimension_coverage(&plot_update.plot_text) < 2
+    if (is_hollow_expression(&plot_update.plot_text)
+        || narrative_dimension_coverage(&plot_update.plot_text) < 2)
+        && total_started.elapsed().as_millis() <= REGEN_LATENCY_BUDGET_MS
     {
         let mut regenerated_state = plot_state_for_generation.clone();
         let regen_hint = format!(
@@ -2105,12 +2119,19 @@ pub async fn execute_player_action(
                 }
             }
         }
+    } else if is_hollow_expression(&plot_update.plot_text)
+        || narrative_dimension_coverage(&plot_update.plot_text) < 2
+    {
+        match &mut plot_update.generation_diagnostics {
+            Some(diag) => diag.push_str("；叙事厚度重生成：skipped(latency_budget)"),
+            None => {
+                plot_update.generation_diagnostics =
+                    Some("叙事厚度重生成：skipped(latency_budget)".to_string())
+            }
+        }
     }
     if let Some(text) = consistency_report.repaired_plot_text.clone() {
         plot_update.plot_text = text;
-    }
-    if consistency_report.force_non_waiting {
-        plot_update.is_waiting_for_input = false;
     }
     if let Some(next_location) = consistency_report.override_location.clone() {
         plot_state.current_scene.location = next_location;
@@ -2204,17 +2225,27 @@ pub async fn execute_player_action(
             plot_state.current_scene.available_options = plot_update.available_options;
             "llm_structured".to_string()
         } else {
-            let llm_regenerated = plot_engine.generate_player_options_with_llm(
-                &plot_state.current_scene,
-                &game_state.player.stats,
-            );
+            let llm_regenerated = if total_started.elapsed().as_millis()
+                <= OPTION_LLM_LATENCY_BUDGET_MS
+            {
+                plot_engine.generate_player_options_with_llm(
+                    &plot_state.current_scene,
+                    &game_state.player.stats,
+                )
+            } else {
+                None
+            };
             let (mut regenerated_options, mut source) = if let Some(options) = llm_regenerated {
                 (options, "llm_regenerated".to_string())
             } else {
                 (
                     plot_engine
                         .generate_player_options(&plot_state.current_scene, &game_state.player.stats),
-                    "rule_fallback".to_string(),
+                    if total_started.elapsed().as_millis() <= OPTION_LLM_LATENCY_BUDGET_MS {
+                        "rule_fallback".to_string()
+                    } else {
+                        "rule_fallback_latency_budget".to_string()
+                    },
                 )
             };
 

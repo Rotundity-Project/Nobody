@@ -925,7 +925,7 @@ impl PlotEngine {
                 "segment_text 必须为中文小说叙事".to_string(),
                 "segment_text 不要包含选项列表".to_string(),
                 "不要复述或改写已出现的段落".to_string(),
-                "每次输出 500-900 字".to_string(),
+                "每次输出 320-560 字".to_string(),
                 "needs_player_input 为 true 时，必须给出 2-4 个 options".to_string(),
                 "chapter_end 仅在章节接近尾声时为 true".to_string(),
             ],
@@ -934,8 +934,8 @@ impl PlotEngine {
             ),
         };
 
-        // Keep token budget moderate while allowing complete narrative + options payload.
-        let output_max = llm_service.api_config.max_tokens.clamp(320, 700);
+        // Low-latency profile: keep output budget controlled to reduce tail latency.
+        let output_max = llm_service.api_config.max_tokens.clamp(220, 420);
         let prompt_limit = output_max.saturating_mul(6);
 
         let prompt = self.prompt_builder.build_prompt_with_token_limit(
@@ -946,7 +946,7 @@ impl PlotEngine {
         );
 
         let response = match tokio::time::timeout(
-            Duration::from_secs(45),
+            Duration::from_secs(20),
             llm_service.generate(LLMRequest {
                 prompt: prompt.clone(),
                 max_tokens: Some(output_max),
@@ -969,7 +969,7 @@ impl PlotEngine {
                             "segment_text 必须为中文小说叙事".to_string(),
                             "segment_text 不要包含选项列表".to_string(),
                             "不要复述或改写已出现的段落".to_string(),
-                            "每次输出 300-600 字".to_string(),
+                            "每次输出 260-420 字".to_string(),
                             "needs_player_input 为 true 时，必须给出 2-4 个 options".to_string(),
                         ],
                         output_schema_hint: Some(
@@ -979,10 +979,10 @@ impl PlotEngine {
                     output_max.saturating_mul(3),
                 );
                 match tokio::time::timeout(
-                    Duration::from_secs(30),
+                    Duration::from_secs(12),
                     llm_service.generate(LLMRequest {
                         prompt: retry_prompt,
-                        max_tokens: Some(output_max.saturating_div(2).max(240)),
+                        max_tokens: Some(output_max.saturating_div(2).max(180)),
                         temperature: Some(0.7),
                     }),
                 )
@@ -1168,20 +1168,40 @@ impl PlotEngine {
     }
 
     fn generate_plot_text_fallback(&self, current_state: &PlotState, action_result: &ActionResult) -> String {
+        let action_desc = action_result.description.trim();
         let event_line = if action_result.events.is_empty() {
             String::new()
         } else {
-            format!("随后传来的动静与风声里，{}。", action_result.events.join("；"))
+            format!("局势回响随之显现：{}。", action_result.events.join("；"))
         };
 
+        let beats = [
+            "气机顺着经脉回落，你迅速复盘眼前局势。",
+            "四周细节在你感知里逐一清晰，新的牵连浮出水面。",
+            "你压住余波，判断下一步的代价与收益。",
+            "这一步落子后，场中人事都出现了细微偏转。",
+        ];
+        let sensory = [
+            "风里夹着细碎的灵压波动，远近动静都变得格外分明。",
+            "地脉微颤从脚下传来，你能感觉到周围局势正在重新排布。",
+            "暗处的目光与明处的喧声交织，让这片区域不再平静。",
+            "你的呼吸与灵力节律逐渐一致，判断也比先前更冷静。",
+        ];
+        let beat = beats[(current_state.segment_count as usize) % beats.len()];
+        let sense = sensory[(current_state.segment_count as usize) % sensory.len()];
+
         format!(
-            "在{}，你{}。{}",
+            "{}，你{}。{}{}{}",
             current_state.current_scene.location,
-            action_result.description,
-            event_line
+            if action_desc.is_empty() { "暂缓动作，转而观察变化" } else { action_desc },
+            beat,
+            sense,
+            if event_line.is_empty() {
+                String::new()
+            } else {
+                format!(" {}", event_line)
+            }
         )
-        .trim()
-        .to_string()
     }
 
     pub fn generate_opening_plot(
