@@ -257,12 +257,17 @@ describe('MainMenu', () => {
     });
 
     expect(wrapper.get('[data-testid="quick-volume-status"]').text()).toContain('当前 55%');
+    const audioToggle = wrapper.get('[data-testid="open-audio-btn"]');
+    expect(audioToggle.attributes('aria-expanded')).toBe('false');
+    expect(wrapper.find('#main-menu-audio-panel').exists()).toBe(false);
 
     audioSettingsState.master = 0.3;
-    await wrapper.get('[data-testid="open-audio-btn"]').trigger('click');
+    await audioToggle.trigger('click');
 
     expect(wrapper.get('[data-testid="quick-volume-status"]').text()).toContain('当前 30%');
     expect(wrapper.get('[data-testid="quick-volume-30-btn"]').classes()).toContain('border-emerald-400');
+    expect(audioToggle.attributes('aria-expanded')).toBe('true');
+    expect(wrapper.find('#main-menu-audio-panel').exists()).toBe(true);
   });
 
   it('shows retry button when load saves failed and retries successfully', async () => {

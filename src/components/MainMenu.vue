@@ -121,6 +121,8 @@
             <button
               data-testid="open-audio-btn"
               class="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-100 transition-colors hover:bg-amber-500/20"
+              aria-controls="main-menu-audio-panel"
+              :aria-expanded="showAudioPanel ? 'true' : 'false'"
               @click="toggleAudioPanel"
             >
               {{ showAudioPanel ? '收起音量控制' : '音量控制' }}
@@ -207,6 +209,7 @@
 
       <div
         v-if="showAudioPanel"
+        id="main-menu-audio-panel"
         class="mt-6 rounded-xl border border-slate-700 bg-slate-900/60 p-4"
       >
         <AudioControlPanel />
