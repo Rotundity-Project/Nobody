@@ -42,11 +42,10 @@
         </button>
       </div>
       <div
-        v-if="gameStore.isGameInitialized"
+        v-if="gameStore.isGameInitialized && showMobileStatusCard"
         class="px-3 pb-1 pt-1 sm:hidden"
       >
         <ContextStatusCard
-          v-if="showMobileStatusCard"
           :visible="true"
           :player-name="gameStore.playerCharacter?.name || '无名弟子'"
           :player-realm="playerRealmLabel"
