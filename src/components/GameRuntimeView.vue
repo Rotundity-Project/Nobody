@@ -24,11 +24,10 @@
         v-if="gameStore.isGameInitialized"
         class="border-b border-slate-800/80 bg-slate-900/60 px-3 py-1.5 text-[11px] text-slate-300 sm:hidden"
       >
-        <div
+        <button
           data-testid="mobile-status-summary-bar"
-          class="flex items-center justify-between gap-2 cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/60"
-          role="button"
-          tabindex="0"
+          type="button"
+          class="w-full flex items-center justify-between gap-2 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/60"
           aria-label="切换状态卡片显示"
           :aria-expanded="showMobileStatusCard ? 'true' : 'false'"
           @click="toggleMobileStatusCard"
@@ -43,16 +42,15 @@
               {{ optionSourceLabel }}
             </span>
           </div>
-          <button
+          <span
             data-testid="toggle-mobile-status-card"
-            class="shrink-0 rounded-md border border-slate-600 px-2 py-0.5 text-[10px] text-slate-200 transition-colors hover:bg-slate-800"
-            aria-label="展开或收起状态卡"
+            class="shrink-0 rounded-md border border-slate-600 px-2 py-0.5 text-[10px] text-slate-200"
+            aria-label="状态卡展开状态"
             :aria-expanded="showMobileStatusCard ? 'true' : 'false'"
-            @click.stop="toggleMobileStatusCard"
           >
             {{ showMobileStatusCard ? '收起' : '展开' }}
-          </button>
-        </div>
+          </span>
+        </button>
       </div>
       <ChapterStatusStrip
         :visible="gameStore.isGameInitialized"
