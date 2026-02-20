@@ -64,9 +64,10 @@
           </p>
           <p
             v-else
+            data-testid="no-save-hint"
             class="mt-2 text-xs leading-5 text-slate-400"
           >
-            当前没有可用存档。你可以开始新游戏后再保存进度。
+            暂无可用存档，可先开始新游戏创建进度。
           </p>
 
           <p

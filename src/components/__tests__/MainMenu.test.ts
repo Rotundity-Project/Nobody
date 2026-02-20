@@ -251,6 +251,7 @@ describe('MainMenu', () => {
     expect(wrapper.get('[data-testid="recent-save-refresh-status"]').text()).toContain('刷新状态：成功');
     expect(wrapper.get('[data-testid="recent-save-refresh-status"]').attributes('aria-live')).toBe('polite');
     expect(wrapper.get('[data-testid="recent-save-refresh-status"]').attributes('aria-atomic')).toBe('true');
+    expect(wrapper.get('[data-testid="no-save-hint"]').text()).toContain('暂无可用存档');
   });
 
   it('syncs quick volume status from audio settings when opening audio panel', async () => {
