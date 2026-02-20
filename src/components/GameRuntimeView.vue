@@ -25,13 +25,23 @@
         class="border-b border-slate-800/80 bg-slate-900/60 px-3 py-1.5 text-[11px] text-slate-300 sm:hidden"
       >
         <div class="flex items-center justify-between gap-2">
-          <p class="truncate">{{ mobileStatusSummary }}</p>
-          <span
-            v-if="optionSourceLabel"
-            class="shrink-0 rounded border border-slate-700/70 bg-slate-900/70 px-1.5 py-0.5 text-[10px] text-slate-300"
+          <div class="min-w-0 flex-1 flex items-center gap-1.5">
+            <p class="truncate">{{ mobileStatusSummary }}</p>
+            <span
+              v-if="optionSourceLabel"
+              class="shrink-0 rounded border border-slate-700/70 bg-slate-900/70 px-1.5 py-0.5 text-[10px] text-slate-300"
+            >
+              {{ optionSourceLabel }}
+            </span>
+          </div>
+          <button
+            data-testid="toggle-mobile-status-card"
+            class="shrink-0 rounded-md border border-slate-600 px-2 py-0.5 text-[10px] text-slate-200 transition-colors hover:bg-slate-800"
+            :aria-expanded="showMobileStatusCard ? 'true' : 'false'"
+            @click="toggleMobileStatusCard"
           >
-            {{ optionSourceLabel }}
-          </span>
+            {{ showMobileStatusCard ? '收起' : '展开' }}
+          </button>
         </div>
       </div>
       <ChapterStatusStrip
@@ -44,21 +54,8 @@
         class="hidden sm:block"
       />
       <div
-        v-if="gameStore.isGameInitialized"
-        class="px-3 pt-1 sm:hidden"
-      >
-        <button
-          data-testid="toggle-mobile-status-card"
-          class="rounded-md border border-slate-600 px-2.5 py-1 text-[11px] text-slate-200 transition-colors hover:bg-slate-800"
-          :aria-expanded="showMobileStatusCard ? 'true' : 'false'"
-          @click="toggleMobileStatusCard"
-        >
-          {{ showMobileStatusCard ? '收起状态' : '展开状态' }}
-        </button>
-      </div>
-      <div
         v-if="gameStore.isGameInitialized && showMobileStatusCard"
-        class="px-3 pb-1 pt-1 sm:hidden"
+        class="px-3 pb-1 pt-0.5 sm:hidden"
       >
         <ContextStatusCard
           :visible="true"
