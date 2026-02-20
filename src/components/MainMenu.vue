@@ -113,7 +113,7 @@
             data-testid="retry-load-saves-btn"
             class="mt-2 rounded-md border border-red-400/40 px-2.5 py-1 text-[11px] text-red-200 transition-colors hover:bg-red-500/10"
             :aria-label="retryLoadSavesAriaLabel"
-            aria-describedby="recent-save-error recent-save-refresh-label"
+            :aria-describedby="retryLoadSavesDescribedBy"
             @click="fetchLatestSave"
           >
             重试读取
@@ -532,6 +532,13 @@ const quickBgmAriaLabel = computed(() =>
 const quickSfxAriaLabel = computed(() =>
   quickSfxEnabled.value ? '关闭音效，当前已开启' : '开启音效，当前已关闭',
 );
+const retryLoadSavesDescribedBy = computed(() => {
+  const ids = ['recent-save-error'];
+  if (lastRefreshLabel.value) {
+    ids.push('recent-save-refresh-label');
+  }
+  return ids.join(' ');
+});
 const retryLoadSavesAriaLabel = computed(() => {
   if (!recentSaveError.value) {
     return '重试读取最近存档';
