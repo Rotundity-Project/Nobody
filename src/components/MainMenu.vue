@@ -219,6 +219,7 @@
                 : 'border-slate-600 text-slate-200 hover:bg-slate-800'"
               :aria-pressed="isActiveQuickVolume(0.3) ? 'true' : 'false'"
               :aria-label="quickVolumePresetAriaLabel(0.3)"
+              aria-describedby="quick-volume-status"
               @click="applyQuickVolume(0.3)"
             >
               30%
@@ -232,6 +233,7 @@
                 : 'border-slate-600 text-slate-200 hover:bg-slate-800'"
               :aria-pressed="isActiveQuickVolume(0.6) ? 'true' : 'false'"
               :aria-label="quickVolumePresetAriaLabel(0.6)"
+              aria-describedby="quick-volume-status"
               @click="applyQuickVolume(0.6)"
             >
               60%
@@ -245,6 +247,7 @@
                 : 'border-slate-600 text-slate-200 hover:bg-slate-800'"
               :aria-pressed="isActiveQuickVolume(1) ? 'true' : 'false'"
               :aria-label="quickVolumePresetAriaLabel(1)"
+              aria-describedby="quick-volume-status"
               @click="applyQuickVolume(1)"
             >
               100%

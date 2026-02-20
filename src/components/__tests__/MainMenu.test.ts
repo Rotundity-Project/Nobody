@@ -332,7 +332,9 @@ describe('MainMenu', () => {
     expect(wrapper.get('[data-testid="quick-mute-btn"]').attributes('aria-label')).toContain('静音，当前音量 60%');
     expect(wrapper.get('[data-testid="quick-volume-60-btn"]').classes()).toContain('border-emerald-400');
     expect(wrapper.get('[data-testid="quick-volume-60-btn"]').attributes('aria-label')).toBe('音量预设 60%，当前已选中');
+    expect(wrapper.get('[data-testid="quick-volume-60-btn"]').attributes('aria-describedby')).toBe('quick-volume-status');
     expect(wrapper.get('[data-testid="quick-volume-60-btn"]').attributes('aria-pressed')).toBe('true');
+    expect(wrapper.get('[data-testid="quick-volume-30-btn"]').attributes('aria-describedby')).toBe('quick-volume-status');
     expect(wrapper.get('[data-testid="quick-volume-30-btn"]').attributes('aria-label')).toBe('音量预设 30%，点击设置');
     expect(wrapper.get('[data-testid="quick-volume-30-btn"]').attributes('aria-pressed')).toBe('false');
 
@@ -355,6 +357,7 @@ describe('MainMenu', () => {
     expect(quickVolumeGroup.attributes('aria-label')).toContain('当前音量 100%');
     expect(wrapper.get('[data-testid="quick-volume-100-btn"]').classes()).toContain('border-emerald-400');
     expect(wrapper.get('[data-testid="quick-volume-100-btn"]').attributes('aria-label')).toBe('音量预设 100%，当前已选中');
+    expect(wrapper.get('[data-testid="quick-volume-100-btn"]').attributes('aria-describedby')).toBe('quick-volume-status');
     expect(wrapper.get('[data-testid="quick-volume-100-btn"]').attributes('aria-pressed')).toBe('true');
     expect(wrapper.get('[data-testid="quick-volume-60-btn"]').attributes('aria-label')).toBe('音量预设 60%，点击设置');
     expect(wrapper.get('[data-testid="quick-volume-60-btn"]').attributes('aria-pressed')).toBe('false');
