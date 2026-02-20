@@ -209,6 +209,7 @@ describe('MainMenu', () => {
     });
 
     expect(wrapper.get('[data-testid="recent-save-refresh-label"]').text()).toContain('最近刷新：');
+    expect(wrapper.get('[data-testid="recent-save-refresh-status"]').text()).toContain('刷新状态：成功');
   });
 
   it('syncs quick volume status from audio settings when opening audio panel', async () => {
@@ -250,6 +251,7 @@ describe('MainMenu', () => {
       expect(wrapper.text()).toContain('读取失败');
     });
     expect(wrapper.find('[data-testid="retry-load-saves-btn"]').exists()).toBe(true);
+    expect(wrapper.get('[data-testid="recent-save-refresh-status"]').text()).toContain('刷新状态：失败');
 
     await wrapper.get('[data-testid="retry-load-saves-btn"]').trigger('click');
 
@@ -259,5 +261,6 @@ describe('MainMenu', () => {
     await vi.waitFor(() => {
       expect(wrapper.text()).not.toContain('读取失败');
     });
+    expect(wrapper.get('[data-testid="recent-save-refresh-status"]').text()).toContain('刷新状态：成功');
   });
 });

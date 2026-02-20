@@ -83,6 +83,14 @@
           >
             最近刷新：{{ lastRefreshLabel }}
           </p>
+          <p
+            v-if="lastRefreshStatusLabel"
+            data-testid="recent-save-refresh-status"
+            class="mt-1 text-[11px]"
+            :class="lastRefreshSucceeded ? 'text-emerald-300' : 'text-amber-300'"
+          >
+            刷新状态：{{ lastRefreshStatusLabel }}
+          </p>
 
           <div class="mt-3 flex flex-wrap gap-2">
             <button
@@ -201,6 +209,7 @@ const quickLoadPending = ref(false);
 const recentSaveError = ref('');
 const latestSave = ref<SaveInfo | null>(null);
 const lastRefreshAt = ref<number | null>(null);
+const lastRefreshSucceeded = ref<boolean | null>(null);
 const quickMasterVolume = ref(getAudioSettings().master);
 const previousMasterVolume = ref(Math.max(0.01, quickMasterVolume.value || 0.55));
 
@@ -226,6 +235,12 @@ const lastRefreshLabel = computed(() => {
   }
   return date.toLocaleTimeString();
 });
+const lastRefreshStatusLabel = computed(() => {
+  if (lastRefreshSucceeded.value == null) {
+    return '';
+  }
+  return lastRefreshSucceeded.value ? '成功' : '失败';
+});
 
 const fetchLatestSave = async () => {
   recentSaveLoading.value = true;
@@ -234,12 +249,15 @@ const fetchLatestSave = async () => {
     const slots = await gameStore.listSaveSlots();
     if (!Array.isArray(slots) || slots.length === 0) {
       latestSave.value = null;
+      lastRefreshSucceeded.value = true;
       return;
     }
     latestSave.value = [...slots].sort((a, b) => b.timestamp - a.timestamp)[0] ?? null;
+    lastRefreshSucceeded.value = true;
   } catch (error) {
     latestSave.value = null;
     recentSaveError.value = error instanceof Error ? error.message : '读取最近存档失败';
+    lastRefreshSucceeded.value = false;
   } finally {
     recentSaveLoading.value = false;
     lastRefreshAt.value = Date.now();
