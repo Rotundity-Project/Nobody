@@ -132,8 +132,8 @@
             data-testid="recent-save-refresh-status"
             class="mt-1 text-[11px]"
             :class="refreshStatusToneClass"
-            role="status"
-            aria-live="polite"
+            :role="refreshStatusRole"
+            :aria-live="refreshStatusAriaLive"
             aria-atomic="true"
           >
             刷新状态：{{ lastRefreshStatusLabel }}
@@ -443,6 +443,12 @@ const refreshStatusToneClass = computed(() => {
   }
   return isRefreshStatusSuccess.value ? 'text-emerald-300' : 'text-amber-300';
 });
+const refreshStatusRole = computed(() =>
+  recentSaveLoading.value || isRefreshStatusSuccess.value ? 'status' : 'alert',
+);
+const refreshStatusAriaLive = computed(() =>
+  recentSaveLoading.value || isRefreshStatusSuccess.value ? 'polite' : 'assertive',
+);
 const refreshActionDescribedBy = computed(() => {
   const ids = ['recent-save-refresh-label'];
   if (recentSaveError.value) {

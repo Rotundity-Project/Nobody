@@ -493,6 +493,8 @@ describe('MainMenu', () => {
     expect(retryButton.attributes('aria-label')).toContain('最近错误：读取失败');
     expect(retryButton.attributes('aria-describedby')).toBe('recent-save-error recent-save-refresh-label');
     expect(wrapper.get('[data-testid="recent-save-refresh-status"]').text()).toContain('刷新状态：失败');
+    expect(wrapper.get('[data-testid="recent-save-refresh-status"]').attributes('role')).toBe('alert');
+    expect(wrapper.get('[data-testid="recent-save-refresh-status"]').attributes('aria-live')).toBe('assertive');
     expect(wrapper.get('[data-testid="refresh-save-btn"]').attributes('aria-label'))
       .toContain('最近一次刷新失败');
     expect(wrapper.get('[data-testid="refresh-save-btn"]').attributes('aria-describedby'))
