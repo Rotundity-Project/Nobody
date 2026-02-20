@@ -478,6 +478,8 @@ describe('MainMenu', () => {
     expect(wrapper.get('[data-testid="recent-save-refresh-status"]').text()).toContain('刷新状态：失败');
     expect(wrapper.get('[data-testid="refresh-save-btn"]').attributes('aria-label'))
       .toContain('最近一次刷新失败');
+    expect(wrapper.get('[data-testid="refresh-save-btn"]').attributes('aria-describedby'))
+      .toContain('recent-save-error');
     expect(wrapper.get('[data-testid="recent-save-btn"]').attributes('aria-describedby'))
       .toBe('recent-save-error no-save-hint');
 

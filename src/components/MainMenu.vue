@@ -433,6 +433,9 @@ const refreshStatusToneClass = computed(() => {
 });
 const refreshActionDescribedBy = computed(() => {
   const ids = ['recent-save-refresh-label'];
+  if (recentSaveError.value) {
+    ids.push('recent-save-error');
+  }
   if (shouldShowRefreshStatus.value && lastRefreshStatusLabel.value) {
     ids.push('recent-save-refresh-status');
   }
