@@ -107,27 +107,37 @@
             <button
               data-testid="quick-mute-btn"
               class="rounded-md border border-amber-500/40 px-2.5 py-1 text-[11px] text-amber-100 transition-colors hover:bg-amber-500/10"
+              :aria-pressed="quickMasterVolume <= 0 ? 'true' : 'false'"
               @click="toggleQuickMute"
             >
               {{ quickMasterVolume <= 0 ? '恢复' : '静音' }}
             </button>
             <button
               data-testid="quick-volume-30-btn"
-              class="rounded-md border border-slate-600 px-2.5 py-1 text-[11px] text-slate-200 transition-colors hover:bg-slate-800"
+              class="rounded-md border px-2.5 py-1 text-[11px] transition-colors"
+              :class="isActiveQuickVolume(0.3)
+                ? 'border-emerald-400 bg-emerald-500/15 text-emerald-200'
+                : 'border-slate-600 text-slate-200 hover:bg-slate-800'"
               @click="applyQuickVolume(0.3)"
             >
               30%
             </button>
             <button
               data-testid="quick-volume-60-btn"
-              class="rounded-md border border-slate-600 px-2.5 py-1 text-[11px] text-slate-200 transition-colors hover:bg-slate-800"
+              class="rounded-md border px-2.5 py-1 text-[11px] transition-colors"
+              :class="isActiveQuickVolume(0.6)
+                ? 'border-emerald-400 bg-emerald-500/15 text-emerald-200'
+                : 'border-slate-600 text-slate-200 hover:bg-slate-800'"
               @click="applyQuickVolume(0.6)"
             >
               60%
             </button>
             <button
               data-testid="quick-volume-100-btn"
-              class="rounded-md border border-slate-600 px-2.5 py-1 text-[11px] text-slate-200 transition-colors hover:bg-slate-800"
+              class="rounded-md border px-2.5 py-1 text-[11px] transition-colors"
+              :class="isActiveQuickVolume(1)
+                ? 'border-emerald-400 bg-emerald-500/15 text-emerald-200'
+                : 'border-slate-600 text-slate-200 hover:bg-slate-800'"
               @click="applyQuickVolume(1)"
             >
               100%
@@ -257,6 +267,9 @@ const applyQuickVolume = (value: number) => {
   setMasterVolume(clamped);
   playClick();
 };
+
+const isActiveQuickVolume = (value: number) =>
+  quickMasterVolume.value > 0 && Math.abs(quickMasterVolume.value - value) < 0.001;
 
 const toggleQuickMute = () => {
   if (quickMasterVolume.value <= 0) {

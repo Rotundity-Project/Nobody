@@ -167,18 +167,22 @@ describe('MainMenu', () => {
     await wrapper.get('[data-testid="quick-volume-60-btn"]').trigger('click');
     expect(setMasterVolumeMock).toHaveBeenCalledWith(0.6);
     expect(wrapper.get('[data-testid="quick-volume-status"]').text()).toContain('当前 60%');
+    expect(wrapper.get('[data-testid="quick-volume-60-btn"]').classes()).toContain('border-emerald-400');
 
     await wrapper.get('[data-testid="quick-mute-btn"]').trigger('click');
     expect(setMasterVolumeMock).toHaveBeenCalledWith(0);
     expect(wrapper.get('[data-testid="quick-volume-status"]').text()).toContain('已静音');
+    expect(wrapper.get('[data-testid="quick-mute-btn"]').attributes('aria-pressed')).toBe('true');
 
     await wrapper.get('[data-testid="quick-mute-btn"]').trigger('click');
     expect(setMasterVolumeMock).toHaveBeenCalledWith(0.6);
     expect(wrapper.get('[data-testid="quick-volume-status"]').text()).toContain('当前 60%');
+    expect(wrapper.get('[data-testid="quick-mute-btn"]').attributes('aria-pressed')).toBe('false');
 
     await wrapper.get('[data-testid="quick-volume-100-btn"]').trigger('click');
     expect(setMasterVolumeMock).toHaveBeenCalledWith(1);
     expect(wrapper.get('[data-testid="quick-volume-status"]').text()).toContain('当前 100%');
+    expect(wrapper.get('[data-testid="quick-volume-100-btn"]').classes()).toContain('border-emerald-400');
   });
 
   it('shows refresh label after initial fetch', async () => {
