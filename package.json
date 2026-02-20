@@ -11,6 +11,7 @@
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
     "test": "vitest",
+    "test:smoke": "vitest src/components/__tests__/MainMenu.test.ts src/components/__tests__/ScriptSelector.test.ts src/components/__tests__/GameView.test.ts src/components/__tests__/SaveLoadDialog.test.ts",
     "lint": "eslint . --fix",
     "format": "prettier --write src/"
   },
