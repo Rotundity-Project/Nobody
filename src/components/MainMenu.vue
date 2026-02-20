@@ -218,6 +218,7 @@
                 ? 'border-emerald-400 bg-emerald-500/15 text-emerald-200'
                 : 'border-slate-600 text-slate-200 hover:bg-slate-800'"
               :aria-pressed="isActiveQuickVolume(0.3) ? 'true' : 'false'"
+              :aria-label="quickVolumePresetAriaLabel(0.3)"
               @click="applyQuickVolume(0.3)"
             >
               30%
@@ -230,6 +231,7 @@
                 ? 'border-emerald-400 bg-emerald-500/15 text-emerald-200'
                 : 'border-slate-600 text-slate-200 hover:bg-slate-800'"
               :aria-pressed="isActiveQuickVolume(0.6) ? 'true' : 'false'"
+              :aria-label="quickVolumePresetAriaLabel(0.6)"
               @click="applyQuickVolume(0.6)"
             >
               60%
@@ -242,6 +244,7 @@
                 ? 'border-emerald-400 bg-emerald-500/15 text-emerald-200'
                 : 'border-slate-600 text-slate-200 hover:bg-slate-800'"
               :aria-pressed="isActiveQuickVolume(1) ? 'true' : 'false'"
+              :aria-label="quickVolumePresetAriaLabel(1)"
               @click="applyQuickVolume(1)"
             >
               100%
@@ -583,6 +586,13 @@ const applyQuickVolume = (value: number) => {
 
 const isActiveQuickVolume = (value: number) =>
   quickMasterVolume.value > 0 && Math.abs(quickMasterVolume.value - value) < 0.001;
+const quickVolumePresetAriaLabel = (value: number) => {
+  const percent = Math.round(value * 100);
+  if (isActiveQuickVolume(value)) {
+    return `音量预设 ${percent}%，当前已选中`;
+  }
+  return `音量预设 ${percent}%，点击设置`;
+};
 
 const toggleQuickMute = () => {
   if (quickMasterVolume.value <= 0) {
