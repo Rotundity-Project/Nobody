@@ -45,6 +45,7 @@ describe('StoryViewport', () => {
     const locatorSummary = wrapper.get('[data-testid="reading-locator-summary"]');
     expect(locatorSummary.text()).toContain('/2');
     expect(locatorSummary.attributes('aria-live')).toBe('polite');
+    expect(locatorSummary.attributes('aria-atomic')).toBe('true');
     expect(wrapper.get('[data-testid="scroll-bottom-visible"]').text()).toBe('true');
   });
 

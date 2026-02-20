@@ -15,6 +15,7 @@
           <p
             data-testid="reading-locator-summary"
             aria-live="polite"
+            aria-atomic="true"
           >
             阅读定位：{{ readingProgressPercent }}% · {{ readingProgressCompact }}
           </p>
