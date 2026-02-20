@@ -29,6 +29,7 @@
           type="button"
           class="w-full flex items-center justify-between gap-2 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/60"
           aria-label="切换状态卡片显示"
+          :aria-controls="MOBILE_STATUS_CARD_ID"
           :aria-expanded="showMobileStatusCard ? 'true' : 'false'"
           @click="toggleMobileStatusCard"
           @keydown="handleMobileStatusSummaryKeydown"
@@ -69,6 +70,7 @@
       />
       <div
         v-if="gameStore.isGameInitialized && showMobileStatusCard"
+        :id="MOBILE_STATUS_CARD_ID"
         class="px-3 pb-1 pt-0.5 sm:hidden"
       >
         <ContextStatusCard
@@ -255,6 +257,7 @@ const isDevMode = import.meta.env.DEV;
 const travelPending = ref(false);
 const showMobileStatusCard = ref(false);
 const MOBILE_STATUS_CARD_STORAGE_KEY = 'nobody_mobile_status_card_expanded';
+const MOBILE_STATUS_CARD_ID = 'mobile-status-card';
 
 const currentChapterTitle = computed(
   () => gameStore.plotState?.current_chapter?.title || gameStore.currentScene?.name || '第一章'

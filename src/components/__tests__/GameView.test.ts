@@ -421,13 +421,17 @@ describe('GameView', () => {
   it('toggles mobile status card visibility', async () => {
     const wrapper = mount(GameView);
     const toggleBtn = wrapper.get('[data-testid="toggle-mobile-status-card"]');
+    const summaryBar = wrapper.get('[data-testid="mobile-status-summary-bar"]');
     expect(toggleBtn.text()).toContain('展开');
     expect(toggleBtn.attributes('aria-expanded')).toBe('false');
+    expect(summaryBar.attributes('aria-controls')).toBe('mobile-status-card');
+    expect(wrapper.find('#mobile-status-card').exists()).toBe(false);
 
     await toggleBtn.trigger('click');
 
     expect(toggleBtn.text()).toContain('收起');
     expect(toggleBtn.attributes('aria-expanded')).toBe('true');
+    expect(wrapper.find('#mobile-status-card').exists()).toBe(true);
     expect(window.localStorage.getItem('nobody_mobile_status_card_expanded')).toBe('1');
   });
 
