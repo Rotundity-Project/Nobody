@@ -63,7 +63,7 @@
               <p class="text-xs text-slate-300">灵气强度 {{ Number(loc.spiritual_energy).toFixed(2) }} / 风险 {{ loc.riskLabel }}</p>
               <p class="text-[11px] text-slate-400">灵气差 {{ Number(loc.energyGap).toFixed(2) }}</p>
               <p v-if="typeof loc.estimatedSteps === 'number'" class="text-[11px] text-slate-400">预计步数 {{ loc.estimatedSteps }}</p>
-              <p v-if="loc.suggestedPath.length > 1" class="text-[11px] text-slate-400">建议路径 {{ loc.suggestedPath.join(' -> ') }}</p>
+              <p v-if="loc.suggestedPath.length > 1" class="text-[11px] text-slate-400">建议路径 {{ loc.suggestedPathLabels.join(' -> ') }}</p>
               <p class="mt-1 text-[11px]" :class="loc.reachable ? 'text-emerald-300' : 'text-amber-300'">
                 {{ loc.reachable ? '可达' : '暂不可达' }}
               </p>
@@ -126,6 +126,7 @@ import UiButton from '../shared/ui/UiButton.vue';
 import UiPanel from '../shared/ui/UiPanel.vue';
 import NovelExporter from './NovelExporter.vue';
 import StatusBanner from './StatusBanner.vue';
+import { formatLocationLabel } from '../shared/locationLabel';
 
 type TabId = 'character' | 'progress' | 'map' | 'review' | 'export' | 'debug' | 'system';
 
@@ -155,6 +156,7 @@ type MapOverviewNodeView = {
   riskLabel: string;
   estimatedSteps?: number;
   suggestedPath: string[];
+  suggestedPathLabels: string[];
 };
 
 const props = defineProps<{
@@ -221,6 +223,18 @@ const mapOverviewNodes = (
   currentLocationId: string,
   reachableLocationIds: string[],
 ): MapOverviewNodeView[] => {
+  const locationNameMap = new Map<string, string>();
+  for (const item of worldLocations) {
+    if (item.id && item.name) {
+      locationNameMap.set(item.id, item.name);
+    }
+  }
+  for (const item of mapOverview) {
+    if (item.location_id && item.name) {
+      locationNameMap.set(item.location_id, item.name);
+    }
+  }
+
   if (mapOverview.length > 0) {
     return mapOverview.map((item) => ({
       id: item.location_id,
@@ -231,6 +245,9 @@ const mapOverviewNodes = (
       riskLabel: riskTierLabel(item.risk_tier),
       estimatedSteps: item.estimated_steps,
       suggestedPath: item.suggested_path ?? [],
+      suggestedPathLabels: (item.suggested_path ?? []).map(
+        (pathId) => locationNameMap.get(pathId) ?? formatLocationLabel(pathId),
+      ),
     }));
   }
 
@@ -243,6 +260,7 @@ const mapOverviewNodes = (
     riskLabel: locationRiskLabel(loc.spiritual_energy),
     estimatedSteps: undefined,
     suggestedPath: [],
+    suggestedPathLabels: [],
   }));
 };
 
@@ -259,3 +277,4 @@ const reachableNodeCount = computed(
   () => resolvedMapNodes.value.filter((node) => node.reachable).length,
 );
 </script>
+

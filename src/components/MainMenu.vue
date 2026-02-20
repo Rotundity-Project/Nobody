@@ -46,6 +46,8 @@
             槽位 {{ latestSave.slot_id }} · {{ latestSave.player_name }} · {{ latestSave.realm }}
             <br>
             位置：{{ latestSaveLocationLabel }} · 时间：{{ latestSave.game_time }}
+            <br>
+            最近保存：{{ latestSaveTimestampLabel }}
           </p>
           <p
             v-else-if="recentSaveLoading"
@@ -127,6 +129,17 @@ const quickLoadPending = ref(false);
 const recentSaveError = ref('');
 const latestSave = ref<SaveInfo | null>(null);
 const latestSaveLocationLabel = computed(() => formatLocationLabel(latestSave.value?.location));
+const latestSaveTimestampLabel = computed(() => {
+  const ts = latestSave.value?.timestamp;
+  if (!ts || !Number.isFinite(ts)) {
+    return '未知';
+  }
+  const date = new Date(ts * 1000);
+  if (Number.isNaN(date.getTime())) {
+    return '未知';
+  }
+  return date.toLocaleString();
+});
 
 const fetchLatestSave = async () => {
   recentSaveLoading.value = true;

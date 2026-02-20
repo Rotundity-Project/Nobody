@@ -81,7 +81,7 @@ describe('MainMenu', () => {
     listSaveSlotsMock.mockResolvedValue([
       {
         slot_id: 2,
-        timestamp: 200,
+        timestamp: 1700000000,
         player_name: '无名弟子',
         realm: '炼气',
         location: 'sect_valley',
@@ -114,5 +114,7 @@ describe('MainMenu', () => {
       expect(loadGameMock).toHaveBeenCalledWith(2);
       expect(pushMock).toHaveBeenCalledWith('/game');
     });
+
+    expect(wrapper.text()).toContain('最近保存：');
   });
 });
