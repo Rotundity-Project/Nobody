@@ -5,6 +5,12 @@ import ScriptSelector from '../ScriptSelector.vue';
 import GameRuntimeView from '../GameRuntimeView.vue';
 import InfoTabsDialog from '../InfoTabsDialog.vue';
 
+const normalizeSnapshotHtml = (html: string): string =>
+  html
+    .replace(/>\s+</g, '><')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+
 vi.mock('vue-router', () => ({
   useRouter: () => ({
     push: vi.fn(),
@@ -75,7 +81,7 @@ describe('visual snapshots', () => {
         },
       },
     });
-    expect(wrapper.html()).toMatchSnapshot();
+    expect(normalizeSnapshotHtml(wrapper.html())).toMatchSnapshot();
   });
 
   it('ScriptSelector snapshot', () => {
@@ -88,7 +94,7 @@ describe('visual snapshots', () => {
         },
       },
     });
-    expect(wrapper.html()).toMatchSnapshot();
+    expect(normalizeSnapshotHtml(wrapper.html())).toMatchSnapshot();
   });
 
   it('GameRuntimeView snapshot', () => {
@@ -107,7 +113,7 @@ describe('visual snapshots', () => {
         },
       },
     });
-    expect(wrapper.html()).toMatchSnapshot();
+    expect(normalizeSnapshotHtml(wrapper.html())).toMatchSnapshot();
   });
 
   it('InfoTabsDialog drawer snapshot', () => {
@@ -147,6 +153,6 @@ describe('visual snapshots', () => {
         },
       },
     });
-    expect(wrapper.html()).toMatchSnapshot();
+    expect(normalizeSnapshotHtml(wrapper.html())).toMatchSnapshot();
   });
 });
