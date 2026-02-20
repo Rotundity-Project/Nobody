@@ -134,13 +134,20 @@ const toggleReadingLocatorDetails = () => {
   persistLocatorExpanded(showReadingLocatorDetails.value);
 };
 
+const resolveScrollBehavior = (): ScrollBehavior => {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    return 'smooth';
+  }
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+};
+
 const scrollToTop = () => {
   if (!scrollElement.value || typeof scrollElement.value.scrollTo !== 'function') {
     return;
   }
   scrollElement.value.scrollTo({
     top: 0,
-    behavior: 'smooth',
+    behavior: resolveScrollBehavior(),
   });
 };
 
@@ -150,7 +157,7 @@ const scrollToBottom = () => {
   }
   scrollElement.value.scrollTo({
     top: scrollElement.value.scrollHeight,
-    behavior: 'smooth',
+    behavior: resolveScrollBehavior(),
   });
 };
 

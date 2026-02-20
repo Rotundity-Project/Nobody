@@ -58,6 +58,41 @@ describe('StoryViewport', () => {
     expect(wrapper.get('[data-testid="scroll-bottom-visible"]').text()).toBe('false');
   });
 
+  it('uses auto scroll behavior when reduced motion is preferred', () => {
+    const originalMatchMedia = window.matchMedia;
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: () => ({ matches: true }),
+    });
+
+    const wrapper = buildWrapper();
+    const host = wrapper.element as HTMLElement & {
+      scrollTo?: (options?: ScrollToOptions | number, y?: number) => void;
+      scrollHeight: number;
+    };
+    Object.defineProperty(host, 'scrollHeight', { configurable: true, value: 480 });
+    const calls: Array<{ top: number; behavior: ScrollBehavior }> = [];
+    host.scrollTo = (options) => {
+      if (!options || typeof options === 'number') {
+        return;
+      }
+      calls.push({
+        top: typeof options.top === 'number' ? options.top : 0,
+        behavior: options.behavior ?? 'auto',
+      });
+    };
+
+    (wrapper.vm as { scrollToBottom: () => void }).scrollToBottom();
+
+    expect(calls.length).toBe(1);
+    expect(calls[0]?.behavior).toBe('auto');
+
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: originalMatchMedia,
+    });
+  });
+
   it('toggles reading locator details', async () => {
     const wrapper = buildWrapper();
     const toggleBtn = wrapper.get('[data-testid="toggle-reading-locator"]');
