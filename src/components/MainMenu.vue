@@ -68,6 +68,14 @@
           >
             {{ recentSaveError }}
           </p>
+          <button
+            v-if="recentSaveError && !recentSaveLoading"
+            data-testid="retry-load-saves-btn"
+            class="mt-2 rounded-md border border-red-400/40 px-2.5 py-1 text-[11px] text-red-200 transition-colors hover:bg-red-500/10"
+            @click="fetchLatestSave"
+          >
+            重试读取
+          </button>
           <p
             v-else-if="lastRefreshLabel"
             data-testid="recent-save-refresh-label"

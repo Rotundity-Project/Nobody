@@ -230,4 +230,34 @@ describe('MainMenu', () => {
     expect(wrapper.get('[data-testid="quick-volume-status"]').text()).toContain('当前 30%');
     expect(wrapper.get('[data-testid="quick-volume-30-btn"]').classes()).toContain('border-emerald-400');
   });
+
+  it('shows retry button when load saves failed and retries successfully', async () => {
+    listSaveSlotsMock
+      .mockRejectedValueOnce(new Error('读取失败'))
+      .mockResolvedValueOnce([]);
+
+    const wrapper = mount(MainMenu, {
+      global: {
+        stubs: {
+          AudioControlPanel: AudioStub,
+          LLMConfigDialog: LlmStub,
+          SaveLoadDialog: SaveLoadStub,
+        },
+      },
+    });
+
+    await vi.waitFor(() => {
+      expect(wrapper.text()).toContain('读取失败');
+    });
+    expect(wrapper.find('[data-testid="retry-load-saves-btn"]').exists()).toBe(true);
+
+    await wrapper.get('[data-testid="retry-load-saves-btn"]').trigger('click');
+
+    await vi.waitFor(() => {
+      expect(listSaveSlotsMock).toHaveBeenCalledTimes(2);
+    });
+    await vi.waitFor(() => {
+      expect(wrapper.text()).not.toContain('读取失败');
+    });
+  });
 });
