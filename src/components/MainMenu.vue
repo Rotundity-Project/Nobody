@@ -78,7 +78,11 @@
           </p>
           <p
             v-else-if="recentSaveLoading"
+            data-testid="loading-save-hint"
             class="mt-2 text-xs leading-5 text-slate-400"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
           >
             正在读取最近存档...
           </p>

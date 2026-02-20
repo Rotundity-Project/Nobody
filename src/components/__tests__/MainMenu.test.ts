@@ -298,6 +298,9 @@ describe('MainMenu', () => {
     await vi.waitFor(() => {
       expect(wrapper.get('[data-testid="recent-save-card"]').attributes('aria-busy')).toBe('true');
     });
+    expect(wrapper.get('[data-testid="loading-save-hint"]').attributes('role')).toBe('status');
+    expect(wrapper.get('[data-testid="loading-save-hint"]').attributes('aria-live')).toBe('polite');
+    expect(wrapper.get('[data-testid="loading-save-hint"]').attributes('aria-atomic')).toBe('true');
     expect(wrapper.get('[data-testid="recent-save-refresh-status"]').text()).toContain('刷新状态：刷新中');
     expect(wrapper.get('[data-testid="recent-save-refresh-status"]').classes()).toContain('text-sky-300');
 
