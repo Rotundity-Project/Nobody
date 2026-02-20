@@ -1,4 +1,4 @@
-param(
+﻿param(
   [switch]$CheckOnly
 )
 
@@ -17,6 +17,13 @@ $fixedFiles = @(
   "docs/USER_MANUAL.md",
   "docs/ARCHITECTURE.md",
   "docs/API.md",
+  "CODE_OF_CONDUCT.md",
+  "SECURITY.md",
+  "CONTRIBUTING.md",
+  "RUNNING.md",
+  ".github/ISSUE_TEMPLATE/bug_report.md",
+  ".github/ISSUE_TEMPLATE/feature_request.md",
+  ".github/PULL_REQUEST_TEMPLATE.md",
   "release/screenshots/README.md",
   "docs/qa/ui-manual-test-v3-2026-02-20.md"
 )
@@ -61,3 +68,4 @@ if ($CheckOnly -and $foundIssue) {
 if (-not $foundIssue) {
   Write-Output "All markdown files already use UTF-8 BOM."
 }
+

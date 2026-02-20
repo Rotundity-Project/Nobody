@@ -1,99 +1,50 @@
-# 贡献指南
+﻿# 贡献指南
 
-感谢你对 Nobody 项目的关注！我们欢迎任何形式的贡献。
+感谢你愿意为 Nobody 贡献代码、文档或建议。
 
-## 如何贡献
+## 贡献方式
 
-### 报告 Bug
+1. 报告问题（Bug）
+2. 提出改进建议（Feature）
+3. 提交代码与文档
 
-如果你发现了 Bug，请先在 Issues 中搜索，看看是否已经有人报告过。如果没有，请创建一个新的 Issue，并按照 Bug 报告模板填写。
+## 提交流程
 
-### 提出新功能
-
-如果你有新功能的想法，请先在 Issues 中讨论，确保这个功能符合项目的发展方向。
-
-### 提交代码
-
-1. Fork 项目
-2. 创建你的特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交你的更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 开启一个 Pull Request
-
-## 开发环境设置
-
-### 前端
-
-```bash
-npm install
-npm run dev
-```
-
-### 后端
-
-项目使用 Rust 开发后端。确保你安装了 Rust 1.70 或更高版本。
-
-```bash
-cd src-tauri
-cargo build
-```
-
-## 代码规范
-
-### 前端
-
-- 使用 ESLint 和 Prettier 进行代码格式化
-- 运行 `npm run lint` 检查代码质量
-- 遵循 Vue 3 组合式 API 风格
-
-### 后端
-
-- 使用 `cargo fmt` 格式化代码
-- 使用 `cargo clippy` 检查代码质量
-- 编写单元测试
-
-## 提交信息
-
-提交信息应该清晰描述你的更改：
-
-```
-<type>(<scope>): <subject>
-
-<body>
-```
-
-Type 可以是：
-- `feat`: 新功能
-- `fix`: Bug 修复
-- `docs`: 文档更新
-- `style`: 代码格式（不影响代码运行的变动）
-- `refactor`: 重构（既不是新增功能，也不是修改 Bug 的代码变动）
-- `perf`: 性能优化
-- `test`: 增加测试
-- `chore`: 构建过程或辅助工具的变动
+1. Fork 仓库并创建分支
+2. 在分支上完成改动
+3. 本地通过必要检查
+4. 提交 Pull Request
 
 示例：
 
+```bash
+git checkout -b feature/your-change
+# ... make changes
+git commit -m "feat: your change"
+git push origin feature/your-change
 ```
-feat(llm): add retry mechanism for failed LLM requests
 
-- Add exponential backoff
-- Increase max retries from 2 to 3
-- Add timeout configuration
-```
+## 开发要求
 
-## 测试
+- 前端改动建议通过：
+  - `npm run test`
+  - `npm run build`
+- Rust 改动建议通过：
+  - `cargo test`（在 `src-tauri` 目录）
 
-在提交 PR 之前，请确保：
+## 代码与文档规范
 
-- [ ] 所有现有测试通过
-- [ ] 新功能包含相应的测试
-- [ ] 代码符合项目规范
+- 保持改动聚焦，避免一次 PR 混入无关修改
+- 文案与文档统一使用 UTF-8（建议 BOM）
+- 涉及 UI 改动时，请同步更新测试或快照
 
-## 文档
+## Pull Request 建议内容
 
-如果你更改了 API 或添加了新功能，请更新相关文档。
+- 改动动机
+- 主要变更点
+- 风险与回归影响
+- 测试结果
 
-## 获取帮助
+## 行为规范
 
-如果你有任何问题，请随时在 Issues 中提问或联系项目维护者。
+请遵守 `CODE_OF_CONDUCT.md`。
