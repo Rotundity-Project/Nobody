@@ -7,7 +7,16 @@
       <div class="flex min-w-max items-center gap-1.5 text-[11px] text-slate-300 sm:gap-2 sm:text-xs">
       <span class="rounded border border-slate-700/70 bg-slate-900/60 px-2 py-0.5">章节：{{ chapterProgress }}</span>
       <span class="rounded border border-slate-700/70 bg-slate-900/60 px-2 py-0.5">交互：{{ chapterInteraction }}</span>
-      <span class="rounded border border-slate-700/70 bg-slate-900/60 px-2 py-0.5">状态：{{ interactionState }}</span>
+      <span class="rounded border border-slate-700/70 bg-slate-900/60 px-2 py-0.5">
+        状态：
+        <span
+          data-testid="chapter-interaction-state"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          {{ interactionState }}
+        </span>
+      </span>
       <span
         v-if="optionSourceLabel"
         class="rounded border border-slate-700/70 bg-slate-900/60 px-2 py-0.5"

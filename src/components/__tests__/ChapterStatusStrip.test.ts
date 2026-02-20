@@ -17,9 +17,12 @@ describe('ChapterStatusStrip', () => {
 
     expect(wrapper.text()).toContain('章节：2 / 山雨欲来');
     expect(wrapper.text()).toContain('交互：3 / 2-5');
-    expect(wrapper.text()).toContain('状态：等待选项');
+    expect(wrapper.text()).toContain('状态：');
+    expect(wrapper.get('[data-testid="chapter-interaction-state"]').text()).toBe('等待选项');
     expect(wrapper.text()).toContain('来源：LLM-结构化');
     expect(wrapper.text()).toContain('受时延预算影响，已回退');
+    expect(wrapper.get('[data-testid="chapter-interaction-state"]').attributes('aria-live')).toBe('polite');
+    expect(wrapper.get('[data-testid="chapter-interaction-state"]').attributes('aria-atomic')).toBe('true');
   });
 
   it('hides source label and hint when empty', () => {
