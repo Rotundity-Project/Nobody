@@ -36,6 +36,7 @@ describe('StoryViewport', () => {
     const wrapper = buildWrapper();
     expect(wrapper.text()).toContain('阅读定位');
     expect(wrapper.find('[data-testid="reading-locator"]').exists()).toBe(true);
+    expect(wrapper.get('[data-testid="reading-locator-summary"]').text()).toContain('/2');
   });
 
   it('toggles reading locator details', async () => {

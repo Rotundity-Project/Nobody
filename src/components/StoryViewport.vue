@@ -9,13 +9,15 @@
     >
       <div
         data-testid="reading-locator"
-        class="w-fit rounded-lg border border-slate-700/90 bg-slate-900/90 px-3 py-2 text-xs text-slate-200 shadow-sm backdrop-blur"
+        class="w-fit rounded-lg border border-slate-700/90 bg-slate-900/90 px-2 py-1.5 text-[11px] text-slate-200 shadow-sm backdrop-blur sm:px-3 sm:py-2 sm:text-xs"
       >
-      <div class="flex items-center justify-between gap-3">
-        <p>阅读定位：{{ readingProgressPercent }}%</p>
+      <div class="flex items-center justify-between gap-2 sm:gap-3">
+        <p data-testid="reading-locator-summary">
+          阅读定位：{{ readingProgressPercent }}% · {{ readingProgressCompact }}
+        </p>
         <button
           data-testid="toggle-reading-locator"
-          class="rounded bg-slate-700 px-2 py-0.5 text-[11px] text-slate-100 hover:bg-slate-600"
+          class="rounded bg-slate-700 px-1.5 py-0.5 text-[10px] text-slate-100 hover:bg-slate-600 sm:px-2 sm:text-[11px]"
           :aria-expanded="showReadingLocatorDetails ? 'true' : 'false'"
           @click="toggleReadingLocatorDetails"
         >
@@ -94,6 +96,7 @@ const currentParagraphIndex = computed(() => {
   const estimated = Math.round(readingProgress.value * props.paragraphs.length);
   return Math.min(props.paragraphs.length, Math.max(1, estimated));
 });
+const readingProgressCompact = computed(() => `${currentParagraphIndex.value}/${props.paragraphs.length}`);
 
 const updateReadingProgress = () => {
   const el = scrollElement.value;
