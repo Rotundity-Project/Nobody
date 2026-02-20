@@ -450,14 +450,17 @@ const refreshStatusAriaLive = computed(() =>
   recentSaveLoading.value || isRefreshStatusSuccess.value ? 'polite' : 'assertive',
 );
 const refreshActionDescribedBy = computed(() => {
-  const ids = ['recent-save-refresh-label'];
+  const ids: string[] = [];
+  if (lastRefreshLabel.value) {
+    ids.push('recent-save-refresh-label');
+  }
   if (recentSaveError.value) {
     ids.push('recent-save-error');
   }
   if (shouldShowRefreshStatus.value && lastRefreshStatusLabel.value) {
     ids.push('recent-save-refresh-status');
   }
-  return ids.join(' ');
+  return ids.length > 0 ? ids.join(' ') : undefined;
 });
 const refreshActionAriaLabel = computed(() => {
   if (recentSaveLoading.value) {
