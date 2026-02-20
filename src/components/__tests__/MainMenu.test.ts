@@ -263,6 +263,10 @@ describe('MainMenu', () => {
     });
     expect(wrapper.find('#save-actions-heading').exists()).toBe(true);
     expect(wrapper.find('[role="group"][aria-labelledby="save-actions-heading"]').exists()).toBe(true);
+    const saveActionsGroup = wrapper.get('[role="group"][aria-labelledby="save-actions-heading"]');
+    expect(saveActionsGroup.attributes('aria-describedby')).toContain('no-save-hint');
+    expect(saveActionsGroup.attributes('aria-describedby')).toContain('recent-save-refresh-label');
+    expect(saveActionsGroup.attributes('aria-describedby')).toContain('recent-save-refresh-status');
     expect(wrapper.get('[data-testid="recent-save-btn"]').attributes('aria-label'))
       .toBe('继续最近存档，当前没有可用存档');
     expect(wrapper.get('[data-testid="recent-save-btn"]').attributes('aria-describedby'))
@@ -309,6 +313,8 @@ describe('MainMenu', () => {
     expect(wrapper.get('[data-testid="loading-save-hint"]').attributes('role')).toBe('status');
     expect(wrapper.get('[data-testid="loading-save-hint"]').attributes('aria-live')).toBe('polite');
     expect(wrapper.get('[data-testid="loading-save-hint"]').attributes('aria-atomic')).toBe('true');
+    expect(wrapper.get('[role="group"][aria-labelledby="save-actions-heading"]').attributes('aria-describedby'))
+      .toContain('loading-save-hint');
     expect(wrapper.get('[data-testid="refresh-save-btn"]').attributes('aria-describedby'))
       .toBe('recent-save-refresh-status');
     expect(wrapper.get('[data-testid="recent-save-refresh-status"]').text()).toContain('刷新状态：刷新中');
@@ -519,6 +525,8 @@ describe('MainMenu', () => {
     expect(wrapper.get('[data-testid="refresh-save-btn"]').attributes('aria-label'))
       .toContain('时间');
     expect(wrapper.get('[data-testid="refresh-save-btn"]').attributes('aria-describedby'))
+      .toContain('recent-save-error');
+    expect(wrapper.get('[role="group"][aria-labelledby="save-actions-heading"]').attributes('aria-describedby'))
       .toContain('recent-save-error');
     expect(wrapper.get('[data-testid="recent-save-btn"]').attributes('aria-describedby'))
       .toBe('recent-save-error no-save-hint');

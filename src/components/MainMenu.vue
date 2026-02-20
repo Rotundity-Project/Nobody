@@ -78,6 +78,7 @@
           </p>
           <p
             v-else-if="recentSaveLoading"
+            id="loading-save-hint"
             data-testid="loading-save-hint"
             class="mt-2 text-xs leading-5 text-slate-400"
             role="status"
@@ -155,6 +156,7 @@
               class="grid gap-2 sm:grid-cols-3"
               role="group"
               aria-labelledby="save-actions-heading"
+              :aria-describedby="saveActionsGroupDescribedBy"
             >
             <button
               type="button"
@@ -520,6 +522,26 @@ const recentSaveActionDescribedBy = computed(() => {
     ids.push('latest-save-summary');
   } else {
     ids.push('no-save-hint');
+  }
+  return ids.join(' ');
+});
+const saveActionsGroupDescribedBy = computed(() => {
+  const ids: string[] = [];
+  if (recentSaveError.value) {
+    ids.push('recent-save-error');
+  }
+  if (recentSaveLoading.value) {
+    ids.push('loading-save-hint');
+  } else if (latestSave.value) {
+    ids.push('latest-save-summary');
+  } else {
+    ids.push('no-save-hint');
+  }
+  if (lastRefreshLabel.value) {
+    ids.push('recent-save-refresh-label');
+  }
+  if (shouldShowRefreshStatus.value && lastRefreshStatusLabel.value) {
+    ids.push('recent-save-refresh-status');
   }
   return ids.join(' ');
 });
