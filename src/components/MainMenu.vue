@@ -145,11 +145,16 @@
           </p>
 
           <div class="mt-4 rounded-lg border border-slate-700/70 bg-slate-950/30 p-3">
-            <p class="mb-2 text-[11px] uppercase tracking-[0.18em] text-slate-400">存档操作</p>
+            <p
+              id="save-actions-heading"
+              class="mb-2 text-[11px] uppercase tracking-[0.18em] text-slate-400"
+            >
+              存档操作
+            </p>
             <div
               class="grid gap-2 sm:grid-cols-3"
               role="group"
-              aria-label="存档操作按钮"
+              aria-labelledby="save-actions-heading"
             >
             <button
               type="button"

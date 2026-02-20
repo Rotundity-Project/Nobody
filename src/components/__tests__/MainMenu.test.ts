@@ -261,7 +261,8 @@ describe('MainMenu', () => {
     await vi.waitFor(() => {
       expect(wrapper.get('[data-testid="refresh-save-btn"]').text()).toBe('刷新存档');
     });
-    expect(wrapper.find('[role="group"][aria-label="存档操作按钮"]').exists()).toBe(true);
+    expect(wrapper.find('#save-actions-heading').exists()).toBe(true);
+    expect(wrapper.find('[role="group"][aria-labelledby="save-actions-heading"]').exists()).toBe(true);
     expect(wrapper.get('[data-testid="recent-save-btn"]').attributes('aria-label'))
       .toBe('继续最近存档，当前没有可用存档');
     expect(wrapper.get('[data-testid="recent-save-btn"]').attributes('aria-describedby'))
