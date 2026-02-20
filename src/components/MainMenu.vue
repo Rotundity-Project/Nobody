@@ -49,6 +49,7 @@
           <h2 class="text-sm font-semibold text-slate-200">最近存档</h2>
           <p
             v-if="latestSave"
+            id="latest-save-summary"
             data-testid="latest-save-summary"
             class="mt-2 text-xs leading-5 text-slate-300"
             aria-live="polite"
@@ -83,6 +84,7 @@
           </p>
           <p
             v-else
+            id="no-save-hint"
             data-testid="no-save-hint"
             class="mt-2 text-xs leading-5 text-slate-400"
           >
@@ -91,6 +93,7 @@
 
           <p
             v-if="recentSaveError"
+            id="recent-save-error"
             class="mt-2 text-xs text-red-300"
           >
             {{ recentSaveError }}
@@ -134,6 +137,7 @@
               class="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-100 transition-colors hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60"
               :disabled="!latestSave || quickLoadPending || recentSaveLoading"
               :aria-label="recentSaveActionAriaLabel"
+              :aria-describedby="recentSaveActionDescribedBy"
               @click="loadLatestSave"
             >
               {{ quickLoadPending ? '加载中...' : '继续最近存档' }}
@@ -439,6 +443,18 @@ const recentSaveActionAriaLabel = computed(() => {
     return '继续最近存档，当前没有可用存档';
   }
   return `继续最近存档，槽位 ${latestSave.value.slot_id}`;
+});
+const recentSaveActionDescribedBy = computed(() => {
+  const ids: string[] = [];
+  if (recentSaveError.value) {
+    ids.push('recent-save-error');
+  }
+  if (latestSave.value) {
+    ids.push('latest-save-summary');
+  } else {
+    ids.push('no-save-hint');
+  }
+  return ids.join(' ');
 });
 const audioPanelToggleAriaLabel = computed(() => {
   const volumeLabel = quickMasterVolume.value <= 0
