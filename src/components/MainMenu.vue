@@ -141,7 +141,11 @@
                 {{ quickMasterVolume <= 0 ? '已静音' : `当前 ${Math.round(quickMasterVolume * 100)}%` }}
               </span>
             </div>
-            <div class="flex flex-wrap items-center gap-2">
+            <div
+              class="flex flex-wrap items-center gap-2"
+              role="group"
+              aria-label="快捷音量预设"
+            >
             <button
               data-testid="quick-mute-btn"
               class="rounded-md border border-amber-500/40 px-2.5 py-1 text-[11px] text-amber-100 transition-colors hover:bg-amber-500/10"

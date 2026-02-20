@@ -174,6 +174,8 @@ describe('MainMenu', () => {
         },
       },
     });
+    const quickVolumeGroup = wrapper.find('[role="group"][aria-label="快捷音量预设"]');
+    expect(quickVolumeGroup.exists()).toBe(true);
 
     await wrapper.get('[data-testid="quick-volume-60-btn"]').trigger('click');
     expect(setMasterVolumeMock).toHaveBeenCalledWith(0.6);
