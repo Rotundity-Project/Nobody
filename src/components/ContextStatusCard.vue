@@ -23,7 +23,7 @@
         {{ interactionStateLabel }}
       </span>
     </div>
-    <div class="hidden gap-1.5 text-sm text-slate-200 sm:grid md:grid-cols-3 md:gap-2">
+    <div class="hidden gap-1.5 text-sm text-slate-200 sm:grid sm:grid-cols-3 sm:gap-2">
       <div class="rounded-lg bg-slate-900/60 px-3 py-2">
         <p class="text-[11px] uppercase tracking-[0.2em] text-slate-400">角色快照</p>
         <p class="mt-1 font-medium text-slate-100">{{ playerName }}</p>
