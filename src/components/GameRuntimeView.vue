@@ -24,7 +24,11 @@
         v-if="gameStore.isGameInitialized"
         class="border-b border-slate-800/80 bg-slate-900/60 px-3 py-1.5 text-[11px] text-slate-300 sm:hidden"
       >
-        <div class="flex items-center justify-between gap-2">
+        <div
+          data-testid="mobile-status-summary-bar"
+          class="flex items-center justify-between gap-2"
+          @click="toggleMobileStatusCard"
+        >
           <div class="min-w-0 flex-1 flex items-center gap-1.5">
             <p class="truncate">{{ mobileStatusSummary }}</p>
             <span
@@ -38,7 +42,7 @@
             data-testid="toggle-mobile-status-card"
             class="shrink-0 rounded-md border border-slate-600 px-2 py-0.5 text-[10px] text-slate-200 transition-colors hover:bg-slate-800"
             :aria-expanded="showMobileStatusCard ? 'true' : 'false'"
-            @click="toggleMobileStatusCard"
+            @click.stop="toggleMobileStatusCard"
           >
             {{ showMobileStatusCard ? '收起' : '展开' }}
           </button>

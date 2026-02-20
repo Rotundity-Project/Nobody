@@ -431,6 +431,17 @@ describe('GameView', () => {
     expect(window.localStorage.getItem('nobody_mobile_status_card_expanded')).toBe('1');
   });
 
+  it('toggles mobile status card by tapping summary bar', async () => {
+    const wrapper = mount(GameView);
+    const summaryBar = wrapper.get('[data-testid="mobile-status-summary-bar"]');
+    const toggleBtn = wrapper.get('[data-testid="toggle-mobile-status-card"]');
+    expect(toggleBtn.attributes('aria-expanded')).toBe('false');
+
+    await summaryBar.trigger('click');
+
+    expect(toggleBtn.attributes('aria-expanded')).toBe('true');
+  });
+
   it('restores mobile status card expanded state from localStorage', async () => {
     window.localStorage.setItem('nobody_mobile_status_card_expanded', '1');
 
