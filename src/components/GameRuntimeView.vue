@@ -28,7 +28,35 @@
         :option-source-label="optionSourceLabel"
         :option-source-hint="optionSourceHint || undefined"
       />
-      <div class="px-3 pb-1 pt-1 sm:px-5 sm:pb-2 sm:pt-1.5 md:px-6 xl:px-8">
+      <div
+        v-if="gameStore.isGameInitialized"
+        class="px-3 pt-1 sm:hidden"
+      >
+        <button
+          data-testid="toggle-mobile-status-card"
+          class="rounded-md border border-slate-600 px-2.5 py-1 text-[11px] text-slate-200 transition-colors hover:bg-slate-800"
+          :aria-expanded="showMobileStatusCard ? 'true' : 'false'"
+          @click="toggleMobileStatusCard"
+        >
+          {{ showMobileStatusCard ? '收起状态' : '展开状态' }}
+        </button>
+      </div>
+      <div
+        v-if="gameStore.isGameInitialized"
+        class="px-3 pb-1 pt-1 sm:hidden"
+      >
+        <ContextStatusCard
+          v-if="showMobileStatusCard"
+          :visible="true"
+          :player-name="gameStore.playerCharacter?.name || '无名弟子'"
+          :player-realm="playerRealmLabel"
+          :chapter-progress="chapterProgressLabel"
+          :chapter-interaction="chapterInteractionLabel"
+          :location-label="currentLocationLabel"
+          :interaction-state-label="interactionStateLabel"
+        />
+      </div>
+      <div class="hidden px-3 pb-1 pt-1 sm:block sm:px-5 sm:pb-2 sm:pt-1.5 md:px-6 xl:px-8">
         <ContextStatusCard
           :visible="gameStore.isGameInitialized"
           :player-name="gameStore.playerCharacter?.name || '无名弟子'"
@@ -200,6 +228,7 @@ const storyViewportRef = ref<{ scrollToBottom: () => void } | null>(null);
 const previousChapterParagraphs = ref<string[]>([]);
 const isDevMode = import.meta.env.DEV;
 const travelPending = ref(false);
+const showMobileStatusCard = ref(false);
 
 const currentChapterTitle = computed(
   () => gameStore.plotState?.current_chapter?.title || gameStore.currentScene?.name || '第一章'
@@ -459,6 +488,11 @@ const toggleSystemMenu = () => {
   if (!showSystemMenu.value) {
     showAudioPanel.value = false;
   }
+};
+
+const toggleMobileStatusCard = () => {
+  playClick();
+  showMobileStatusCard.value = !showMobileStatusCard.value;
 };
 
 const openShortcutsDialog = () => {

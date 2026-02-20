@@ -416,5 +416,17 @@ describe('GameView', () => {
     const dialog = wrapper.get('[data-testid="info-tabs-dialog"]');
     expect(dialog.text()).toContain('23');
   });
+
+  it('toggles mobile status card visibility', async () => {
+    const wrapper = mount(GameView);
+    const toggleBtn = wrapper.get('[data-testid="toggle-mobile-status-card"]');
+    expect(toggleBtn.text()).toContain('展开状态');
+    expect(toggleBtn.attributes('aria-expanded')).toBe('false');
+
+    await toggleBtn.trigger('click');
+
+    expect(toggleBtn.text()).toContain('收起状态');
+    expect(toggleBtn.attributes('aria-expanded')).toBe('true');
+  });
 });
 
