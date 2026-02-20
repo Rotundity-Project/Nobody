@@ -205,6 +205,7 @@
               data-testid="quick-mute-btn"
               class="rounded-md border border-amber-500/40 px-2.5 py-1 text-[11px] text-amber-100 transition-colors hover:bg-amber-500/10"
               :aria-pressed="quickMasterVolume <= 0 ? 'true' : 'false'"
+              :aria-label="quickMuteAriaLabel"
               @click="toggleQuickMute"
             >
               {{ quickMasterVolume <= 0 ? '恢复' : '静音' }}
@@ -496,6 +497,12 @@ const quickAudioGroupAriaLabel = computed(() => {
   const bgmLabel = quickBgmEnabled.value ? 'BGM 开' : 'BGM 关';
   const sfxLabel = quickSfxEnabled.value ? '音效 开' : '音效 关';
   return `快捷音量预设，${volumeLabel}，${bgmLabel}，${sfxLabel}`;
+});
+const quickMuteAriaLabel = computed(() => {
+  if (quickMasterVolume.value <= 0) {
+    return `恢复音量，恢复到 ${Math.round(previousMasterVolume.value * 100)}%`;
+  }
+  return `静音，当前音量 ${Math.round(quickMasterVolume.value * 100)}%`;
 });
 const retryLoadSavesAriaLabel = computed(() => {
   if (!recentSaveError.value) {

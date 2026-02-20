@@ -329,6 +329,7 @@ describe('MainMenu', () => {
     await wrapper.get('[data-testid="quick-volume-60-btn"]').trigger('click');
     expect(setMasterVolumeMock).toHaveBeenCalledWith(0.6);
     expect(wrapper.get('[data-testid="quick-volume-status"]').text()).toContain('当前 60%');
+    expect(wrapper.get('[data-testid="quick-mute-btn"]').attributes('aria-label')).toContain('静音，当前音量 60%');
     expect(wrapper.get('[data-testid="quick-volume-60-btn"]').classes()).toContain('border-emerald-400');
     expect(wrapper.get('[data-testid="quick-volume-60-btn"]').attributes('aria-pressed')).toBe('true');
     expect(wrapper.get('[data-testid="quick-volume-30-btn"]').attributes('aria-pressed')).toBe('false');
@@ -337,11 +338,13 @@ describe('MainMenu', () => {
     expect(setMasterVolumeMock).toHaveBeenCalledWith(0);
     expect(wrapper.get('[data-testid="quick-volume-status"]').text()).toContain('已静音');
     expect(quickVolumeGroup.attributes('aria-label')).toContain('当前静音');
+    expect(wrapper.get('[data-testid="quick-mute-btn"]').attributes('aria-label')).toContain('恢复音量，恢复到 60%');
     expect(wrapper.get('[data-testid="quick-mute-btn"]').attributes('aria-pressed')).toBe('true');
 
     await wrapper.get('[data-testid="quick-mute-btn"]').trigger('click');
     expect(setMasterVolumeMock).toHaveBeenCalledWith(0.6);
     expect(wrapper.get('[data-testid="quick-volume-status"]').text()).toContain('当前 60%');
+    expect(wrapper.get('[data-testid="quick-mute-btn"]').attributes('aria-label')).toContain('静音，当前音量 60%');
     expect(wrapper.get('[data-testid="quick-mute-btn"]').attributes('aria-pressed')).toBe('false');
 
     await wrapper.get('[data-testid="quick-volume-100-btn"]').trigger('click');
