@@ -14,6 +14,7 @@
     "test:smoke": "vitest src/components/__tests__/MainMenu.test.ts src/components/__tests__/ScriptSelector.test.ts src/components/__tests__/GameView.test.ts src/components/__tests__/SaveLoadDialog.test.ts",
     "specs:check-encoding": "powershell -ExecutionPolicy Bypass -File scripts/fix-spec-encoding.ps1 -CheckOnly",
     "specs:fix-encoding": "powershell -ExecutionPolicy Bypass -File scripts/fix-spec-encoding.ps1",
+    "tasks:progress": "powershell -ExecutionPolicy Bypass -File scripts/append-task-progress.ps1",
     "lint": "eslint . --fix",
     "format": "prettier --write src/"
   },
