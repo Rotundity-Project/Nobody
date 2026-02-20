@@ -142,6 +142,7 @@
               data-testid="refresh-save-btn"
               class="rounded-md border border-slate-600 bg-slate-900/70 px-3 py-2 text-xs font-medium text-slate-200 transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
               :disabled="recentSaveLoading || quickLoadPending"
+              :aria-label="refreshActionAriaLabel"
               aria-controls="recent-save-card"
               aria-describedby="recent-save-refresh-label recent-save-refresh-status"
               @click="fetchLatestSave"
@@ -410,6 +411,20 @@ const refreshStatusToneClass = computed(() => {
     return 'text-sky-300';
   }
   return isRefreshStatusSuccess.value ? 'text-emerald-300' : 'text-amber-300';
+});
+const refreshActionAriaLabel = computed(() => {
+  if (recentSaveLoading.value) {
+    return '刷新存档，当前正在刷新中';
+  }
+  if (lastRefreshSucceeded.value === true) {
+    const suffix = relativeRefreshLabel.value || '刚刚';
+    return `刷新存档，最近一次刷新成功，${suffix}`;
+  }
+  if (lastRefreshSucceeded.value === false) {
+    const suffix = relativeRefreshLabel.value || '时间未知';
+    return `刷新存档，最近一次刷新失败，${suffix}`;
+  }
+  return '刷新存档，尚未执行刷新';
 });
 
 const fetchLatestSave = async () => {

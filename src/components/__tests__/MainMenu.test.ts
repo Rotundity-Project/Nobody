@@ -254,6 +254,8 @@ describe('MainMenu', () => {
       expect(wrapper.get('[data-testid="refresh-save-btn"]').text()).toBe('刷新存档');
     });
     expect(wrapper.get('[data-testid="refresh-save-btn"]').attributes('aria-controls')).toBe('recent-save-card');
+    expect(wrapper.get('[data-testid="refresh-save-btn"]').attributes('aria-label'))
+      .toContain('最近一次刷新成功');
     expect(wrapper.get('[data-testid="refresh-save-btn"]').attributes('aria-describedby'))
       .toBe('recent-save-refresh-label recent-save-refresh-status');
     expect(wrapper.get('[data-testid="recent-save-card"]').attributes('id')).toBe('recent-save-card');
@@ -438,6 +440,8 @@ describe('MainMenu', () => {
     });
     expect(wrapper.find('[data-testid="retry-load-saves-btn"]').exists()).toBe(true);
     expect(wrapper.get('[data-testid="recent-save-refresh-status"]').text()).toContain('刷新状态：失败');
+    expect(wrapper.get('[data-testid="refresh-save-btn"]').attributes('aria-label'))
+      .toContain('最近一次刷新失败');
 
     await wrapper.get('[data-testid="retry-load-saves-btn"]').trigger('click');
 
