@@ -165,11 +165,18 @@ describe('MainMenu', () => {
 
     await wrapper.get('[data-testid="quick-volume-60-btn"]').trigger('click');
     expect(setMasterVolumeMock).toHaveBeenCalledWith(0.6);
+    expect(wrapper.get('[data-testid="quick-volume-status"]').text()).toContain('当前 60%');
 
     await wrapper.get('[data-testid="quick-mute-btn"]').trigger('click');
     expect(setMasterVolumeMock).toHaveBeenCalledWith(0);
+    expect(wrapper.get('[data-testid="quick-volume-status"]').text()).toContain('已静音');
 
     await wrapper.get('[data-testid="quick-mute-btn"]').trigger('click');
     expect(setMasterVolumeMock).toHaveBeenCalledWith(0.6);
+    expect(wrapper.get('[data-testid="quick-volume-status"]').text()).toContain('当前 60%');
+
+    await wrapper.get('[data-testid="quick-volume-100-btn"]').trigger('click');
+    expect(setMasterVolumeMock).toHaveBeenCalledWith(1);
+    expect(wrapper.get('[data-testid="quick-volume-status"]').text()).toContain('当前 100%');
   });
 });

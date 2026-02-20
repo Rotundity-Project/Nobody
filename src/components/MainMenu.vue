@@ -118,6 +118,20 @@
             >
               60%
             </button>
+            <button
+              data-testid="quick-volume-100-btn"
+              class="rounded-md border border-slate-600 px-2.5 py-1 text-[11px] text-slate-200 transition-colors hover:bg-slate-800"
+              @click="applyQuickVolume(1)"
+            >
+              100%
+            </button>
+            <span
+              data-testid="quick-volume-status"
+              class="text-[11px]"
+              :class="quickMasterVolume <= 0 ? 'text-amber-200' : 'text-slate-400'"
+            >
+              {{ quickMasterVolume <= 0 ? '已静音' : `当前 ${Math.round(quickMasterVolume * 100)}%` }}
+            </span>
           </div>
         </div>
       </div>
