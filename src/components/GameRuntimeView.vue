@@ -26,9 +26,10 @@
       >
         <div
           data-testid="mobile-status-summary-bar"
-          class="flex items-center justify-between gap-2"
+          class="flex items-center justify-between gap-2 cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/60"
           role="button"
           tabindex="0"
+          aria-label="切换状态卡片显示"
           :aria-expanded="showMobileStatusCard ? 'true' : 'false'"
           @click="toggleMobileStatusCard"
           @keydown="handleMobileStatusSummaryKeydown"
@@ -45,6 +46,7 @@
           <button
             data-testid="toggle-mobile-status-card"
             class="shrink-0 rounded-md border border-slate-600 px-2 py-0.5 text-[10px] text-slate-200 transition-colors hover:bg-slate-800"
+            aria-label="展开或收起状态卡"
             :aria-expanded="showMobileStatusCard ? 'true' : 'false'"
             @click.stop="toggleMobileStatusCard"
           >
