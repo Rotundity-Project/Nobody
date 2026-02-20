@@ -37,7 +37,11 @@
           </p>
         </div>
 
-        <div class="rounded-xl border border-slate-700 bg-slate-900/60 p-4">
+        <div
+          data-testid="recent-save-card"
+          class="rounded-xl border border-slate-700 bg-slate-900/60 p-4"
+          :aria-busy="recentSaveLoading ? 'true' : 'false'"
+        >
           <h2 class="text-sm font-semibold text-slate-200">最近存档</h2>
           <p
             v-if="latestSave"

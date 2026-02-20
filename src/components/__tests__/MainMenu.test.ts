@@ -199,6 +199,33 @@ describe('MainMenu', () => {
     expect(wrapper.get('[data-testid="recent-save-refresh-label"]').text()).toContain('最近刷新：');
   });
 
+  it('marks recent save card as busy while loading slots', async () => {
+    let resolveSlots!: (value: any[]) => void;
+    const pendingSlots = new Promise<any[]>((resolve) => {
+      resolveSlots = resolve;
+    });
+    listSaveSlotsMock.mockImplementationOnce(() => pendingSlots);
+
+    const wrapper = mount(MainMenu, {
+      global: {
+        stubs: {
+          AudioControlPanel: AudioStub,
+          LLMConfigDialog: LlmStub,
+          SaveLoadDialog: SaveLoadStub,
+        },
+      },
+    });
+
+    await vi.waitFor(() => {
+      expect(wrapper.get('[data-testid="recent-save-card"]').attributes('aria-busy')).toBe('true');
+    });
+
+    resolveSlots([]);
+    await vi.waitFor(() => {
+      expect(wrapper.get('[data-testid="recent-save-card"]').attributes('aria-busy')).toBe('false');
+    });
+  });
+
   it('applies quick volume preset and mute toggle', async () => {
     const wrapper = mount(MainMenu, {
       global: {
