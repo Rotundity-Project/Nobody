@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div
     v-if="visible"
     class="panel-surface rounded-xl border border-slate-700/80 px-4 py-3"

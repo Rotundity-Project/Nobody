@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div
     ref="scrollElement"
     class="relative flex-1 overflow-y-auto px-4 pb-5 pt-2 sm:px-6 sm:pb-6 sm:pt-3 md:px-7 md:pb-7 md:pt-3 xl:px-8 xl:pb-8 xl:pt-4"

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <button
     v-if="visible"
     class="absolute bottom-24 right-4 z-10 rounded-lg bg-slate-700 p-2 text-white shadow-lg transition-colors hover:bg-slate-600"

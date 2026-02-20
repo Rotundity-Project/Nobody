@@ -1,4 +1,4 @@
-export interface LocationLabelSource {
+﻿export interface LocationLabelSource {
   id: string;
   name: string;
 }
@@ -13,13 +13,16 @@ const FALLBACK_LOCATION_LABELS: Record<string, string> = {
   mountain: '山脉',
 };
 
+const normalizeLocationId = (raw: string): string =>
+  raw.trim().toLowerCase().replace(/-/g, '_');
+
 export const buildLocationLabelMap = (
   sources: LocationLabelSource[] = [],
 ): Map<string, string> => {
   const map = new Map<string, string>();
   for (const item of sources) {
     if (item.id && item.name) {
-      map.set(item.id, item.name);
+      map.set(normalizeLocationId(item.id), item.name);
     }
   }
   return map;
@@ -32,19 +35,25 @@ export const formatLocationLabel = (
   if (!raw) {
     return '未知';
   }
-  const mapped = labelMap?.get(raw);
+
+  const normalized = normalizeLocationId(raw);
+  const mapped = labelMap?.get(normalized);
   if (mapped) {
     return mapped;
   }
-  if (FALLBACK_LOCATION_LABELS[raw]) {
-    return FALLBACK_LOCATION_LABELS[raw];
+
+  const fallback = FALLBACK_LOCATION_LABELS[normalized];
+  if (fallback) {
+    return fallback;
   }
-  if (raw.includes('_')) {
-    return raw
+
+  if (normalized.includes('_')) {
+    return normalized
       .split('_')
       .filter((part) => part.length > 0)
       .map((part) => part[0].toUpperCase() + part.slice(1))
-      .join(' · ');
+      .join(' / ');
   }
+
   return raw;
 };

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div
     v-if="visible"
     class="mb-6 rounded-lg border border-amber-500/30 bg-slate-950/70 p-4"
