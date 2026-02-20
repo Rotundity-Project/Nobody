@@ -32,6 +32,8 @@ const LOCATION_TOKEN_LABELS: Record<string, string> = {
 const normalizeLocationId = (raw: string): string =>
   raw.trim().toLowerCase().replace(/-/g, '_');
 
+const isChineseToken = (value: string): boolean => /[\u4e00-\u9fff]/.test(value);
+
 export const buildLocationLabelMap = (
   sources: LocationLabelSource[] = [],
 ): Map<string, string> => {
@@ -69,6 +71,10 @@ export const formatLocationLabel = (
       .filter((part) => part.length > 0);
     const translated = parts.map((part) => LOCATION_TOKEN_LABELS[part] ?? part);
     if (translated.some((part, idx) => part !== parts[idx])) {
+      const allTranslated = translated.every((part, idx) => part !== parts[idx]);
+      if (allTranslated && translated.every(isChineseToken)) {
+        return translated.join('');
+      }
       return translated.join(' / ');
     }
     return parts

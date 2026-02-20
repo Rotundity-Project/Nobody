@@ -7,7 +7,11 @@ describe('locationLabel', () => {
   });
 
   it('formats unknown compound ids with translated tokens when possible', () => {
-    expect(formatLocationLabel('sect_peak')).toBe('宗门 / 山峰');
-    expect(formatLocationLabel('river_town')).toBe('河 / 城镇');
+    expect(formatLocationLabel('sect_peak')).toBe('宗门山峰');
+    expect(formatLocationLabel('river_town')).toBe('河城镇');
+  });
+
+  it('keeps separator for mixed translated and unknown tokens', () => {
+    expect(formatLocationLabel('sect_ruins')).toBe('宗门 / ruins');
   });
 });
