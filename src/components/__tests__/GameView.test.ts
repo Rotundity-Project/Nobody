@@ -435,11 +435,25 @@ describe('GameView', () => {
     const wrapper = mount(GameView);
     const summaryBar = wrapper.get('[data-testid="mobile-status-summary-bar"]');
     const toggleBtn = wrapper.get('[data-testid="toggle-mobile-status-card"]');
+    expect(summaryBar.attributes('aria-expanded')).toBe('false');
     expect(toggleBtn.attributes('aria-expanded')).toBe('false');
 
     await summaryBar.trigger('click');
 
+    expect(summaryBar.attributes('aria-expanded')).toBe('true');
     expect(toggleBtn.attributes('aria-expanded')).toBe('true');
+  });
+
+  it('toggles mobile status card by keyboard on summary bar', async () => {
+    const wrapper = mount(GameView);
+    const summaryBar = wrapper.get('[data-testid="mobile-status-summary-bar"]');
+    const toggleBtn = wrapper.get('[data-testid="toggle-mobile-status-card"]');
+
+    await summaryBar.trigger('keydown', { key: 'Enter' });
+    expect(toggleBtn.attributes('aria-expanded')).toBe('true');
+
+    await summaryBar.trigger('keydown', { key: ' ' });
+    expect(toggleBtn.attributes('aria-expanded')).toBe('false');
   });
 
   it('restores mobile status card expanded state from localStorage', async () => {

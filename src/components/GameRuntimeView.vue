@@ -27,7 +27,11 @@
         <div
           data-testid="mobile-status-summary-bar"
           class="flex items-center justify-between gap-2"
+          role="button"
+          tabindex="0"
+          :aria-expanded="showMobileStatusCard ? 'true' : 'false'"
           @click="toggleMobileStatusCard"
+          @keydown="handleMobileStatusSummaryKeydown"
         >
           <div class="min-w-0 flex-1 flex items-center gap-1.5">
             <p class="truncate">{{ mobileStatusSummary }}</p>
@@ -518,6 +522,14 @@ const toggleMobileStatusCard = () => {
       showMobileStatusCard.value ? '1' : '0',
     );
   }
+};
+
+const handleMobileStatusSummaryKeydown = (event: KeyboardEvent) => {
+  if (event.key !== 'Enter' && event.key !== ' ') {
+    return;
+  }
+  event.preventDefault();
+  toggleMobileStatusCard();
 };
 
 const openShortcutsDialog = () => {
