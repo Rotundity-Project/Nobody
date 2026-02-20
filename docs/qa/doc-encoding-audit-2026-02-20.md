@@ -29,6 +29,7 @@
 5. `.github/ISSUE_TEMPLATE/bug_report.md`
 6. `.github/ISSUE_TEMPLATE/feature_request.md`
 7. `.github/PULL_REQUEST_TEMPLATE.md`
+状态：已完成修复
 
 ### P1（产品与研发文档，建议本周内修复）
 
@@ -41,6 +42,7 @@
 7. `docs/release/v2-canary-report-sample.md`
 8. `docs/release/v2-go-live-checklist.md`
 9. `docs/release/v2-post-release-regression-template.md`
+状态：已完成修复
 
 ### P2（建议巡检复核）
 
@@ -55,12 +57,27 @@
 4. `docs/API.md`
 5. `release/screenshots/README.md`
 6. `UI_REDESIGN_GUIDE.md`
+7. `CODE_OF_CONDUCT.md`
+8. `SECURITY.md`
+9. `CONTRIBUTING.md`
+10. `RUNNING.md`
+11. `.github/ISSUE_TEMPLATE/bug_report.md`
+12. `.github/ISSUE_TEMPLATE/feature_request.md`
+13. `.github/PULL_REQUEST_TEMPLATE.md`
+14. `调试指南.md`
+15. `测试指南.md`
+16. `游戏使用说明.md`
+17. `docs/ui/ui-audit-report-v3.md`
+18. `docs/ui/ui-copywriting-glossary-v1.md`
+19. `docs/ui/ui-visual-spec-v1.md`
+20. `docs/release/v2-canary-report-sample.md`
+21. `docs/release/v2-go-live-checklist.md`
+22. `docs/release/v2-post-release-regression-template.md`
 
-## 6. 修复建议顺序
+## 6. 后续建议顺序
 
-1. 先修复 P0（仓库治理与协作模板）。
-2. 再修复 P1（产品文档、UI 规范、发布模板）。
-3. 最后处理 P2（抽样复查后按需修复）。
+1. 继续处理 P2（抽样复查后按需修复）。
+2. 在 CI 增加文档编码检查步骤，避免回归。
 
 ## 7. 防复发建议
 
