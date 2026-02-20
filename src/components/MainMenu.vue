@@ -464,12 +464,14 @@ const refreshActionAriaLabel = computed(() => {
     return '刷新存档，当前正在刷新中';
   }
   if (lastRefreshSucceeded.value === true) {
-    const suffix = relativeRefreshLabel.value || '刚刚';
-    return `刷新存档，最近一次刷新成功，${suffix}`;
+    const absoluteLabel = lastRefreshLabel.value ? `时间 ${lastRefreshLabel.value}` : '时间未知';
+    const relativeLabel = relativeRefreshLabel.value || '刚刚';
+    return `刷新存档，最近一次刷新成功，${absoluteLabel}，${relativeLabel}`;
   }
   if (lastRefreshSucceeded.value === false) {
-    const suffix = relativeRefreshLabel.value || '时间未知';
-    return `刷新存档，最近一次刷新失败，${suffix}`;
+    const absoluteLabel = lastRefreshLabel.value ? `时间 ${lastRefreshLabel.value}` : '时间未知';
+    const relativeLabel = relativeRefreshLabel.value || '时间未知';
+    return `刷新存档，最近一次刷新失败，${absoluteLabel}，${relativeLabel}`;
   }
   return '刷新存档，尚未执行刷新';
 });

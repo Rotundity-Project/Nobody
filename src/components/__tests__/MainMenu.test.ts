@@ -268,6 +268,8 @@ describe('MainMenu', () => {
     expect(wrapper.get('[data-testid="refresh-save-btn"]').attributes('aria-controls')).toBe('recent-save-card');
     expect(wrapper.get('[data-testid="refresh-save-btn"]').attributes('aria-label'))
       .toContain('最近一次刷新成功');
+    expect(wrapper.get('[data-testid="refresh-save-btn"]').attributes('aria-label'))
+      .toContain('时间');
     expect(wrapper.get('[data-testid="refresh-save-btn"]').attributes('aria-describedby'))
       .toContain('recent-save-refresh-label');
     expect(wrapper.get('[data-testid="refresh-save-btn"]').attributes('aria-describedby'))
@@ -501,6 +503,8 @@ describe('MainMenu', () => {
     expect(wrapper.get('[data-testid="recent-save-refresh-status"]').attributes('aria-live')).toBe('assertive');
     expect(wrapper.get('[data-testid="refresh-save-btn"]').attributes('aria-label'))
       .toContain('最近一次刷新失败');
+    expect(wrapper.get('[data-testid="refresh-save-btn"]').attributes('aria-label'))
+      .toContain('时间');
     expect(wrapper.get('[data-testid="refresh-save-btn"]').attributes('aria-describedby'))
       .toContain('recent-save-error');
     expect(wrapper.get('[data-testid="recent-save-btn"]').attributes('aria-describedby'))
