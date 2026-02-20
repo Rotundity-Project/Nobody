@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils';
+﻿import { mount } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
 import ScrollToBottomButton from '../ScrollToBottomButton.vue';
 
@@ -12,7 +12,9 @@ describe('ScrollToBottomButton', () => {
     const visibleWrapper = mount(ScrollToBottomButton, {
       props: { visible: true },
     });
-    expect(visibleWrapper.find('button').exists()).toBe(true);
+    const button = visibleWrapper.find('button');
+    expect(button.exists()).toBe(true);
+    expect(button.attributes('type')).toBe('button');
     expect(visibleWrapper.text()).toContain('回到底部');
   });
 
@@ -24,3 +26,5 @@ describe('ScrollToBottomButton', () => {
     expect(wrapper.emitted('scroll')).toBeTruthy();
   });
 });
+
+

@@ -1,6 +1,7 @@
 ﻿<template>
   <button
     v-if="visible"
+    type="button"
     class="absolute bottom-20 right-4 z-10 inline-flex items-center gap-1.5 rounded-full border border-slate-500/70 bg-slate-800/95 px-3 py-1.5 text-xs text-slate-100 shadow-lg transition-colors hover:bg-slate-700"
     title="滚动到底部"
     aria-label="滚动到底部"
