@@ -20,6 +20,20 @@
           @open-load="showLoadDialog = true"
         />
       </div>
+      <div
+        v-if="gameStore.isGameInitialized"
+        class="border-b border-slate-800/80 bg-slate-900/60 px-3 py-1.5 text-[11px] text-slate-300 sm:hidden"
+      >
+        <div class="flex items-center justify-between gap-2">
+          <p class="truncate">{{ mobileStatusSummary }}</p>
+          <span
+            v-if="optionSourceLabel"
+            class="shrink-0 rounded border border-slate-700/70 bg-slate-900/70 px-1.5 py-0.5 text-[10px] text-slate-300"
+          >
+            {{ optionSourceLabel }}
+          </span>
+        </div>
+      </div>
       <ChapterStatusStrip
         :visible="gameStore.isGameInitialized"
         :chapter-progress="chapterProgressLabel"
@@ -27,6 +41,7 @@
         :interaction-state="interactionStateLabel"
         :option-source-label="optionSourceLabel"
         :option-source-hint="optionSourceHint || undefined"
+        class="hidden sm:block"
       />
       <div
         v-if="gameStore.isGameInitialized"
@@ -393,6 +408,9 @@ const interactionStateLabel = computed(() => {
   };
   return mapping[plotInteractionState.value] ?? plotInteractionState.value;
 });
+const mobileStatusSummary = computed(
+  () => `${chapterProgressLabel.value} · ${interactionStateLabel.value}`,
+);
 const consistencyRiskScore = computed(() => {
   const structured = gameStore.plotState?.last_consistency_risk_score;
   if (typeof structured === 'number') {
