@@ -68,6 +68,13 @@
           >
             {{ recentSaveError }}
           </p>
+          <p
+            v-else-if="lastRefreshLabel"
+            data-testid="recent-save-refresh-label"
+            class="mt-2 text-[11px] text-slate-500"
+          >
+            最近刷新：{{ lastRefreshLabel }}
+          </p>
 
           <div class="mt-3 flex flex-wrap gap-2">
             <button
@@ -175,6 +182,7 @@ const recentSaveLoading = ref(false);
 const quickLoadPending = ref(false);
 const recentSaveError = ref('');
 const latestSave = ref<SaveInfo | null>(null);
+const lastRefreshAt = ref<number | null>(null);
 const quickMasterVolume = ref(getAudioSettings().master);
 const previousMasterVolume = ref(Math.max(0.01, quickMasterVolume.value || 0.55));
 
@@ -189,6 +197,16 @@ const latestSaveTimestampLabel = computed(() => {
     return '未知';
   }
   return date.toLocaleString();
+});
+const lastRefreshLabel = computed(() => {
+  if (!lastRefreshAt.value) {
+    return '';
+  }
+  const date = new Date(lastRefreshAt.value);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+  return date.toLocaleTimeString();
 });
 
 const fetchLatestSave = async () => {
@@ -206,6 +224,7 @@ const fetchLatestSave = async () => {
     recentSaveError.value = error instanceof Error ? error.message : '读取最近存档失败';
   } finally {
     recentSaveLoading.value = false;
+    lastRefreshAt.value = Date.now();
   }
 };
 

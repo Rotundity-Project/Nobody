@@ -150,6 +150,7 @@ describe('MainMenu', () => {
     await vi.waitFor(() => {
       expect(listSaveSlotsMock).toHaveBeenCalledTimes(2);
     });
+    expect(wrapper.get('[data-testid="recent-save-refresh-label"]').text()).toContain('最近刷新：');
   });
 
   it('applies quick volume preset and mute toggle', async () => {
@@ -178,5 +179,27 @@ describe('MainMenu', () => {
     await wrapper.get('[data-testid="quick-volume-100-btn"]').trigger('click');
     expect(setMasterVolumeMock).toHaveBeenCalledWith(1);
     expect(wrapper.get('[data-testid="quick-volume-status"]').text()).toContain('当前 100%');
+  });
+
+  it('shows refresh label after initial fetch', async () => {
+    const wrapper = mount(MainMenu, {
+      global: {
+        stubs: {
+          AudioControlPanel: AudioStub,
+          LLMConfigDialog: LlmStub,
+          SaveLoadDialog: SaveLoadStub,
+        },
+      },
+    });
+
+    await vi.waitFor(() => {
+      expect(listSaveSlotsMock).toHaveBeenCalledTimes(1);
+    });
+
+    await vi.waitFor(() => {
+      expect(wrapper.get('[data-testid="refresh-save-btn"]').text()).toBe('刷新存档');
+    });
+
+    expect(wrapper.get('[data-testid="recent-save-refresh-label"]').text()).toContain('最近刷新：');
   });
 });
