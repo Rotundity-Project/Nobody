@@ -41,7 +41,10 @@
           <h2 class="text-sm font-semibold text-slate-200">最近存档</h2>
           <p
             v-if="latestSave"
+            data-testid="latest-save-summary"
             class="mt-2 text-xs leading-5 text-slate-300"
+            aria-live="polite"
+            aria-atomic="true"
           >
             槽位 {{ latestSave.slot_id }} · {{ latestSave.player_name }} · {{ latestSave.realm }}
               <span class="mt-1 flex flex-wrap items-center gap-1.5">

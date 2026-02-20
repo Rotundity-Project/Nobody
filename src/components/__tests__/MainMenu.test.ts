@@ -135,6 +135,8 @@ describe('MainMenu', () => {
 
     expect(wrapper.text()).toContain('最近保存：');
     expect(wrapper.text()).toMatch(/秒前|分钟前|小时前|天前|时间未知/);
+    expect(wrapper.get('[data-testid="latest-save-summary"]').attributes('aria-live')).toBe('polite');
+    expect(wrapper.get('[data-testid="latest-save-summary"]').attributes('aria-atomic')).toBe('true');
   });
 
   it('hides location tag when latest save location is unknown', async () => {
