@@ -16,6 +16,7 @@ describe('ContextStatusCard', () => {
       },
     });
 
+    expect(wrapper.get('[data-testid="mobile-status-name"]').text()).toContain('无名弟子');
     expect(wrapper.text()).toContain('宗门外谷');
     expect(wrapper.text()).not.toContain('sect_valley');
   });
