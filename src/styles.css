@@ -117,3 +117,12 @@ body {
   background: rgba(148, 163, 184, 0.4);
   border-radius: 999px;
 }
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+a:focus-visible {
+  outline: 2px solid rgba(242, 200, 107, 0.9);
+  outline-offset: 2px;
+}

@@ -50,7 +50,7 @@ const sizeClass = computed(() => (
 ));
 
 const buttonClass = computed(() => [
-  'transition-colors duration-200 disabled:opacity-60',
+  'transition-colors duration-200 disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/80 focus-visible:ring-offset-1 focus-visible:ring-offset-slate-900',
   sizeClass.value,
   variantClass.value,
 ]);

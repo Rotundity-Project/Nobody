@@ -6,7 +6,7 @@
     <p class="text-xs uppercase tracking-[0.25em] text-amber-200/70">
       上一章摘要
     </p>
-    <p class="mt-2 whitespace-pre-wrap font-story text-sm text-slate-300">
+    <p class="mt-2 whitespace-pre-wrap font-story text-[15px] leading-7 text-slate-200">
       {{ summary }}
     </p>
   </div>

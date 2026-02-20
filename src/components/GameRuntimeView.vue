@@ -299,6 +299,17 @@ const shouldAutoAdvance = computed(
       || plotInteractionState.value === 'cooldown'
       || isNoInputAdvanceState.value)
 );
+const hasBlockingOverlay = computed(
+  () =>
+    showSaveDialog.value
+    || showLoadDialog.value
+    || showLLMDialog.value
+    || showStorySettings.value
+    || showConsistencySettings.value
+    || showInfoTabs.value
+    || showCharacterInfo.value
+    || showShortcutsDialog.value,
+);
 const optionSourceLabel = computed(() => {
   const source = gameStore.plotState?.last_option_generation_source;
   if (!source) {
@@ -528,30 +539,40 @@ watch(currentChapterParagraphs, (newParagraphs) => {
 
 // 键盘快捷键支持
 const handleKeydown = (event: KeyboardEvent) => {
-  // 只有在游戏初始化且不在输入框时才响应快捷键
-  if (!gameStore.isGameInitialized || (event.target instanceof HTMLElement && event.target.tagName === 'TEXTAREA')) {
+  if (!gameStore.isGameInitialized) {
     return;
   }
 
-  // ESC 关闭所有弹窗
   if (event.key === 'Escape') {
     closeAllDialogs();
+    return;
   }
 
-  // Enter 提交自由输入
+  const target = event.target instanceof HTMLElement ? event.target : null;
+  const inTextInput = Boolean(
+    target
+    && (
+      target.tagName === 'TEXTAREA'
+      || target.tagName === 'INPUT'
+      || target.tagName === 'SELECT'
+      || target.isContentEditable
+    ),
+  );
+  if (inTextInput || hasBlockingOverlay.value) {
+    return;
+  }
+
   if (event.key === 'Enter' && isNoInputAdvanceState.value) {
     event.preventDefault();
     handleContinue();
     return;
   }
 
-  // Enter 提交自由输入
   if (event.key === 'Enter' && inputMode.value === 'freeText' && freeTextInput.value.trim()) {
     event.preventDefault();
     handleFreeTextSubmit();
   }
 
-  // 1-5 数字键快速选择选项
   if (inputMode.value === 'options' && gameStore.availableOptions.length > 0) {
     const num = parseInt(event.key);
     if (num >= 1 && num <= 5 && num <= gameStore.availableOptions.length) {
@@ -561,7 +582,6 @@ const handleKeydown = (event: KeyboardEvent) => {
     }
   }
 
-  // Ctrl+S / Cmd+S 快速保存
   if ((event.ctrlKey || event.metaKey) && event.key === 's') {
     event.preventDefault();
     if (gameStore.isGameInitialized) {

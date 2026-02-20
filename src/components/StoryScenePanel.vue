@@ -9,7 +9,7 @@
         <h2 class="mb-2 text-2xl font-display text-amber-200">
           {{ chapterTitle }}
         </h2>
-        <p class="m-0 text-sm text-slate-300">
+        <p class="m-0 text-sm text-slate-200">
           本章共 {{ paragraphs.length }} 段，节奏：{{ rhythmLabel }}
         </p>
       </header>
