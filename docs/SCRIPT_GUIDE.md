@@ -1,12 +1,12 @@
-# 剧本编写指南
+﻿# 剧本编写指南
 
-## 1. 文件放置位置
+## 1. 文件放置
 
-推荐将剧本放在 `example_scripts/`，也可放在任意本地目录，然后在 UI 中通过 `自定义剧本` 加载。
+推荐将脚本放在 `example_scripts/`，也可以放在任意本地目录，再通过 UI 的“自定义剧本”加载。
 
 ## 2. 文件格式
 
-- 必须为 JSON
+- 必须是 JSON 文件
 - 推荐 UTF-8 编码
 
 ## 3. 顶层结构
@@ -26,7 +26,7 @@
 - `world_setting.cultivation_realms` 不能为空
 - `world_setting.locations` 不能为空
 - `initial_state.starting_location` 必须匹配 `locations[].id`
-- `initial_state.starting_age` 必须在 `10..100` 之间
+- `initial_state.starting_age` 建议在 `10..100`
 
 ## 5. 常见枚举值
 
@@ -63,7 +63,7 @@
 }
 ```
 
-## 7. 参考样例
+## 7. 参考脚本
 
 - `example_scripts/sect_apprentice.json`
 - `example_scripts/wandering_sword.json`
