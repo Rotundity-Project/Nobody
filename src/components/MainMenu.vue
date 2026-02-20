@@ -87,6 +87,9 @@
             id="no-save-hint"
             data-testid="no-save-hint"
             class="mt-2 text-xs leading-5 text-slate-400"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
           >
             暂无可用存档，可先开始新游戏创建进度。
           </p>

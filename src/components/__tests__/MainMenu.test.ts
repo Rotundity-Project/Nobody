@@ -399,6 +399,9 @@ describe('MainMenu', () => {
     expect(wrapper.get('[data-testid="recent-save-refresh-status"]').attributes('aria-atomic')).toBe('true');
     expect(wrapper.get('[data-testid="refresh-save-btn"]').attributes('aria-describedby'))
       .toContain('recent-save-refresh-status');
+    expect(wrapper.get('[data-testid="no-save-hint"]').attributes('role')).toBe('status');
+    expect(wrapper.get('[data-testid="no-save-hint"]').attributes('aria-live')).toBe('polite');
+    expect(wrapper.get('[data-testid="no-save-hint"]').attributes('aria-atomic')).toBe('true');
     expect(wrapper.get('[data-testid="no-save-hint"]').text()).toContain('暂无可用存档');
   });
 
