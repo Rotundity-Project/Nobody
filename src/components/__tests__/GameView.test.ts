@@ -424,6 +424,8 @@ describe('GameView', () => {
     const summaryBar = wrapper.get('[data-testid="mobile-status-summary-bar"]');
     expect(toggleBtn.text()).toContain('展开');
     expect(toggleBtn.attributes('aria-expanded')).toBe('false');
+    expect(toggleBtn.attributes('aria-label')).toBe('展开状态卡');
+    expect(toggleBtn.attributes('aria-live')).toBe('polite');
     expect(summaryBar.attributes('aria-controls')).toBe('mobile-status-card');
     expect(wrapper.find('#mobile-status-card').exists()).toBe(false);
 
@@ -431,6 +433,7 @@ describe('GameView', () => {
 
     expect(toggleBtn.text()).toContain('收起');
     expect(toggleBtn.attributes('aria-expanded')).toBe('true');
+    expect(toggleBtn.attributes('aria-label')).toBe('收起状态卡');
     expect(wrapper.find('#mobile-status-card').exists()).toBe(true);
     expect(window.localStorage.getItem('nobody_mobile_status_card_expanded')).toBe('1');
   });

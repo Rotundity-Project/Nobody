@@ -52,8 +52,9 @@
           <span
             data-testid="toggle-mobile-status-card"
             class="shrink-0 rounded-md border border-slate-600 px-2 py-0.5 text-[10px] text-slate-200"
-            aria-label="状态卡展开状态"
+            :aria-label="showMobileStatusCard ? '收起状态卡' : '展开状态卡'"
             :aria-expanded="showMobileStatusCard ? 'true' : 'false'"
+            aria-live="polite"
           >
             {{ showMobileStatusCard ? '收起' : '展开' }}
           </span>
