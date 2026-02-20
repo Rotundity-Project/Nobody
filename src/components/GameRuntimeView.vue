@@ -39,6 +39,7 @@
               data-testid="mobile-status-summary-text"
               class="truncate"
               aria-live="polite"
+              aria-atomic="true"
             >
               {{ mobileStatusSummary }}
             </p>
@@ -55,6 +56,7 @@
             :aria-label="showMobileStatusCard ? '收起状态卡' : '展开状态卡'"
             :aria-expanded="showMobileStatusCard ? 'true' : 'false'"
             aria-live="polite"
+            aria-atomic="true"
           >
             {{ showMobileStatusCard ? '收起' : '展开' }}
           </span>

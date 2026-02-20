@@ -426,6 +426,7 @@ describe('GameView', () => {
     expect(toggleBtn.attributes('aria-expanded')).toBe('false');
     expect(toggleBtn.attributes('aria-label')).toBe('展开状态卡');
     expect(toggleBtn.attributes('aria-live')).toBe('polite');
+    expect(toggleBtn.attributes('aria-atomic')).toBe('true');
     expect(summaryBar.attributes('aria-controls')).toBe('mobile-status-card');
     expect(wrapper.find('#mobile-status-card').exists()).toBe(false);
 
@@ -445,6 +446,7 @@ describe('GameView', () => {
     const toggleBtn = wrapper.get('[data-testid="toggle-mobile-status-card"]');
     expect(summaryBar.attributes('aria-expanded')).toBe('false');
     expect(summaryText.attributes('aria-live')).toBe('polite');
+    expect(summaryText.attributes('aria-atomic')).toBe('true');
     expect(toggleBtn.attributes('aria-expanded')).toBe('false');
 
     await summaryBar.trigger('click');
