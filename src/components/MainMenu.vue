@@ -249,18 +249,16 @@ const fetchLatestSave = async () => {
     const slots = await gameStore.listSaveSlots();
     if (!Array.isArray(slots) || slots.length === 0) {
       latestSave.value = null;
-      lastRefreshSucceeded.value = true;
       return;
     }
     latestSave.value = [...slots].sort((a, b) => b.timestamp - a.timestamp)[0] ?? null;
-    lastRefreshSucceeded.value = true;
   } catch (error) {
     latestSave.value = null;
     recentSaveError.value = error instanceof Error ? error.message : '读取最近存档失败';
-    lastRefreshSucceeded.value = false;
   } finally {
     recentSaveLoading.value = false;
     lastRefreshAt.value = Date.now();
+    lastRefreshSucceeded.value = recentSaveError.value.length === 0;
   }
 };
 
