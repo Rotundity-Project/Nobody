@@ -1,202 +1,210 @@
 <template>
   <div
     v-if="isOpen"
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+    class="fixed inset-0 z-50 bg-black/55"
     @click.self="$emit('close')"
   >
-    <UiPanel class="w-full max-w-4xl">
-      <div class="mb-4 flex items-center justify-between">
-        <h3 class="text-xl font-display text-amber-100">信息面板</h3>
-        <UiButton size="sm" @click="$emit('close')">
-          关闭
-        </UiButton>
-      </div>
-
-      <div class="mb-4 flex flex-wrap gap-2">
-        <UiButton
-          v-for="tab in tabs"
-          :key="tab.id"
-          size="sm"
-          :variant="activeTab === tab.id ? 'primary' : 'neutral'"
-          @click="activeTab = tab.id"
-        >
-          {{ tab.label }}
-        </UiButton>
-      </div>
-
-      <section
-        v-if="activeTab === 'character'"
-        class="space-y-2 text-sm text-slate-200"
-      >
-        <p>姓名：{{ playerName }}</p>
-        <p>境界：{{ playerRealm }}</p>
-        <p>战力：{{ playerCombatPower }}</p>
-        <p>位置：{{ playerLocation }}</p>
-      </section>
-
-      <section
-        v-else-if="activeTab === 'progress'"
-        class="space-y-2 text-sm text-slate-200"
-      >
-        <p>章节：{{ chapterProgress }}</p>
-        <p>章节交互：{{ chapterInteraction }}</p>
-        <p>剧情段落：{{ segmentCount }}</p>
-        <p>当前状态：{{ isWaitingForInput ? '等待玩家输入' : '自动推进中' }}</p>
-      </section>
-
-      <section
-        v-else-if="activeTab === 'map'"
-        class="space-y-3 text-sm text-slate-200"
-      >
-        <p>当前位置：{{ currentLocationId || playerLocation }}</p>
-        <p class="text-xs text-slate-400">
-          可达节点：{{ reachableNodeCount }} / {{ resolvedMapNodes.length }}
-        </p>
-        <div
-          v-if="worldLocations.length === 0"
-          class="text-slate-400"
-        >
-          暂无地图节点
-        </div>
-        <div
-          v-else
-          class="grid gap-2 sm:grid-cols-2"
-        >
-          <div
-            v-for="loc in resolvedMapNodes"
-            :key="loc.id"
-            class="rounded border border-slate-700 bg-slate-900/50 p-2"
-          >
-            <p class="font-medium text-slate-100">
-              {{ loc.name || loc.id }}
-              <span
-                v-if="loc.id === currentLocationId"
-                class="ml-1 rounded bg-amber-500 px-1.5 py-0.5 text-[10px] text-slate-900"
-              >
-                当前
-              </span>
-            </p>
-            <p class="text-xs text-slate-400">id: {{ loc.id }}</p>
-            <p class="text-xs text-slate-300">
-              灵气强度 {{ Number(loc.spiritual_energy).toFixed(2) }} / 风险 {{ loc.riskLabel }}
-            </p>
-            <p class="text-[11px] text-slate-400">
-              灵气差 {{ Number(loc.energyGap).toFixed(2) }}
-            </p>
-            <p
-              v-if="typeof loc.estimatedSteps === 'number'"
-              class="text-[11px] text-slate-400"
-            >
-              预计步数 {{ loc.estimatedSteps }}
-            </p>
-            <p
-              v-if="loc.suggestedPath.length > 1"
-              class="text-[11px] text-slate-400"
-            >
-              建议路径 {{ loc.suggestedPath.join(' -> ') }}
-            </p>
-            <p
-              class="mt-1 text-[11px]"
-              :class="loc.reachable ? 'text-emerald-300' : 'text-amber-300'"
-            >
-              {{ loc.reachable ? '可达' : '暂不可达' }}
-            </p>
-            <UiButton
-              v-if="loc.id !== currentLocationId"
-              class="mt-2"
-              size="sm"
-              variant="info"
-              :disabled="isTraveling || !loc.reachable"
-              @click="$emit('travel', loc.id)"
-            >
-              {{ loc.reachable ? '前往此地' : '需分段行进' }}
-            </UiButton>
+    <aside class="absolute inset-y-0 right-0 w-full max-w-3xl border-l border-slate-700 bg-slate-950/95 p-5 backdrop-blur-xl">
+      <UiPanel class="h-full overflow-y-auto">
+        <div class="mb-4 flex items-center justify-between">
+          <div>
+            <p class="text-xs uppercase tracking-[0.25em] text-slate-400">世界层</p>
+            <h3 class="text-xl font-display text-amber-100">信息抽屉</h3>
           </div>
+          <UiButton
+            size="sm"
+            @click="$emit('close')"
+          >
+            关闭
+          </UiButton>
         </div>
-      </section>
 
-      <section
-        v-else-if="activeTab === 'review'"
-        class="space-y-2 text-sm text-slate-200"
-      >
-        <p class="text-slate-400">最近战斗复盘</p>
-        <div
-          v-if="recentCombatExplanations.length === 0"
-          class="text-slate-400"
-        >
-          暂无战斗复盘记录
+        <div class="mb-4 flex flex-wrap gap-2">
+          <UiButton
+            v-for="tab in tabs"
+            :key="tab.id"
+            size="sm"
+            :variant="activeTab === tab.id ? 'primary' : 'neutral'"
+            @click="activeTab = tab.id"
+          >
+            {{ tab.label }}
+          </UiButton>
         </div>
-        <ul
-          v-else
+
+        <section
+          v-if="activeTab === 'character'"
+          class="space-y-2 text-sm text-slate-200"
+        >
+          <p>姓名：{{ playerName }}</p>
+          <p>境界：{{ playerRealm }}</p>
+          <p>战力：{{ playerCombatPower }}</p>
+          <p>位置：{{ playerLocation }}</p>
+        </section>
+
+        <section
+          v-else-if="activeTab === 'progress'"
+          class="space-y-2 text-sm text-slate-200"
+        >
+          <p>章节：{{ chapterProgress }}</p>
+          <p>章节交互：{{ chapterInteraction }}</p>
+          <p>剧情段落：{{ segmentCount }}</p>
+          <p>当前状态：{{ isWaitingForInput ? '等待玩家输入' : '自动推进中' }}</p>
+        </section>
+
+        <section
+          v-else-if="activeTab === 'map'"
+          class="space-y-3 text-sm text-slate-200"
+        >
+          <p>当前位置：{{ currentLocationId || playerLocation }}</p>
+          <p class="text-xs text-slate-400">
+            可达节点：{{ reachableNodeCount }} / {{ resolvedMapNodes.length }}
+          </p>
+          <div
+            v-if="worldLocations.length === 0"
+            class="text-slate-400"
+          >
+            暂无地图节点
+          </div>
+          <div
+            v-else
+            class="grid gap-2 sm:grid-cols-2"
+          >
+            <div
+              v-for="loc in resolvedMapNodes"
+              :key="loc.id"
+              class="rounded border border-slate-700 bg-slate-900/50 p-2"
+            >
+              <p class="font-medium text-slate-100">
+                {{ loc.name || loc.id }}
+                <span
+                  v-if="loc.id === currentLocationId"
+                  class="ml-1 rounded bg-amber-500 px-1.5 py-0.5 text-[10px] text-slate-900"
+                >
+                  当前
+                </span>
+              </p>
+              <p class="text-xs text-slate-400">id: {{ loc.id }}</p>
+              <p class="text-xs text-slate-300">
+                灵气强度 {{ Number(loc.spiritual_energy).toFixed(2) }} / 风险 {{ loc.riskLabel }}
+              </p>
+              <p class="text-[11px] text-slate-400">
+                灵气差 {{ Number(loc.energyGap).toFixed(2) }}
+              </p>
+              <p
+                v-if="typeof loc.estimatedSteps === 'number'"
+                class="text-[11px] text-slate-400"
+              >
+                预计步数 {{ loc.estimatedSteps }}
+              </p>
+              <p
+                v-if="loc.suggestedPath.length > 1"
+                class="text-[11px] text-slate-400"
+              >
+                建议路径 {{ loc.suggestedPath.join(' -> ') }}
+              </p>
+              <p
+                class="mt-1 text-[11px]"
+                :class="loc.reachable ? 'text-emerald-300' : 'text-amber-300'"
+              >
+                {{ loc.reachable ? '可达' : '暂不可达' }}
+              </p>
+              <UiButton
+                v-if="loc.id !== currentLocationId"
+                class="mt-2"
+                size="sm"
+                variant="info"
+                :disabled="isTraveling || !loc.reachable"
+                @click="$emit('travel', loc.id)"
+              >
+                {{ loc.reachable ? '前往此地' : '需分段行进' }}
+              </UiButton>
+            </div>
+          </div>
+        </section>
+
+        <section
+          v-else-if="activeTab === 'review'"
+          class="space-y-2 text-sm text-slate-200"
+        >
+          <p class="text-slate-400">最近战斗复盘</p>
+          <div
+            v-if="recentCombatExplanations.length === 0"
+            class="text-slate-400"
+          >
+            暂无战斗复盘记录
+          </div>
+          <ul
+            v-else
+            class="space-y-2"
+          >
+            <li
+              v-for="(item, idx) in recentCombatExplanations"
+              :key="`review-${idx}-${item}`"
+              class="rounded border border-slate-700 bg-slate-900/50 p-2 text-xs text-slate-200"
+            >
+              {{ item }}
+            </li>
+          </ul>
+        </section>
+
+        <section
+          v-else-if="activeTab === 'export'"
           class="space-y-2"
         >
-          <li
-            v-for="(item, idx) in recentCombatExplanations"
-            :key="`review-${idx}-${item}`"
-            class="rounded border border-slate-700 bg-slate-900/50 p-2 text-xs text-slate-200"
+          <NovelExporter
+            :is-game-running="isGameRunning"
+            :event-count="eventCount"
+          />
+        </section>
+
+        <section
+          v-else-if="activeTab === 'debug'"
+          class="space-y-2 text-xs text-slate-300"
+        >
+          <p
+            v-if="!isDevMode"
+            class="text-slate-400"
           >
-            {{ item }}
-          </li>
-        </ul>
-      </section>
-
-      <section
-        v-else-if="activeTab === 'export'"
-        class="space-y-2"
-      >
-        <NovelExporter
-          :is-game-running="isGameRunning"
-          :event-count="eventCount"
-        />
-      </section>
-
-      <section
-        v-else-if="activeTab === 'debug'"
-        class="space-y-2 text-xs text-slate-300"
-      >
-        <p
-          v-if="!isDevMode"
-          class="text-slate-400"
-        >
-          当前为非开发模式，调试信息已隐藏。
-        </p>
-        <template v-else>
-          <p>章节：{{ debugChapter }}</p>
-          <p>选项来源：{{ debugOptionSource || 'n/a' }}</p>
-          <p>等待输入：{{ isWaitingForInput ? 'yes' : 'no' }}</p>
-          <p>一致性风险分：{{ debugRiskScore ?? 'n/a' }}</p>
-          <p class="whitespace-pre-wrap text-slate-400">
-            诊断：{{ debugDiagnostics || '无' }}
+            当前为非开发模式，调试信息已隐藏。
           </p>
-        </template>
-      </section>
+          <template v-else>
+            <p>章节：{{ debugChapter }}</p>
+            <p>选项来源：{{ debugOptionSource || 'n/a' }}</p>
+            <p>等待输入：{{ isWaitingForInput ? 'yes' : 'no' }}</p>
+            <p>一致性风险分：{{ debugRiskScore ?? 'n/a' }}</p>
+            <p class="whitespace-pre-wrap text-slate-400">
+              诊断：{{ debugDiagnostics || '无' }}
+            </p>
+          </template>
+        </section>
 
-      <section
-        v-else
-        class="space-y-3"
-      >
-        <StatusBanner
-          v-if="systemError"
-          kind="error"
-          title="系统提示"
-          :message="systemError"
-        />
-        <p
+        <section
           v-else
-          class="text-sm text-slate-400"
+          class="space-y-3"
         >
-          当前无系统提示。
-        </p>
-        <UiButton
-          v-if="systemError"
-          size="sm"
-          variant="danger"
-          @click="$emit('clearError')"
-        >
-          清除提示
-        </UiButton>
-      </section>
-    </UiPanel>
+          <StatusBanner
+            v-if="systemError"
+            kind="error"
+            title="系统提示"
+            :message="systemError"
+          />
+          <p
+            v-else
+            class="text-sm text-slate-400"
+          >
+            当前无系统提示。
+          </p>
+          <UiButton
+            v-if="systemError"
+            size="sm"
+            variant="danger"
+            @click="$emit('clearError')"
+          >
+            清除提示
+          </UiButton>
+        </section>
+      </UiPanel>
+    </aside>
   </div>
 </template>
 

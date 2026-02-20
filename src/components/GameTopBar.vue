@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="flex items-center gap-4">
     <button
       class="text-gray-400 transition-colors hover:text-white"

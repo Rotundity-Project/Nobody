@@ -123,6 +123,11 @@
       :character="gameStore.playerCharacter"
       @close="showCharacterInfo = false"
     />
+    <NotificationCenter
+      v-if="runtimeNotifications.length > 0"
+      :notifications="runtimeNotifications"
+      @dismiss="dismissRuntimeNotification"
+    />
   </div>
   </div>
 </template>
@@ -138,6 +143,7 @@ import GameInfoCenterDialog from './GameInfoCenterDialog.vue';
 import GameTopBar from './GameTopBar.vue';
 import GameInteractionPanel from './GameInteractionPanel.vue';
 import GameSystemDialogs from './GameSystemDialogs.vue';
+import NotificationCenter, { type NotificationItem } from './NotificationCenter.vue';
 import StoryViewport from './StoryViewport.vue';
 import type { ConsistencyPolicy } from '../types/game';
 import {
@@ -334,6 +340,7 @@ const consistencyRiskScore = computed(() => {
   const value = Number(matched[1]);
   return Number.isFinite(value) ? value : null;
 });
+const dismissedNotificationIds = ref<string[]>([]);
 const {
   isLoading,
   loadingMessage,
@@ -353,6 +360,36 @@ const {
   createContinueAction,
   playClick,
 });
+const runtimeNotifications = computed<NotificationItem[]>(() => {
+  const out: NotificationItem[] = [];
+
+  if (gameStore.error) {
+    out.push({
+      id: 'runtime-error',
+      kind: 'error',
+      title: '系统错误',
+      message: gameStore.error,
+      priority: 'banner',
+    });
+  }
+  if (autoAdvanceStopHint.value) {
+    out.push({
+      id: 'auto-advance-stop',
+      kind: 'validation',
+      title: '自动推进已暂停',
+      message: autoAdvanceStopHint.value,
+      priority: 'toast',
+    });
+  }
+
+  return out.filter((item) => !dismissedNotificationIds.value.includes(item.id));
+});
+
+const dismissRuntimeNotification = (id: string) => {
+  if (!dismissedNotificationIds.value.includes(id)) {
+    dismissedNotificationIds.value.push(id);
+  }
+};
 
 const handleSaved = (slotId: number) => {
   console.log(`游戏已保存到槽位 ${slotId}`);

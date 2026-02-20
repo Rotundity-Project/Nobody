@@ -1,5 +1,8 @@
 <template>
-  <div ref="menuRootRef" class="relative">
+  <div
+    ref="menuRootRef"
+    class="relative"
+  >
     <button
       class="rounded-lg bg-slate-700 px-4 py-2 text-white transition-colors duration-200 hover:bg-slate-600"
       @click="$emit('toggle-menu')"
