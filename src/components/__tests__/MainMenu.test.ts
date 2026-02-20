@@ -253,6 +253,8 @@ describe('MainMenu', () => {
     await vi.waitFor(() => {
       expect(wrapper.get('[data-testid="refresh-save-btn"]').text()).toBe('刷新存档');
     });
+    expect(wrapper.get('[data-testid="refresh-save-btn"]').attributes('aria-controls')).toBe('recent-save-card');
+    expect(wrapper.get('[data-testid="recent-save-card"]').attributes('id')).toBe('recent-save-card');
 
     await wrapper.get('[data-testid="refresh-save-btn"]').trigger('click');
 

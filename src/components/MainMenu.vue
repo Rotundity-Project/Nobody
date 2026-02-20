@@ -41,6 +41,7 @@
         </div>
 
         <div
+          id="recent-save-card"
           data-testid="recent-save-card"
           class="rounded-xl border border-slate-700 bg-slate-900/60 p-4"
           :aria-busy="recentSaveLoading ? 'true' : 'false'"
@@ -138,6 +139,7 @@
               data-testid="refresh-save-btn"
               class="rounded-md border border-slate-600 bg-slate-900/70 px-3 py-2 text-xs font-medium text-slate-200 transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
               :disabled="recentSaveLoading || quickLoadPending"
+              aria-controls="recent-save-card"
               @click="fetchLatestSave"
             >
               {{ recentSaveLoading ? '刷新中...' : '刷新存档' }}
