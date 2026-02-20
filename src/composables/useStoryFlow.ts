@@ -1,5 +1,5 @@
 ﻿import { ref, type Ref } from 'vue';
-import type { PlayerOption } from '../types/game';
+import type { PlayerAction, PlayerOption } from '../types/game';
 
 const MAX_AUTO_ADVANCE_STEPS = 48;
 
@@ -7,13 +7,13 @@ type PlotStateLike = {
   current_chapter?: {
     index?: number;
     content?: string[];
-  };
+  } | null;
   segment_count?: number;
-  last_option_generation_source?: string;
+  last_option_generation_source?: string | null;
 };
 
 type StoryFlowStore = {
-  executePlayerAction: (action: unknown) => Promise<unknown>;
+  executePlayerAction: (action: PlayerAction) => Promise<void>;
   plotState?: PlotStateLike | null;
   isWaitingForInput: boolean;
   availableOptions: PlayerOption[];
@@ -24,9 +24,9 @@ type StoryFlowDeps = {
   shouldAutoAdvance: Ref<boolean>;
   freeTextInput: Ref<string>;
   validateFreeTextInput: (text: string) => { valid: boolean };
-  createOptionAction: (option: PlayerOption) => unknown;
-  createFreeTextAction: (text: string) => unknown;
-  createContinueAction: () => unknown;
+  createOptionAction: (option: PlayerOption) => PlayerAction;
+  createFreeTextAction: (text: string) => PlayerAction;
+  createContinueAction: () => PlayerAction;
   playClick: () => void;
 };
 

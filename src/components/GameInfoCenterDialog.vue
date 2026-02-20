@@ -31,6 +31,7 @@
 
 <script setup lang="ts">
 import InfoTabsDialog from './InfoTabsDialog.vue';
+import type { MapLocationOverview } from '../types/game';
 
 type WorldLocation = {
   id: string;
@@ -52,11 +53,11 @@ type GameStoreView = {
       index?: number;
       title?: string;
     } | null;
-    last_generation_diagnostics?: string;
+    last_generation_diagnostics?: string | null;
   } | null;
   isWaitingForInput: boolean;
   reachableLocationIds: string[];
-  mapOverview: unknown[];
+  mapOverview: MapLocationOverview[];
   isGameInitialized: boolean;
   gameState?: {
     event_history?: unknown[];
