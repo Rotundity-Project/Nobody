@@ -204,6 +204,7 @@
               class="flex flex-wrap items-center gap-2"
               role="group"
               :aria-label="quickAudioGroupAriaLabel"
+              aria-describedby="quick-volume-status"
             >
             <button
               type="button"

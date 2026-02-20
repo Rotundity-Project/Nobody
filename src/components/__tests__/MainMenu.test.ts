@@ -330,6 +330,7 @@ describe('MainMenu', () => {
     });
     const quickVolumeGroup = wrapper.find('[role="group"]');
     expect(quickVolumeGroup.exists()).toBe(true);
+    expect(quickVolumeGroup.attributes('aria-describedby')).toBe('quick-volume-status');
     expect(quickVolumeGroup.attributes('aria-label')).toContain('当前音量 55%');
     expect(quickVolumeGroup.attributes('aria-label')).toContain('BGM 开');
     expect(quickVolumeGroup.attributes('aria-label')).toContain('音效 开');
