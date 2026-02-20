@@ -42,7 +42,7 @@
         class="space-y-2 text-sm text-slate-200"
       >
         <p>章节：{{ chapterProgress }}</p>
-        <p>章节互动：{{ chapterInteraction }}</p>
+        <p>章节交互：{{ chapterInteraction }}</p>
         <p>剧情段落：{{ segmentCount }}</p>
         <p>当前状态：{{ isWaitingForInput ? '等待玩家输入' : '自动推进中' }}</p>
       </section>

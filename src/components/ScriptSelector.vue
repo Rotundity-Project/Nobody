@@ -65,7 +65,7 @@
             <input
               type="radio"
               name="novel-character"
-              class="text-purple-500 focus:ring-purple-500"
+              class="text-amber-500 focus:ring-amber-500"
               :value="character"
               v-model="selectedCharacter"
             />

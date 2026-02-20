@@ -10,7 +10,7 @@ describe('QuickActionsBar', () => {
       },
     });
 
-    const labels = ['角色信息', '信息面板', '保存', '加载'];
+    const labels = ['角色信息', '信息面板', '保存', '读取'];
     for (const label of labels) {
       const button = wrapper.findAll('button').find((btn) => btn.text() === label);
       expect(button).toBeTruthy();

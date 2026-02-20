@@ -28,7 +28,7 @@
       class="rounded-lg bg-slate-700 px-4 py-2 text-white transition-colors duration-200 hover:bg-slate-600"
       @click="$emit('open-load')"
     >
-      加载
+      读取
     </button>
   </div>
 </template>

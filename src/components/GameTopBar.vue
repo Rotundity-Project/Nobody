@@ -1,12 +1,12 @@
 <template>
   <div class="flex items-center gap-4">
     <button
-      class="text-gray-400 hover:text-white transition-colors"
+      class="text-gray-400 transition-colors hover:text-white"
       title="返回"
       @click="$emit('back')"
     >
       <svg
-        class="w-6 h-6"
+        class="h-6 w-6"
         fill="none"
         stroke="currentColor"
         viewBox="0 0 24 24"
@@ -19,7 +19,7 @@
         />
       </svg>
     </button>
-    <h1 class="text-xl font-display text-amber-200">
+    <h1 class="font-display text-xl text-amber-200">
       Nobody
     </h1>
   </div>
