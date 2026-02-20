@@ -495,8 +495,9 @@ describe('MainMenu', () => {
       expect(wrapper.text()).toContain('读取失败');
     });
     expect(wrapper.find('[data-testid="retry-load-saves-btn"]').exists()).toBe(true);
-    expect(wrapper.get('#recent-save-error').attributes('role')).toBe('alert');
-    expect(wrapper.get('#recent-save-error').attributes('aria-atomic')).toBe('true');
+    expect(wrapper.get('[data-testid="recent-save-error"]').attributes('role')).toBe('alert');
+    expect(wrapper.get('[data-testid="recent-save-error"]').attributes('aria-live')).toBe('assertive');
+    expect(wrapper.get('[data-testid="recent-save-error"]').attributes('aria-atomic')).toBe('true');
     const retryButton = wrapper.get('[data-testid="retry-load-saves-btn"]');
     expect(retryButton.attributes('aria-label')).toContain('最近错误：读取失败');
     expect(retryButton.attributes('aria-describedby')).toContain('recent-save-error');

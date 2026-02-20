@@ -101,8 +101,10 @@
           <p
             v-if="recentSaveError"
             id="recent-save-error"
+            data-testid="recent-save-error"
             class="mt-2 text-xs text-red-300"
             role="alert"
+            aria-live="assertive"
             aria-atomic="true"
           >
             {{ recentSaveError }}
