@@ -96,12 +96,14 @@ describe('StoryViewport', () => {
   it('toggles reading locator details', async () => {
     const wrapper = buildWrapper();
     const toggleBtn = wrapper.get('[data-testid="toggle-reading-locator"]');
+    expect(toggleBtn.attributes('aria-controls')).toBe('reading-locator-details');
 
     expect(wrapper.text()).not.toContain('段落进度');
 
     await toggleBtn.trigger('click');
 
     expect(wrapper.text()).toContain('段落进度');
+    expect(wrapper.find('#reading-locator-details').exists()).toBe(true);
     expect(window.localStorage.getItem('nobody_reading_locator_expanded')).toBe('1');
     expect(toggleBtn.attributes('aria-expanded')).toBe('true');
   });

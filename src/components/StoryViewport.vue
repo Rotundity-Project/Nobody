@@ -19,6 +19,7 @@
             data-testid="toggle-reading-locator"
             class="rounded bg-slate-700 px-1.5 py-0.5 text-[10px] text-slate-100 hover:bg-slate-600 sm:px-2 sm:text-[11px]"
             :aria-expanded="showReadingLocatorDetails ? 'true' : 'false'"
+            :aria-controls="READING_LOCATOR_DETAILS_ID"
             @click="toggleReadingLocatorDetails"
           >
             {{ showReadingLocatorDetails ? '收起' : '展开' }}
@@ -26,6 +27,7 @@
         </div>
         <div
           v-if="showReadingLocatorDetails"
+          :id="READING_LOCATOR_DETAILS_ID"
           class="mt-2 space-y-2"
         >
           <p>段落进度：{{ currentParagraphIndex }} / {{ paragraphs.length }}</p>
@@ -84,6 +86,7 @@ const scrollElement = ref<HTMLElement | null>(null);
 const readingProgress = ref(0);
 const showReadingLocatorDetails = ref(false);
 const READING_LOCATOR_STORAGE_KEY = 'nobody_reading_locator_expanded';
+const READING_LOCATOR_DETAILS_ID = 'reading-locator-details';
 
 const showReadingLocator = computed(
   () => props.isGameInitialized && props.hasScene && props.paragraphs.length > 0,
