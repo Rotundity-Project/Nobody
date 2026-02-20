@@ -75,6 +75,7 @@ describe('MainMenu', () => {
 
     expect(playClickMock).toHaveBeenCalled();
     expect(pushMock).toHaveBeenCalledWith('/script-select');
+    expect(wrapper.get('[data-testid="new-game-btn"]').attributes('type')).toBe('button');
   });
 
   it('opens LLM config dialog', async () => {

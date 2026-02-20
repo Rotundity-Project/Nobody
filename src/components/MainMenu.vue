@@ -12,6 +12,7 @@
       <div class="mt-8 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
         <div class="space-y-3">
           <button
+            type="button"
             data-testid="new-game-btn"
             @click="handleNewGame"
             class="w-full sm:w-64 rounded-lg bg-amber-600 px-6 py-3 font-medium text-slate-900 transition-colors duration-200 hover:bg-amber-500"
@@ -19,6 +20,7 @@
             新游戏
           </button>
           <button
+            type="button"
             data-testid="continue-game-btn"
             @click="openLoadDialog"
             class="w-full sm:w-64 rounded-lg bg-slate-700 px-6 py-3 font-medium text-slate-100 transition-colors duration-200 hover:bg-slate-600"
@@ -26,6 +28,7 @@
             读取存档
           </button>
           <button
+            type="button"
             data-testid="llm-settings-btn"
             @click="handleSettings"
             class="w-full sm:w-64 rounded-lg bg-emerald-600 px-6 py-3 font-medium text-slate-900 transition-colors duration-200 hover:bg-emerald-500"
@@ -92,6 +95,7 @@
             {{ recentSaveError }}
           </p>
           <button
+            type="button"
             v-if="recentSaveError && !recentSaveLoading"
             data-testid="retry-load-saves-btn"
             class="mt-2 rounded-md border border-red-400/40 px-2.5 py-1 text-[11px] text-red-200 transition-colors hover:bg-red-500/10"
@@ -121,6 +125,7 @@
             <p class="mb-2 text-[11px] uppercase tracking-[0.18em] text-slate-400">存档操作</p>
             <div class="grid gap-2 sm:grid-cols-3">
             <button
+              type="button"
               data-testid="recent-save-btn"
               class="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-100 transition-colors hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60"
               :disabled="!latestSave || quickLoadPending || recentSaveLoading"
@@ -129,6 +134,7 @@
               {{ quickLoadPending ? '加载中...' : '继续最近存档' }}
             </button>
             <button
+              type="button"
               data-testid="refresh-save-btn"
               class="rounded-md border border-slate-600 bg-slate-900/70 px-3 py-2 text-xs font-medium text-slate-200 transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
               :disabled="recentSaveLoading || quickLoadPending"
@@ -137,6 +143,7 @@
               {{ recentSaveLoading ? '刷新中...' : '刷新存档' }}
             </button>
             <button
+              type="button"
               data-testid="open-audio-btn"
               class="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-100 transition-colors hover:bg-amber-500/20"
               aria-controls="main-menu-audio-panel"
@@ -167,6 +174,7 @@
               aria-label="快捷音量预设"
             >
             <button
+              type="button"
               data-testid="quick-mute-btn"
               class="rounded-md border border-amber-500/40 px-2.5 py-1 text-[11px] text-amber-100 transition-colors hover:bg-amber-500/10"
               :aria-pressed="quickMasterVolume <= 0 ? 'true' : 'false'"
@@ -175,6 +183,7 @@
               {{ quickMasterVolume <= 0 ? '恢复' : '静音' }}
             </button>
             <button
+              type="button"
               data-testid="quick-volume-30-btn"
               class="rounded-md border px-2.5 py-1 text-[11px] transition-colors"
               :class="isActiveQuickVolume(0.3)
@@ -186,6 +195,7 @@
               30%
             </button>
             <button
+              type="button"
               data-testid="quick-volume-60-btn"
               class="rounded-md border px-2.5 py-1 text-[11px] transition-colors"
               :class="isActiveQuickVolume(0.6)
@@ -197,6 +207,7 @@
               60%
             </button>
             <button
+              type="button"
               data-testid="quick-volume-100-btn"
               class="rounded-md border px-2.5 py-1 text-[11px] transition-colors"
               :class="isActiveQuickVolume(1)
@@ -208,6 +219,7 @@
               100%
             </button>
             <button
+              type="button"
               data-testid="quick-bgm-btn"
               class="rounded-md border px-2.5 py-1 text-[11px] transition-colors"
               :class="quickBgmEnabled
@@ -219,6 +231,7 @@
               {{ quickBgmEnabled ? 'BGM 开' : 'BGM 关' }}
             </button>
             <button
+              type="button"
               data-testid="quick-sfx-btn"
               class="rounded-md border px-2.5 py-1 text-[11px] transition-colors"
               :class="quickSfxEnabled
