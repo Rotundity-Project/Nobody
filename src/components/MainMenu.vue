@@ -159,6 +159,7 @@
               data-testid="open-audio-btn"
               class="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-100 transition-colors hover:bg-amber-500/20"
               :aria-label="audioPanelToggleAriaLabel"
+              :aria-describedby="audioPanelToggleDescribedBy"
               aria-controls="main-menu-audio-panel"
               :aria-expanded="showAudioPanel ? 'true' : 'false'"
               @click="toggleAudioPanel"
@@ -172,6 +173,7 @@
             <div class="mb-2 flex items-center justify-between">
               <span class="text-[11px] uppercase tracking-[0.18em] text-slate-400">音频快捷</span>
               <span
+                id="quick-volume-status"
                 data-testid="quick-volume-status"
                 class="text-[11px]"
                 :class="quickMasterVolume <= 0 ? 'text-amber-200' : 'text-slate-400'"
@@ -463,6 +465,7 @@ const recentSaveActionDescribedBy = computed(() => {
   }
   return ids.join(' ');
 });
+const audioPanelToggleDescribedBy = computed(() => 'quick-volume-status');
 const audioPanelToggleAriaLabel = computed(() => {
   const volumeLabel = quickMasterVolume.value <= 0
     ? '当前已静音'

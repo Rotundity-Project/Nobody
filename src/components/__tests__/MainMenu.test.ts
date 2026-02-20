@@ -414,10 +414,12 @@ describe('MainMenu', () => {
     });
 
     expect(wrapper.get('[data-testid="quick-volume-status"]').text()).toContain('当前 55%');
+    expect(wrapper.get('[data-testid="quick-volume-status"]').attributes('id')).toBe('quick-volume-status');
     expect(wrapper.get('[data-testid="quick-volume-status"]').attributes('role')).toBe('status');
     expect(wrapper.get('[data-testid="quick-volume-status"]').attributes('aria-live')).toBe('polite');
     expect(wrapper.get('[data-testid="quick-volume-status"]').attributes('aria-atomic')).toBe('true');
     const audioToggle = wrapper.get('[data-testid="open-audio-btn"]');
+    expect(audioToggle.attributes('aria-describedby')).toBe('quick-volume-status');
     expect(audioToggle.attributes('aria-label')).toContain('展开音量控制');
     expect(audioToggle.attributes('aria-label')).toContain('当前音量 55%');
     expect(audioToggle.attributes('aria-label')).toContain('BGM 开');
