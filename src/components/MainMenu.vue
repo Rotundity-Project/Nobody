@@ -543,6 +543,9 @@ const retryLoadSavesDescribedBy = computed(() => {
   if (lastRefreshLabel.value) {
     ids.push('recent-save-refresh-label');
   }
+  if (shouldShowRefreshStatus.value && lastRefreshStatusLabel.value) {
+    ids.push('recent-save-refresh-status');
+  }
   return ids.join(' ');
 });
 const retryLoadSavesAriaLabel = computed(() => {
