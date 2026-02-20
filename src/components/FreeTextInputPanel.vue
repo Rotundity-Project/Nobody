@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div v-if="visible" class="space-y-2">
     <textarea
       :value="modelValue"
@@ -28,17 +28,17 @@
 </template>
 
 <script setup lang="ts">
-const props = defineProps<{
+const emit = defineEmits<{
+  'update:modelValue': [value: string];
+  submit: [];
+}>();
+
+defineProps<{
   visible: boolean;
   modelValue: string;
   disabled: boolean;
   valid: boolean;
   validationMessage: string;
-}>();
-
-const emit = defineEmits<{
-  'update:modelValue': [value: string];
-  submit: [];
 }>();
 
 const onInput = (event: Event) => {

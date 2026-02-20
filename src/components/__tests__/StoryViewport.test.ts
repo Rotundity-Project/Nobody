@@ -9,7 +9,7 @@ const buildWrapper = () =>
       chapterTitle: '第一章',
       showRecap: false,
       recapSummary: '',
-      paragraphs: ['段落一'],
+      paragraphs: ['段落一', '段落二'],
       optionSourceLabel: '',
       isGameInitialized: true,
     },
@@ -26,6 +26,12 @@ describe('StoryViewport', () => {
     const wrapper = buildWrapper();
     expect(wrapper.classes()).toContain('relative');
     expect(wrapper.classes()).toContain('flex-1');
+  });
+
+  it('shows reading locator when story paragraphs exist', () => {
+    const wrapper = buildWrapper();
+    expect(wrapper.text()).toContain('阅读定位');
+    expect(wrapper.text()).toContain('段落进度');
   });
 
   it('exposes scrollToBottom method', () => {

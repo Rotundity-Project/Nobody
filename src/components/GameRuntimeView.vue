@@ -27,6 +27,17 @@
         :interaction-state="interactionStateLabel"
         :option-source-label="optionSourceLabel"
       />
+      <div class="px-4 pb-2 pt-2 sm:px-6 lg:px-8">
+        <ContextStatusCard
+          :visible="gameStore.isGameInitialized"
+          :player-name="gameStore.playerCharacter?.name || '无名弟子'"
+          :player-realm="playerRealmLabel"
+          :chapter-progress="chapterProgressLabel"
+          :chapter-interaction="chapterInteractionLabel"
+          :location-label="currentLocationLabel"
+          :interaction-state-label="interactionStateLabel"
+        />
+      </div>
 
       <div class="flex-1 overflow-hidden p-4 sm:p-6 lg:p-8">
         <div class="mx-auto h-full max-w-7xl">
@@ -55,11 +66,14 @@
                 :is-game-initialized="gameStore.isGameInitialized"
                 :is-waiting-for-input="gameStore.isWaitingForInput"
                 :loading-message="loadingMessage"
+                :can-stop-auto-advance="autoAdvanceRunning"
+                :auto-advance-stop-hint="autoAdvanceStopHint"
                 @switch-mode="setInputMode"
                 @select-option="handleOptionSelect"
                 @update:free-text-input="freeTextInput = $event"
                 @submit-free-text="handleFreeTextSubmit"
                 @continue="handleContinue"
+                @stop-auto-advance="requestStopAutoAdvance"
               />
             </div>
         </div>
@@ -119,6 +133,7 @@ import { useRouter } from 'vue-router';
 import { useGameStore } from '../stores/gameStore';
 import CharacterInfoModal from './CharacterInfoModal.vue';
 import ChapterStatusStrip from './ChapterStatusStrip.vue';
+import ContextStatusCard from './ContextStatusCard.vue';
 import GameInfoCenterDialog from './GameInfoCenterDialog.vue';
 import GameTopBar from './GameTopBar.vue';
 import GameInteractionPanel from './GameInteractionPanel.vue';
@@ -207,6 +222,9 @@ const chapterInteractionLabel = computed(() => {
   const max = gameStore.plotState?.settings?.max_interactions_per_chapter ?? 0;
   return `${chapter.interaction_count} / ${min}-${max}`;
 });
+const currentLocationLabel = computed(
+  () => gameStore.playerCharacter?.location || gameStore.currentScene?.location || '未知',
+);
 const worldLocationList = computed(() => {
   return (gameStore.gameState?.script?.world_setting?.locations ?? []).map((loc) => ({
     id: loc.id,
@@ -319,9 +337,12 @@ const consistencyRiskScore = computed(() => {
 const {
   isLoading,
   loadingMessage,
+  autoAdvanceRunning,
+  autoAdvanceStopHint,
   handleOptionSelect,
   handleFreeTextSubmit,
   handleContinue,
+  requestStopAutoAdvance,
 } = useStoryFlow({
   gameStore,
   shouldAutoAdvance,

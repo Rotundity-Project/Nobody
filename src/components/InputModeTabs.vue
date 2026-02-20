@@ -1,5 +1,8 @@
-<template>
-  <div v-if="visible" class="flex items-center gap-2">
+﻿<template>
+  <div
+    v-if="visible"
+    class="flex items-center gap-2"
+  >
     <button
       class="rounded px-3 py-1"
       :class="mode === 'options' ? 'bg-amber-500 text-slate-900' : 'bg-slate-700 text-gray-300'"

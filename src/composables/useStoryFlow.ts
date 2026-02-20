@@ -42,9 +42,13 @@ export const useStoryFlow = ({
 }: StoryFlowDeps) => {
   const isLoading = ref(false);
   const loadingMessage = ref('处理中...');
+  const autoAdvanceRunning = ref(false);
+  const autoAdvanceStopRequested = ref(false);
+  const autoAdvanceStopHint = ref('');
 
   const handleOptionSelect = async (option: PlayerOption) => {
     try {
+      autoAdvanceStopHint.value = '';
       isLoading.value = true;
       loadingMessage.value = '正在执行选项...';
       playClick();
@@ -64,6 +68,7 @@ export const useStoryFlow = ({
     }
 
     try {
+      autoAdvanceStopHint.value = '';
       isLoading.value = true;
       loadingMessage.value = '正在解析输入...';
       playClick();
@@ -79,11 +84,15 @@ export const useStoryFlow = ({
 
   const handleContinue = async () => {
     try {
+      autoAdvanceStopHint.value = '';
+      autoAdvanceStopRequested.value = false;
       isLoading.value = true;
       loadingMessage.value = '正在续写剧情...';
       playClick();
+      autoAdvanceRunning.value = true;
       let step = 0;
       let stoppedByStagnation = false;
+      let stoppedByUser = false;
       let previousSignature = [
         gameStore.plotState?.current_chapter?.index ?? -1,
         gameStore.plotState?.current_chapter?.content?.length ?? 0,
@@ -93,6 +102,10 @@ export const useStoryFlow = ({
         gameStore.availableOptions.length,
       ].join('|');
       do {
+        if (autoAdvanceStopRequested.value && step > 0) {
+          stoppedByUser = true;
+          break;
+        }
         step += 1;
         if (step > 1) {
           loadingMessage.value = `正在自动推进剧情（${step}）...`;
@@ -119,19 +132,36 @@ export const useStoryFlow = ({
       if (shouldAutoAdvance.value && !stoppedByStagnation && step >= MAX_AUTO_ADVANCE_STEPS) {
         console.warn(`自动推进达到保护上限（${MAX_AUTO_ADVANCE_STEPS} 步），已停止以避免卡死。`);
       }
+      if (stoppedByUser) {
+        autoAdvanceStopHint.value = '自动推进已中断，可点击继续恢复。';
+      } else if (stoppedByStagnation) {
+        autoAdvanceStopHint.value = '自动推进已暂停：检测到剧情未继续变化。';
+      } else if (shouldAutoAdvance.value && step >= MAX_AUTO_ADVANCE_STEPS) {
+        autoAdvanceStopHint.value = '自动推进达到保护上限，已自动停止。';
+      }
     } catch (error) {
       console.error('继续写失败：', error);
     } finally {
+      autoAdvanceRunning.value = false;
       isLoading.value = false;
       loadingMessage.value = '处理中...';
+    }
+  };
+
+  const requestStopAutoAdvance = () => {
+    if (autoAdvanceRunning.value) {
+      autoAdvanceStopRequested.value = true;
     }
   };
 
   return {
     isLoading,
     loadingMessage,
+    autoAdvanceRunning,
+    autoAdvanceStopHint,
     handleOptionSelect,
     handleFreeTextSubmit,
     handleContinue,
+    requestStopAutoAdvance,
   };
 };

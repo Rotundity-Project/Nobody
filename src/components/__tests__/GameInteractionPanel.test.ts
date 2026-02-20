@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils';
+﻿import { mount } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
 import GameInteractionPanel from '../GameInteractionPanel.vue';
 import type { PlayerOption } from '../../types/game';
@@ -17,6 +17,8 @@ const buildProps = (overrides: Record<string, unknown> = {}) => ({
   isGameInitialized: true,
   isWaitingForInput: true,
   loadingMessage: '处理中...',
+  canStopAutoAdvance: false,
+  autoAdvanceStopHint: '',
   ...overrides,
 });
 
@@ -36,6 +38,7 @@ describe('GameInteractionPanel', () => {
           FreeTextInputPanel: true,
           ContinueActionPanel: true,
           LoadingStatePanel: true,
+          UiPanel: { template: '<div><slot /></div>' },
         },
       },
     });
@@ -58,6 +61,7 @@ describe('GameInteractionPanel', () => {
             props: ['message'],
             template: '<div class="loading">{{ message }}</div>',
           },
+          UiPanel: { template: '<div><slot /></div>' },
         },
       },
     });
@@ -75,6 +79,7 @@ describe('GameInteractionPanel', () => {
           ContinueActionPanel: {
             template: '<button class="continue-btn" @click="$emit(\'continue\')">go</button>',
           },
+          UiPanel: { template: '<div><slot /></div>' },
         },
       },
     });

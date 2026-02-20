@@ -1,12 +1,13 @@
 <template>
   <button
     v-if="visible"
-    class="absolute right-4 bottom-24 z-10 p-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-white shadow-lg transition-colors"
+    class="absolute bottom-24 right-4 z-10 rounded-lg bg-slate-700 p-2 text-white shadow-lg transition-colors hover:bg-slate-600"
     title="滚动到底部"
+    aria-label="滚动到底部"
     @click="$emit('scroll')"
   >
     <svg
-      class="w-5 h-5"
+      class="h-5 w-5"
       fill="none"
       stroke="currentColor"
       viewBox="0 0 24 24"

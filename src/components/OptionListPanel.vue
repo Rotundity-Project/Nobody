@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div v-if="visible" class="space-y-2">
     <button
       v-for="(option, index) in options"

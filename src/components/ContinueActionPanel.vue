@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="space-y-3 text-center">
     <p v-if="message" class="text-sm text-slate-400">{{ message }}</p>
     <button

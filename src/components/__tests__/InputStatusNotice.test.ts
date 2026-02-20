@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils';
+﻿import { mount } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
 import InputStatusNotice from '../InputStatusNotice.vue';
 
@@ -8,6 +8,7 @@ describe('InputStatusNotice', () => {
       props: {
         error: '发生错误',
         showAutoAdvanceHint: true,
+        autoAdvanceStopHint: '',
       },
     });
 
@@ -21,11 +22,12 @@ describe('InputStatusNotice', () => {
       props: {
         error: null,
         showAutoAdvanceHint: true,
+        autoAdvanceStopHint: '',
       },
     });
 
     expect(wrapper.text()).toContain('自动推进中');
-    expect(wrapper.text()).toContain('当前状态无需玩家输入。');
+    expect(wrapper.text()).toContain('当前状态无需玩家输入');
   });
 
   it('renders empty when no hint needed', () => {
@@ -33,9 +35,23 @@ describe('InputStatusNotice', () => {
       props: {
         error: null,
         showAutoAdvanceHint: false,
+        autoAdvanceStopHint: '',
       },
     });
 
     expect(wrapper.text()).toBe('');
+  });
+
+  it('shows stop hint when auto advance is paused', () => {
+    const wrapper = mount(InputStatusNotice, {
+      props: {
+        error: null,
+        showAutoAdvanceHint: false,
+        autoAdvanceStopHint: '自动推进已中断，可点击继续恢复。',
+      },
+    });
+
+    expect(wrapper.text()).toContain('自动推进已暂停');
+    expect(wrapper.text()).toContain('自动推进已中断');
   });
 });

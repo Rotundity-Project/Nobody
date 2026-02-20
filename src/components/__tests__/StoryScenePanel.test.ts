@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import StoryScenePanel from '../StoryScenePanel.vue';
 
 describe('StoryScenePanel', () => {
-  it('renders story content when scene exists', () => {
+  it('renders story content and rhythm info when scene exists', () => {
     const wrapper = mount(StoryScenePanel, {
       props: {
         hasScene: true,
@@ -24,6 +24,7 @@ describe('StoryScenePanel', () => {
     });
 
     expect(wrapper.text()).toContain('第二章');
+    expect(wrapper.text()).toContain('本章共 2 段');
     expect(wrapper.text()).toContain('选项来源：LLM-结构化');
   });
 
