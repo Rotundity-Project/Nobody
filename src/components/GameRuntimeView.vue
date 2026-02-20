@@ -1,7 +1,7 @@
 ﻿<template>
   <div class="min-h-screen text-white flex flex-col">
     <div class="flex-1 flex flex-col">
-      <div class="bg-slate-900/80 border-b border-slate-700 px-3 py-3 sm:px-5 md:px-6 xl:px-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between backdrop-blur">
+      <div class="bg-slate-900/80 border-b border-slate-700 px-3 py-2 sm:px-5 sm:py-2.5 md:px-6 xl:px-8 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between backdrop-blur">
         <GameTopBar
           :is-system-menu-open="showSystemMenu"
           :show-audio-panel="showAudioPanel"
@@ -28,7 +28,7 @@
         :option-source-label="optionSourceLabel"
         :option-source-hint="optionSourceHint || undefined"
       />
-      <div class="px-3 pb-2 pt-2 sm:px-5 md:px-6 xl:px-8">
+      <div class="px-3 pb-1 pt-1 sm:px-5 sm:pb-2 sm:pt-1.5 md:px-6 xl:px-8">
         <ContextStatusCard
           :visible="gameStore.isGameInitialized"
           :player-name="gameStore.playerCharacter?.name || '无名弟子'"
@@ -40,7 +40,7 @@
         />
       </div>
 
-      <div class="flex-1 overflow-hidden p-3 sm:p-5 md:p-6 xl:p-8">
+      <div class="flex-1 overflow-hidden p-2 sm:p-4 md:p-5 xl:p-6">
         <div class="mx-auto h-full max-w-7xl">
           <div class="flex h-full min-h-0 flex-col rounded-2xl border border-slate-800/90 bg-slate-950/45">
             <StoryViewport

@@ -1,9 +1,9 @@
 ﻿<template>
   <div
     v-if="visible"
-    class="panel-surface rounded-xl border border-slate-700/80 px-4 py-3"
+    class="panel-surface rounded-xl border border-slate-700/80 px-3 py-2 sm:px-4 sm:py-3"
   >
-    <div class="grid gap-2 text-sm text-slate-200 md:grid-cols-3">
+    <div class="grid gap-1.5 text-sm text-slate-200 md:grid-cols-3 md:gap-2">
       <div class="rounded-lg bg-slate-900/60 px-3 py-2">
         <p class="text-[11px] uppercase tracking-[0.2em] text-slate-400">角色快照</p>
         <p class="mt-1 font-medium text-slate-100">{{ playerName }}</p>
@@ -16,7 +16,7 @@
       </div>
       <div class="rounded-lg bg-slate-900/60 px-3 py-2">
         <p class="text-[11px] uppercase tracking-[0.2em] text-slate-400">当前位置</p>
-        <p class="mt-1 text-slate-100">{{ locationLabel }}</p>
+        <p class="mt-1 text-slate-100">{{ normalizedLocationLabel }}</p>
         <p class="text-xs text-slate-300">{{ interactionStateLabel }}</p>
       </div>
     </div>
@@ -24,7 +24,10 @@
 </template>
 
 <script setup lang="ts">
-defineProps<{
+import { computed } from 'vue';
+import { formatLocationLabel } from '../shared/locationLabel';
+
+const props = defineProps<{
   visible: boolean;
   playerName: string;
   playerRealm: string;
@@ -33,4 +36,6 @@ defineProps<{
   locationLabel: string;
   interactionStateLabel: string;
 }>();
+
+const normalizedLocationLabel = computed(() => formatLocationLabel(props.locationLabel));
 </script>
