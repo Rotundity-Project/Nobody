@@ -149,7 +149,7 @@
               :disabled="recentSaveLoading || quickLoadPending"
               :aria-label="refreshActionAriaLabel"
               aria-controls="recent-save-card"
-              aria-describedby="recent-save-refresh-label recent-save-refresh-status"
+              :aria-describedby="refreshActionDescribedBy"
               @click="fetchLatestSave"
             >
               {{ recentSaveLoading ? '刷新中...' : '刷新存档' }}
@@ -417,6 +417,13 @@ const refreshStatusToneClass = computed(() => {
     return 'text-sky-300';
   }
   return isRefreshStatusSuccess.value ? 'text-emerald-300' : 'text-amber-300';
+});
+const refreshActionDescribedBy = computed(() => {
+  const ids = ['recent-save-refresh-label'];
+  if (shouldShowRefreshStatus.value && lastRefreshStatusLabel.value) {
+    ids.push('recent-save-refresh-status');
+  }
+  return ids.join(' ');
 });
 const refreshActionAriaLabel = computed(() => {
   if (recentSaveLoading.value) {

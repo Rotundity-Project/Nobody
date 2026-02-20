@@ -265,7 +265,9 @@ describe('MainMenu', () => {
     expect(wrapper.get('[data-testid="refresh-save-btn"]').attributes('aria-label'))
       .toContain('最近一次刷新成功');
     expect(wrapper.get('[data-testid="refresh-save-btn"]').attributes('aria-describedby'))
-      .toBe('recent-save-refresh-label recent-save-refresh-status');
+      .toContain('recent-save-refresh-label');
+    expect(wrapper.get('[data-testid="refresh-save-btn"]').attributes('aria-describedby'))
+      .toContain('recent-save-refresh-status');
     expect(wrapper.get('[data-testid="recent-save-card"]').attributes('id')).toBe('recent-save-card');
 
     await wrapper.get('[data-testid="refresh-save-btn"]').trigger('click');
@@ -395,6 +397,8 @@ describe('MainMenu', () => {
     expect(wrapper.get('[data-testid="recent-save-refresh-status"]').attributes('role')).toBe('status');
     expect(wrapper.get('[data-testid="recent-save-refresh-status"]').attributes('aria-live')).toBe('polite');
     expect(wrapper.get('[data-testid="recent-save-refresh-status"]').attributes('aria-atomic')).toBe('true');
+    expect(wrapper.get('[data-testid="refresh-save-btn"]').attributes('aria-describedby'))
+      .toContain('recent-save-refresh-status');
     expect(wrapper.get('[data-testid="no-save-hint"]').text()).toContain('暂无可用存档');
   });
 
@@ -495,6 +499,8 @@ describe('MainMenu', () => {
       await wrapper.vm.$nextTick();
 
       expect(wrapper.find('[data-testid="recent-save-refresh-status"]').exists()).toBe(false);
+      expect(wrapper.get('[data-testid="refresh-save-btn"]').attributes('aria-describedby'))
+        .toBe('recent-save-refresh-label');
     } finally {
       vi.useRealTimers();
     }
