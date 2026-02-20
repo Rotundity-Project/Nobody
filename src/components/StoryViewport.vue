@@ -5,46 +5,46 @@
   >
     <div
       v-if="showReadingLocator"
-      class="sticky top-1 z-10 mb-2 flex justify-end"
+      class="pointer-events-none absolute right-3 top-2 z-20 sm:right-4"
     >
       <div
         data-testid="reading-locator"
-        class="w-fit rounded-lg border border-slate-700/90 bg-slate-900/90 px-2 py-1.5 text-[11px] text-slate-200 shadow-sm backdrop-blur sm:px-3 sm:py-2 sm:text-xs"
+        class="pointer-events-auto w-fit max-w-[min(84vw,22rem)] rounded-lg border border-slate-700/90 bg-slate-900/90 px-2 py-1.5 text-[11px] text-slate-200 shadow-sm backdrop-blur sm:px-3 sm:py-2 sm:text-xs"
       >
-      <div class="flex items-center justify-between gap-2 sm:gap-3">
-        <p data-testid="reading-locator-summary">
-          阅读定位：{{ readingProgressPercent }}% · {{ readingProgressCompact }}
-        </p>
-        <button
-          data-testid="toggle-reading-locator"
-          class="rounded bg-slate-700 px-1.5 py-0.5 text-[10px] text-slate-100 hover:bg-slate-600 sm:px-2 sm:text-[11px]"
-          :aria-expanded="showReadingLocatorDetails ? 'true' : 'false'"
-          @click="toggleReadingLocatorDetails"
-        >
-          {{ showReadingLocatorDetails ? '收起' : '展开' }}
-        </button>
-      </div>
-      <div
-        v-if="showReadingLocatorDetails"
-        class="mt-2 space-y-2"
-      >
-        <p>段落进度：{{ currentParagraphIndex }} / {{ paragraphs.length }}</p>
-        <div class="flex gap-2">
+        <div class="flex items-center justify-between gap-2 sm:gap-3">
+          <p data-testid="reading-locator-summary">
+            阅读定位：{{ readingProgressPercent }}% · {{ readingProgressCompact }}
+          </p>
           <button
-            class="rounded bg-slate-700 px-2 py-1 text-[11px] text-slate-100 hover:bg-slate-600"
-            @click="scrollToTop"
+            data-testid="toggle-reading-locator"
+            class="rounded bg-slate-700 px-1.5 py-0.5 text-[10px] text-slate-100 hover:bg-slate-600 sm:px-2 sm:text-[11px]"
+            :aria-expanded="showReadingLocatorDetails ? 'true' : 'false'"
+            @click="toggleReadingLocatorDetails"
           >
-            顶部
-          </button>
-          <button
-            class="rounded bg-slate-700 px-2 py-1 text-[11px] text-slate-100 hover:bg-slate-600"
-            @click="scrollToBottom"
-          >
-            底部
+            {{ showReadingLocatorDetails ? '收起' : '展开' }}
           </button>
         </div>
+        <div
+          v-if="showReadingLocatorDetails"
+          class="mt-2 space-y-2"
+        >
+          <p>段落进度：{{ currentParagraphIndex }} / {{ paragraphs.length }}</p>
+          <div class="flex gap-2">
+            <button
+              class="rounded bg-slate-700 px-2 py-1 text-[11px] text-slate-100 hover:bg-slate-600"
+              @click="scrollToTop"
+            >
+              顶部
+            </button>
+            <button
+              class="rounded bg-slate-700 px-2 py-1 text-[11px] text-slate-100 hover:bg-slate-600"
+              @click="scrollToBottom"
+            >
+              底部
+            </button>
+          </div>
+        </div>
       </div>
-    </div>
     </div>
 
     <ScrollToBottomButton

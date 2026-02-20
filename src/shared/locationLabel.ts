@@ -13,6 +13,22 @@ const FALLBACK_LOCATION_LABELS: Record<string, string> = {
   mountain: '山脉',
 };
 
+const LOCATION_TOKEN_LABELS: Record<string, string> = {
+  sect: '宗门',
+  valley: '山谷',
+  peak: '山峰',
+  mountain: '山脉',
+  cave: '洞窟',
+  forest: '林地',
+  stone: '石',
+  river: '河',
+  lake: '湖',
+  town: '城镇',
+  city: '城池',
+  market: '市集',
+  plains: '平原',
+};
+
 const normalizeLocationId = (raw: string): string =>
   raw.trim().toLowerCase().replace(/-/g, '_');
 
@@ -48,9 +64,14 @@ export const formatLocationLabel = (
   }
 
   if (normalized.includes('_')) {
-    return normalized
+    const parts = normalized
       .split('_')
-      .filter((part) => part.length > 0)
+      .filter((part) => part.length > 0);
+    const translated = parts.map((part) => LOCATION_TOKEN_LABELS[part] ?? part);
+    if (translated.some((part, idx) => part !== parts[idx])) {
+      return translated.join(' / ');
+    }
+    return parts
       .map((part) => part[0].toUpperCase() + part.slice(1))
       .join(' / ');
   }
