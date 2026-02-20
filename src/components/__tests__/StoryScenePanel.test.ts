@@ -51,4 +51,31 @@ describe('StoryScenePanel', () => {
 
     expect(wrapper.text()).toContain('当前没有进行中的游戏');
   });
+
+  it('removes leading blank paragraphs to avoid large top whitespace', () => {
+    const wrapper = mount(StoryScenePanel, {
+      props: {
+        hasScene: true,
+        chapterTitle: '第三章',
+        showRecap: false,
+        recapSummary: '',
+        paragraphs: ['', '   ', '第一段', '第二段   '],
+        optionSourceLabel: '',
+        isGameInitialized: true,
+        scrollElement: null,
+      },
+      global: {
+        stubs: {
+          VirtualStoryList: {
+            props: ['paragraphs'],
+            template: '<div data-testid="virtual-list">{{ paragraphs.join("|") }}</div>',
+          },
+          ChapterRecapCard: { template: '<div />' },
+        },
+      },
+    });
+
+    expect(wrapper.text()).toContain('本章 2 段');
+    expect(wrapper.get('[data-testid="virtual-list"]').text()).toBe('第一段|第二段');
+  });
 });
