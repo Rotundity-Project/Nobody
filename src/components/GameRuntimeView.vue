@@ -413,8 +413,18 @@ const interactionStateLabel = computed(() => {
   };
   return mapping[plotInteractionState.value] ?? plotInteractionState.value;
 });
+const mobileInteractionShortLabel = computed(() => {
+  const mapping: Record<string, string> = {
+    auto_advance: '自动',
+    waiting_for_choice: '选项',
+    waiting_for_free_text: '输入',
+    resolving: '处理中',
+    cooldown: '冷却',
+  };
+  return mapping[plotInteractionState.value] ?? interactionStateLabel.value;
+});
 const mobileStatusSummary = computed(
-  () => `${chapterProgressLabel.value} · ${interactionStateLabel.value}`,
+  () => `${chapterProgressLabel.value} · ${currentLocationLabel.value} · ${mobileInteractionShortLabel.value}`,
 );
 const consistencyRiskScore = computed(() => {
   const structured = gameStore.plotState?.last_consistency_risk_score;
