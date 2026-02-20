@@ -59,7 +59,7 @@
                 位置：{{ latestSaveLocationLabel }}
               </span>
               <span class="rounded border border-slate-600/80 bg-slate-800/70 px-1.5 py-0.5 text-[11px] text-slate-200">
-                时间：{{ latestSave.game_time }}
+                时间：{{ latestSaveGameTimeLabel }}
               </span>
             </span>
             <span class="mt-1 block text-[11px] text-slate-400">
@@ -291,6 +291,9 @@ const latestSavePlayerLabel = computed(() =>
 );
 const latestSaveRealmLabel = computed(() =>
   normalizeSaveText(latestSave.value?.realm, '境界未知'),
+);
+const latestSaveGameTimeLabel = computed(() =>
+  normalizeSaveText(latestSave.value?.game_time, '时间未知'),
 );
 const latestSaveLocationLabel = computed(() => formatLocationLabel(latestSave.value?.location));
 const showLatestSaveLocationTag = computed(

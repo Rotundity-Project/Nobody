@@ -180,7 +180,7 @@ describe('MainMenu', () => {
         player_name: '  ',
         realm: '',
         location: 'sect_valley',
-        game_time: '第2年3月',
+        game_time: '   ',
       },
     ]);
 
@@ -200,6 +200,7 @@ describe('MainMenu', () => {
 
     const summary = wrapper.get('[data-testid="latest-save-summary"]').text();
     expect(summary).toContain('槽位 7 · 未命名角色 · 境界未知');
+    expect(summary).toContain('时间：时间未知');
   });
 
   it('refreshes save slots when refresh button is clicked', async () => {
