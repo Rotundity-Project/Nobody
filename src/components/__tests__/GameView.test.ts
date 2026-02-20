@@ -142,6 +142,7 @@ describe('GameView', () => {
     });
     validateFreeTextInputMock.mockReturnValue({ valid: true, message: '' });
     storeRef = buildStore();
+    window.localStorage.removeItem('nobody_mobile_status_card_expanded');
   });
 
   it('renders options and handles option selection', async () => {
@@ -424,6 +425,18 @@ describe('GameView', () => {
     expect(toggleBtn.attributes('aria-expanded')).toBe('false');
 
     await toggleBtn.trigger('click');
+
+    expect(toggleBtn.text()).toContain('收起状态');
+    expect(toggleBtn.attributes('aria-expanded')).toBe('true');
+    expect(window.localStorage.getItem('nobody_mobile_status_card_expanded')).toBe('1');
+  });
+
+  it('restores mobile status card expanded state from localStorage', async () => {
+    window.localStorage.setItem('nobody_mobile_status_card_expanded', '1');
+
+    const wrapper = mount(GameView);
+    await wrapper.vm.$nextTick();
+    const toggleBtn = wrapper.get('[data-testid="toggle-mobile-status-card"]');
 
     expect(toggleBtn.text()).toContain('收起状态');
     expect(toggleBtn.attributes('aria-expanded')).toBe('true');

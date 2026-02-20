@@ -163,7 +163,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watchEffect, watch } from 'vue';
+import { computed, onMounted, ref, watchEffect, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useGameStore } from '../stores/gameStore';
 import CharacterInfoModal from './CharacterInfoModal.vue';
@@ -229,6 +229,7 @@ const previousChapterParagraphs = ref<string[]>([]);
 const isDevMode = import.meta.env.DEV;
 const travelPending = ref(false);
 const showMobileStatusCard = ref(false);
+const MOBILE_STATUS_CARD_STORAGE_KEY = 'nobody_mobile_status_card_expanded';
 
 const currentChapterTitle = computed(
   () => gameStore.plotState?.current_chapter?.title || gameStore.currentScene?.name || '第一章'
@@ -493,6 +494,12 @@ const toggleSystemMenu = () => {
 const toggleMobileStatusCard = () => {
   playClick();
   showMobileStatusCard.value = !showMobileStatusCard.value;
+  if (typeof window !== 'undefined') {
+    window.localStorage.setItem(
+      MOBILE_STATUS_CARD_STORAGE_KEY,
+      showMobileStatusCard.value ? '1' : '0',
+    );
+  }
 };
 
 const openShortcutsDialog = () => {
@@ -651,4 +658,14 @@ const handleKeydown = (event: KeyboardEvent) => {
 };
 
 useGameHotkeys(handleKeydown);
+
+onMounted(() => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  const stored = window.localStorage.getItem(MOBILE_STATUS_CARD_STORAGE_KEY);
+  if (stored != null) {
+    showMobileStatusCard.value = stored === '1';
+  }
+});
 </script>
