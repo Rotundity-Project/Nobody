@@ -4,27 +4,24 @@
     class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
     @click.self="$emit('close')"
   >
-    <div class="panel-surface w-full max-w-4xl rounded-2xl p-6">
+    <UiPanel class="w-full max-w-4xl">
       <div class="mb-4 flex items-center justify-between">
         <h3 class="text-xl font-display text-amber-100">信息面板</h3>
-        <button
-          class="rounded bg-slate-700 px-3 py-1 text-sm text-slate-200"
-          @click="$emit('close')"
-        >
+        <UiButton size="sm" @click="$emit('close')">
           关闭
-        </button>
+        </UiButton>
       </div>
 
       <div class="mb-4 flex flex-wrap gap-2">
-        <button
+        <UiButton
           v-for="tab in tabs"
           :key="tab.id"
-          class="rounded px-3 py-1 text-sm transition-colors"
-          :class="activeTab === tab.id ? 'bg-amber-500 text-slate-900' : 'bg-slate-700 text-slate-200 hover:bg-slate-600'"
+          size="sm"
+          :variant="activeTab === tab.id ? 'primary' : 'neutral'"
           @click="activeTab = tab.id"
         >
           {{ tab.label }}
-        </button>
+        </UiButton>
       </div>
 
       <section
@@ -104,14 +101,16 @@
             >
               {{ loc.reachable ? '可达' : '暂不可达' }}
             </p>
-            <button
+            <UiButton
               v-if="loc.id !== currentLocationId"
-              class="mt-2 rounded bg-sky-700 px-2 py-1 text-xs text-white hover:bg-sky-600 disabled:cursor-not-allowed disabled:opacity-60"
+              class="mt-2"
+              size="sm"
+              variant="info"
               :disabled="isTraveling || !loc.reachable"
               @click="$emit('travel', loc.id)"
             >
               {{ loc.reachable ? '前往此地' : '需分段行进' }}
-            </button>
+            </UiButton>
           </div>
         </div>
       </section>
@@ -188,20 +187,23 @@
         >
           当前无系统提示。
         </p>
-        <button
+        <UiButton
           v-if="systemError"
-          class="rounded bg-red-700 px-3 py-1 text-sm text-white hover:bg-red-600"
+          size="sm"
+          variant="danger"
           @click="$emit('clearError')"
         >
           清除提示
-        </button>
+        </UiButton>
       </section>
-    </div>
+    </UiPanel>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import UiButton from '../shared/ui/UiButton.vue';
+import UiPanel from '../shared/ui/UiPanel.vue';
 import NovelExporter from './NovelExporter.vue';
 import StatusBanner from './StatusBanner.vue';
 

@@ -1,7 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import MainMenu from '../components/MainMenu.vue';
 import ScriptSelector from '../components/ScriptSelector.vue';
-import GameView from '../components/GameView.vue';
+import GameViewPage from '../views/GameViewPage.vue';
 
 const router = createRouter({
   history: createWebHistory(),
@@ -19,7 +19,7 @@ const router = createRouter({
     {
       path: '/game',
       name: 'game',
-      component: GameView,
+      component: GameViewPage,
     },
   ],
 });

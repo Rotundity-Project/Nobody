@@ -18,16 +18,41 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
-  --bg-1: #0b0f14;
-  --bg-2: #151a24;
-  --panel: rgba(20, 24, 34, 0.9);
-  --panel-strong: #1d2332;
-  --panel-border: rgba(148, 163, 184, 0.2);
-  --accent: #c0a77a;
-  --accent-strong: #f2c86b;
-  --accent-cool: #6dd0b2;
-  --text-strong: #f8fafc;
-  --text-muted: #94a3b8;
+  /* Foundation tokens */
+  --ref-ink-950: #0b0f14;
+  --ref-ink-900: #151a24;
+  --ref-panel-900: #1d2332;
+  --ref-amber-500: #c0a77a;
+  --ref-amber-400: #f2c86b;
+  --ref-cyan-400: #6dd0b2;
+  --ref-slate-100: #f8fafc;
+  --ref-slate-400: #94a3b8;
+  --ref-border-soft: rgba(148, 163, 184, 0.2);
+  --ref-panel-glass: rgba(20, 24, 34, 0.9);
+
+  /* Semantic tokens */
+  --color-bg-base: var(--ref-ink-950);
+  --color-bg-elevated: var(--ref-ink-900);
+  --color-surface: var(--ref-panel-glass);
+  --color-surface-strong: var(--ref-panel-900);
+  --color-border-subtle: var(--ref-border-soft);
+  --color-accent-primary: var(--ref-amber-500);
+  --color-accent-strong: var(--ref-amber-400);
+  --color-accent-cool: var(--ref-cyan-400);
+  --color-text-primary: var(--ref-slate-100);
+  --color-text-muted: var(--ref-slate-400);
+
+  /* Legacy aliases for gradual migration */
+  --bg-1: var(--color-bg-base);
+  --bg-2: var(--color-bg-elevated);
+  --panel: var(--color-surface);
+  --panel-strong: var(--color-surface-strong);
+  --panel-border: var(--color-border-subtle);
+  --accent: var(--color-accent-primary);
+  --accent-strong: var(--color-accent-strong);
+  --accent-cool: var(--color-accent-cool);
+  --text-strong: var(--color-text-primary);
+  --text-muted: var(--color-text-muted);
 }
 
 body {

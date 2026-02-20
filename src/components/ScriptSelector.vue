@@ -1,6 +1,6 @@
 ﻿<template>
   <div class="min-h-screen flex items-center justify-center p-4 sm:p-8">
-    <div class="max-w-2xl w-full panel-surface rounded-2xl p-6 sm:p-8">
+    <UiPanel class="max-w-2xl w-full sm:p-8">
       <div class="mb-6 space-y-2">
         <p class="text-xs uppercase tracking-[0.35em] text-amber-200/70">Choose Your Path</p>
         <h2 class="text-2xl sm:text-3xl font-display text-amber-100">选择剧本类型</h2>
@@ -115,7 +115,7 @@
       >
         返回
       </button>
-    </div>
+    </UiPanel>
   </div>
 </template>
 
@@ -125,6 +125,7 @@ import { useRouter } from 'vue-router';
 import { open } from '@tauri-apps/plugin-dialog';
 import { invokeWithTimeout } from '../utils/tauriInvoke';
 import { useGameStore } from '../stores/gameStore';
+import UiPanel from '../shared/ui/UiPanel.vue';
 import LoadingIndicator from './LoadingIndicator.vue';
 import StatusBanner from './StatusBanner.vue';
 import { playClick } from '../utils/audioSystem';

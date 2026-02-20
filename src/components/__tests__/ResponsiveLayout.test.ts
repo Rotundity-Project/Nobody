@@ -40,7 +40,7 @@ describe('responsive layout classes', () => {
   });
 
   it('GameView uses responsive header layout', () => {
-    const wrapper = shallowMount(GameView, {
+    const wrapper = mount(GameView, {
       global: {
         stubs: {
           CharacterPanel: true,
@@ -51,7 +51,9 @@ describe('responsive layout classes', () => {
         },
       },
     });
-    const classes = wrapper.classes();
+    const root = wrapper.find('div.min-h-screen');
+    expect(root.exists()).toBe(true);
+    const classes = root.classes();
     expect(classes).toContain('flex');
     expect(classes).toContain('flex-col');
     const hasResponsiveHeader = wrapper.findAll('div').some((node) => {
