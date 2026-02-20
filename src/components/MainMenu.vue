@@ -254,6 +254,7 @@
                 ? 'border-emerald-400 bg-emerald-500/15 text-emerald-200'
                 : 'border-slate-600 text-slate-200 hover:bg-slate-800'"
               :aria-pressed="quickBgmEnabled ? 'true' : 'false'"
+              :aria-label="quickBgmAriaLabel"
               @click="toggleQuickBgm"
             >
               {{ quickBgmEnabled ? 'BGM 开' : 'BGM 关' }}
@@ -266,6 +267,7 @@
                 ? 'border-emerald-400 bg-emerald-500/15 text-emerald-200'
                 : 'border-slate-600 text-slate-200 hover:bg-slate-800'"
               :aria-pressed="quickSfxEnabled ? 'true' : 'false'"
+              :aria-label="quickSfxAriaLabel"
               @click="toggleQuickSfx"
             >
               {{ quickSfxEnabled ? '音效 开' : '音效 关' }}
@@ -504,6 +506,12 @@ const quickMuteAriaLabel = computed(() => {
   }
   return `静音，当前音量 ${Math.round(quickMasterVolume.value * 100)}%`;
 });
+const quickBgmAriaLabel = computed(() =>
+  quickBgmEnabled.value ? '关闭 BGM，当前已开启' : '开启 BGM，当前已关闭',
+);
+const quickSfxAriaLabel = computed(() =>
+  quickSfxEnabled.value ? '关闭音效，当前已开启' : '开启音效，当前已关闭',
+);
 const retryLoadSavesAriaLabel = computed(() => {
   if (!recentSaveError.value) {
     return '重试读取最近存档';

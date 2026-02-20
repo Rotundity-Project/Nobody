@@ -369,15 +369,19 @@ describe('MainMenu', () => {
 
     expect(wrapper.get('[data-testid="quick-bgm-btn"]').text()).toContain('BGM 开');
     expect(wrapper.get('[data-testid="quick-sfx-btn"]').text()).toContain('音效 开');
+    expect(wrapper.get('[data-testid="quick-bgm-btn"]').attributes('aria-label')).toBe('关闭 BGM，当前已开启');
+    expect(wrapper.get('[data-testid="quick-sfx-btn"]').attributes('aria-label')).toBe('关闭音效，当前已开启');
 
     await wrapper.get('[data-testid="quick-bgm-btn"]').trigger('click');
     expect(setBgmEnabledMock).toHaveBeenCalledWith(false);
     expect(wrapper.get('[data-testid="quick-bgm-btn"]').attributes('aria-pressed')).toBe('false');
+    expect(wrapper.get('[data-testid="quick-bgm-btn"]').attributes('aria-label')).toBe('开启 BGM，当前已关闭');
     expect(wrapper.get('[data-testid="quick-bgm-btn"]').text()).toContain('BGM 关');
 
     await wrapper.get('[data-testid="quick-sfx-btn"]').trigger('click');
     expect(setSfxEnabledMock).toHaveBeenCalledWith(false);
     expect(wrapper.get('[data-testid="quick-sfx-btn"]').attributes('aria-pressed')).toBe('false');
+    expect(wrapper.get('[data-testid="quick-sfx-btn"]').attributes('aria-label')).toBe('开启音效，当前已关闭');
     expect(wrapper.get('[data-testid="quick-sfx-btn"]').text()).toContain('音效 关');
   });
 
