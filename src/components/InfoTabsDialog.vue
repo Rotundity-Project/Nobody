@@ -41,7 +41,7 @@
         </section>
 
         <section v-else-if="activeTab === 'map'" class="space-y-3 text-sm text-slate-200">
-          <p>当前位置：{{ currentLocationLabel || playerLocation }}</p>
+          <p>当前位置：{{ normalizedCurrentLocationLabel }}</p>
           <p class="text-xs text-slate-400">可达节点：{{ reachableNodeCount }} / {{ resolvedMapNodes.length }}</p>
           <div v-if="worldLocations.length === 0" class="text-slate-400">暂无地图节点</div>
           <div v-else class="grid gap-2 sm:grid-cols-2">
@@ -51,7 +51,7 @@
               class="rounded border border-slate-700 bg-slate-900/50 p-2"
             >
               <p class="font-medium text-slate-100">
-                {{ loc.name || loc.id }}
+                {{ loc.name }}
                 <span
                   v-if="loc.id === currentLocationId"
                   class="ml-1 rounded bg-amber-500 px-1.5 py-0.5 text-[10px] text-slate-900"
@@ -59,7 +59,6 @@
                   当前
                 </span>
               </p>
-              <p class="text-xs text-slate-400">id: {{ loc.id }}</p>
               <p class="text-xs text-slate-300">灵气强度 {{ Number(loc.spiritual_energy).toFixed(2) }} / 风险 {{ loc.riskLabel }}</p>
               <p class="text-[11px] text-slate-400">灵气差 {{ Number(loc.energyGap).toFixed(2) }}</p>
               <p v-if="typeof loc.estimatedSteps === 'number'" class="text-[11px] text-slate-400">预计步数 {{ loc.estimatedSteps }}</p>
@@ -205,6 +204,17 @@ const tabs: Array<{ id: TabId; label: string }> = [
 ];
 
 const activeTab = ref<TabId>('character');
+const isChineseText = (value: string): boolean => /[\u4e00-\u9fff]/.test(value);
+const normalizeLocationDisplayName = (name: string, id: string): string => {
+  const trimmedName = name.trim();
+  if (trimmedName.length > 0 && isChineseText(trimmedName)) {
+    return trimmedName;
+  }
+  if (trimmedName.length > 0) {
+    return formatLocationLabel(trimmedName);
+  }
+  return formatLocationLabel(id);
+};
 
 const locationRiskLabel = (spiritualEnergy: number): string => {
   if (spiritualEnergy >= 0.8) return '高';
@@ -228,19 +238,22 @@ const mapOverviewNodes = (
   const locationNameMap = new Map<string, string>();
   for (const item of worldLocations) {
     if (item.id && item.name) {
-      locationNameMap.set(item.id, item.name);
+      locationNameMap.set(item.id, normalizeLocationDisplayName(item.name, item.id));
     }
   }
   for (const item of mapOverview) {
     if (item.location_id && item.name) {
-      locationNameMap.set(item.location_id, item.name);
+      locationNameMap.set(
+        item.location_id,
+        normalizeLocationDisplayName(item.name, item.location_id),
+      );
     }
   }
 
   if (mapOverview.length > 0) {
     return mapOverview.map((item) => ({
       id: item.location_id,
-      name: item.name,
+      name: normalizeLocationDisplayName(item.name, item.location_id),
       spiritual_energy: item.spiritual_energy,
       energyGap: item.energy_gap,
       reachable: item.reachable || item.location_id === currentLocationId,
@@ -255,7 +268,7 @@ const mapOverviewNodes = (
 
   return worldLocations.map((loc) => ({
     id: loc.id,
-    name: loc.name,
+    name: normalizeLocationDisplayName(loc.name, loc.id),
     spiritual_energy: loc.spiritual_energy,
     energyGap: 0,
     reachable: loc.id === currentLocationId || reachableLocationIds.includes(loc.id),
@@ -273,6 +286,10 @@ const resolvedMapNodes = computed(() =>
     props.currentLocationId,
     props.reachableLocationIds,
   ),
+);
+
+const normalizedCurrentLocationLabel = computed(() =>
+  formatLocationLabel(props.currentLocationLabel || props.playerLocation),
 );
 
 const reachableNodeCount = computed(
