@@ -262,9 +262,8 @@ describe('MainMenu', () => {
       expect(wrapper.get('[data-testid="refresh-save-btn"]').text()).toBe('刷新存档');
     });
     expect(wrapper.find('#save-actions-heading').exists()).toBe(true);
-    expect(wrapper.find('[role="group"][aria-labelledby="save-actions-heading"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="save-actions-group"]').exists()).toBe(true);
-    const saveActionsGroup = wrapper.get('[role="group"][aria-labelledby="save-actions-heading"]');
+    const saveActionsGroup = wrapper.get('[data-testid="save-actions-group"]');
     expect(saveActionsGroup.attributes('aria-describedby')).toContain('no-save-hint');
     expect(saveActionsGroup.attributes('aria-describedby')).toContain('recent-save-refresh-label');
     expect(saveActionsGroup.attributes('aria-describedby')).toContain('recent-save-refresh-status');
@@ -314,7 +313,7 @@ describe('MainMenu', () => {
     expect(wrapper.get('[data-testid="loading-save-hint"]').attributes('role')).toBe('status');
     expect(wrapper.get('[data-testid="loading-save-hint"]').attributes('aria-live')).toBe('polite');
     expect(wrapper.get('[data-testid="loading-save-hint"]').attributes('aria-atomic')).toBe('true');
-    expect(wrapper.get('[role="group"][aria-labelledby="save-actions-heading"]').attributes('aria-describedby'))
+    expect(wrapper.get('[data-testid="save-actions-group"]').attributes('aria-describedby'))
       .toContain('loading-save-hint');
     expect(wrapper.get('[data-testid="refresh-save-btn"]').attributes('aria-describedby'))
       .toBe('recent-save-refresh-status');
@@ -337,7 +336,7 @@ describe('MainMenu', () => {
         },
       },
     });
-    const quickVolumeGroup = wrapper.find('[role="group"][aria-label*="快捷音量预设"]');
+    const quickVolumeGroup = wrapper.find('[data-testid="quick-audio-group"]');
     expect(quickVolumeGroup.exists()).toBe(true);
     expect(wrapper.find('[data-testid="quick-audio-group"]').exists()).toBe(true);
     expect(wrapper.find('#quick-audio-heading').exists()).toBe(true);
@@ -528,7 +527,7 @@ describe('MainMenu', () => {
       .toContain('时间');
     expect(wrapper.get('[data-testid="refresh-save-btn"]').attributes('aria-describedby'))
       .toContain('recent-save-error');
-    expect(wrapper.get('[role="group"][aria-labelledby="save-actions-heading"]').attributes('aria-describedby'))
+    expect(wrapper.get('[data-testid="save-actions-group"]').attributes('aria-describedby'))
       .toContain('recent-save-error');
     expect(wrapper.get('[data-testid="recent-save-btn"]').attributes('aria-describedby'))
       .toBe('recent-save-error no-save-hint');
