@@ -4,14 +4,22 @@
       v-if="hasScene"
       class="max-w-none"
     >
-      <header class="mb-4 border-b border-slate-700/70 pb-3">
-        <p class="mb-1 text-xs uppercase tracking-[0.28em] text-amber-200/75">章节阅读</p>
-        <h2 class="mb-2 text-2xl font-display text-amber-200">
+      <header class="mb-3 border-b border-slate-700/70 pb-2 sm:mb-4 sm:pb-3">
+        <p class="mb-1 text-[11px] uppercase tracking-[0.24em] text-amber-200/75 sm:text-xs sm:tracking-[0.28em]">章节阅读</p>
+        <h2 class="mb-1 text-xl font-display text-amber-200 sm:mb-2 sm:text-2xl">
           {{ chapterTitle }}
         </h2>
-        <p class="m-0 text-sm text-slate-200">
-          本章共 {{ paragraphs.length }} 段，节奏：{{ rhythmLabel }}
-        </p>
+        <div class="flex flex-wrap items-center gap-1.5 text-xs text-slate-200 sm:gap-2 sm:text-sm">
+          <span class="rounded border border-slate-600/70 bg-slate-800/50 px-2 py-0.5">
+            本章 {{ paragraphs.length }} 段
+          </span>
+          <span
+            data-testid="rhythm-badge"
+            class="rounded border border-amber-400/40 bg-amber-400/10 px-2 py-0.5 text-amber-200"
+          >
+            节奏：{{ rhythmLabel }}
+          </span>
+        </div>
       </header>
 
       <ChapterRecapCard
@@ -19,7 +27,7 @@
         :summary="recapSummary"
       />
 
-      <section class="space-y-2">
+      <section class="space-y-1.5 sm:space-y-2">
         <h3 class="m-0 text-sm font-semibold tracking-wide text-slate-300">正文</h3>
         <VirtualStoryList
           v-if="paragraphs.length > 0"

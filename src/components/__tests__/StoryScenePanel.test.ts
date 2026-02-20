@@ -24,8 +24,9 @@ describe('StoryScenePanel', () => {
     });
 
     expect(wrapper.text()).toContain('第二章');
-    expect(wrapper.text()).toContain('本章共 2 段');
+    expect(wrapper.text()).toContain('本章 2 段');
     expect(wrapper.text()).toContain('选项来源：LLM-结构化');
+    expect(wrapper.get('[data-testid="rhythm-badge"]').text()).toContain('节奏：紧凑');
   });
 
   it('renders empty state when game is not initialized', () => {
