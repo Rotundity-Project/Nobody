@@ -7,6 +7,7 @@ import InfoTabsDialog from '../InfoTabsDialog.vue';
 
 const normalizeSnapshotHtml = (html: string): string =>
   html
+    .replace(/>\s+([^<]*?)\s+</g, (_, text: string) => `>${text.trim()}<`)
     .replace(/>\s+</g, '><')
     .replace(/\s{2,}/g, ' ')
     .trim();
