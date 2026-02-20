@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="panel-surface max-h-[70vh] overflow-y-auto rounded-2xl p-5">
     <h3 class="mb-4 text-xl font-display text-amber-200">角色信息</h3>
 
@@ -123,6 +123,7 @@
 import { computed } from 'vue';
 import type { Character, Lifespan, SocialProfile } from '../types/game';
 import { Element, Grade } from '../types/game';
+import { formatLocationLabel } from '../shared/locationLabel';
 
 const props = defineProps<{
   character: Character | null;
@@ -180,7 +181,7 @@ const realmLabel = computed(() => {
   if (!props.character) return '';
   const raw = props.character.stats.cultivation_realm.name;
   const mapping: Record<string, string> = {
-    'Qi Condensation': '练气',
+    'Qi Condensation': '炼气',
     'Foundation Establishment': '筑基',
     'Golden Core': '金丹',
     'Nascent Soul': '元婴',
@@ -190,14 +191,7 @@ const realmLabel = computed(() => {
 
 const locationLabel = computed(() => {
   if (!props.character) return '';
-  const raw = props.character.location;
-  const mapping: Record<string, string> = {
-    sect_valley: '宗门外谷',
-    stone_forest: '乱石林',
-    sect: '宗门驻地',
-    city: '凡人城镇',
-  };
-  return mapping[raw] ?? raw.split('_').join(' ');
+  return formatLocationLabel(props.character.location);
 });
 
 const recentGrowthLog = computed(() => {

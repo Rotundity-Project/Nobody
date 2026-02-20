@@ -4,7 +4,7 @@
     :player-name="gameStore.playerCharacter?.name || '无名弟子'"
     :player-realm="playerRealmLabel"
     :player-combat-power="playerCombatPowerLabel"
-    :player-location="gameStore.playerCharacter?.location || gameStore.currentScene?.location || '未知'"
+    :player-location="playerLocationLabel"
     :chapter-progress="chapterProgressLabel"
     :chapter-interaction="chapterInteractionLabel"
     :segment-count="gameStore.plotState?.segment_count ?? 0"
@@ -13,7 +13,8 @@
     :reachable-location-ids="gameStore.reachableLocationIds"
     :map-overview="gameStore.mapOverview"
     :recent-combat-explanations="recentCombatReview"
-    :current-location-id="gameStore.playerCharacter?.location || ''"
+    :current-location-id="currentLocationId"
+    :current-location-label="currentLocationLabel"
     :is-traveling="travelPending"
     :is-game-running="gameStore.isGameInitialized"
     :event-count="gameStore.gameState?.event_history?.length ?? 0"
@@ -30,8 +31,10 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
 import InfoTabsDialog from './InfoTabsDialog.vue';
 import type { MapLocationOverview } from '../types/game';
+import { buildLocationLabelMap, formatLocationLabel } from '../shared/locationLabel';
 
 type WorldLocation = {
   id: string;
@@ -65,7 +68,7 @@ type GameStoreView = {
   error: string | null;
 };
 
-defineProps<{
+const props = defineProps<{
   isOpen: boolean;
   gameStore: GameStoreView;
   playerRealmLabel: string;
@@ -85,4 +88,19 @@ defineEmits<{
   (event: 'clear-error'): void;
   (event: 'travel', locationId: string): void;
 }>();
+
+const locationLabelMap = computed(() =>
+  buildLocationLabelMap(props.worldLocationList.map((loc) => ({ id: loc.id, name: loc.name }))),
+);
+
+const currentLocationId = computed(() => props.gameStore.playerCharacter?.location || '');
+const currentLocationLabel = computed(() =>
+  formatLocationLabel(currentLocationId.value, locationLabelMap.value),
+);
+const playerLocationLabel = computed(() =>
+  formatLocationLabel(
+    props.gameStore.playerCharacter?.location || props.gameStore.currentScene?.location,
+    locationLabelMap.value,
+  ),
+);
 </script>

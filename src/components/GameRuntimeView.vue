@@ -159,6 +159,7 @@ import { useUiPanels } from '../composables/useUiPanels';
 import { playClick } from '../utils/audioSystem';
 import { getStorySettings, saveStorySettings, type StorySettings } from '../utils/storySettings';
 import { invokeWithTimeout } from '../utils/tauriInvoke';
+import { buildLocationLabelMap, formatLocationLabel } from '../shared/locationLabel';
 
 const router = useRouter();
 const gameStore = useGameStore();
@@ -228,45 +229,19 @@ const chapterInteractionLabel = computed(() => {
   const max = gameStore.plotState?.settings?.max_interactions_per_chapter ?? 0;
   return `${chapter.interaction_count} / ${min}-${max}`;
 });
-const locationNameMap = computed(() => {
-  const map = new Map<string, string>();
-  const worldLocations = gameStore.gameState?.script?.world_setting?.locations ?? [];
-  for (const loc of worldLocations) {
-    if (loc.id && loc.name) {
-      map.set(loc.id, loc.name);
-    }
-  }
-  return map;
-});
-const fallbackLocationLabels: Record<string, string> = {
-  sect_valley: '宗门外谷',
-  sect: '宗门',
-  town: '城镇',
-  forest: '林地',
-  mountain: '山脉',
-};
-const formatLocationLabel = (raw?: string): string => {
-  if (!raw) {
-    return '未知';
-  }
-  const mapped = locationNameMap.value.get(raw);
-  if (mapped) {
-    return mapped;
-  }
-  if (fallbackLocationLabels[raw]) {
-    return fallbackLocationLabels[raw];
-  }
-  if (raw.includes('_')) {
-    return raw
-      .split('_')
-      .filter((part) => part.length > 0)
-      .map((part) => part[0].toUpperCase() + part.slice(1))
-      .join(' · ');
-  }
-  return raw;
-};
+const locationNameMap = computed(() =>
+  buildLocationLabelMap(
+    (gameStore.gameState?.script?.world_setting?.locations ?? []).map((loc) => ({
+      id: loc.id,
+      name: loc.name,
+    })),
+  ),
+);
 const currentLocationLabel = computed(() =>
-  formatLocationLabel(gameStore.playerCharacter?.location || gameStore.currentScene?.location),
+  formatLocationLabel(
+    gameStore.playerCharacter?.location || gameStore.currentScene?.location,
+    locationNameMap.value,
+  ),
 );
 const worldLocationList = computed(() => {
   return (gameStore.gameState?.script?.world_setting?.locations ?? []).map((loc) => ({

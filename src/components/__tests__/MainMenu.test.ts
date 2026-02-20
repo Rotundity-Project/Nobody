@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils';
+﻿import { mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import MainMenu from '../MainMenu.vue';
 
@@ -84,7 +84,7 @@ describe('MainMenu', () => {
         timestamp: 200,
         player_name: '无名弟子',
         realm: '炼气',
-        location: '宗门外谷',
+        location: 'sect_valley',
         game_time: '第1年1月',
       },
     ]);

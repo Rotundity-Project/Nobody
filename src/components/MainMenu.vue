@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="min-h-screen flex items-center justify-center px-4 py-8">
     <div class="panel-surface w-full max-w-3xl rounded-2xl p-6 sm:p-10">
       <div class="space-y-3 text-center">
@@ -45,7 +45,7 @@
           >
             槽位 {{ latestSave.slot_id }} · {{ latestSave.player_name }} · {{ latestSave.realm }}
             <br>
-            位置：{{ latestSave.location }} · 时间：{{ latestSave.game_time }}
+            位置：{{ latestSaveLocationLabel }} · 时间：{{ latestSave.game_time }}
           </p>
           <p
             v-else-if="recentSaveLoading"
@@ -106,7 +106,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import AudioControlPanel from './AudioControlPanel.vue';
 import LLMConfigDialog from './LLMConfigDialog.vue';
@@ -114,6 +114,7 @@ import SaveLoadDialog from './SaveLoadDialog.vue';
 import { playClick } from '../utils/audioSystem';
 import { useGameStore } from '../stores/gameStore';
 import type { SaveInfo } from '../types/game';
+import { formatLocationLabel } from '../shared/locationLabel';
 
 const router = useRouter();
 const gameStore = useGameStore();
@@ -125,6 +126,7 @@ const recentSaveLoading = ref(false);
 const quickLoadPending = ref(false);
 const recentSaveError = ref('');
 const latestSave = ref<SaveInfo | null>(null);
+const latestSaveLocationLabel = computed(() => formatLocationLabel(latestSave.value?.location));
 
 const fetchLatestSave = async () => {
   recentSaveLoading.value = true;

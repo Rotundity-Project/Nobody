@@ -8,7 +8,7 @@ exports[`visual snapshots > GameRuntimeView snapshot 1`] = `
     </div>
     <chapter-status-strip-stub chapterprogress="1 / 初入仙门" chapterinteraction="1 / 2-4" interactionstate="等待选项" optionsourcelabel="LLM-结构化" visible="true"></chapter-status-strip-stub>
     <div class="px-3 pb-2 pt-2 sm:px-5 md:px-6 xl:px-8">
-      <context-status-card-stub playername="无名弟子" playerrealm="炼气 (1-2)" chapterprogress="1 / 初入仙门" chapterinteraction="1 / 2-4" locationlabel="sect_valley" interactionstatelabel="等待选项" visible="true"></context-status-card-stub>
+      <context-status-card-stub playername="无名弟子" playerrealm="炼气 (1-2)" chapterprogress="1 / 初入仙门" chapterinteraction="1 / 2-4" locationlabel="山门" interactionstatelabel="等待选项" visible="true"></context-status-card-stub>
     </div>
     <div class="flex-1 overflow-hidden p-3 sm:p-5 md:p-6 xl:p-8">
       <div class="mx-auto h-full max-w-7xl">
@@ -45,19 +45,19 @@ exports[`visual snapshots > MainMenu snapshot 1`] = `
       <p class="text-lg sm:text-xl text-slate-300 font-story">修仙模拟器</p>
     </div>
     <div class="mt-8 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-      <div class="space-y-3"><button class="w-full sm:w-64 rounded-lg bg-amber-600 px-6 py-3 font-medium text-slate-900 transition-colors duration-200 hover:bg-amber-500"> 新游戏 </button><button class="w-full sm:w-64 rounded-lg bg-slate-700 px-6 py-3 font-medium text-slate-100 transition-colors duration-200 hover:bg-slate-600"> 继续游戏 </button><button class="w-full sm:w-64 rounded-lg bg-emerald-600 px-6 py-3 font-medium text-slate-900 transition-colors duration-200 hover:bg-emerald-500"> LLM 设置 </button>
+      <div class="space-y-3"><button data-testid="new-game-btn" class="w-full sm:w-64 rounded-lg bg-amber-600 px-6 py-3 font-medium text-slate-900 transition-colors duration-200 hover:bg-amber-500"> 新游戏 </button><button data-testid="continue-game-btn" class="w-full sm:w-64 rounded-lg bg-slate-700 px-6 py-3 font-medium text-slate-100 transition-colors duration-200 hover:bg-slate-600"> 读取存档 </button><button data-testid="llm-settings-btn" class="w-full sm:w-64 rounded-lg bg-emerald-600 px-6 py-3 font-medium text-slate-900 transition-colors duration-200 hover:bg-emerald-500"> LLM 设置 </button>
         <p class="pt-1 text-xs text-slate-400"> 建议流程：新游戏 -&gt; 选择剧本 -&gt; 进入主界面推进剧情 </p>
       </div>
       <div class="rounded-xl border border-slate-700 bg-slate-900/60 p-4">
         <h2 class="text-sm font-semibold text-slate-200">最近存档</h2>
-        <p class="mt-2 text-xs leading-5 text-slate-400"> 暂未接入主菜单读取存档槽位。你可以先进入游戏界面后通过“加载”按钮恢复进度。 </p><button class="mt-3 rounded-md border border-slate-600 px-3 py-1.5 text-xs text-slate-200 transition-colors hover:bg-slate-800"> 进入并继续 </button>
+        <p class="mt-2 text-xs leading-5 text-slate-400"> 当前没有可用存档。你可以开始新游戏后再保存进度。 </p>
+        <!--v-if-->
+        <div class="mt-3 flex flex-wrap gap-2"><button data-testid="recent-save-btn" class="rounded-md border border-slate-600 px-3 py-1.5 text-xs text-slate-200 transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60" disabled="">继续最近存档</button><button data-testid="open-audio-btn" class="rounded-md border border-amber-500/40 px-3 py-1.5 text-xs text-amber-100 transition-colors hover:bg-amber-500/10">音量控制</button></div>
       </div>
     </div>
-    <div class="mt-8 text-left">
-      <h2 class="text-sm font-semibold text-slate-300 mb-3">音频设置</h2>
-      <audio-control-panel-stub></audio-control-panel-stub>
-    </div>
+    <!--v-if-->
   </div>
+  <save-load-dialog-stub mode="load" isopen="false"></save-load-dialog-stub>
   <l-l-m-config-dialog-stub isopen="false"></l-l-m-config-dialog-stub>
 </div>"
 `;

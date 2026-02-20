@@ -1,4 +1,4 @@
-import { shallowMount } from '@vue/test-utils';
+﻿import { shallowMount } from '@vue/test-utils';
 import { describe, expect, it, vi } from 'vitest';
 import MainMenu from '../MainMenu.vue';
 import ScriptSelector from '../ScriptSelector.vue';
@@ -117,7 +117,7 @@ describe('visual snapshots', () => {
         playerName: '无名弟子',
         playerRealm: '炼气 (1-2)',
         playerCombatPower: '123',
-        playerLocation: 'sect_valley',
+        playerLocation: '山门',
         chapterProgress: '1 / 初入仙门',
         chapterInteraction: '1 / 2-4',
         segmentCount: 2,
@@ -127,6 +127,7 @@ describe('visual snapshots', () => {
         mapOverview: [],
         recentCombatExplanations: [],
         currentLocationId: 'sect_valley',
+        currentLocationLabel: '山门',
         isTraveling: false,
         isGameRunning: true,
         eventCount: 0,

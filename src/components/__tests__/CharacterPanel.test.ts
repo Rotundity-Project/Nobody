@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils';
+﻿import { mount } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
 import CharacterPanel from '../CharacterPanel.vue';
 import { Element, Grade, type Character } from '../../types/game';
