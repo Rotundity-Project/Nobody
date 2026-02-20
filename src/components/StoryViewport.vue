@@ -13,7 +13,8 @@
         <button
           data-testid="toggle-reading-locator"
           class="rounded bg-slate-700 px-2 py-0.5 text-[11px] text-slate-100 hover:bg-slate-600"
-          @click="showReadingLocatorDetails = !showReadingLocatorDetails"
+          :aria-expanded="showReadingLocatorDetails ? 'true' : 'false'"
+          @click="toggleReadingLocatorDetails"
         >
           {{ showReadingLocatorDetails ? '收起' : '展开' }}
         </button>
@@ -76,6 +77,7 @@ const props = defineProps<{
 const scrollElement = ref<HTMLElement | null>(null);
 const readingProgress = ref(0);
 const showReadingLocatorDetails = ref(true);
+const READING_LOCATOR_STORAGE_KEY = 'nobody_reading_locator_expanded';
 
 const showReadingLocator = computed(
   () => props.isGameInitialized && props.hasScene && props.paragraphs.length > 0,
@@ -97,6 +99,29 @@ const updateReadingProgress = () => {
   const maxScrollable = Math.max(1, el.scrollHeight - el.clientHeight);
   const ratio = el.scrollTop / maxScrollable;
   readingProgress.value = Math.max(0, Math.min(1, Number.isFinite(ratio) ? ratio : 0));
+};
+
+const getStoredLocatorExpanded = (): boolean | null => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  const raw = window.localStorage.getItem(READING_LOCATOR_STORAGE_KEY);
+  if (raw == null) {
+    return null;
+  }
+  return raw === '1';
+};
+
+const persistLocatorExpanded = (expanded: boolean) => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  window.localStorage.setItem(READING_LOCATOR_STORAGE_KEY, expanded ? '1' : '0');
+};
+
+const toggleReadingLocatorDetails = () => {
+  showReadingLocatorDetails.value = !showReadingLocatorDetails.value;
+  persistLocatorExpanded(showReadingLocatorDetails.value);
 };
 
 const scrollToTop = () => {
@@ -121,7 +146,10 @@ const scrollToBottom = () => {
 
 onMounted(() => {
   scrollElement.value?.addEventListener('scroll', updateReadingProgress, { passive: true });
-  if (
+  const stored = getStoredLocatorExpanded();
+  if (stored != null) {
+    showReadingLocatorDetails.value = stored;
+  } else if (
     typeof window !== 'undefined'
     && window.innerWidth > 0
     && window.innerWidth < 768

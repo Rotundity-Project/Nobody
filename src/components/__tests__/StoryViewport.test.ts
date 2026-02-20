@@ -1,5 +1,5 @@
 ﻿import { mount } from '@vue/test-utils';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import StoryViewport from '../StoryViewport.vue';
 
 const buildWrapper = () =>
@@ -22,6 +22,10 @@ const buildWrapper = () =>
   });
 
 describe('StoryViewport', () => {
+  beforeEach(() => {
+    window.localStorage.removeItem('nobody_reading_locator_expanded');
+  });
+
   it('renders container with expected classes', () => {
     const wrapper = buildWrapper();
     expect(wrapper.classes()).toContain('relative');
@@ -38,14 +42,22 @@ describe('StoryViewport', () => {
     const wrapper = buildWrapper();
     const toggleBtn = wrapper.get('[data-testid="toggle-reading-locator"]');
 
-    if (wrapper.text().includes('段落进度')) {
-      await toggleBtn.trigger('click');
-      expect(wrapper.text()).not.toContain('段落进度');
-      return;
-    }
+    expect(wrapper.text()).toContain('段落进度');
 
     await toggleBtn.trigger('click');
-    expect(wrapper.text()).toContain('段落进度');
+
+    expect(wrapper.text()).not.toContain('段落进度');
+    expect(window.localStorage.getItem('nobody_reading_locator_expanded')).toBe('0');
+    expect(toggleBtn.attributes('aria-expanded')).toBe('false');
+  });
+
+  it('restores locator details state from localStorage', async () => {
+    window.localStorage.setItem('nobody_reading_locator_expanded', '0');
+    const wrapper = buildWrapper();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.text()).not.toContain('段落进度');
+    expect(wrapper.get('[data-testid="toggle-reading-locator"]').attributes('aria-expanded')).toBe('false');
   });
 
   it('exposes scrollToBottom method', () => {
