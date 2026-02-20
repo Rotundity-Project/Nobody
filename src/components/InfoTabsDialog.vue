@@ -4,7 +4,7 @@
     class="fixed inset-0 z-50 bg-black/55"
     @click.self="$emit('close')"
   >
-    <aside class="absolute inset-y-0 right-0 w-full max-w-3xl border-l border-slate-700 bg-slate-950/95 p-5 backdrop-blur-xl">
+    <aside class="absolute inset-y-0 right-0 w-full sm:w-[92vw] lg:w-[68vw] xl:w-[56vw] max-w-3xl border-l border-slate-700 bg-slate-950/95 p-4 sm:p-5 backdrop-blur-xl">
       <UiPanel class="h-full overflow-y-auto">
         <div class="mb-4 flex items-center justify-between">
           <div>

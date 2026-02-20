@@ -1,7 +1,7 @@
 <template>
   <div
     ref="scrollElement"
-    class="relative flex-1 overflow-y-auto p-6 sm:p-8"
+    class="relative flex-1 overflow-y-auto p-4 sm:p-6 md:p-7 xl:p-8"
   >
     <div
       v-if="showReadingLocator"

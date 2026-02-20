@@ -1,7 +1,7 @@
 ﻿<template>
   <div class="min-h-screen text-white flex flex-col">
     <div class="flex-1 flex flex-col">
-      <div class="bg-slate-900/80 border-b border-slate-700 px-6 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between backdrop-blur">
+      <div class="bg-slate-900/80 border-b border-slate-700 px-3 py-3 sm:px-5 md:px-6 xl:px-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between backdrop-blur">
         <GameTopBar
           :is-system-menu-open="showSystemMenu"
           :show-audio-panel="showAudioPanel"
@@ -27,7 +27,7 @@
         :interaction-state="interactionStateLabel"
         :option-source-label="optionSourceLabel"
       />
-      <div class="px-4 pb-2 pt-2 sm:px-6 lg:px-8">
+      <div class="px-3 pb-2 pt-2 sm:px-5 md:px-6 xl:px-8">
         <ContextStatusCard
           :visible="gameStore.isGameInitialized"
           :player-name="gameStore.playerCharacter?.name || '无名弟子'"
@@ -39,7 +39,7 @@
         />
       </div>
 
-      <div class="flex-1 overflow-hidden p-4 sm:p-6 lg:p-8">
+      <div class="flex-1 overflow-hidden p-3 sm:p-5 md:p-6 xl:p-8">
         <div class="mx-auto h-full max-w-7xl">
           <div class="flex h-full min-h-0 flex-col rounded-2xl border border-slate-800/90 bg-slate-950/45">
             <StoryViewport
@@ -53,7 +53,7 @@
               :is-game-initialized="gameStore.isGameInitialized"
             />
 
-            <div class="border-t border-slate-700 bg-slate-900/80 p-6 backdrop-blur">
+            <div class="border-t border-slate-700 bg-slate-900/80 p-4 sm:p-5 md:p-6 backdrop-blur">
               <GameInteractionPanel
                 :should-show-input-panel="shouldShowInputPanel"
                 :error="gameStore.error"
