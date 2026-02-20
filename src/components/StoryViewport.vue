@@ -20,6 +20,7 @@
             class="rounded bg-slate-700 px-1.5 py-0.5 text-[10px] text-slate-100 hover:bg-slate-600 sm:px-2 sm:text-[11px]"
             :aria-expanded="showReadingLocatorDetails ? 'true' : 'false'"
             :aria-controls="READING_LOCATOR_DETAILS_ID"
+            :aria-label="showReadingLocatorDetails ? '收起阅读定位详情' : '展开阅读定位详情'"
             @click="toggleReadingLocatorDetails"
           >
             {{ showReadingLocatorDetails ? '收起' : '展开' }}
