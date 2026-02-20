@@ -410,6 +410,10 @@ describe('MainMenu', () => {
     expect(wrapper.get('[data-testid="quick-volume-status"]').attributes('aria-live')).toBe('polite');
     expect(wrapper.get('[data-testid="quick-volume-status"]').attributes('aria-atomic')).toBe('true');
     const audioToggle = wrapper.get('[data-testid="open-audio-btn"]');
+    expect(audioToggle.attributes('aria-label')).toContain('展开音量控制');
+    expect(audioToggle.attributes('aria-label')).toContain('当前音量 55%');
+    expect(audioToggle.attributes('aria-label')).toContain('BGM 开');
+    expect(audioToggle.attributes('aria-label')).toContain('音效 开');
     expect(audioToggle.attributes('aria-expanded')).toBe('false');
     expect(wrapper.find('#main-menu-audio-panel').exists()).toBe(false);
 
@@ -420,6 +424,8 @@ describe('MainMenu', () => {
     expect(wrapper.get('[data-testid="quick-volume-30-btn"]').classes()).toContain('border-emerald-400');
     expect(wrapper.get('[data-testid="quick-volume-30-btn"]').attributes('aria-pressed')).toBe('true');
     expect(wrapper.get('[data-testid="quick-volume-60-btn"]').attributes('aria-pressed')).toBe('false');
+    expect(audioToggle.attributes('aria-label')).toContain('收起音量控制');
+    expect(audioToggle.attributes('aria-label')).toContain('当前音量 30%');
     expect(audioToggle.attributes('aria-expanded')).toBe('true');
     expect(wrapper.find('#main-menu-audio-panel').exists()).toBe(true);
   });

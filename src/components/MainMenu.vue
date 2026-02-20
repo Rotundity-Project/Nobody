@@ -154,6 +154,7 @@
               type="button"
               data-testid="open-audio-btn"
               class="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-100 transition-colors hover:bg-amber-500/20"
+              :aria-label="audioPanelToggleAriaLabel"
               aria-controls="main-menu-audio-panel"
               :aria-expanded="showAudioPanel ? 'true' : 'false'"
               @click="toggleAudioPanel"
@@ -438,6 +439,15 @@ const recentSaveActionAriaLabel = computed(() => {
     return '继续最近存档，当前没有可用存档';
   }
   return `继续最近存档，槽位 ${latestSave.value.slot_id}`;
+});
+const audioPanelToggleAriaLabel = computed(() => {
+  const volumeLabel = quickMasterVolume.value <= 0
+    ? '当前已静音'
+    : `当前音量 ${Math.round(quickMasterVolume.value * 100)}%`;
+  const bgmLabel = quickBgmEnabled.value ? 'BGM 开' : 'BGM 关';
+  const sfxLabel = quickSfxEnabled.value ? '音效 开' : '音效 关';
+  const actionLabel = showAudioPanel.value ? '收起音量控制' : '展开音量控制';
+  return `${actionLabel}，${volumeLabel}，${bgmLabel}，${sfxLabel}`;
 });
 
 const fetchLatestSave = async () => {
