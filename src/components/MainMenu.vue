@@ -96,6 +96,7 @@
             class="mt-1 text-[11px]"
             :class="lastRefreshSucceeded ? 'text-emerald-300' : 'text-amber-300'"
             aria-live="polite"
+            aria-atomic="true"
           >
             刷新状态：{{ lastRefreshStatusLabel }}
           </p>
@@ -139,6 +140,7 @@
                 class="text-[11px]"
                 :class="quickMasterVolume <= 0 ? 'text-amber-200' : 'text-slate-400'"
                 aria-live="polite"
+                aria-atomic="true"
               >
                 {{ quickMasterVolume <= 0 ? '已静音' : `当前 ${Math.round(quickMasterVolume * 100)}%` }}
               </span>
