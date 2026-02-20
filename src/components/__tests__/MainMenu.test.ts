@@ -263,6 +263,7 @@ describe('MainMenu', () => {
     });
     expect(wrapper.find('#save-actions-heading').exists()).toBe(true);
     expect(wrapper.find('[role="group"][aria-labelledby="save-actions-heading"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="save-actions-group"]').exists()).toBe(true);
     const saveActionsGroup = wrapper.get('[role="group"][aria-labelledby="save-actions-heading"]');
     expect(saveActionsGroup.attributes('aria-describedby')).toContain('no-save-hint');
     expect(saveActionsGroup.attributes('aria-describedby')).toContain('recent-save-refresh-label');
@@ -338,6 +339,7 @@ describe('MainMenu', () => {
     });
     const quickVolumeGroup = wrapper.find('[role="group"][aria-label*="快捷音量预设"]');
     expect(quickVolumeGroup.exists()).toBe(true);
+    expect(wrapper.find('[data-testid="quick-audio-group"]').exists()).toBe(true);
     expect(wrapper.find('#quick-audio-heading').exists()).toBe(true);
     expect(quickVolumeGroup.attributes('aria-labelledby')).toBe('quick-audio-heading');
     expect(quickVolumeGroup.attributes('aria-describedby')).toBe('quick-volume-status');

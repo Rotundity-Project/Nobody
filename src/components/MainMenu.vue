@@ -153,6 +153,7 @@
               存档操作
             </p>
             <div
+              data-testid="save-actions-group"
               class="grid gap-2 sm:grid-cols-3"
               role="group"
               aria-labelledby="save-actions-heading"
@@ -217,6 +218,7 @@
               </span>
             </div>
             <div
+              data-testid="quick-audio-group"
               class="flex flex-wrap items-center gap-2"
               role="group"
               aria-labelledby="quick-audio-heading"
