@@ -1,4 +1,4 @@
-# UI Redesign Guide (V3)
+﻿# UI Redesign Guide (V3)
 
 ## 1. Scope
 This guide defines the V3 frontend architecture and UI conventions for Nobody.  

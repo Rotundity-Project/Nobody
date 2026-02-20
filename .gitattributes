@@ -1,0 +1,4 @@
+* text=auto
+
+# Keep Markdown as UTF-8 in git and normalize line endings.
+*.md text working-tree-encoding=UTF-8 eol=lf
