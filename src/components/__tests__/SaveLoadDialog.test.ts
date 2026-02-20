@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils';
+﻿import { mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { nextTick } from 'vue';
 import SaveLoadDialog from '../SaveLoadDialog.vue';
@@ -123,7 +123,7 @@ describe('SaveLoadDialog actions', () => {
         timestamp: 1,
         player_name: 'Lin',
         player_age: 16,
-        realm: '练气',
+        realm: '炼气',
         location: 'sect',
         game_time: '1-1-1',
       },
@@ -152,5 +152,6 @@ describe('SaveLoadDialog actions', () => {
 
     expect(loadGameMock).toHaveBeenCalledWith(1);
     expect(wrapper.emitted('loaded')).toBeTruthy();
+    expect(wrapper.text()).toContain('位置：宗门');
   });
 });

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div
     v-if="isOpen"
     class="fixed inset-0 flex items-center justify-center"
@@ -6,18 +6,18 @@
     @click.self="handleClose"
   >
     <div
-      class="panel-surface rounded-2xl p-8 max-w-2xl w-full max-h-[80vh] overflow-y-auto relative"
+      class="panel-surface relative max-h-[80vh] w-full max-w-2xl overflow-y-auto rounded-2xl p-8"
       style="z-index: 51;"
     >
-      <div class="flex items-center justify-between mb-6">
+      <div class="mb-6 flex items-center justify-between">
         <h2 class="text-2xl font-display text-amber-100">
           {{ mode === 'save' ? '保存游戏' : '加载游戏' }}
         </h2>
         <button
+          class="text-gray-400 transition-colors hover:text-white"
           @click="handleClose"
-          class="text-gray-400 hover:text-white transition-colors"
         >
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
@@ -27,7 +27,7 @@
         <div
           v-for="slot in saveSlots"
           :key="slot.id"
-          class="p-4 rounded-lg border-2 transition-all duration-200 cursor-pointer"
+          class="cursor-pointer rounded-lg border-2 p-4 transition-all duration-200"
           :class="[
             selectedSlot === slot.id
               ? 'border-purple-500 bg-slate-700'
@@ -37,16 +37,16 @@
         >
           <div class="flex items-center justify-between">
             <div class="flex-1">
-              <h3 class="text-lg font-semibold text-slate-100 mb-1">
+              <h3 class="mb-1 text-lg font-semibold text-slate-100">
                 存档槽 {{ slot.id }}
               </h3>
 
-              <div v-if="slot.data" class="text-sm text-slate-300 space-y-1">
+              <div v-if="slot.data" class="space-y-1 text-sm text-slate-300">
                 <p>角色：{{ slot.data.characterName }}</p>
                 <p>境界：{{ slot.data.realm }}</p>
-                <p>位置：{{ slot.data.location }}</p>
-                <p class="text-slate-400 text-xs">游戏时间：{{ slot.data.gameTime }}</p>
-                <p class="text-slate-400 text-xs">保存时间：{{ formatDate(slot.data.timestamp) }}</p>
+                <p>位置：{{ slot.data.locationLabel }}</p>
+                <p class="text-xs text-slate-400">游戏时间：{{ slot.data.gameTime }}</p>
+                <p class="text-xs text-slate-400">保存时间：{{ formatDate(slot.data.timestamp) }}</p>
               </div>
 
               <div v-else class="text-sm text-slate-500">
@@ -55,7 +55,7 @@
             </div>
 
             <div v-if="selectedSlot === slot.id" class="ml-4">
-              <svg class="w-6 h-6 text-purple-500" fill="currentColor" viewBox="0 0 20 20">
+              <svg class="h-6 w-6 text-purple-500" fill="currentColor" viewBox="0 0 20 20">
                 <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
               </svg>
             </div>
@@ -63,32 +63,32 @@
         </div>
       </div>
 
-      <div v-if="error" class="mt-4 p-3 bg-red-900 bg-opacity-50 border border-red-500 rounded-lg">
-        <p class="text-red-200 text-sm">{{ error }}</p>
+      <div v-if="error" class="mt-4 rounded-lg border border-red-500 bg-red-900 bg-opacity-50 p-3">
+        <p class="text-sm text-red-200">{{ error }}</p>
       </div>
 
       <div v-if="isLoading" class="mt-4">
         <LoadingIndicator :message="loadingMessage" detail="请保持窗口开启..." size="sm" />
       </div>
 
-      <div class="flex gap-3 mt-6">
+      <div class="mt-6 flex gap-3">
         <button
-          @click="handleConfirm"
-          :disabled="!canConfirm || isLoading"
-          class="flex-1 px-6 py-3 rounded-lg font-medium transition-colors duration-200"
+          class="flex-1 rounded-lg px-6 py-3 font-medium transition-colors duration-200"
           :class="[
             canConfirm && !isLoading
-              ? 'bg-amber-500 hover:bg-amber-400 text-slate-900'
-              : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+              ? 'bg-amber-500 text-slate-900 hover:bg-amber-400'
+              : 'cursor-not-allowed bg-gray-600 text-gray-400'
           ]"
+          :disabled="!canConfirm || isLoading"
+          @click="handleConfirm"
         >
           {{ mode === 'save' ? '保存' : '加载' }}
         </button>
 
         <button
-          @click="handleClose"
+          class="rounded-lg bg-slate-700 px-6 py-3 font-medium text-white transition-colors duration-200 hover:bg-slate-600"
           :disabled="isLoading"
-          class="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition-colors duration-200"
+          @click="handleClose"
         >
           取消
         </button>
@@ -102,6 +102,7 @@ import { computed, ref, watch } from 'vue';
 import { useGameStore } from '../stores/gameStore';
 import LoadingIndicator from './LoadingIndicator.vue';
 import { playClick } from '../utils/audioSystem';
+import { formatLocationLabel } from '../shared/locationLabel';
 
 interface Props {
   isOpen: boolean;
@@ -111,7 +112,7 @@ interface Props {
 interface SaveSlotData {
   characterName: string;
   realm: string;
-  location: string;
+  locationLabel: string;
   gameTime: string;
   timestamp: number;
 }
@@ -143,7 +144,7 @@ const saveSlots = ref<SaveSlot[]>([
 ]);
 
 const selectedSlotInfo = computed(
-  () => saveSlots.value.find((slot) => slot.id === selectedSlot.value) ?? null
+  () => saveSlots.value.find((slot) => slot.id === selectedSlot.value) ?? null,
 );
 
 const canConfirm = computed(() => {
@@ -164,7 +165,7 @@ watch(
       error.value = null;
       void loadSaveSlots();
     }
-  }
+  },
 );
 
 const loadSaveSlots = async () => {
@@ -178,11 +179,11 @@ const loadSaveSlots = async () => {
         {
           characterName: info.player_name,
           realm: info.realm,
-          location: info.location,
+          locationLabel: formatLocationLabel(info.location),
           gameTime: info.game_time,
           timestamp: info.timestamp * 1000,
         } as SaveSlotData,
-      ])
+      ]),
     );
 
     saveSlots.value = [1, 2, 3, 4, 5].map((id) => ({
@@ -218,8 +219,9 @@ const handleConfirm = async () => {
   try {
     isLoading.value = true;
     error.value = null;
-    loadingMessage.value =
-      props.mode === 'save' ? '正在保存到选定槽位...' : '正在从槽位加载...';
+    loadingMessage.value = props.mode === 'save'
+      ? '正在保存到选定槽位...'
+      : '正在从槽位加载...';
 
     if (props.mode === 'save') {
       await gameStore.saveGame(selectedSlot.value);
@@ -231,10 +233,9 @@ const handleConfirm = async () => {
 
     handleClose();
   } catch (err) {
-    error.value =
-      err instanceof Error
-        ? err.message
-        : `${props.mode === 'save' ? '保存' : '加载'}游戏失败`;
+    error.value = err instanceof Error
+      ? err.message
+      : `${props.mode === 'save' ? '保存' : '加载'}游戏失败`;
   } finally {
     isLoading.value = false;
     loadingMessage.value = '处理中...';

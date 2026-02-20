@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div
     v-if="visible"
     class="border-b border-slate-800/80 bg-slate-900/60 px-6 py-2"

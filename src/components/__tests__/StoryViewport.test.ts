@@ -42,13 +42,13 @@ describe('StoryViewport', () => {
     const wrapper = buildWrapper();
     const toggleBtn = wrapper.get('[data-testid="toggle-reading-locator"]');
 
-    expect(wrapper.text()).toContain('段落进度');
+    expect(wrapper.text()).not.toContain('段落进度');
 
     await toggleBtn.trigger('click');
 
-    expect(wrapper.text()).not.toContain('段落进度');
-    expect(window.localStorage.getItem('nobody_reading_locator_expanded')).toBe('0');
-    expect(toggleBtn.attributes('aria-expanded')).toBe('false');
+    expect(wrapper.text()).toContain('段落进度');
+    expect(window.localStorage.getItem('nobody_reading_locator_expanded')).toBe('1');
+    expect(toggleBtn.attributes('aria-expanded')).toBe('true');
   });
 
   it('restores locator details state from localStorage', async () => {

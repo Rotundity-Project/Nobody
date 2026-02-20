@@ -1,12 +1,12 @@
 ﻿<template>
   <div
     ref="scrollElement"
-    class="relative flex-1 overflow-y-auto px-4 pb-5 pt-2 sm:px-6 sm:pb-6 sm:pt-3 md:px-7 md:pb-7 md:pt-3 xl:px-8 xl:pb-8 xl:pt-4"
+    class="relative flex-1 overflow-y-auto px-4 pb-5 pt-0 sm:px-6 sm:pb-6 sm:pt-1 md:px-7 md:pb-7 md:pt-1 xl:px-8 xl:pb-8 xl:pt-2"
   >
     <div
       v-if="showReadingLocator"
       data-testid="reading-locator"
-      class="absolute right-4 top-3 z-10 w-fit rounded-lg border border-slate-700 bg-slate-900/85 px-3 py-2 text-xs text-slate-200 backdrop-blur"
+      class="absolute right-4 top-2 z-10 w-fit rounded-lg border border-slate-700 bg-slate-900/85 px-3 py-2 text-xs text-slate-200 backdrop-blur"
     >
       <div class="flex items-center justify-between gap-3">
         <p>阅读定位：{{ readingProgressPercent }}%</p>
@@ -25,18 +25,18 @@
       >
         <p>段落进度：{{ currentParagraphIndex }} / {{ paragraphs.length }}</p>
         <div class="flex gap-2">
-        <button
-          class="rounded bg-slate-700 px-2 py-1 text-[11px] text-slate-100 hover:bg-slate-600"
-          @click="scrollToTop"
-        >
-          顶部
-        </button>
-        <button
-          class="rounded bg-slate-700 px-2 py-1 text-[11px] text-slate-100 hover:bg-slate-600"
-          @click="scrollToBottom"
-        >
-          底部
-        </button>
+          <button
+            class="rounded bg-slate-700 px-2 py-1 text-[11px] text-slate-100 hover:bg-slate-600"
+            @click="scrollToTop"
+          >
+            顶部
+          </button>
+          <button
+            class="rounded bg-slate-700 px-2 py-1 text-[11px] text-slate-100 hover:bg-slate-600"
+            @click="scrollToBottom"
+          >
+            底部
+          </button>
         </div>
       </div>
     </div>
@@ -76,7 +76,7 @@ const props = defineProps<{
 
 const scrollElement = ref<HTMLElement | null>(null);
 const readingProgress = ref(0);
-const showReadingLocatorDetails = ref(true);
+const showReadingLocatorDetails = ref(false);
 const READING_LOCATOR_STORAGE_KEY = 'nobody_reading_locator_expanded';
 
 const showReadingLocator = computed(
@@ -149,12 +149,6 @@ onMounted(() => {
   const stored = getStoredLocatorExpanded();
   if (stored != null) {
     showReadingLocatorDetails.value = stored;
-  } else if (
-    typeof window !== 'undefined'
-    && window.innerWidth > 0
-    && window.innerWidth < 768
-  ) {
-    showReadingLocatorDetails.value = false;
   }
   updateReadingProgress();
 });
