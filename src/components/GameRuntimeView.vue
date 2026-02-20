@@ -435,8 +435,28 @@ const mobileInteractionShortLabel = computed(() => {
   };
   return mapping[plotInteractionState.value] ?? interactionStateLabel.value;
 });
+const buildMobileStatusSummary = (
+  chapterProgress: string,
+  location: string,
+  interaction: string,
+): string => {
+  const parts = [chapterProgress.trim()];
+  const normalizedLocation = location.trim();
+  if (normalizedLocation && normalizedLocation !== '未知') {
+    parts.push(normalizedLocation);
+  }
+  if (interaction.trim()) {
+    parts.push(interaction.trim());
+  }
+  return parts.join(' · ');
+};
 const mobileStatusSummary = computed(
-  () => `${chapterProgressLabel.value} · ${currentLocationLabel.value} · ${mobileInteractionShortLabel.value}`,
+  () =>
+    buildMobileStatusSummary(
+      chapterProgressLabel.value,
+      currentLocationLabel.value,
+      mobileInteractionShortLabel.value,
+    ),
 );
 const consistencyRiskScore = computed(() => {
   const structured = gameStore.plotState?.last_consistency_risk_score;

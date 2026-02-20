@@ -455,6 +455,42 @@ describe('GameView', () => {
     expect(toggleBtn.attributes('aria-expanded')).toBe('true');
   });
 
+  it('omits unknown location from mobile summary text', () => {
+    storeRef = buildStore({
+      currentScene: null,
+      playerCharacter: {
+        name: '无名弟子',
+        location: '',
+        stats: {
+          cultivation_realm: { name: '炼气', level: 1, sub_level: 2 },
+          combat_power: 123,
+        },
+      },
+      plotState: {
+        current_chapter: {
+          index: 2,
+          title: '云海试炼',
+          content: ['段落'],
+          interaction_count: 1,
+        },
+        chapters: [],
+        settings: {
+          min_interactions_per_chapter: 2,
+          max_interactions_per_chapter: 4,
+        },
+        interaction_state: 'waiting_for_choice',
+        last_option_generation_source: 'llm_structured',
+      } as any,
+    });
+
+    const wrapper = mount(GameView);
+    const summaryText = wrapper.get('[data-testid="mobile-status-summary-text"]').text();
+    expect(summaryText).toContain('2 / 云海试炼');
+    expect(summaryText).toContain('选项');
+    expect(summaryText).not.toContain('未知');
+    expect(summaryText).not.toContain(' ·  · ');
+  });
+
   it('toggles mobile status card by keyboard on summary bar', async () => {
     const wrapper = mount(GameView);
     const summaryBar = wrapper.get('[data-testid="mobile-status-summary-bar"]');
