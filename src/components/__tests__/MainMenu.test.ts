@@ -424,6 +424,9 @@ describe('MainMenu', () => {
 
     expect(wrapper.get('[data-testid="recent-save-refresh-label"]').text()).toContain('最近刷新：');
     expect(wrapper.get('[data-testid="recent-save-refresh-label"]').attributes('id')).toBe('recent-save-refresh-label');
+    expect(wrapper.get('[data-testid="recent-save-refresh-label"]').attributes('role')).toBe('status');
+    expect(wrapper.get('[data-testid="recent-save-refresh-label"]').attributes('aria-live')).toBe('polite');
+    expect(wrapper.get('[data-testid="recent-save-refresh-label"]').attributes('aria-atomic')).toBe('true');
     expect(wrapper.get('[data-testid="recent-save-refresh-label"]').text()).toMatch(/刚刚|秒前|分钟前/);
     expect(wrapper.get('[data-testid="recent-save-refresh-status"]').text()).toContain('刷新状态：成功');
     expect(wrapper.get('[data-testid="recent-save-refresh-status"]').attributes('id')).toBe('recent-save-refresh-status');

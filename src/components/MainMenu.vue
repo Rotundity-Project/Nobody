@@ -125,6 +125,9 @@
             id="recent-save-refresh-label"
             data-testid="recent-save-refresh-label"
             class="mt-2 text-[11px] text-slate-500"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
           >
             最近刷新：{{ lastRefreshLabel }}（{{ relativeRefreshLabel }}）
           </p>
