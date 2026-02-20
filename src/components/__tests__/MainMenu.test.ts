@@ -179,6 +179,8 @@ describe('MainMenu', () => {
     expect(setMasterVolumeMock).toHaveBeenCalledWith(0.6);
     expect(wrapper.get('[data-testid="quick-volume-status"]').text()).toContain('当前 60%');
     expect(wrapper.get('[data-testid="quick-volume-60-btn"]').classes()).toContain('border-emerald-400');
+    expect(wrapper.get('[data-testid="quick-volume-60-btn"]').attributes('aria-pressed')).toBe('true');
+    expect(wrapper.get('[data-testid="quick-volume-30-btn"]').attributes('aria-pressed')).toBe('false');
 
     await wrapper.get('[data-testid="quick-mute-btn"]').trigger('click');
     expect(setMasterVolumeMock).toHaveBeenCalledWith(0);
@@ -194,6 +196,8 @@ describe('MainMenu', () => {
     expect(setMasterVolumeMock).toHaveBeenCalledWith(1);
     expect(wrapper.get('[data-testid="quick-volume-status"]').text()).toContain('当前 100%');
     expect(wrapper.get('[data-testid="quick-volume-100-btn"]').classes()).toContain('border-emerald-400');
+    expect(wrapper.get('[data-testid="quick-volume-100-btn"]').attributes('aria-pressed')).toBe('true');
+    expect(wrapper.get('[data-testid="quick-volume-60-btn"]').attributes('aria-pressed')).toBe('false');
   });
 
   it('toggles quick bgm and sfx buttons', async () => {
@@ -266,6 +270,8 @@ describe('MainMenu', () => {
 
     expect(wrapper.get('[data-testid="quick-volume-status"]').text()).toContain('当前 30%');
     expect(wrapper.get('[data-testid="quick-volume-30-btn"]').classes()).toContain('border-emerald-400');
+    expect(wrapper.get('[data-testid="quick-volume-30-btn"]').attributes('aria-pressed')).toBe('true');
+    expect(wrapper.get('[data-testid="quick-volume-60-btn"]').attributes('aria-pressed')).toBe('false');
     expect(audioToggle.attributes('aria-expanded')).toBe('true');
     expect(wrapper.find('#main-menu-audio-panel').exists()).toBe(true);
   });

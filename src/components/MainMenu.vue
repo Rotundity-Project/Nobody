@@ -156,6 +156,7 @@
               :class="isActiveQuickVolume(0.3)
                 ? 'border-emerald-400 bg-emerald-500/15 text-emerald-200'
                 : 'border-slate-600 text-slate-200 hover:bg-slate-800'"
+              :aria-pressed="isActiveQuickVolume(0.3) ? 'true' : 'false'"
               @click="applyQuickVolume(0.3)"
             >
               30%
@@ -166,6 +167,7 @@
               :class="isActiveQuickVolume(0.6)
                 ? 'border-emerald-400 bg-emerald-500/15 text-emerald-200'
                 : 'border-slate-600 text-slate-200 hover:bg-slate-800'"
+              :aria-pressed="isActiveQuickVolume(0.6) ? 'true' : 'false'"
               @click="applyQuickVolume(0.6)"
             >
               60%
@@ -176,6 +178,7 @@
               :class="isActiveQuickVolume(1)
                 ? 'border-emerald-400 bg-emerald-500/15 text-emerald-200'
                 : 'border-slate-600 text-slate-200 hover:bg-slate-800'"
+              :aria-pressed="isActiveQuickVolume(1) ? 'true' : 'false'"
               @click="applyQuickVolume(1)"
             >
               100%
