@@ -30,7 +30,7 @@ const LOCATION_TOKEN_LABELS: Record<string, string> = {
 };
 
 const normalizeLocationId = (raw: string): string =>
-  raw.trim().toLowerCase().replace(/-/g, '_');
+  raw.trim().toLowerCase().replace(/[-\s]+/g, '_');
 
 const isChineseToken = (value: string): boolean => /[\u4e00-\u9fff]/.test(value);
 
@@ -63,6 +63,11 @@ export const formatLocationLabel = (
   const fallback = FALLBACK_LOCATION_LABELS[normalized];
   if (fallback) {
     return fallback;
+  }
+
+  const singleTokenLabel = LOCATION_TOKEN_LABELS[normalized];
+  if (singleTokenLabel) {
+    return singleTokenLabel;
   }
 
   if (normalized.includes('_')) {
