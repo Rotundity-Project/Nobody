@@ -1,6 +1,8 @@
 export interface StorySettings {
   recap_enabled: boolean;
   novel_style: string;
+  llm_priority_mode: boolean;
+  llm_strict_mode: boolean;
   min_interactions_per_chapter: number;
   max_interactions_per_chapter: number;
   target_chapter_words_min: number;
@@ -11,7 +13,9 @@ const STORAGE_KEY = 'nobody_story_settings';
 
 const defaultSettings: StorySettings = {
   recap_enabled: true,
-  novel_style: '修仙白话·第三人称',
+  novel_style: 'xianxia-third-person',
+  llm_priority_mode: true,
+  llm_strict_mode: true,
   min_interactions_per_chapter: 2,
   max_interactions_per_chapter: 3,
   target_chapter_words_min: 5000,
@@ -35,6 +39,14 @@ export const getStorySettings = (): StorySettings => {
         typeof parsed.novel_style === 'string'
           ? parsed.novel_style
           : defaultSettings.novel_style,
+      llm_priority_mode:
+        typeof parsed.llm_priority_mode === 'boolean'
+          ? parsed.llm_priority_mode
+          : defaultSettings.llm_priority_mode,
+      llm_strict_mode:
+        typeof parsed.llm_strict_mode === 'boolean'
+          ? parsed.llm_strict_mode
+          : defaultSettings.llm_strict_mode,
       min_interactions_per_chapter:
         typeof parsed.min_interactions_per_chapter === 'number'
           ? parsed.min_interactions_per_chapter

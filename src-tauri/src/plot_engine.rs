@@ -1,6 +1,6 @@
 ﻿use crate::models::CharacterStats;
 use crate::llm_runtime_config::resolve_llm_config;
-use crate::llm_service::{LLMRequest, LLMService};
+use crate::llm_service::{LLMRequest, LLMService, LLMServiceError};
 use crate::numerical_system::{Action, ActionResult, Context, NumericalSystem};
 use crate::prompt_builder::{PromptBuilder, PromptConstraints, PromptContext, PromptTemplate};
 use crate::response_validator::{ResponseValidator, ValidationConstraints};
@@ -50,10 +50,22 @@ pub struct Scene {
 pub struct PlotSettings {
     pub recap_enabled: bool,
     pub novel_style: String,
+    #[serde(default = "default_llm_priority_mode")]
+    pub llm_priority_mode: bool,
+    #[serde(default = "default_llm_strict_mode")]
+    pub llm_strict_mode: bool,
     pub min_interactions_per_chapter: u8,
     pub max_interactions_per_chapter: u8,
     pub target_chapter_words_min: u32,
     pub target_chapter_words_max: u32,
+}
+
+fn default_llm_priority_mode() -> bool {
+    true
+}
+
+fn default_llm_strict_mode() -> bool {
+    true
 }
 
 impl Default for PlotSettings {
@@ -61,6 +73,8 @@ impl Default for PlotSettings {
         Self {
             recap_enabled: true,
             novel_style: "修仙白话·第三人称".to_string(),
+            llm_priority_mode: true,
+            llm_strict_mode: true,
             min_interactions_per_chapter: 2,
             max_interactions_per_chapter: 3,
             target_chapter_words_min: 5000,
@@ -212,6 +226,17 @@ impl PlotEngine {
             ))
             .ok()
             .and_then(Result::ok)
+    }
+
+    fn llm_error_reason(err: &LLMServiceError) -> String {
+        match err {
+            LLMServiceError::Timeout => "请求超时".to_string(),
+            LLMServiceError::Api(msg) => format!("API 错误({msg})"),
+            LLMServiceError::Http(http) => format!("HTTP 错误({http})"),
+            LLMServiceError::InvalidResponse(msg) => format!("响应解析失败({msg})"),
+            LLMServiceError::InvalidRequest(msg) => format!("请求参数无效({msg})"),
+            LLMServiceError::InvalidConfig(msg) => format!("配置无效({msg})"),
+        }
     }
 
     fn extract_json_value(&self, raw: &str) -> Option<Value> {
@@ -449,6 +474,158 @@ impl PlotEngine {
         trimmed.to_string()
     }
 
+    fn truncate_chars(&self, text: &str, max_chars: usize) -> String {
+        let mut out = String::new();
+        for (idx, ch) in text.chars().enumerate() {
+            if idx >= max_chars {
+                break;
+            }
+            out.push(ch);
+        }
+        out
+    }
+
+    fn count_fact_anchors(&self, text: &str) -> usize {
+        let anchors = [
+            "获得", "失去", "消耗", "到达", "离开", "位于", "灵石", "功法", "背包", "境界", "关系",
+            "伤势", "地图", "地点", "目标", "资源", "线索", "时辰", "天后", "日后",
+        ];
+        let mut hits = 0usize;
+        for anchor in anchors {
+            hits += text.match_indices(anchor).count();
+        }
+        if text.chars().any(|c| c.is_ascii_digit()) {
+            hits += 1;
+        }
+        hits
+    }
+
+    fn validate_story_text_contract(&self, text: &str) -> Result<(), String> {
+        let chars = text.chars().count();
+        if !(700..=1000).contains(&chars) {
+            return Err(format!("segment_text 字数为 {}，未命中 700-1000", chars));
+        }
+        let required_fact_hits = (chars / 140).max(2);
+        let fact_hits = self.count_fact_anchors(text);
+        if fact_hits < required_fact_hits {
+            return Err(format!(
+                "segment_text 事实锚点不足：{} < {}",
+                fact_hits, required_fact_hits
+            ));
+        }
+        Ok(())
+    }
+
+    fn parse_chapter_segment_response(&self, raw: &str) -> Result<ChapterSegment, String> {
+        if let Some(value) = self.extract_json_value(raw) {
+            let text = self
+                .compose_segment_text_from_json(&value)
+                .unwrap_or_default();
+            let text = self.normalize_story_text(&text);
+            let needs_player_input = value
+                .get("needs_player_input")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
+            let chapter_end = value
+                .get("chapter_end")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
+            let chapter_title = value
+                .get("chapter_title")
+                .and_then(Value::as_str)
+                .map(|s| s.trim().to_string());
+            let chapter_summary = value
+                .get("chapter_summary")
+                .and_then(Value::as_str)
+                .map(|s| s.trim().to_string());
+            let options = value
+                .get("options")
+                .and_then(Value::as_array)
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(|s| s.trim().to_string()))
+                        .filter(|s| !s.is_empty())
+                        .take(4)
+                        .collect::<Vec<String>>()
+                })
+                .unwrap_or_default();
+
+            if text.is_empty() {
+                return Err("segment_text 为空".to_string());
+            }
+            self.validate_story_text_contract(&text)?;
+            if needs_player_input && options.len() < 2 {
+                return Err("needs_player_input=true 但 options 少于 2 个".to_string());
+            }
+            return Ok(ChapterSegment {
+                text,
+                needs_player_input,
+                chapter_end,
+                chapter_title,
+                chapter_summary,
+                options,
+                generation_diagnostics: None,
+            });
+        }
+
+        if let Some(text) = self.extract_string_field_raw(raw, "segment_text") {
+            let text = self.normalize_story_text(&text);
+            let needs_player_input = self
+                .extract_bool_field_raw(raw, "needs_player_input")
+                .unwrap_or(true);
+            let chapter_end = self.extract_bool_field_raw(raw, "chapter_end").unwrap_or(false);
+            let chapter_title = self.extract_string_field_raw(raw, "chapter_title");
+            let chapter_summary = self.extract_string_field_raw(raw, "chapter_summary");
+            let options = self.extract_options_field_raw(raw);
+            self.validate_story_text_contract(&text)?;
+            if needs_player_input && options.len() < 2 {
+                return Err("needs_player_input=true 但 options 少于 2 个".to_string());
+            }
+            return Ok(ChapterSegment {
+                text,
+                needs_player_input,
+                chapter_end,
+                chapter_title,
+                chapter_summary,
+                options,
+                generation_diagnostics: None,
+            });
+        }
+
+        if let Some(text) = self.sanitize_llm_plain_text(raw) {
+            let text = self.normalize_story_text(&text);
+            self.validate_story_text_contract(&text)?;
+            return Ok(ChapterSegment {
+                text,
+                needs_player_input: true,
+                chapter_end: false,
+                chapter_title: None,
+                chapter_summary: None,
+                options: vec![],
+                generation_diagnostics: None,
+            });
+        }
+
+        Err("LLM 返回内容无法解析为剧情文本".to_string())
+    }
+
+    fn parse_plain_text_response(&self, raw: &str) -> Result<String, String> {
+        if let Some(value) = self.extract_json_value(raw) {
+            if let Some(text) = self.compose_segment_text_from_json(&value) {
+                let normalized = self.normalize_story_text(&text);
+                self.validate_story_text_contract(&normalized)?;
+                return Ok(normalized);
+            }
+        }
+        let text = self
+            .sanitize_llm_plain_text(raw)
+            .map(|text| self.normalize_story_text(&text))
+            .filter(|text| !text.is_empty())
+            .ok_or_else(|| "LLM 返回内容无法解析为纯文本剧情".to_string())?;
+        self.validate_story_text_contract(&text)?;
+        Ok(text)
+    }
+
     fn find_matching_option_by_text<'a>(
         &self,
         free_text: &str,
@@ -628,7 +805,10 @@ impl PlotEngine {
             return self.apply_chapter_segment_rules(current_state, segment);
         }
 
-        if let Some(text) = self.generate_plot_text_with_llm(current_state, action_result) {
+        let (plain_text, plain_reason) = self
+            .generate_plot_text_with_llm_async(current_state, action_result)
+            .await;
+        if let Some(text) = plain_text {
             return self.apply_chapter_segment_rules(
                 current_state,
                 ChapterSegment {
@@ -638,17 +818,21 @@ impl PlotEngine {
                     chapter_title: None,
                     chapter_summary: None,
                     options: vec![],
-                    generation_diagnostics: llm_reason.map(|reason| {
-                        format!("回退：{}；已降级为纯文本续写", reason)
+                    generation_diagnostics: Some(match llm_reason {
+                        Some(reason) => format!("回退：{}；已降级为纯文本续写", reason),
+                        None => "已降级为纯文本续写".to_string(),
                     }),
                 },
             );
         }
 
         let text = self.generate_plot_text_fallback(current_state, action_result);
-        let fallback_reason = llm_reason.unwrap_or_else(|| {
-            "LLM 续写不可用（可能无配置或返回不可解析）".to_string()
-        });
+        let fallback_reason = match (llm_reason, plain_reason) {
+            (Some(s), Some(p)) => format!("{s}；纯文本续写失败({p})"),
+            (Some(s), None) => s,
+            (None, Some(p)) => format!("纯文本续写失败({p})"),
+            (None, None) => "LLM 续写不可用（可能无配置或返回不可解析）".to_string(),
+        };
         ChapterSegment {
             text,
             needs_player_input: true,
@@ -743,7 +927,7 @@ impl PlotEngine {
             actor_combat_power: None,
             history_events: action_result.events.clone(),
             world_setting_summary: Some(format!(
-                "小说风格：{}；请生成一段承接剧情的小说文本。玩家每章需要 2-3 次互动。",
+                "小说风格：{}；参考设定文档 78 与补充稿，采用克制、具体、可验证的修仙叙事。请生成一段承接剧情的小说文本。玩家每章需要 2-3 次互动。",
                 settings.novel_style
             )),
         };
@@ -887,6 +1071,7 @@ impl PlotEngine {
             None => return (None, Some("未检测到可用 LLM 配置".to_string())),
         };
         let settings = &current_state.settings;
+        let llm_priority_mode = settings.llm_priority_mode;
         let recent_segments = current_state
             .current_chapter
             .content
@@ -925,7 +1110,11 @@ impl PlotEngine {
                 "segment_text 必须为中文小说叙事".to_string(),
                 "segment_text 不要包含选项列表".to_string(),
                 "不要复述或改写已出现的段落".to_string(),
-                "每次输出 320-560 字".to_string(),
+                "每次输出 700-1000 字".to_string(),
+                "语言平实克制，禁止空泛口号与夸张修辞".to_string(),
+                "每120字至少包含1个可验证事实（位置/物品/关系/状态变化）".to_string(),
+                "必须包含环境、动作、心理三类细节中的至少两类".to_string(),
+                "出现新人物/地点/功法/物品时，命名要稳定且可追踪".to_string(),
                 "needs_player_input 为 true 时，必须给出 2-4 个 options".to_string(),
                 "chapter_end 仅在章节接近尾声时为 true".to_string(),
             ],
@@ -934,9 +1123,15 @@ impl PlotEngine {
             ),
         };
 
-        // Low-latency profile: keep output budget controlled to reduce tail latency.
-        let output_max = llm_service.api_config.max_tokens.clamp(220, 420);
-        let prompt_limit = output_max.saturating_mul(6);
+        // Prefer LLM storyline quality when enabled: allow longer wait and larger output budget.
+        let output_max = if llm_priority_mode {
+            llm_service.api_config.max_tokens.clamp(1100, 1800)
+        } else {
+            llm_service.api_config.max_tokens.clamp(900, 1500)
+        };
+        let prompt_limit = output_max.saturating_mul(if llm_priority_mode { 10 } else { 8 });
+        let primary_timeout_secs: u64 = if llm_priority_mode { 28 } else { 20 };
+        let retry_timeout_secs: u64 = if llm_priority_mode { 16 } else { 12 };
 
         let prompt = self.prompt_builder.build_prompt_with_token_limit(
             PromptTemplate::PlotGeneration,
@@ -946,7 +1141,7 @@ impl PlotEngine {
         );
 
         let response = match tokio::time::timeout(
-            Duration::from_secs(20),
+            Duration::from_secs(primary_timeout_secs),
             llm_service.generate(LLMRequest {
                 prompt: prompt.clone(),
                 max_tokens: Some(output_max),
@@ -956,7 +1151,7 @@ impl PlotEngine {
         .await
         {
             Ok(Ok(resp)) => resp,
-            _ => {
+            Ok(Err(first_err)) => {
                 let retry_prompt = self.prompt_builder.build_prompt_with_token_limit(
                     PromptTemplate::PlotGeneration,
                     &context,
@@ -969,7 +1164,10 @@ impl PlotEngine {
                             "segment_text 必须为中文小说叙事".to_string(),
                             "segment_text 不要包含选项列表".to_string(),
                             "不要复述或改写已出现的段落".to_string(),
-                            "每次输出 260-420 字".to_string(),
+                            "每次输出 700-1000 字".to_string(),
+                            "语言平实克制，禁止空泛口号与夸张修辞".to_string(),
+                            "每120字至少包含1个可验证事实（位置/物品/关系/状态变化）".to_string(),
+                            "必须包含环境、动作、心理三类细节中的至少两类".to_string(),
                             "needs_player_input 为 true 时，必须给出 2-4 个 options".to_string(),
                         ],
                         output_schema_hint: Some(
@@ -979,19 +1177,38 @@ impl PlotEngine {
                     output_max.saturating_mul(3),
                 );
                 match tokio::time::timeout(
-                    Duration::from_secs(12),
+                    Duration::from_secs(retry_timeout_secs),
                     llm_service.generate(LLMRequest {
                         prompt: retry_prompt,
-                        max_tokens: Some(output_max.saturating_div(2).max(180)),
+                        max_tokens: Some(output_max),
                         temperature: Some(0.7),
                     }),
                 )
                 .await
                 {
                     Ok(Ok(resp)) => resp,
-                    _ => return (None, Some("LLM 结构化剧情生成超时或请求失败".to_string())),
+                    Ok(Err(retry_err)) => {
+                        return (
+                            None,
+                            Some(format!(
+                                "LLM 结构化剧情生成失败({})；重试失败({})",
+                                Self::llm_error_reason(&first_err),
+                                Self::llm_error_reason(&retry_err)
+                            )),
+                        );
+                    }
+                    Err(_) => {
+                        return (
+                            None,
+                            Some(format!(
+                                "LLM 结构化剧情生成失败({})；重试失败(请求超时)",
+                                Self::llm_error_reason(&first_err)
+                            )),
+                        );
+                    }
                 }
             }
+            Err(_) => return (None, Some("LLM 结构化剧情生成超时".to_string())),
         };
 
         if self
@@ -1011,100 +1228,100 @@ impl PlotEngine {
             return (None, Some("LLM 返回内容校验失败".to_string()));
         }
 
-        if let Some(value) = self.extract_json_value(&response.text) {
-            let text = self
-                .compose_segment_text_from_json(&value)
-                .unwrap_or_default();
-            let text = self.normalize_story_text(&text);
-            let needs_player_input = value
-                .get("needs_player_input")
-                .and_then(Value::as_bool)
-                .unwrap_or(false);
-            let chapter_end = value
-                .get("chapter_end")
-                .and_then(Value::as_bool)
-                .unwrap_or(false);
-            let chapter_title = value
-                .get("chapter_title")
-                .and_then(Value::as_str)
-                .map(|s| s.trim().to_string());
-            let chapter_summary = value
-                .get("chapter_summary")
-                .and_then(Value::as_str)
-                .map(|s| s.trim().to_string());
-            let options = value
-                .get("options")
-                .and_then(Value::as_array)
-                .map(|arr| {
-                    arr.iter()
-                        .filter_map(|v| v.as_str().map(|s| s.trim().to_string()))
-                        .filter(|s| !s.is_empty())
-                        .collect::<Vec<String>>()
-                })
-                .unwrap_or_default();
+        if let Ok(segment) = self.parse_chapter_segment_response(&response.text) {
+            return (Some(segment), None);
+        }
+        let parse_err = match self.parse_chapter_segment_response(&response.text) {
+            Ok(segment) => return (Some(segment), None),
+            Err(err) => err,
+        };
 
-            if !text.is_empty() {
-                return (Some(ChapterSegment {
-                    text,
-                    needs_player_input,
-                    chapter_end,
-                    chapter_title,
-                    chapter_summary,
-                    options,
-                    generation_diagnostics: None,
-                }), None);
+        let retry_context = PromptContext {
+            scene: Some(format!(
+                "{}。上次输出校验失败：{}。上次输出片段：{}",
+                context.scene.clone().unwrap_or_default(),
+                parse_err,
+                self.truncate_chars(&response.text, 320)
+            )),
+            ..context.clone()
+        };
+        let mut retry_constraints = constraints.clone();
+        retry_constraints
+            .world_rules
+            .push("修复上次错误并返回完整 JSON，不要解释".to_string());
+        retry_constraints
+            .world_rules
+            .push("segment_text 必须 700-1000 字，且保持事实密度".to_string());
+        let repair_prompt = self.prompt_builder.build_prompt_with_token_limit(
+            PromptTemplate::PlotGeneration,
+            &retry_context,
+            &retry_constraints,
+            output_max.saturating_mul(3),
+        );
+
+        let repair_response = match tokio::time::timeout(
+            Duration::from_secs(retry_timeout_secs),
+            llm_service.generate(LLMRequest {
+                prompt: repair_prompt,
+                max_tokens: Some(output_max),
+                temperature: Some(0.65),
+            }),
+        )
+        .await
+        {
+            Ok(Ok(resp)) => resp,
+            Ok(Err(err)) => {
+                return (
+                    None,
+                    Some(format!(
+                        "LLM 结构化剧情校验失败({})；修复请求失败({})",
+                        parse_err,
+                        Self::llm_error_reason(&err)
+                    )),
+                )
             }
-        }
-
-        if let Some(text) = self.extract_string_field_raw(&response.text, "segment_text") {
-            let text = self.normalize_story_text(&text);
-            let needs_player_input = self
-                .extract_bool_field_raw(&response.text, "needs_player_input")
-                .unwrap_or(true);
-            let chapter_end = self
-                .extract_bool_field_raw(&response.text, "chapter_end")
-                .unwrap_or(false);
-            let chapter_title = self.extract_string_field_raw(&response.text, "chapter_title");
-            let chapter_summary = self.extract_string_field_raw(&response.text, "chapter_summary");
-            let options = self.extract_options_field_raw(&response.text);
-
-            return (Some(ChapterSegment {
-                text,
-                needs_player_input,
-                chapter_end,
-                chapter_title,
-                chapter_summary,
-                options,
-                generation_diagnostics: None,
-            }), None);
-        }
-
-        match self.sanitize_llm_plain_text(&response.text) {
-            Some(text) => (
-                Some(ChapterSegment {
-                    text: self.normalize_story_text(&text),
-                    needs_player_input: true,
-                    chapter_end: false,
-                    chapter_title: None,
-                    chapter_summary: None,
-                    options: vec![],
-                    generation_diagnostics: None,
-                }),
+            Err(_) => {
+                return (
+                    None,
+                    Some(format!(
+                        "LLM 结构化剧情校验失败({})；修复请求超时",
+                        parse_err
+                    )),
+                )
+            }
+        };
+        match self.parse_chapter_segment_response(&repair_response.text) {
+            Ok(segment) => (Some(segment), None),
+            Err(repair_parse_err) => (
                 None,
+                Some(format!(
+                    "LLM 结构化剧情校验失败({})；修复输出仍不合格({})",
+                    parse_err, repair_parse_err
+                )),
             ),
-            None => (None, Some("LLM 返回内容无法解析为剧情文本".to_string())),
         }
     }
 
-    fn generate_plot_text_with_llm(
+    async fn generate_plot_text_with_llm_async(
         &self,
         current_state: &PlotState,
         action_result: &ActionResult,
-    ) -> Option<String> {
+    ) -> (Option<String>, Option<String>) {
         if cfg!(test) {
-            return None;
+            return (None, None);
         }
-        let llm_service = self.resolve_llm_service()?;
+        let llm_service = match self.resolve_llm_service() {
+            Some(service) => service,
+            None => return (None, Some("未检测到可用 LLM 配置".to_string())),
+        };
+        let llm_priority_mode = current_state.settings.llm_priority_mode;
+        let output_max = if llm_priority_mode {
+            llm_service.api_config.max_tokens.clamp(1000, 1600)
+        } else {
+            llm_service.api_config.max_tokens.clamp(850, 1300)
+        };
+        let primary_timeout_secs: u64 = if llm_priority_mode { 22 } else { 16 };
+        let retry_timeout_secs: u64 = if llm_priority_mode { 14 } else { 10 };
         let prompt = self.prompt_builder.build_prompt_with_token_limit(
             PromptTemplate::PlotGeneration,
             &PromptContext {
@@ -1118,7 +1335,7 @@ impl PlotEngine {
                 actor_realm: None,
                 actor_combat_power: None,
                 history_events: action_result.events.clone(),
-                world_setting_summary: Some("修仙小说风格，强调场景、事件与 NPC 反应".to_string()),
+                world_setting_summary: Some("参考设定文档 78 与补充稿，修仙叙事保持克制、写实、可验证，强调场景、事件与 NPC 反应".to_string()),
             },
             &PromptConstraints {
                 numerical_rules: vec!["必须与行动结果保持一致".to_string()],
@@ -1126,21 +1343,91 @@ impl PlotEngine {
                     "仅输出纯文本".to_string(),
                     "使用简洁的小说叙事".to_string(),
                     "必须使用中文".to_string(),
-                    "控制在 220-420 字".to_string(),
+                    "控制在 700-1000 字".to_string(),
+                    "语言平实克制，禁止空泛口号与夸张修辞".to_string(),
+                    "每120字至少包含1个可验证事实（位置/物品/关系/状态变化）".to_string(),
+                    "必须包含环境、动作、心理三类细节中的至少两类".to_string(),
                 ],
-                output_schema_hint: None,
+                output_schema_hint: Some(
+                    "仅返回正文纯文本，不要 JSON、不要 Markdown 代码块。".to_string(),
+                ),
             },
-            360,
+            output_max.saturating_mul(if llm_priority_mode { 5 } else { 4 }),
         );
 
-        let response = self.run_llm_request(
-            &llm_service,
-            LLMRequest {
-                prompt,
-                max_tokens: Some(280),
+        let response = match tokio::time::timeout(
+            Duration::from_secs(primary_timeout_secs),
+            llm_service.generate(LLMRequest {
+                prompt: prompt.clone(),
+                max_tokens: Some(output_max),
                 temperature: Some(0.7),
-            },
-        )?;
+            }),
+        )
+        .await
+        {
+            Ok(Ok(resp)) => resp,
+            Ok(Err(err)) => {
+                let retry_prompt = self.prompt_builder.build_prompt_with_token_limit(
+                    PromptTemplate::PlotGeneration,
+                    &PromptContext {
+                        scene: Some(format!(
+                            "自然续写并推进剧情。玩家刚刚行动：{}",
+                            action_result.description
+                        )),
+                        location: Some(current_state.current_scene.location.clone()),
+                        actor_name: Some("player".to_string()),
+                        actor_realm: None,
+                        actor_combat_power: None,
+                        history_events: action_result.events.clone(),
+                        world_setting_summary: Some("参考设定文档 78 与补充稿，修仙叙事保持克制写实，输出连续叙事文本".to_string()),
+                    },
+                    &PromptConstraints {
+                        numerical_rules: vec!["必须与行动结果保持一致".to_string()],
+                        world_rules: vec![
+                            "仅输出纯文本".to_string(),
+                            "必须使用中文".to_string(),
+                            "控制在 700-1000 字".to_string(),
+                            "语言平实克制，禁止空泛口号与夸张修辞".to_string(),
+                            "每120字至少包含1个可验证事实（位置/物品/关系/状态变化）".to_string(),
+                            "必须包含环境、动作、心理三类细节中的至少两类".to_string(),
+                        ],
+                        output_schema_hint: Some(
+                            "仅返回正文纯文本，不要 JSON、不要 Markdown 代码块。".to_string(),
+                        ),
+                    },
+                    output_max.saturating_mul(2),
+                );
+                match tokio::time::timeout(
+                    Duration::from_secs(retry_timeout_secs),
+                    llm_service.generate(LLMRequest {
+                        prompt: retry_prompt,
+                        max_tokens: Some(output_max),
+                        temperature: Some(0.65),
+                    }),
+                )
+                .await
+                {
+                    Ok(Ok(resp)) => resp,
+                    Ok(Err(retry_err)) => {
+                        return (
+                            None,
+                            Some(format!(
+                                "{}；重试失败({})",
+                                Self::llm_error_reason(&err),
+                                Self::llm_error_reason(&retry_err)
+                            )),
+                        );
+                    }
+                    Err(_) => {
+                        return (
+                            None,
+                            Some(format!("{}；重试失败(请求超时)", Self::llm_error_reason(&err))),
+                        );
+                    }
+                }
+            }
+            Err(_) => return (None, Some("纯文本续写请求超时".to_string())),
+        };
 
         self.response_validator
             .validate_response(
@@ -1153,18 +1440,88 @@ impl PlotEngine {
                     max_current_age: None,
                 },
             )
-            .ok()?;
-        if let Some(value) = self.extract_json_value(&response.text) {
-            if let Some(text) = self.compose_segment_text_from_json(&value) {
-                let normalized = self.normalize_story_text(&text);
-                if !normalized.is_empty() {
-                    return Some(normalized);
-                }
-            }
+            .ok();
+        if let Ok(text) = self.parse_plain_text_response(&response.text) {
+            return (Some(text), None);
         }
-        self.sanitize_llm_plain_text(&response.text)
-            .map(|text| self.normalize_story_text(&text))
-            .filter(|text| !text.is_empty())
+        let parse_err = match self.parse_plain_text_response(&response.text) {
+            Ok(text) => return (Some(text), None),
+            Err(err) => err,
+        };
+        let repair_prompt = self.prompt_builder.build_prompt_with_token_limit(
+            PromptTemplate::PlotGeneration,
+            &PromptContext {
+                scene: Some(format!(
+                    "修复上次输出并自然续写。玩家刚刚行动：{}。上次错误：{}。上次输出片段：{}",
+                    action_result.description,
+                    parse_err,
+                    self.truncate_chars(&response.text, 320)
+                )),
+                location: Some(current_state.current_scene.location.clone()),
+                actor_name: Some("player".to_string()),
+                actor_realm: None,
+                actor_combat_power: None,
+                history_events: action_result.events.clone(),
+                world_setting_summary: Some(
+                    "参考设定文档 78 与补充稿，修仙叙事保持克制写实，输出连续叙事文本"
+                        .to_string(),
+                ),
+            },
+            &PromptConstraints {
+                numerical_rules: vec!["必须与行动结果保持一致".to_string()],
+                world_rules: vec![
+                    "仅输出纯文本".to_string(),
+                    "必须使用中文".to_string(),
+                    "控制在 700-1000 字".to_string(),
+                    "语言平实克制，禁止空泛口号与夸张修辞".to_string(),
+                    "每120字至少包含1个可验证事实（位置/物品/关系/状态变化）".to_string(),
+                    "必须包含环境、动作、心理三类细节中的至少两类".to_string(),
+                    "修复上次错误，不要解释错误原因".to_string(),
+                ],
+                output_schema_hint: Some(
+                    "仅返回正文纯文本，不要 JSON、不要 Markdown 代码块。".to_string(),
+                ),
+            },
+            output_max.saturating_mul(2),
+        );
+        let repair_response = match tokio::time::timeout(
+            Duration::from_secs(retry_timeout_secs),
+            llm_service.generate(LLMRequest {
+                prompt: repair_prompt,
+                max_tokens: Some(output_max),
+                temperature: Some(0.62),
+            }),
+        )
+        .await
+        {
+            Ok(Ok(resp)) => resp,
+            Ok(Err(err)) => {
+                return (
+                    None,
+                    Some(format!(
+                        "纯文本续写校验失败({})；修复请求失败({})",
+                        parse_err,
+                        Self::llm_error_reason(&err)
+                    )),
+                );
+            }
+            Err(_) => {
+                return (
+                    None,
+                    Some(format!("纯文本续写校验失败({})；修复请求超时", parse_err)),
+                );
+            }
+        };
+        match self.parse_plain_text_response(&repair_response.text) {
+            Ok(text) => (Some(text), None),
+            Err(repair_parse_err) => (
+                None,
+                Some(format!(
+                    "纯文本续写校验失败({})；修复输出仍不合格({})",
+                    parse_err, repair_parse_err
+                )),
+            ),
+        }
     }
 
     fn generate_plot_text_fallback(&self, current_state: &PlotState, action_result: &ActionResult) -> String {
@@ -1277,7 +1634,7 @@ impl PlotEngine {
         location: &str,
     ) -> Option<OpeningPlot> {
         let llm_service = self.resolve_llm_service()?;
-        let output_max = llm_service.api_config.max_tokens.clamp(120, 420);
+        let output_max = llm_service.api_config.max_tokens.clamp(900, 1500);
         let prompt_limit = output_max.saturating_mul(6);
 
         let prompt = self.prompt_builder.build_prompt_with_token_limit(
@@ -1298,7 +1655,7 @@ impl PlotEngine {
                     "必须是中文".to_string(),
                     "segment_text 为中文小说叙事，不能包含选项列表".to_string(),
                     "options 必须为 2-4 条简洁选项".to_string(),
-                    "长度控制在 200 到 380 字".to_string(),
+                    "长度控制在 700 到 1000 字".to_string(),
                 ],
                 output_schema_hint: Some(
                     "{\"segment_text\":\"string\",\"options\":[\"string\"]}".to_string(),
@@ -1335,7 +1692,7 @@ impl PlotEngine {
                             "必须是中文".to_string(),
                             "segment_text 为中文小说叙事，不能包含选项列表".to_string(),
                             "options 必须为 2-4 条简洁选项".to_string(),
-                            "长度控制在 160 到 260 字".to_string(),
+                            "长度控制在 700 到 1000 字".to_string(),
                         ],
                         output_schema_hint: Some(
                             "{\"segment_text\":\"string\",\"options\":[\"string\"]}".to_string(),
@@ -1346,7 +1703,7 @@ impl PlotEngine {
                 llm_service
                     .generate(LLMRequest {
                         prompt: retry_prompt,
-                        max_tokens: Some(output_max.saturating_div(2).max(120)),
+                        max_tokens: Some(output_max),
                         temperature: Some(0.7),
                     })
                     .await

@@ -24,9 +24,10 @@ use crate::plot_engine::{
 };
 use crate::save_load::{MigrationBatchReport, SaveInfo};
 use crate::script::Script;
+use crate::world_registry::{apply_registry_to_game_state, WorldRegistry};
 use crate::app_error::AppError;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
+use serde_json::{json, Value};
 use std::path::Path;
 use std::sync::{Mutex, OnceLock};
 use std::time::Instant;
@@ -34,6 +35,8 @@ use tauri::State;
 
 static ENTITY_STORE: OnceLock<Mutex<EntityStore>> = OnceLock::new();
 static MEMORY_LAYERS: OnceLock<Mutex<crate::memory_layers::MemoryLayers>> = OnceLock::new();
+const SPEC_78_PATH: &str = ".kiro/specs/Nobody/78";
+const SPEC_78_SUPPLEMENT_PATH: &str = ".kiro/specs/Nobody/78_补充完善_属性表注册与LLM编排.md";
 
 fn entity_store() -> &'static Mutex<EntityStore> {
     ENTITY_STORE.get_or_init(|| Mutex::new(EntityStore::new()))
@@ -110,6 +113,43 @@ fn has_consistency_issue(report: &ConsistencyReport, code: &str) -> bool {
     report.issues.iter().any(|issue| issue.code == code)
 }
 
+fn diagnostics_used_preset_fallback(diag: Option<&str>) -> bool {
+    let Some(text) = diag else {
+        return false;
+    };
+    text.contains("已使用预设文本")
+}
+
+fn effective_consistency_report_after_option_resolution(
+    mut report: ConsistencyReport,
+    is_waiting_for_input: bool,
+    chapter_end: bool,
+    option_count: usize,
+) -> ConsistencyReport {
+    if is_waiting_for_input && !chapter_end && option_count > 0 {
+        report
+            .issues
+            .retain(|issue| issue.code != "waiting_without_options");
+    }
+    report
+}
+
+fn player_options_from_choice_texts(texts: &[String]) -> Vec<PlayerOption> {
+    texts
+        .iter()
+        .take(4)
+        .enumerate()
+        .map(|(idx, text)| PlayerOption {
+            id: idx,
+            description: text.clone(),
+            requirements: vec![],
+            action: Action::Custom {
+                description: text.clone(),
+            },
+        })
+        .collect()
+}
+
 fn chapter_goal_regeneration_hint(interaction_count: u8) -> String {
     let goal = match interaction_count % 5 {
         0 => "冲突升级",
@@ -183,7 +223,7 @@ fn narrative_density_and_pacing_hint(interaction_count: u8) -> String {
     let stage = chapter_pacing_stage(interaction_count);
     let templates = narrative_segment_templates(stage);
     format!(
-        "\n\n[叙事节奏与厚度约束]\n当前章节节奏阶段：{}；至少命中环境/动作/心理三类中的两类；必须显化角色内在状态（动机/犹疑/执念）并给出可验证因果。\n可参考片段模板：\n- {}\n- {}\n- {}",
+        "\n\n[叙事节奏与厚度约束]\n当前章节节奏阶段：{}；至少命中环境/动作/心理三类中的两类；必须显化角色内在状态（动机/犹疑/执念）并给出可验证因果；语言平实克制，避免空话和浮夸辞藻。\n可参考片段模板：\n- {}\n- {}\n- {}",
         stage, templates[0], templates[1], templates[2]
     )
 }
@@ -192,7 +232,7 @@ const REGEN_LATENCY_BUDGET_MS: u128 = 2500;
 const OPTION_LLM_LATENCY_BUDGET_MS: u128 = 3200;
 
 fn hollow_expression_regeneration_hint() -> &'static str {
-    "\n\n[叙事厚度重生成约束]\n禁止空洞套话与重复句式；至少补足环境、动作、心理三类中的两类，并给出可验证的因果变化。"
+    "\n\n[叙事厚度重生成约束]\n禁止空洞套话与重复句式；至少补足环境、动作、心理三类中的两类，并给出可验证的因果变化；减少抽象抒情，优先具体事实。"
 }
 
 fn is_hollow_expression(text: &str) -> bool {
@@ -1621,11 +1661,27 @@ pub async fn initialize_game(
     script: Script,
     engine: State<'_, Mutex<GameEngine>>,
 ) -> Result<GameState, String> {
-    let mut engine = match engine.lock() {
+    let mut game_state = {
+        let mut engine = match engine.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        engine.initialize_game(script).map_err(|e| e.to_string())?
+    };
+    let reference_78 = std::fs::read_to_string(SPEC_78_PATH).unwrap_or_default();
+    let supplement_78 = std::fs::read_to_string(SPEC_78_SUPPLEMENT_PATH).unwrap_or_default();
+
+    let registry = WorldRegistry::bootstrap_with_llm(&game_state, &reference_78, &supplement_78)
+        .await
+        .unwrap_or_else(|| WorldRegistry::fallback_from_game_state(&game_state, "bootstrap_fallback"));
+    apply_registry_to_game_state(&mut game_state, &registry);
+    let engine = match engine.lock() {
         Ok(guard) => guard,
         Err(poisoned) => poisoned.into_inner(),
     };
-    engine.initialize_game(script).map_err(|e| e.to_string())
+    engine.update_current_state(game_state.clone()).map_err(|e| e.to_string())?;
+    engine.update_world_registry(registry);
+    Ok(game_state)
 }
 
 #[tauri::command]
@@ -1634,14 +1690,15 @@ pub async fn execute_player_action(
     engine: State<'_, Mutex<GameEngine>>,
 ) -> Result<String, String> {
     let total_started = Instant::now();
-    let (mut game_state, mut plot_state) = {
+    let (mut game_state, mut plot_state, mut world_registry) = {
         let engine = match engine.lock() {
             Ok(guard) => guard,
             Err(poisoned) => poisoned.into_inner(),
         };
         let game_state = engine.get_current_state().map_err(|e| e.to_string())?;
         let plot_state = engine.get_plot_state().map_err(|e| e.to_string())?;
-        (game_state, plot_state)
+        let world_registry = engine.get_world_registry().ok();
+        (game_state, plot_state, world_registry)
     };
     plot_state.interaction_state = PlotInteractionState::Resolving;
 
@@ -2139,14 +2196,140 @@ pub async fn execute_player_action(
     if let Some(summary) = consistency_report.override_chapter_summary.clone() {
         plot_update.chapter_summary = Some(summary);
     }
-    if let Some(diag) = consistency_report.to_diagnostics() {
-        match &mut plot_update.generation_diagnostics {
-            Some(existing) => {
-                existing.push('；');
-                existing.push_str(&diag);
-            }
-            None => {
-                plot_update.generation_diagnostics = Some(diag);
+    if plot_state.settings.llm_strict_mode
+        && diagnostics_used_preset_fallback(plot_update.generation_diagnostics.as_deref())
+    {
+        return Err(
+            "LLM 严格模式：本轮未获得可用 LLM 剧情文本，已中止推进（未写入预设文本）。"
+                .to_string(),
+        );
+    }
+
+    // Phase 2: 双通道（state_patch + narrative）优先，失败则保留现有 plot_engine 结果。
+    if let Some(mut registry) = world_registry.clone() {
+        let reference_78 = std::fs::read_to_string(SPEC_78_PATH).unwrap_or_default();
+        let supplement_78 = std::fs::read_to_string(SPEC_78_SUPPLEMENT_PATH).unwrap_or_default();
+        if let Some(turn_result) = registry
+            .generate_turn_update_with_llm(
+                &game_state,
+                &plot_state,
+                &action.content,
+                &reference_78,
+                &supplement_78,
+            )
+            .await
+        {
+            let previous_plot_text = plot_update.plot_text.clone();
+            let previous_options = plot_update.available_options.clone();
+            let previous_waiting = plot_update.is_waiting_for_input;
+            let registry_before_patch = registry.clone();
+            match registry.apply_state_patch_transactional(&turn_result.state_patch) {
+                Ok(patch_notes) => {
+                    let narrative = turn_result.narrative_segment.trim().to_string();
+                    let contract_ok = if let Err(contract_err) =
+                        registry.validate_turn_narrative_contract(&narrative)
+                    {
+                        if plot_state.settings.llm_strict_mode {
+                            return Err(format!("LLM 严格模式：叙事合同校验失败：{}", contract_err));
+                        }
+                        registry = registry_before_patch.clone();
+                        plot_update.plot_text = previous_plot_text.clone();
+                        plot_update.available_options = previous_options.clone();
+                        plot_update.is_waiting_for_input = previous_waiting;
+                        match &mut plot_update.generation_diagnostics {
+                            Some(diag) => {
+                                diag.push('；');
+                                diag.push_str(&format!("双通道叙事丢弃：{}", contract_err));
+                            }
+                            None => {
+                                plot_update.generation_diagnostics =
+                                    Some(format!("双通道叙事丢弃：{}", contract_err))
+                            }
+                        }
+                        false
+                    } else {
+                        true
+                    };
+
+                    let entity_ref_ok = if !contract_ok {
+                        false
+                    } else if let Err(unknown_entities) =
+                        registry.validate_narrative_entity_references(&narrative)
+                    {
+                        let detail = format!(
+                            "实体引用校验失败，未入表实体: {}",
+                            unknown_entities.join(",")
+                        );
+                        if plot_state.settings.llm_strict_mode {
+                            return Err(format!("LLM 严格模式：{}", detail));
+                        }
+                        registry = registry_before_patch.clone();
+                        plot_update.plot_text = previous_plot_text.clone();
+                        plot_update.available_options = previous_options.clone();
+                        plot_update.is_waiting_for_input = previous_waiting;
+                        match &mut plot_update.generation_diagnostics {
+                            Some(diag) => {
+                                diag.push('；');
+                                diag.push_str(&detail);
+                            }
+                            None => plot_update.generation_diagnostics = Some(detail),
+                        }
+                        false
+                    } else {
+                        true
+                    };
+
+                    if entity_ref_ok {
+                        if !narrative.is_empty() {
+                            plot_update.plot_text = narrative;
+                        }
+                        if !turn_result.choices.is_empty() {
+                            plot_update.available_options =
+                                player_options_from_choice_texts(&turn_result.choices);
+                            plot_update.is_waiting_for_input = true;
+                        }
+                    }
+                    apply_registry_to_game_state(&mut game_state, &registry);
+                    world_registry = Some(registry);
+                    let note = if patch_notes.is_empty() {
+                        "双通道生成：llm_turn_update(no_patch)".to_string()
+                    } else {
+                        format!("双通道生成：llm_turn_update({})", patch_notes.join(","))
+                    };
+                    match &mut plot_update.generation_diagnostics {
+                        Some(diag) => {
+                            diag.push('；');
+                            diag.push_str(&note);
+                        }
+                        None => plot_update.generation_diagnostics = Some(note),
+                    }
+                }
+                Err(err) => {
+                    if plot_state.settings.llm_strict_mode {
+                        return Err(format!(
+                            "LLM 严格模式：state_patch 校验失败，已中止推进。原因: {}",
+                            err
+                        ));
+                    }
+                    world_registry = Some(registry);
+                    match &mut plot_update.generation_diagnostics {
+                        Some(diag) => {
+                            diag.push_str(&format!("；双通道补丁丢弃：{}", err));
+                        }
+                        None => {
+                            plot_update.generation_diagnostics =
+                                Some(format!("双通道补丁丢弃：{}", err))
+                        }
+                    }
+                }
+            };
+        } else {
+            match &mut plot_update.generation_diagnostics {
+                Some(diag) => diag.push_str("；双通道生成：fallback(plot_engine_only)"),
+                None => {
+                    plot_update.generation_diagnostics =
+                        Some("双通道生成：fallback(plot_engine_only)".to_string())
+                }
             }
         }
     }
@@ -2205,12 +2388,6 @@ pub async fn execute_player_action(
     }
 
     plot_state.last_generation_diagnostics = plot_update.generation_diagnostics.clone();
-    let risk_score = consistency_report.risk_score();
-    plot_state.last_consistency_risk_score = if risk_score > 0 {
-        Some(risk_score)
-    } else {
-        None
-    };
 
     // 用最新段落更新场景描述，避免选项生成长期绑定旧描述导致“选项不变”。
     if !plot_update.plot_text.trim().is_empty() {
@@ -2286,6 +2463,30 @@ pub async fn execute_player_action(
         }
     }
     let options_generation_ms = options_started.elapsed().as_millis();
+
+    let effective_consistency_report = effective_consistency_report_after_option_resolution(
+        consistency_report,
+        plot_update.is_waiting_for_input,
+        plot_update.chapter_end,
+        plot_state.current_scene.available_options.len(),
+    );
+    let risk_score = effective_consistency_report.risk_score();
+    plot_state.last_consistency_risk_score = if risk_score > 0 {
+        Some(risk_score)
+    } else {
+        None
+    };
+    if let Some(diag) = effective_consistency_report.to_diagnostics() {
+        match &mut plot_state.last_generation_diagnostics {
+            Some(existing) => {
+                existing.push('；');
+                existing.push_str(&diag);
+            }
+            None => {
+                plot_state.last_generation_diagnostics = Some(diag);
+            }
+        }
+    }
 
     plot_state.is_waiting_for_input = plot_update.is_waiting_for_input;
     plot_state.recalculate_interaction_state();
@@ -2388,6 +2589,9 @@ pub async fn execute_player_action(
     engine
         .update_current_state(game_state)
         .map_err(|e| e.to_string())?;
+    if let Some(registry) = world_registry {
+        engine.update_world_registry(registry);
+    }
     engine
         .update_plot_state(plot_state)
         .map_err(|e| e.to_string())?;
@@ -2402,6 +2606,40 @@ pub async fn get_game_state(engine: State<'_, Mutex<GameEngine>>) -> Result<Game
         Err(poisoned) => poisoned.into_inner(),
     };
     engine.get_current_state().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_world_registry(
+    engine: State<'_, Mutex<GameEngine>>,
+) -> Result<WorldRegistry, String> {
+    let engine = match engine.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    engine.get_world_registry().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn apply_world_registry_patch(
+    patch: Value,
+    engine: State<'_, Mutex<GameEngine>>,
+) -> Result<WorldRegistry, String> {
+    let engine = match engine.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    let mut registry = engine.get_world_registry().map_err(|e| e.to_string())?;
+    registry
+        .apply_state_patch_transactional(&patch)
+        .map_err(|e| format!("属性表 patch 校验失败: {}", e))?;
+
+    let mut game_state = engine.get_current_state().map_err(|e| e.to_string())?;
+    apply_registry_to_game_state(&mut game_state, &registry);
+    engine
+        .update_current_state(game_state)
+        .map_err(|e| e.to_string())?;
+    engine.update_world_registry(registry.clone());
+    Ok(registry)
 }
 
 #[tauri::command]
@@ -3129,6 +3367,49 @@ mod tests {
         });
         assert!(has_consistency_issue(&report, "chapter_goal_weak"));
         assert!(!has_consistency_issue(&report, "duplicate_segment"));
+    }
+
+    #[test]
+    fn test_diagnostics_used_preset_fallback_detects_marker() {
+        assert!(diagnostics_used_preset_fallback(Some(
+            "回退：LLM 结构化剧情生成失败；纯文本续写也失败，已使用预设文本",
+        )));
+        assert!(!diagnostics_used_preset_fallback(Some("回退：仅降级为纯文本续写")));
+        assert!(!diagnostics_used_preset_fallback(None));
+    }
+
+    #[test]
+    fn test_effective_consistency_report_removes_waiting_issue_when_options_recovered() {
+        let mut report = ConsistencyReport::default();
+        report.issues.push(crate::plot_consistency::ConsistencyIssue {
+            level: crate::plot_consistency::IssueLevel::Warning,
+            code: "waiting_without_options",
+            message: "waiting without options".to_string(),
+        });
+        report.issues.push(crate::plot_consistency::ConsistencyIssue {
+            level: crate::plot_consistency::IssueLevel::Warning,
+            code: "chapter_goal_weak",
+            message: "goal weak".to_string(),
+        });
+
+        let effective =
+            effective_consistency_report_after_option_resolution(report, true, false, 3);
+        assert!(!has_consistency_issue(&effective, "waiting_without_options"));
+        assert!(has_consistency_issue(&effective, "chapter_goal_weak"));
+    }
+
+    #[test]
+    fn test_effective_consistency_report_keeps_waiting_issue_when_options_missing() {
+        let mut report = ConsistencyReport::default();
+        report.issues.push(crate::plot_consistency::ConsistencyIssue {
+            level: crate::plot_consistency::IssueLevel::Warning,
+            code: "waiting_without_options",
+            message: "waiting without options".to_string(),
+        });
+
+        let effective =
+            effective_consistency_report_after_option_resolution(report, true, false, 0);
+        assert!(has_consistency_issue(&effective, "waiting_without_options"));
     }
 
     #[test]

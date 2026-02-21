@@ -9,6 +9,7 @@ pub mod entity_types;
 pub mod entity_validator;
 pub mod llm_runtime_config;
 pub mod llm_service;
+pub mod llm_bootstrap;
 pub mod memory_manager;
 pub mod memory_layers;
 pub mod models;
@@ -25,8 +26,10 @@ pub mod response_validator;
 pub mod save_load;
 pub mod script;
 pub mod script_manager;
+pub mod state_patch_validator;
 pub mod tauri_commands;
 pub mod travel_rules;
+pub mod world_registry;
 
 use game_engine::GameEngine;
 use std::sync::Mutex;
@@ -73,6 +76,8 @@ pub fn run() {
             tauri_commands::commit_entities,
             tauri_commands::query_entities,
             tauri_commands::build_context_bundle_command,
+            tauri_commands::get_world_registry,
+            tauri_commands::apply_world_registry_patch,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -191,6 +191,8 @@ export type PlotInteractionState =
 export interface PlotSettings {
   recap_enabled: boolean;
   novel_style: string;
+  llm_priority_mode?: boolean;
+  llm_strict_mode?: boolean;
   min_interactions_per_chapter: number;
   max_interactions_per_chapter: number;
   target_chapter_words_min: number;
@@ -260,6 +262,24 @@ export interface PlayerAction {
 
 export interface ActionMeta {
   action_kind?: string | null;
+}
+
+export interface WorldRegistry {
+  session_id: string;
+  seed: number;
+  created_at: number;
+  llm_model?: string | null;
+  source: string;
+  tables: {
+    characters: Record<string, unknown>[];
+    map_nodes: Record<string, unknown>[];
+    map_edges: Record<string, unknown>[];
+    techniques: Record<string, unknown>[];
+    inventory_items: Record<string, unknown>[];
+    factions: Record<string, unknown>[];
+    story_state: Record<string, unknown>[];
+    world_facts: Record<string, unknown>[];
+  };
 }
 
 export interface SaveInfo {

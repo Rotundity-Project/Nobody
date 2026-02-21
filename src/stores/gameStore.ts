@@ -9,6 +9,7 @@ import type {
   PlayerOption,
   MapLocationOverview,
   SaveInfo,
+  WorldRegistry,
 } from '../types/game';
 
 interface GameStoreState {
@@ -17,6 +18,7 @@ interface GameStoreState {
   plotState: PlotState | null;
   reachableLocationIds: string[];
   mapOverview: MapLocationOverview[];
+  worldRegistry: WorldRegistry | null;
   isLoading: boolean;
   error: string | null;
 }
@@ -28,6 +30,7 @@ export const useGameStore = defineStore('game', {
     plotState: null,
     reachableLocationIds: [],
     mapOverview: [],
+    worldRegistry: null,
     isLoading: false,
     error: null,
   }),
@@ -62,6 +65,29 @@ export const useGameStore = defineStore('game', {
       }
     },
 
+    async refreshWorldRegistry() {
+      try {
+        this.worldRegistry = await invoke<WorldRegistry>('get_world_registry');
+      } catch {
+        this.worldRegistry = null;
+      }
+    },
+
+    async applyWorldRegistryPatch(patch: unknown) {
+      this.isLoading = true;
+      this.error = null;
+      try {
+        this.worldRegistry = await invoke<WorldRegistry>('apply_world_registry_patch', { patch });
+        const gameState = await invoke<GameState>('get_game_state');
+        this.gameState = gameState;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : String(error);
+        throw error;
+      } finally {
+        this.isLoading = false;
+      }
+    },
+
     async initializeGame(script: Script, playerName?: string) {
       this.isLoading = true;
       this.error = null;
@@ -75,6 +101,7 @@ export const useGameStore = defineStore('game', {
 
         const plotState = await invoke<PlotState>('initialize_plot');
         this.plotState = plotState;
+        await this.refreshWorldRegistry();
         await this.refreshReachableLocations();
         await this.refreshMapOverview();
       } catch (error) {
@@ -112,6 +139,7 @@ export const useGameStore = defineStore('game', {
           '获取剧情状态超时，请重试',
         );
         this.plotState = plotState;
+        await this.refreshWorldRegistry();
         await this.refreshReachableLocations();
         await this.refreshMapOverview();
 
@@ -168,6 +196,7 @@ export const useGameStore = defineStore('game', {
 
         const plotState = await invoke<PlotState>('get_plot_state');
         this.plotState = plotState;
+        await this.refreshWorldRegistry();
         await this.refreshReachableLocations();
         await this.refreshMapOverview();
       } catch (error) {
@@ -187,6 +216,7 @@ export const useGameStore = defineStore('game', {
         const plotState = await invoke<PlotState>('get_plot_state');
         this.gameState = gameState;
         this.plotState = plotState;
+        await this.refreshWorldRegistry();
         await this.refreshReachableLocations();
         await this.refreshMapOverview();
       } catch (error) {
@@ -229,6 +259,7 @@ export const useGameStore = defineStore('game', {
 
         const plotState = await invoke<PlotState>('initialize_plot');
         this.plotState = plotState;
+        await this.refreshWorldRegistry();
         await this.refreshReachableLocations();
         await this.refreshMapOverview();
       } catch (error) {
@@ -258,6 +289,7 @@ export const useGameStore = defineStore('game', {
       this.plotState = null;
       this.reachableLocationIds = [];
       this.mapOverview = [];
+      this.worldRegistry = null;
       this.error = null;
     },
   },

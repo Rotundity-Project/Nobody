@@ -1,5 +1,6 @@
 ﻿use crate::game_state::GameState;
 use crate::plot_engine::{PlotInteractionState, PlotState};
+use crate::world_registry::WorldRegistry;
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -21,6 +22,8 @@ pub struct SaveData {
     pub timestamp: u64,
     pub game_state: GameState,
     pub plot_state: Option<PlotState>,
+    #[serde(default)]
+    pub world_registry: Option<WorldRegistry>,
 }
 
 /// 存档文件元数据
@@ -394,10 +397,15 @@ impl SaveData {
                 .as_secs(),
             game_state,
             plot_state: None,
+            world_registry: None,
         }
     }
 
-    pub fn from_game_state_with_plot(game_state: GameState, plot_state: Option<PlotState>) -> Self {
+    pub fn from_game_state_with_plot(
+        game_state: GameState,
+        plot_state: Option<PlotState>,
+        world_registry: Option<WorldRegistry>,
+    ) -> Self {
         Self {
             version: "1.0.0".to_string(),
             schema_version: default_schema_version(),
@@ -408,6 +416,7 @@ impl SaveData {
                 .as_secs(),
             game_state,
             plot_state,
+            world_registry,
         }
     }
 }
@@ -700,7 +709,7 @@ mod tests {
         plot_state.current_scene.available_options.clear();
         plot_state.interaction_state = PlotInteractionState::WaitingForChoice;
 
-        let save_data = SaveData::from_game_state_with_plot(game_state, Some(plot_state));
+        let save_data = SaveData::from_game_state_with_plot(game_state, Some(plot_state), None);
         let mut value = serde_json::to_value(save_data).unwrap();
         let obj = value.as_object_mut().unwrap();
         obj.remove("schema_version");
@@ -1140,6 +1149,11 @@ mod property_tests {
         }
     }
 }
+
+
+
+
+
 
 
 

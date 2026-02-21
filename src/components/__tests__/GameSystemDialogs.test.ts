@@ -12,6 +12,8 @@ const baseProps = {
   storySettings: {
     recap_enabled: true,
     novel_style: 'xianxia-third-person',
+    llm_priority_mode: true,
+    llm_strict_mode: false,
     min_interactions_per_chapter: 2,
     max_interactions_per_chapter: 3,
     target_chapter_words_min: 5000,

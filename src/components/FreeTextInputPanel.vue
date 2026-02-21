@@ -53,10 +53,14 @@ const onInput = (event: Event) => {
 .free-text-panel {
   display: grid;
   gap: 8px;
+  min-width: 0;
 }
 
 .free-text-input {
+  box-sizing: border-box;
+  display: block;
   width: 100%;
+  min-height: 132px;
   border-radius: 8px;
   border: 1px solid #d9c0b0;
   background: #ffffff;
@@ -82,6 +86,7 @@ const onInput = (event: Event) => {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .free-text-validation {
@@ -125,5 +130,23 @@ const onInput = (event: Event) => {
   border-color: #d9d0c0;
   background: #ece5d8;
   color: #8b857c;
+}
+
+@media (max-width: 640px) {
+  .free-text-foot {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+
+  .free-text-validation {
+    width: 100%;
+  }
+
+  .free-text-submit {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+  }
 }
 </style>

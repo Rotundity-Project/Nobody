@@ -51,6 +51,8 @@ const basePlotState = (): PlotState => ({
   settings: {
     recap_enabled: true,
     novel_style: 'xianxia-third-person',
+    llm_priority_mode: true,
+    llm_strict_mode: false,
     min_interactions_per_chapter: 2,
     max_interactions_per_chapter: 3,
     target_chapter_words_min: 5000,
@@ -252,5 +254,69 @@ describe('gameStore', () => {
     expect(invokeMock).toHaveBeenCalledWith('travel_to_location', { locationId: 'valley' });
     expect(store.gameState?.player.location).toBe('valley');
     expect(store.plotState?.current_scene.location).toBe('valley');
+  });
+
+  it('refreshes world registry snapshot', async () => {
+    invokeMock.mockImplementation((command: string) => {
+      if (command === 'get_world_registry') {
+        return Promise.resolve({
+          session_id: 's1',
+          seed: 1,
+          created_at: 1,
+          llm_model: 'm',
+          source: 'llm_bootstrap',
+          tables: {
+            characters: [{ name: 'LinMo' }],
+            map_nodes: [],
+            map_edges: [],
+            techniques: [],
+            inventory_items: [],
+            factions: [],
+            story_state: [],
+            world_facts: [],
+          },
+        });
+      }
+      return Promise.resolve(null);
+    });
+
+    const store = useGameStore();
+    await store.refreshWorldRegistry();
+    expect(store.worldRegistry?.session_id).toBe('s1');
+    expect(store.worldRegistry?.tables.characters.length).toBe(1);
+  });
+
+  it('applies world registry patch and refreshes game state', async () => {
+    const script = baseScript();
+    const gameState = baseGameState(script);
+    invokeMock.mockImplementation((command: string) => {
+      if (command === 'apply_world_registry_patch') {
+        return Promise.resolve({
+          session_id: 's2',
+          seed: 2,
+          created_at: 2,
+          llm_model: null,
+          source: 'manual_patch',
+          tables: {
+            characters: [],
+            map_nodes: [],
+            map_edges: [],
+            techniques: [],
+            inventory_items: [],
+            factions: [],
+            story_state: [],
+            world_facts: [{ fact_id: 'f1' }],
+          },
+        });
+      }
+      if (command === 'get_game_state') {
+        return Promise.resolve(gameState);
+      }
+      return Promise.resolve(null);
+    });
+    const store = useGameStore();
+    await store.applyWorldRegistryPatch({ world_facts: [{ fact_id: 'f1' }] });
+    expect(store.worldRegistry?.source).toBe('manual_patch');
+    expect(store.gameState?.player.id).toBe('player_1');
   });
 });

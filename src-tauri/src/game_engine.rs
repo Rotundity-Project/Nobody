@@ -8,6 +8,7 @@ use crate::plot_engine::{PlotEngine, PlotState, Scene};
 use crate::save_load::{MigrationBatchReport, SaveData, SaveInfo, SaveLoadSystem};
 use crate::script::{Script, ScriptType};
 use crate::script_manager::ScriptManager;
+use crate::world_registry::WorldRegistry;
 use anyhow::{anyhow, Result};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -22,6 +23,7 @@ pub struct GameEngine {
     npc_engine: NPCEngine,
     event_log: Arc<Mutex<EventLog>>,
     save_load_system: SaveLoadSystem,
+    world_registry: Arc<Mutex<Option<WorldRegistry>>>,
 }
 
 const EVENT_LOG_MAX_EVENTS: usize = 600;
@@ -48,6 +50,7 @@ impl GameEngine {
             npc_engine: NPCEngine::new(),
             event_log: Arc::new(Mutex::new(EventLog::new())),
             save_load_system: SaveLoadSystem::new(),
+            world_registry: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -323,6 +326,8 @@ impl GameEngine {
         // 存储状态
         let mut state_lock = self.state.lock().unwrap();
         *state_lock = Some(game_state.clone());
+        let mut registry_lock = self.world_registry.lock().unwrap();
+        *registry_lock = None;
 
         Ok(game_state)
     }
@@ -367,7 +372,12 @@ impl GameEngine {
             let plot_lock = self.plot_state.lock().unwrap();
             plot_lock.clone()
         };
-        let save_data = SaveData::from_game_state_with_plot(save_state, plot_snapshot);
+        let registry_snapshot = {
+            let registry_lock = self.world_registry.lock().unwrap();
+            registry_lock.clone()
+        };
+        let save_data =
+            SaveData::from_game_state_with_plot(save_state, plot_snapshot, registry_snapshot);
         self.save_load_system.save_game(slot_id, &save_data)?;
 
         Ok(())
@@ -393,6 +403,14 @@ impl GameEngine {
         let mut state_lock = self.state.lock().unwrap();
         *state_lock = Some(game_state.clone());
         drop(state_lock);
+        {
+            let mut registry_lock = self.world_registry.lock().unwrap();
+            *registry_lock = save_data.world_registry.clone();
+            if registry_lock.is_none() {
+                *registry_lock =
+                    Some(WorldRegistry::fallback_from_game_state(&game_state, "load_legacy_fallback"));
+            }
+        }
 
         // 优先恢复存档中的剧情状态，避免读档后剧情丢失。
         if let Some(mut saved_plot_state) = save_data.plot_state {
@@ -636,6 +654,16 @@ impl GameEngine {
 
     pub fn migrate_all_saves(&self) -> Result<MigrationBatchReport> {
         self.save_load_system.migrate_all_saves()
+    }
+
+    pub fn get_world_registry(&self) -> Result<WorldRegistry> {
+        let lock = self.world_registry.lock().unwrap();
+        lock.clone().ok_or_else(|| anyhow!("世界属性表尚未注册"))
+    }
+
+    pub fn update_world_registry(&self, registry: WorldRegistry) {
+        let mut lock = self.world_registry.lock().unwrap();
+        *lock = Some(registry);
     }
 
     pub fn log_event(
@@ -1013,6 +1041,8 @@ mod tests {
         let settings = PlotSettings {
             recap_enabled: false,
             novel_style: "纪实风格".to_string(),
+            llm_priority_mode: true,
+            llm_strict_mode: false,
             min_interactions_per_chapter: 2,
             max_interactions_per_chapter: 4,
             target_chapter_words_min: 1500,

@@ -1,5 +1,5 @@
 ﻿<template>
-  <div class="mx-auto max-w-3xl">
+  <div class="mx-auto w-full min-w-0 max-w-3xl">
     <UiPanel padding="md" class="ink-interaction-panel">
       <div
         v-if="shouldShowInputPanel"
@@ -108,6 +108,7 @@ defineEmits<{
 .ink-interaction-stack {
   display: grid;
   gap: 8px;
+  min-width: 0;
 }
 
 .ink-interaction-panel {

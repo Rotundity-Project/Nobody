@@ -144,6 +144,189 @@
             </div>
             <p v-else class="runtime-sub-text">{{ playerRootLabel }}</p>
           </section>
+          <section class="runtime-card">
+            <div class="flex items-center justify-between gap-2">
+              <h3 class="runtime-card-title">世界属性表</h3>
+              <button
+                type="button"
+                class="runtime-bottom-btn px-2 py-1 text-[11px]"
+                @click="refreshWorldRegistryPanel"
+              >
+                刷新
+              </button>
+            </div>
+            <p class="runtime-sub-text">
+              会话：{{ worldRegistrySessionLabel }}
+            </p>
+            <p class="runtime-sub-text">
+              来源：{{ worldRegistrySourceLabel }}
+            </p>
+            <div class="mt-2 grid grid-cols-2 gap-2 text-xs text-[#6b655d]">
+              <p>人物：{{ worldRegistryCounts.characters }}</p>
+              <p>地图点：{{ worldRegistryCounts.map_nodes }}</p>
+              <p>地图边：{{ worldRegistryCounts.map_edges }}</p>
+              <p>功法：{{ worldRegistryCounts.techniques }}</p>
+              <p>背包：{{ worldRegistryCounts.inventory_items }}</p>
+              <p>势力：{{ worldRegistryCounts.factions }}</p>
+              <p>剧情态：{{ worldRegistryCounts.story_state }}</p>
+              <p>事实：{{ worldRegistryCounts.world_facts }}</p>
+            </div>
+            <details class="mt-2">
+              <summary class="cursor-pointer text-xs text-[#6b655d]">查看 JSON 预览</summary>
+              <pre class="mt-2 max-h-40 overflow-auto rounded-lg bg-black/5 p-2 text-[10px] leading-4 text-[#524d45]">{{ worldRegistryPreview }}</pre>
+            </details>
+            <details class="mt-2">
+              <summary class="cursor-pointer text-xs text-[#6b655d]">提交 Patch(JSON)</summary>
+              <textarea
+                v-model="worldRegistryPatchInput"
+                class="mt-2 min-h-[120px] w-full rounded-lg border border-[#d2c8b7] bg-white/80 p-2 text-[11px] leading-4 text-[#4b463f]"
+                spellcheck="false"
+              />
+              <div class="mt-2 flex items-center gap-2">
+                <button
+                  type="button"
+                  class="runtime-bottom-btn px-2 py-1 text-[11px]"
+                  :disabled="worldRegistryPatchSubmitting"
+                  @click="applyWorldRegistryPatchFromPanel"
+                >
+                  {{ worldRegistryPatchSubmitting ? '提交中...' : '提交补丁' }}
+                </button>
+                <button
+                  type="button"
+                  class="runtime-bottom-btn px-2 py-1 text-[11px]"
+                  @click="resetWorldRegistryPatchTemplate"
+                >
+                  重置模板
+                </button>
+              </div>
+              <p v-if="worldRegistryPatchError" class="mt-1 text-xs text-[#b14534]">{{ worldRegistryPatchError }}</p>
+            </details>
+            <details class="mt-2">
+              <summary class="cursor-pointer text-xs text-[#6b655d]">按表追加一行</summary>
+              <div class="mt-2 space-y-2 text-xs">
+                <label class="flex flex-col gap-1">
+                  <span class="text-[#6b655d]">目标表</span>
+                  <select
+                    v-model="worldRegistrySelectedTable"
+                    class="rounded-lg border border-[#d2c8b7] bg-white/80 px-2 py-1 text-[12px] text-[#4b463f]"
+                  >
+                    <option v-for="item in worldRegistryTableOptions" :key="item" :value="item">{{ item }}</option>
+                  </select>
+                </label>
+                <label class="flex flex-col gap-1">
+                  <span class="text-[#6b655d]">行 JSON（对象）</span>
+                  <textarea
+                    v-model="worldRegistryRowInput"
+                    class="min-h-[96px] w-full rounded-lg border border-[#d2c8b7] bg-white/80 p-2 text-[11px] leading-4 text-[#4b463f]"
+                    spellcheck="false"
+                  />
+                </label>
+                <div class="flex items-center gap-2">
+                  <button
+                    type="button"
+                    class="runtime-bottom-btn px-2 py-1 text-[11px]"
+                    :disabled="worldRegistryPatchSubmitting"
+                    @click="appendRowToRegistryTable"
+                  >
+                    追加一行
+                  </button>
+                  <button
+                    type="button"
+                    class="runtime-bottom-btn px-2 py-1 text-[11px]"
+                    @click="loadSelectedTableFirstRowTemplate"
+                  >
+                    从首行载入模板
+                  </button>
+                  <button
+                    type="button"
+                    class="runtime-bottom-btn px-2 py-1 text-[11px]"
+                    @click="loadMinimalRowTemplateForSelectedTable"
+                  >
+                    最小合法模板
+                  </button>
+                </div>
+                <label class="flex flex-col gap-1">
+                  <span class="text-[#6b655d]">目标索引（用于替换/删除）</span>
+                  <input
+                    v-model.number="worldRegistrySelectedIndex"
+                    type="number"
+                    min="0"
+                    class="w-28 rounded-lg border border-[#d2c8b7] bg-white/80 px-2 py-1 text-[12px] text-[#4b463f]"
+                  />
+                </label>
+                <div class="flex items-center gap-2">
+                  <button
+                    type="button"
+                    class="runtime-bottom-btn px-2 py-1 text-[11px]"
+                    @click="loadSelectedTableRowByIndex"
+                  >
+                    载入该行
+                  </button>
+                  <button
+                    type="button"
+                    class="runtime-bottom-btn px-2 py-1 text-[11px]"
+                    :disabled="worldRegistryPatchSubmitting"
+                    @click="replaceRowInRegistryTable"
+                  >
+                    替换该行
+                  </button>
+                  <button
+                    type="button"
+                    class="runtime-bottom-btn px-2 py-1 text-[11px]"
+                    :disabled="worldRegistryPatchSubmitting"
+                    @click="deleteRowInRegistryTable"
+                  >
+                    删除该行
+                  </button>
+                </div>
+                <label class="flex flex-col gap-1">
+                  <span class="text-[#6b655d]">主键字段（用于按主键更新/新增）</span>
+                  <input
+                    v-model="worldRegistryKeyField"
+                    type="text"
+                    class="w-40 rounded-lg border border-[#d2c8b7] bg-white/80 px-2 py-1 text-[12px] text-[#4b463f]"
+                  />
+                </label>
+                <div class="flex items-center gap-2">
+                  <button
+                    type="button"
+                    class="runtime-bottom-btn px-2 py-1 text-[11px]"
+                    :disabled="worldRegistryPatchSubmitting"
+                    @click="upsertRowByKeyInRegistryTable"
+                  >
+                    按主键更新/新增
+                  </button>
+                </div>
+                <p v-if="worldRegistryRowError" class="text-xs text-[#b14534]">{{ worldRegistryRowError }}</p>
+                <div class="mt-1 rounded-lg bg-black/5 p-2">
+                  <p class="text-[11px] text-[#6b655d]">当前表预览（{{ worldRegistrySelectedTableRows.length }} 行）</p>
+                  <ul class="mt-1 max-h-28 overflow-auto space-y-1 text-[11px] text-[#4b463f]">
+                    <li v-for="item in worldRegistrySelectedTableRowsPaged" :key="`${item.index}-${item.label}`">
+                      [{{ item.index }}] {{ item.label }}
+                    </li>
+                  </ul>
+                  <div class="mt-1 flex items-center gap-2">
+                    <button
+                      type="button"
+                      class="runtime-bottom-btn px-2 py-1 text-[11px]"
+                      :disabled="worldRegistryRowPage <= 0"
+                      @click="worldRegistryRowPage = Math.max(0, worldRegistryRowPage - 1)"
+                    >
+                      上一页
+                    </button>
+                    <button
+                      type="button"
+                      class="runtime-bottom-btn px-2 py-1 text-[11px]"
+                      :disabled="(worldRegistryRowPage + 1) * worldRegistryRowPageSize >= worldRegistrySelectedTableRows.length"
+                      @click="worldRegistryRowPage = worldRegistryRowPage + 1"
+                    >
+                      下一页
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </details>
+          </section>
         </aside>
 
         <section class="runtime-panel runtime-main-panel">
@@ -557,6 +740,175 @@ const worldLocationList = computed(() => {
     spiritual_energy: loc.spiritual_energy,
   }));
 });
+const worldRegistrySessionLabel = computed(() => {
+  const sid = gameStore.worldRegistry?.session_id?.trim();
+  if (!sid) return '未注册';
+  return sid.length > 20 ? `${sid.slice(0, 20)}...` : sid;
+});
+const worldRegistrySourceLabel = computed(() => {
+  return gameStore.worldRegistry?.source || 'unknown';
+});
+const worldRegistryCounts = computed(() => {
+  const tables = gameStore.worldRegistry?.tables;
+  return {
+    characters: tables?.characters?.length ?? 0,
+    map_nodes: tables?.map_nodes?.length ?? 0,
+    map_edges: tables?.map_edges?.length ?? 0,
+    techniques: tables?.techniques?.length ?? 0,
+    inventory_items: tables?.inventory_items?.length ?? 0,
+    factions: tables?.factions?.length ?? 0,
+    story_state: tables?.story_state?.length ?? 0,
+    world_facts: tables?.world_facts?.length ?? 0,
+  };
+});
+const worldRegistryPreview = computed(() => {
+  if (!gameStore.worldRegistry) return '{}';
+  try {
+    return JSON.stringify(gameStore.worldRegistry, null, 2);
+  } catch {
+    return '{}';
+  }
+});
+const worldRegistryPatchTemplate = `{
+  "world_facts": [
+    {
+      "fact_id": "fact_manual_1",
+      "subject": "player",
+      "predicate": "goal",
+      "object": "secure_supplies"
+    }
+  ]
+}`;
+const worldRegistryPatchInput = ref<string>(worldRegistryPatchTemplate);
+const worldRegistryPatchSubmitting = ref(false);
+const worldRegistryPatchError = ref('');
+const worldRegistrySelectedTable = ref<
+  | 'characters'
+  | 'map_nodes'
+  | 'map_edges'
+  | 'techniques'
+  | 'inventory_items'
+  | 'factions'
+  | 'story_state'
+  | 'world_facts'
+>('world_facts');
+const worldRegistryDefaultKeyMap: Record<string, string> = {
+  characters: 'character_id',
+  map_nodes: 'location_id',
+  map_edges: 'from_id',
+  techniques: 'technique_id',
+  inventory_items: 'item_id',
+  factions: 'faction_id',
+  story_state: 'chapter_index',
+  world_facts: 'fact_id',
+};
+const worldRegistryTableOptions = [
+  'characters',
+  'map_nodes',
+  'map_edges',
+  'techniques',
+  'inventory_items',
+  'factions',
+  'story_state',
+  'world_facts',
+] as const;
+const worldRegistryRowInput = ref<string>(
+  JSON.stringify(
+    {
+      fact_id: 'fact_manual_2',
+      subject: 'player',
+      predicate: 'plan',
+      object: 'visit_market',
+    },
+    null,
+    2,
+  ),
+);
+const worldRegistryRowError = ref('');
+const worldRegistrySelectedIndex = ref<number>(0);
+const worldRegistryKeyField = ref<string>(worldRegistryDefaultKeyMap.world_facts);
+const worldRegistryRowPage = ref(0);
+const worldRegistryRowPageSize = 6;
+const worldRegistrySelectedTableRows = computed(() => {
+  const table = worldRegistrySelectedTable.value;
+  const rows = gameStore.worldRegistry?.tables?.[table] ?? [];
+  return rows.map((row, index) => {
+    const key = worldRegistryKeyField.value.trim();
+    const asRecord = row as Record<string, unknown>;
+    const keyVal = key ? asRecord?.[key] : undefined;
+    const label = keyVal !== undefined
+      ? `${String(keyVal)}`
+      : JSON.stringify(row).slice(0, 80);
+    return { index, label };
+  });
+});
+const worldRegistrySelectedTableRowsPaged = computed(() => {
+  const start = worldRegistryRowPage.value * worldRegistryRowPageSize;
+  return worldRegistrySelectedTableRows.value.slice(start, start + worldRegistryRowPageSize);
+});
+const buildMinimalRowTemplateForTable = (table: string): Record<string, unknown> => {
+  switch (table) {
+    case 'characters':
+      return {
+        character_id: 'char_manual_1',
+        name: 'NewCharacter',
+        role: 'npc',
+        realm_stage: 'Qi',
+        realm_substage: 0,
+        location_id: gameStore.playerCharacter?.location || 'sect',
+      };
+    case 'map_nodes':
+      return {
+        location_id: 'loc_manual_1',
+        name: 'NewLocation',
+        description: 'newly discovered location',
+        spiritual_density: 0.5,
+      };
+    case 'map_edges':
+      return {
+        from_id: gameStore.playerCharacter?.location || 'sect',
+        to_id: 'loc_manual_1',
+        travel_days: 1,
+        travel_risk: 0,
+      };
+    case 'techniques':
+      return {
+        technique_id: 'tech_manual_1',
+        name: 'ManualTechnique',
+        description: 'generated from panel template',
+        owner_character_id: 'player',
+      };
+    case 'inventory_items':
+      return {
+        item_id: 'item_manual_1',
+        owner_character_id: 'player',
+        name: 'ManualItem',
+        item_type: 'material',
+        quantity: 1,
+        effect_desc: 'no effect',
+      };
+    case 'factions':
+      return {
+        faction_id: 'faction_manual_1',
+        name: 'ManualFaction',
+        description: 'new faction',
+      };
+    case 'story_state':
+      return {
+        chapter_index: 1,
+        chapter_goal: 'clear immediate objective',
+        current_arc: 'manual_arc',
+        pending_conflicts: ['resource_shortage'],
+      };
+    default:
+      return {
+        fact_id: 'fact_manual_3',
+        subject: 'player',
+        predicate: 'intent',
+        object: 'explore',
+      };
+  }
+};
 const recentCombatReview = computed(() => {
   const events = gameStore.gameState?.event_history ?? [];
   return events
@@ -782,6 +1134,157 @@ const openStorySettingsDialog = () => {
   playClick();
   showStorySettings.value = true;
 };
+
+const refreshWorldRegistryPanel = async () => {
+  playClick();
+  await gameStore.refreshWorldRegistry();
+};
+const resetWorldRegistryPatchTemplate = () => {
+  playClick();
+  worldRegistryPatchInput.value = worldRegistryPatchTemplate;
+  worldRegistryPatchError.value = '';
+};
+const applyWorldRegistryPatchFromPanel = async () => {
+  worldRegistryPatchError.value = '';
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(worldRegistryPatchInput.value);
+  } catch {
+    worldRegistryPatchError.value = 'Patch JSON 解析失败，请检查格式。';
+    return;
+  }
+  try {
+    worldRegistryPatchSubmitting.value = true;
+    await gameStore.applyWorldRegistryPatch(parsed);
+  } catch (error) {
+    worldRegistryPatchError.value = error instanceof Error ? error.message : String(error);
+  } finally {
+    worldRegistryPatchSubmitting.value = false;
+  }
+};
+const appendRowToRegistryTable = async () => {
+  worldRegistryRowError.value = '';
+  let row: unknown;
+  try {
+    row = JSON.parse(worldRegistryRowInput.value);
+  } catch {
+    worldRegistryRowError.value = '行 JSON 解析失败，请检查格式。';
+    return;
+  }
+  if (!row || typeof row !== 'object' || Array.isArray(row)) {
+    worldRegistryRowError.value = '行 JSON 必须是对象。';
+    return;
+  }
+  const table = worldRegistrySelectedTable.value;
+  const patch = { [table]: [row] };
+  try {
+    worldRegistryPatchSubmitting.value = true;
+    await gameStore.applyWorldRegistryPatch(patch);
+  } catch (error) {
+    worldRegistryRowError.value = error instanceof Error ? error.message : String(error);
+  } finally {
+    worldRegistryPatchSubmitting.value = false;
+  }
+};
+const loadSelectedTableFirstRowTemplate = () => {
+  playClick();
+  worldRegistryRowError.value = '';
+  const table = worldRegistrySelectedTable.value;
+  const rows = gameStore.worldRegistry?.tables?.[table] ?? [];
+  const row = rows.length > 0 ? rows[0] : {};
+  worldRegistryRowInput.value = JSON.stringify(row, null, 2);
+};
+const loadMinimalRowTemplateForSelectedTable = () => {
+  playClick();
+  worldRegistryRowError.value = '';
+  const table = worldRegistrySelectedTable.value;
+  worldRegistryRowInput.value = JSON.stringify(buildMinimalRowTemplateForTable(table), null, 2);
+};
+const upsertRowByKeyInRegistryTable = async () => {
+  worldRegistryRowError.value = '';
+  const table = worldRegistrySelectedTable.value;
+  const keyField = worldRegistryKeyField.value.trim();
+  if (!keyField) {
+    worldRegistryRowError.value = '主键字段不能为空。';
+    return;
+  }
+  let row: unknown;
+  try {
+    row = JSON.parse(worldRegistryRowInput.value);
+  } catch {
+    worldRegistryRowError.value = '行 JSON 解析失败，请检查格式。';
+    return;
+  }
+  if (!row || typeof row !== 'object' || Array.isArray(row)) {
+    worldRegistryRowError.value = '行 JSON 必须是对象。';
+    return;
+  }
+  const patch = { [table]: [{ __op: 'upsert_by_key', __key_field: keyField, row }] };
+  try {
+    worldRegistryPatchSubmitting.value = true;
+    await gameStore.applyWorldRegistryPatch(patch);
+  } catch (error) {
+    worldRegistryRowError.value = error instanceof Error ? error.message : String(error);
+  } finally {
+    worldRegistryPatchSubmitting.value = false;
+  }
+};
+const loadSelectedTableRowByIndex = () => {
+  playClick();
+  worldRegistryRowError.value = '';
+  const table = worldRegistrySelectedTable.value;
+  const idx = Math.max(0, Number(worldRegistrySelectedIndex.value) || 0);
+  const rows = gameStore.worldRegistry?.tables?.[table] ?? [];
+  if (idx >= rows.length) {
+    worldRegistryRowError.value = `索引越界：${idx}，当前 ${table} 共 ${rows.length} 行。`;
+    return;
+  }
+  worldRegistryRowInput.value = JSON.stringify(rows[idx], null, 2);
+};
+const replaceRowInRegistryTable = async () => {
+  worldRegistryRowError.value = '';
+  const table = worldRegistrySelectedTable.value;
+  const idx = Math.max(0, Number(worldRegistrySelectedIndex.value) || 0);
+  let row: unknown;
+  try {
+    row = JSON.parse(worldRegistryRowInput.value);
+  } catch {
+    worldRegistryRowError.value = '行 JSON 解析失败，请检查格式。';
+    return;
+  }
+  if (!row || typeof row !== 'object' || Array.isArray(row)) {
+    worldRegistryRowError.value = '行 JSON 必须是对象。';
+    return;
+  }
+  const patch = { [table]: [{ __op: 'replace', __index: idx, row }] };
+  try {
+    worldRegistryPatchSubmitting.value = true;
+    await gameStore.applyWorldRegistryPatch(patch);
+  } catch (error) {
+    worldRegistryRowError.value = error instanceof Error ? error.message : String(error);
+  } finally {
+    worldRegistryPatchSubmitting.value = false;
+  }
+};
+const deleteRowInRegistryTable = async () => {
+  worldRegistryRowError.value = '';
+  const table = worldRegistrySelectedTable.value;
+  const idx = Math.max(0, Number(worldRegistrySelectedIndex.value) || 0);
+  const patch = { [table]: [{ __op: 'delete', __index: idx }] };
+  try {
+    worldRegistryPatchSubmitting.value = true;
+    await gameStore.applyWorldRegistryPatch(patch);
+  } catch (error) {
+    worldRegistryRowError.value = error instanceof Error ? error.message : String(error);
+  } finally {
+    worldRegistryPatchSubmitting.value = false;
+  }
+};
+watch(worldRegistrySelectedTable, (table) => {
+  worldRegistryRowPage.value = 0;
+  worldRegistryKeyField.value = worldRegistryDefaultKeyMap[table] ?? 'id';
+  worldRegistryRowInput.value = JSON.stringify(buildMinimalRowTemplateForTable(table), null, 2);
+});
 
 const applyStorySettings = async (settings: StorySettings) => {
   storySettings.value = settings;
@@ -1050,6 +1553,7 @@ useGameHotkeys(handleKeydown);
 
 .runtime-panel {
   min-height: 0;
+  min-width: 0;
 }
 
 .runtime-card,
@@ -1309,6 +1813,7 @@ useGameHotkeys(handleKeydown);
 .runtime-side-right .runtime-interaction-card {
   height: 100%;
   overflow: auto;
+  overflow-x: hidden;
   padding: 20px;
   display: flex;
   flex-direction: column;
@@ -1337,6 +1842,12 @@ useGameHotkeys(handleKeydown);
 
 .runtime-interaction-card :deep(.ink-interaction-panel) {
   padding: 0;
+}
+
+.runtime-interaction-card :deep(.free-text-input),
+.runtime-interaction-card :deep(.free-text-foot),
+.runtime-interaction-card :deep(.free-text-validation) {
+  max-width: 100%;
 }
 
 .runtime-bottom-bar {
@@ -1388,6 +1899,8 @@ useGameHotkeys(handleKeydown);
 
   .runtime-side-right .runtime-interaction-card {
     height: auto;
+    padding: 16px;
+    gap: 6px;
   }
 
   .runtime-topbar {
