@@ -60,8 +60,16 @@
         <header class="main-menu-header">
           <p class="main-menu-en-title">NOBODY</p>
           <p class="main-menu-cn-title">小人物</p>
-          <div class="main-menu-seal" aria-hidden="true">无名印</div>
+          <button
+            type="button"
+            class="main-menu-seal"
+            title="轻触印章，观心问路"
+            @click="handleMainSealClick"
+          >
+            <span>无名印</span>
+          </button>
         </header>
+        <p v-if="mainSealWhisper" class="main-menu-seal-whisper">{{ mainSealWhisper }}</p>
 
         <section class="menu-card mt-6">
           <h2 class="menu-card-title">最近存档</h2>
@@ -270,113 +278,51 @@
             <div class="mt-2 grid gap-2">
               <button
                 type="button"
-                class="menu-chip-btn text-left"
-                :class="settingsTab === 'volume' ? 'border-[#b78c4a]' : ''"
-                @click="settingsTab = 'volume'"
+                class="menu-chip-btn border-[#b78c4a] text-left"
               >
                 音量控制
-              </button>
-              <button
-                type="button"
-                class="menu-chip-btn text-left"
-                :class="settingsTab === 'audio' ? 'border-[#b78c4a]' : ''"
-                @click="settingsTab = 'audio'"
-              >
-                音频开关
               </button>
             </div>
           </aside>
           <section class="menu-dialog-right">
-            <div
-              data-testid="quick-audio-group"
-              class="flex flex-wrap items-center gap-2"
-              role="group"
-              aria-labelledby="quick-audio-heading"
-              :aria-label="quickAudioGroupAriaLabel"
-              aria-describedby="quick-volume-status"
-            >
-              <button
-                type="button"
-                data-testid="quick-mute-btn"
-                class="menu-chip-btn"
-                :aria-pressed="quickMasterVolume <= 0 ? 'true' : 'false'"
-                :aria-label="quickMuteAriaLabel"
-                aria-describedby="quick-volume-status"
-                @click="toggleQuickMute"
-              >
-                {{ quickMasterVolume <= 0 ? '恢复' : '静音' }}
-              </button>
-              <button
-                type="button"
-                data-testid="quick-volume-30-btn"
-                class="menu-chip-btn"
-                :class="isActiveQuickVolume(0.3) ? 'border-emerald-400' : ''"
-                :aria-pressed="isActiveQuickVolume(0.3) ? 'true' : 'false'"
-                :aria-label="quickVolumePresetAriaLabel(0.3)"
-                aria-describedby="quick-volume-status"
-                @click="applyQuickVolume(0.3)"
-              >
-                30%
-              </button>
-              <button
-                type="button"
-                data-testid="quick-volume-60-btn"
-                class="menu-chip-btn"
-                :class="isActiveQuickVolume(0.6) ? 'border-emerald-400' : ''"
-                :aria-pressed="isActiveQuickVolume(0.6) ? 'true' : 'false'"
-                :aria-label="quickVolumePresetAriaLabel(0.6)"
-                aria-describedby="quick-volume-status"
-                @click="applyQuickVolume(0.6)"
-              >
-                60%
-              </button>
-              <button
-                type="button"
-                data-testid="quick-volume-100-btn"
-                class="menu-chip-btn"
-                :class="isActiveQuickVolume(1) ? 'border-emerald-400' : ''"
-                :aria-pressed="isActiveQuickVolume(1) ? 'true' : 'false'"
-                :aria-label="quickVolumePresetAriaLabel(1)"
-                aria-describedby="quick-volume-status"
-                @click="applyQuickVolume(1)"
-              >
-                100%
-              </button>
-              <button
-                type="button"
-                data-testid="quick-bgm-btn"
-                class="menu-chip-btn"
-                :aria-pressed="quickBgmEnabled ? 'true' : 'false'"
-                :aria-label="quickBgmAriaLabel"
-                aria-describedby="quick-volume-status"
-                @click="toggleQuickBgm"
-              >
-                {{ quickBgmEnabled ? 'BGM 开' : 'BGM 关' }}
-              </button>
-              <button
-                type="button"
-                data-testid="quick-sfx-btn"
-                class="menu-chip-btn"
-                :aria-pressed="quickSfxEnabled ? 'true' : 'false'"
-                :aria-label="quickSfxAriaLabel"
-                aria-describedby="quick-volume-status"
-                @click="toggleQuickSfx"
-              >
-                {{ quickSfxEnabled ? '音效 开' : '音效 关' }}
-              </button>
-            </div>
             <div class="menu-sub-card mt-4">
-              <AudioControlPanel v-if="settingsTab === 'volume'" />
-              <p v-else class="text-sm text-[#6a655d]">
-                使用上方快捷按钮切换 BGM 与音效状态。
-              </p>
+              <AudioControlPanel />
             </div>
           </section>
         </div>
       </section>
     </div>
-
-    <LLMConfigDialog :is-open="showLLMDialog" @close="showLLMDialog = false" />
+    <div
+      v-if="showLLMDialog"
+      id="main-menu-llm-panel"
+      class="menu-overlay"
+      @click.self="showLLMDialog = false"
+    >
+      <section class="menu-dialog">
+        <header class="menu-dialog-header">
+          <h2 class="menu-card-title">LLM 设置</h2>
+          <button type="button" class="menu-inline-btn" @click="showLLMDialog = false">关闭</button>
+        </header>
+        <div class="menu-dialog-body">
+          <aside class="menu-dialog-left">
+            <p class="menu-sub-title">设置分组</p>
+            <div class="mt-2 grid gap-2">
+              <button
+                type="button"
+                class="menu-chip-btn border-[#b78c4a] text-left"
+              >
+                模型配置
+              </button>
+            </div>
+          </aside>
+          <section class="menu-dialog-right">
+            <div class="menu-sub-card">
+              <LLMConfigDialog :is-open="showLLMDialog" inline @close="showLLMDialog = false" />
+            </div>
+          </section>
+        </div>
+      </section>
+    </div>
   </div>
 </template>
 
@@ -385,7 +331,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import AudioControlPanel from './AudioControlPanel.vue';
 import LLMConfigDialog from './LLMConfigDialog.vue';
-import { getAudioSettings, playClick, setBgmEnabled, setMasterVolume, setSfxEnabled } from '../utils/audioSystem';
+import { getAudioSettings, playClick } from '../utils/audioSystem';
 import { useGameStore } from '../stores/gameStore';
 import type { SaveInfo } from '../types/game';
 import { formatLocationLabel } from '../shared/locationLabel';
@@ -396,7 +342,7 @@ const gameStore = useGameStore();
 const showLLMDialog = ref(false);
 const showAudioPanel = ref(false);
 const showSavePanel = ref(true);
-const settingsTab = ref<'volume' | 'audio'>('volume');
+const mainSealWhisper = ref('');
 const recentSaveLoading = ref(false);
 const quickLoadPending = ref(false);
 const recentSaveError = ref('');
@@ -407,11 +353,27 @@ const lastRefreshAt = ref<number | null>(null);
 const lastRefreshSucceeded = ref<boolean | null>(null);
 const refreshNowTick = ref(Date.now());
 let refreshTickerId: number | null = null;
+let mainSealWhisperTimer: number | null = null;
 const REFRESH_SUCCESS_TOAST_MS = 8000;
 const quickMasterVolume = ref(getAudioSettings().master);
-const quickBgmEnabled = ref(getAudioSettings().bgmEnabled);
-const quickSfxEnabled = ref(getAudioSettings().sfxEnabled);
-const previousMasterVolume = ref(Math.max(0.01, quickMasterVolume.value || 0.55));
+const mainSealWhispers = [
+  '无名印启：先立本心，再入尘世。',
+  '印文有言：不争其名，自得其道。',
+  '朱印轻鸣：凡人亦可问天路。',
+];
+
+const handleMainSealClick = () => {
+  playClick();
+  const idx = Math.floor(Math.random() * mainSealWhispers.length);
+  mainSealWhisper.value = mainSealWhispers[idx];
+  if (mainSealWhisperTimer != null) {
+    window.clearTimeout(mainSealWhisperTimer);
+  }
+  mainSealWhisperTimer = window.setTimeout(() => {
+    mainSealWhisper.value = '';
+    mainSealWhisperTimer = null;
+  }, 2200);
+};
 
 const normalizeSaveText = (value: string | null | undefined, fallback: string): string => {
   if (!value) {
@@ -610,31 +572,9 @@ const audioPanelToggleAriaLabel = computed(() => {
   const volumeLabel = quickMasterVolume.value <= 0
     ? '当前已静音'
     : `当前音量 ${Math.round(quickMasterVolume.value * 100)}%`;
-  const bgmLabel = quickBgmEnabled.value ? 'BGM 开' : 'BGM 关';
-  const sfxLabel = quickSfxEnabled.value ? '音效 开' : '音效 关';
   const actionLabel = showAudioPanel.value ? '收起音量控制' : '展开音量控制';
-  return `${actionLabel}，${volumeLabel}，${bgmLabel}，${sfxLabel}`;
+  return `${actionLabel}，${volumeLabel}`;
 });
-const quickAudioGroupAriaLabel = computed(() => {
-  const volumeLabel = quickMasterVolume.value <= 0
-    ? '当前静音'
-    : `当前音量 ${Math.round(quickMasterVolume.value * 100)}%`;
-  const bgmLabel = quickBgmEnabled.value ? 'BGM 开' : 'BGM 关';
-  const sfxLabel = quickSfxEnabled.value ? '音效 开' : '音效 关';
-  return `快捷音量预设，${volumeLabel}，${bgmLabel}，${sfxLabel}`;
-});
-const quickMuteAriaLabel = computed(() => {
-  if (quickMasterVolume.value <= 0) {
-    return `恢复音量，恢复到 ${Math.round(previousMasterVolume.value * 100)}%`;
-  }
-  return `静音，当前音量 ${Math.round(quickMasterVolume.value * 100)}%`;
-});
-const quickBgmAriaLabel = computed(() =>
-  quickBgmEnabled.value ? '关闭 BGM，当前已开启' : '开启 BGM，当前已关闭',
-);
-const quickSfxAriaLabel = computed(() =>
-  quickSfxEnabled.value ? '关闭音效，当前已开启' : '开启音效，当前已关闭',
-);
 const retryLoadSavesDescribedBy = computed(() => {
   const ids = ['recent-save-error'];
   if (lastRefreshLabel.value) {
@@ -685,11 +625,6 @@ const syncQuickVolumeFromSettings = () => {
   const settings = getAudioSettings();
   const clamped = Math.min(1, Math.max(0, settings.master));
   quickMasterVolume.value = clamped;
-  quickBgmEnabled.value = settings.bgmEnabled;
-  quickSfxEnabled.value = settings.sfxEnabled;
-  if (clamped > 0) {
-    previousMasterVolume.value = clamped;
-  }
 };
 
 const handleNewGame = () => {
@@ -712,49 +647,6 @@ const toggleAudioPanel = () => {
   playClick();
   syncQuickVolumeFromSettings();
   showAudioPanel.value = !showAudioPanel.value;
-};
-
-const applyQuickVolume = (value: number) => {
-  const clamped = Math.min(1, Math.max(0, value));
-  quickMasterVolume.value = clamped;
-  if (clamped > 0) {
-    previousMasterVolume.value = clamped;
-  }
-  setMasterVolume(clamped);
-  playClick();
-};
-
-const isActiveQuickVolume = (value: number) =>
-  quickMasterVolume.value > 0 && Math.abs(quickMasterVolume.value - value) < 0.001;
-const quickVolumePresetAriaLabel = (value: number) => {
-  const percent = Math.round(value * 100);
-  if (isActiveQuickVolume(value)) {
-    return `音量预设 ${percent}%，当前已选中`;
-  }
-  return `音量预设 ${percent}%，点击设置`;
-};
-
-const toggleQuickMute = () => {
-  if (quickMasterVolume.value <= 0) {
-    applyQuickVolume(previousMasterVolume.value);
-    return;
-  }
-  previousMasterVolume.value = quickMasterVolume.value;
-  applyQuickVolume(0);
-};
-
-const toggleQuickBgm = () => {
-  const next = !quickBgmEnabled.value;
-  quickBgmEnabled.value = next;
-  setBgmEnabled(next);
-  playClick();
-};
-
-const toggleQuickSfx = () => {
-  const next = !quickSfxEnabled.value;
-  quickSfxEnabled.value = next;
-  setSfxEnabled(next);
-  playClick();
 };
 
 const loadLatestSave = async () => {
@@ -788,6 +680,9 @@ onUnmounted(() => {
   if (refreshTickerId != null) {
     window.clearInterval(refreshTickerId);
   }
+  if (mainSealWhisperTimer != null) {
+    window.clearTimeout(mainSealWhisperTimer);
+  }
   window.removeEventListener('focus', syncQuickVolumeFromSettings);
 });
 </script>
@@ -795,11 +690,11 @@ onUnmounted(() => {
 <style scoped>
 .main-menu-shell {
   font-family: 'Noto Serif SC', 'STKaiti', 'KaiTi', serif;
-  color: #2d2a24;
+  color: var(--ink-text-primary, #2d2a24);
   background:
-    radial-gradient(circle at 12% 20%, rgba(183, 140, 74, 0.08), transparent 35%),
+    radial-gradient(circle at 12% 20%, color-mix(in srgb, var(--ink-title-color, #b78c4a) 24%, transparent), transparent 35%),
     radial-gradient(circle at 85% 6%, rgba(59, 122, 107, 0.07), transparent 30%),
-    linear-gradient(145deg, #faf7f2, #f1eade);
+    linear-gradient(145deg, var(--ink-paper, #faf7f2), var(--ink-paper-elevated, #f1eade));
 }
 
 .main-menu-guide {
@@ -807,7 +702,7 @@ onUnmounted(() => {
   margin: 0 auto 10px auto;
   text-align: right;
   font-size: 12px;
-  color: #3b7a6b;
+  color: var(--ink-text-cool, #3b7a6b);
   text-decoration: underline;
   text-underline-offset: 4px;
   text-decoration-color: rgba(59, 122, 107, 0.35);
@@ -830,10 +725,10 @@ onUnmounted(() => {
 
 .menu-main-stage {
   min-height: 72vh;
-  background: rgba(250, 247, 242, 0.9);
-  border: 1px solid #d9d0c0;
+  background: color-mix(in srgb, var(--ink-paper, #faf7f2) 90%, transparent);
+  border: 1px solid var(--ink-border-soft, #d9d0c0);
   border-radius: 16px;
-  box-shadow: 0 10px 24px rgba(55, 47, 34, 0.08);
+  box-shadow: var(--ink-shadow-panel, 0 10px 24px rgba(55, 47, 34, 0.08));
   padding: 24px;
 }
 
@@ -867,26 +762,69 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 2px solid #9f3b2f;
+  border: 2px solid var(--ink-accent-seal, #9f3b2f);
   border-radius: 6px;
-  transform: rotate(-9deg);
-  color: #9f3b2f;
-  background: rgba(159, 59, 47, 0.04);
+  transform: rotate(-9deg) translateY(0);
+  color: var(--ink-accent-seal, #9f3b2f);
+  background: color-mix(in srgb, var(--ink-accent-seal, #9f3b2f) 8%, transparent);
   font-size: 14px;
   letter-spacing: 0.08em;
+  box-shadow: 0 3px 12px rgba(159, 59, 47, 0.14);
+  transition: transform 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
+  animation: main-seal-float 2.8s ease-in-out infinite;
+}
+
+.main-menu-seal::before {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border: 1px solid rgba(159, 59, 47, 0.24);
+  border-radius: 10px;
+  opacity: 0;
+  transform: scale(0.92);
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.main-menu-seal:hover {
+  transform: rotate(-9deg) translateY(-2px);
+  background: rgba(159, 59, 47, 0.08);
+  box-shadow: 0 8px 18px rgba(159, 59, 47, 0.18);
+}
+
+.main-menu-seal:hover::before,
+.main-menu-seal:focus-visible::before {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.main-menu-seal:active {
+  transform: rotate(-9deg) translateY(0) scale(0.98);
+}
+
+.main-menu-seal:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(159, 59, 47, 0.22), 0 8px 18px rgba(159, 59, 47, 0.18);
+}
+
+.main-menu-seal-whisper {
+  margin: 2px 0 0;
+  text-align: center;
+  color: var(--ink-text-muted, #6a655d);
+  font-size: 12px;
+  letter-spacing: 0.04em;
 }
 
 .menu-card {
-  background: #f5f0e8;
-  border: 1px solid #d9d0c0;
+  background: var(--ink-card-bg, #f5f0e8);
+  border: 1px solid var(--ink-border-soft, #d9d0c0);
   border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  box-shadow: var(--ink-shadow-card, 0 4px 12px rgba(0, 0, 0, 0.05));
   padding: 20px;
 }
 
 .menu-card-title {
   margin: 0;
-  color: #b78c4a;
+  color: var(--ink-title-color, #b78c4a);
   font-size: 1.45rem;
   font-weight: 700;
 }
@@ -894,16 +832,16 @@ onUnmounted(() => {
 .menu-btn {
   width: 100%;
   border-radius: 10px;
-  border: 1px solid #b78c4a;
-  background: #f5f0e8;
-  color: #2d2a24;
+  border: 1px solid var(--ink-title-color, #b78c4a);
+  background: var(--ink-card-bg, #f5f0e8);
+  color: var(--ink-text-primary, #2d2a24);
   padding: 13px 16px;
   font-size: 1rem;
   transition: box-shadow 180ms ease, transform 120ms ease, background-color 180ms ease;
 }
 
 .menu-btn:hover {
-  background: #f0e8dc;
+  background: var(--ink-paper, #faf7f2);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
@@ -921,8 +859,8 @@ onUnmounted(() => {
   border: 1px solid #c8b89f;
   border-radius: 999px;
   padding: 4px 8px;
-  background: rgba(245, 240, 232, 0.88);
-  color: #6a655d;
+  background: color-mix(in srgb, var(--ink-card-bg, #f5f0e8) 88%, transparent);
+  color: var(--ink-text-muted, #6a655d);
 }
 
 .menu-chip,
@@ -930,8 +868,8 @@ onUnmounted(() => {
 .menu-inline-btn {
   border: 1px solid #c8b89f;
   border-radius: 8px;
-  background: #f5f0e8;
-  color: #2d2a24;
+  background: var(--ink-card-bg, #f5f0e8);
+  color: var(--ink-text-primary, #2d2a24);
 }
 
 .menu-chip {
@@ -965,7 +903,7 @@ onUnmounted(() => {
   max-height: min(90vh, 840px);
   overflow: auto;
   border-radius: 16px;
-  border: 1px solid #d9d0c0;
+  border: 1px solid var(--ink-border-soft, #d9d0c0);
   background: #f6f1e8;
   box-shadow: 0 16px 34px rgba(44, 35, 22, 0.18);
   padding: 20px;
@@ -987,22 +925,22 @@ onUnmounted(() => {
 
 .menu-dialog-left,
 .menu-dialog-right {
-  border: 1px solid #d9d0c0;
+  border: 1px solid var(--ink-border-soft, #d9d0c0);
   border-radius: 12px;
-  background: #ece5d8;
+  background: var(--ink-card-bg-muted, #ece5d8);
   padding: 12px;
 }
 
 .menu-sub-card {
-  border: 1px solid #d9d0c0;
+  border: 1px solid var(--ink-border-soft, #d9d0c0);
   border-radius: 10px;
-  background: #f5f0e8;
+  background: var(--ink-card-bg, #f5f0e8);
   padding: 12px;
 }
 
 .menu-sub-title {
   margin: 0;
-  color: #b78c4a;
+  color: var(--ink-title-color, #b78c4a);
   letter-spacing: 0.06em;
   font-size: 12px;
 }
@@ -1025,6 +963,16 @@ onUnmounted(() => {
   .main-menu-seal {
     position: static;
     margin: 12px auto 0;
+  }
+}
+
+@keyframes main-seal-float {
+  0%,
+  100% {
+    transform: rotate(-9deg) translateY(0);
+  }
+  50% {
+    transform: rotate(-9deg) translateY(-2px);
   }
 }
 </style>

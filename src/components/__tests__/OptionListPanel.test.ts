@@ -36,4 +36,40 @@ describe('OptionListPanel', () => {
     });
     expect(wrapper.findAll('button')).toHaveLength(0);
   });
+
+  it('infers risk/probe tags from semantic text', () => {
+    const wrapper = mount(OptionListPanel, {
+      props: {
+        visible: true,
+        disabled: false,
+        options: [
+          { id: 1, description: '冒险突破当前境界', requirements: [], action: {} },
+          { id: 2, description: '先观察四周再行动', requirements: [], action: {} },
+        ],
+      },
+    });
+
+    const text = wrapper.text();
+    expect(text).toContain('风险');
+    expect(text).toContain('探查');
+  });
+
+  it('prefers backend tag fields when present', () => {
+    const taggedOptions = [
+      { id: 1, description: '稳步前行', requirements: [], action: {}, risk_tier: 'high' },
+      { id: 2, description: '谨慎前行', requirements: [], action: {}, tag: 'probe' },
+    ] as unknown as PlayerOption[];
+
+    const wrapper = mount(OptionListPanel, {
+      props: {
+        visible: true,
+        disabled: false,
+        options: taggedOptions,
+      },
+    });
+
+    const badges = wrapper.findAll('span').map((node) => node.text());
+    expect(badges).toContain('风险');
+    expect(badges).toContain('探查');
+  });
 });

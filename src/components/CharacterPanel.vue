@@ -1,6 +1,6 @@
 ﻿<template>
-  <div class="panel-surface max-h-[70vh] overflow-y-auto rounded-2xl p-5">
-    <h3 class="mb-4 text-xl font-display text-amber-200">角色信息</h3>
+  <div class="ink-character-panel max-h-[70vh] overflow-y-auto rounded-2xl p-5">
+    <h3 class="mb-4 text-xl font-display text-[#b78c4a]">角色信息</h3>
 
     <div v-if="character" class="space-y-4">
       <section class="border-b border-slate-700 pb-4">
@@ -18,8 +18,66 @@
 
       <section>
         <p class="text-sm text-slate-400">灵根</p>
-        <div class="flex items-center gap-2">
-          <span class="font-medium text-white">{{ elementLabel }}</span>
+        <div class="root-row mt-1">
+          <div v-for="item in rootElements" :key="item.element" class="root-item">
+            <span class="root-icon" :class="item.colorClass" aria-hidden="true">
+              <svg
+                v-if="item.element === Element.Earth"
+                viewBox="0 0 24 24"
+                class="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 18h18L16 8h-8L3 18Z" />
+              </svg>
+              <svg
+                v-else-if="item.element === Element.Metal"
+                viewBox="0 0 24 24"
+                class="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+              >
+                <circle cx="12" cy="12" r="6.5" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 5.5v13M5.5 12h13" />
+              </svg>
+              <svg
+                v-else-if="item.element === Element.Wood"
+                viewBox="0 0 24 24"
+                class="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 20V8" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 10c3.5 0 5-2 5-4-3 0-5 1.8-5 4Z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 13c-3.5 0-5-2-5-4 3 0 5 1.8 5 4Z" />
+              </svg>
+              <svg
+                v-else-if="item.element === Element.Water"
+                viewBox="0 0 24 24"
+                class="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4c3.6 4.2 5.5 7 5.5 9.5A5.5 5.5 0 0 1 12 19a5.5 5.5 0 0 1-5.5-5.5C6.5 11 8.4 8.2 12 4Z" />
+              </svg>
+              <svg
+                v-else
+                viewBox="0 0 24 24"
+                class="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4c2.5 2 4.5 4.2 4.5 6.8 0 3.4-2.5 5.8-4.5 9.2-2-3.4-4.5-5.8-4.5-9.2C7.5 8.2 9.5 6 12 4Z" />
+              </svg>
+            </span>
+            <span class="root-name" :class="item.colorClass">{{ item.label }}</span>
+          </div>
+          <span class="text-sm text-slate-200">{{ rootTypeLabel }}</span>
           <span class="rounded px-2 py-0.5 text-xs font-medium" :class="rootGradeClass(character.stats.spiritual_root.grade)">
             {{ gradeLabel }}
           </span>
@@ -129,18 +187,39 @@ const props = defineProps<{
   character: Character | null;
 }>();
 
-const elementLabel = computed(() => {
-  if (!props.character) return '';
-  const mapping: Record<Element, string> = {
-    [Element.Fire]: '火灵根',
-    [Element.Water]: '水灵根',
-    [Element.Wood]: '木灵根',
-    [Element.Metal]: '金灵根',
-    [Element.Earth]: '土灵根',
-  };
+const rootLabelMap: Record<Element, string> = {
+  [Element.Fire]: '火',
+  [Element.Water]: '水',
+  [Element.Wood]: '木',
+  [Element.Metal]: '金',
+  [Element.Earth]: '土',
+};
+
+const rootColorClassMap: Record<Element, string> = {
+  [Element.Fire]: 'root-fire',
+  [Element.Water]: 'root-water',
+  [Element.Wood]: 'root-wood',
+  [Element.Metal]: 'root-metal',
+  [Element.Earth]: 'root-earth',
+};
+
+const rootElements = computed(() => {
+  if (!props.character) return [];
   const root = props.character.stats.spiritual_root;
   const elements = root.elements && root.elements.length > 0 ? root.elements : [root.element];
-  return elements.map((item) => mapping[item] ?? '未知灵根').join(' / ');
+  return elements.map((item) => ({
+    element: item,
+    label: rootLabelMap[item] ?? '未知',
+    colorClass: rootColorClassMap[item] ?? '',
+  }));
+});
+
+const rootTypeLabel = computed(() => {
+  const count = rootElements.value.length;
+  if (count <= 1) return '灵根';
+  if (count === 2) return '双灵根';
+  if (count === 3) return '三灵根';
+  return '杂灵根';
 });
 
 const gradeLabel = computed(() => {
@@ -266,3 +345,91 @@ const lifespanBarClass = (lifespan: Lifespan): string => {
   return 'bg-rose-500';
 };
 </script>
+
+<style scoped>
+.ink-character-panel {
+  background: #f5f0e8;
+  border: 1px solid #d9d0c0;
+  box-shadow: 0 8px 20px rgba(45, 42, 36, 0.08);
+}
+
+.ink-character-panel .text-white {
+  color: #2d2a24 !important;
+}
+
+.ink-character-panel .text-slate-500,
+.ink-character-panel .text-slate-400 {
+  color: #6b655d !important;
+}
+
+.ink-character-panel .text-slate-300,
+.ink-character-panel .text-slate-200 {
+  color: #4d4943 !important;
+}
+
+.ink-character-panel .border-slate-700 {
+  border-color: #d9d0c0 !important;
+}
+
+.ink-character-panel .bg-slate-700 {
+  background: #e6ddd0 !important;
+}
+
+.ink-character-panel .bg-slate-900\/40 {
+  background: #f2ebdf !important;
+}
+
+.ink-character-panel .bg-indigo-700\/40 {
+  background: rgba(183, 140, 74, 0.14) !important;
+}
+
+.ink-character-panel .text-indigo-100 {
+  color: #7a612f !important;
+}
+
+.root-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.root-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.root-icon {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+}
+
+.root-name {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.root-earth {
+  color: #9b7a56;
+}
+
+.root-metal {
+  color: #c8a661;
+}
+
+.root-wood {
+  color: #2f6a5d;
+}
+
+.root-water {
+  color: #4a7fa9;
+}
+
+.root-fire {
+  color: #c05252;
+}
+</style>

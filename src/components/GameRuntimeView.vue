@@ -1,106 +1,212 @@
 ﻿<template>
-  <div class="min-h-screen text-white flex flex-col">
-    <div class="flex-1 flex flex-col">
-      <div class="bg-slate-900/80 border-b border-slate-700 px-3 py-2 sm:px-5 sm:py-2.5 md:px-6 xl:px-8 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between backdrop-blur">
-        <GameTopBar
-          :is-system-menu-open="showSystemMenu"
-          :show-audio-panel="showAudioPanel"
-          :is-game-initialized="gameStore.isGameInitialized"
-          @back="handleBackToMenu"
-          @toggle-menu="toggleSystemMenu"
-          @close-menu="closeSystemMenu"
-          @toggle-audio="toggleAudioPanel"
-          @open-shortcuts="openShortcutsDialog"
-          @open-llm="openLlmDialog"
-          @open-story-settings="openStorySettingsDialog"
-          @open-consistency="openConsistencySettingsFromMenu"
-          @open-character="showCharacterInfo = true"
-          @open-info="showInfoTabs = true"
-          @open-save="showSaveDialog = true"
-          @open-load="showLoadDialog = true"
-        />
-      </div>
-      <div
-        v-if="gameStore.isGameInitialized"
-        class="border-b border-slate-800/80 bg-slate-900/60 px-3 py-1.5 text-[11px] text-slate-300 sm:hidden"
-      >
-        <button
-          data-testid="mobile-status-summary-bar"
-          type="button"
-          class="w-full flex items-center justify-between gap-2 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/60"
-          aria-label="切换状态卡片显示"
-          :aria-controls="MOBILE_STATUS_CARD_ID"
-          :aria-expanded="showMobileStatusCard ? 'true' : 'false'"
-          @click="toggleMobileStatusCard"
-          @keydown="handleMobileStatusSummaryKeydown"
-        >
-          <div class="min-w-0 flex-1 flex items-center gap-1.5">
-            <p
-              data-testid="mobile-status-summary-text"
-              class="truncate"
-              aria-live="polite"
-              aria-atomic="true"
-            >
-              {{ mobileStatusSummary }}
-            </p>
-            <span
-              v-if="optionSourceLabel"
-              class="shrink-0 rounded border border-slate-700/70 bg-slate-900/70 px-1.5 py-0.5 text-[10px] text-slate-300"
-            >
-              {{ optionSourceLabel }}
-            </span>
-          </div>
-          <span
-            data-testid="toggle-mobile-status-card"
-            class="shrink-0 rounded-md border border-slate-600 px-2 py-0.5 text-[10px] text-slate-200"
-            :aria-label="showMobileStatusCard ? '收起状态卡' : '展开状态卡'"
-            :aria-expanded="showMobileStatusCard ? 'true' : 'false'"
-            aria-live="polite"
-            aria-atomic="true"
-          >
-            {{ showMobileStatusCard ? '收起' : '展开' }}
+  <div class="game-shell min-h-screen text-[var(--ink-text-primary)]" :class="activeThemeClass">
+    <div class="mx-auto flex min-h-screen w-full max-w-[1380px] flex-col px-4 pb-4 pt-4 sm:px-7 sm:pb-6 sm:pt-5">
+      <header class="runtime-topbar">
+        <div class="runtime-top-left">
+          <button type="button" class="runtime-seal-btn" @click="handleBackToMenu">返</button>
+          <p class="runtime-brand">NOBODY</p>
+        </div>
+        <div class="runtime-top-center">
+          <p class="runtime-top-main">
+            <span class="runtime-chapter-number">{{ chapterIndexLabel }}</span>
+            <span class="runtime-chapter-name">{{ chapterNameLabel }}</span>
+          </p>
+          <span class="runtime-state-badge" :class="interactionStateToneClass">
+            <span class="runtime-state-dot" aria-hidden="true"></span>
+            <span class="runtime-state-label">{{ interactionStateLabel }}</span>
           </span>
-        </button>
-      </div>
-      <ChapterStatusStrip
-        :visible="gameStore.isGameInitialized"
-        :chapter-progress="chapterProgressLabel"
-        :chapter-interaction="chapterInteractionLabel"
-        :interaction-state="interactionStateLabel"
-        :option-source-label="optionSourceLabel"
-        :option-source-hint="optionSourceHint || undefined"
-        class="hidden sm:block"
-      />
-      <div
-        v-if="gameStore.isGameInitialized && showMobileStatusCard"
-        :id="MOBILE_STATUS_CARD_ID"
-        class="px-3 pb-1 pt-0.5 sm:hidden"
-      >
-        <ContextStatusCard
-          :visible="true"
-          :player-name="gameStore.playerCharacter?.name || '无名弟子'"
-          :player-realm="playerRealmLabel"
-          :chapter-progress="chapterProgressLabel"
-          :chapter-interaction="chapterInteractionLabel"
-          :location-label="currentLocationLabel"
-          :interaction-state-label="interactionStateLabel"
-        />
-      </div>
-      <div class="hidden px-3 pb-1 pt-1 sm:block sm:px-5 sm:pb-2 sm:pt-1.5 md:px-6 xl:px-8">
-        <ContextStatusCard
-          :visible="gameStore.isGameInitialized"
-          :player-name="gameStore.playerCharacter?.name || '无名弟子'"
-          :player-realm="playerRealmLabel"
-          :chapter-progress="chapterProgressLabel"
-          :chapter-interaction="chapterInteractionLabel"
-          :location-label="currentLocationLabel"
-          :interaction-state-label="interactionStateLabel"
-        />
-      </div>
+        </div>
+        <div class="runtime-top-right">
+          <p>{{ gameTimeLabel }}</p>
+          <button type="button" class="runtime-resource" @click="showInfoTabs = true">
+            灵石(背包) · {{ spiritStoneLabel }}
+          </button>
+        </div>
+      </header>
 
-      <div class="flex-1 overflow-hidden p-2 sm:p-4 md:p-5 xl:p-6">
-        <div class="mx-auto h-full max-w-7xl">
-          <div class="flex h-full min-h-0 flex-col rounded-2xl border border-slate-800/90 bg-slate-950/45">
+      <div class="runtime-content">
+        <aside class="runtime-panel runtime-side-left">
+          <section class="runtime-card">
+            <h3 class="runtime-card-title">系统中枢</h3>
+            <p class="runtime-chapter-title">
+              <span class="runtime-chapter-number">{{ chapterIndexLabel }}</span>
+              <span class="runtime-chapter-name">{{ chapterNameLabel }}</span>
+            </p>
+            <p class="runtime-sub-text">所在：{{ currentLocationLabel }}</p>
+            <div class="runtime-rhythm-badge" :class="rhythmToneClass">
+              <span class="runtime-rhythm-icon" aria-hidden="true">
+                <svg
+                  v-if="chapterRhythmLabel === '推演'"
+                  viewBox="0 0 24 24"
+                  class="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                >
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M4 16c2-5 4-8 8-8s6 3 8 8" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M7 10h10" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12" />
+                </svg>
+                <svg
+                  v-else-if="chapterRhythmLabel === '凝思'"
+                  viewBox="0 0 24 24"
+                  class="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                >
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 16c1.2-2.2 2.8-3.6 6-3.6 3.4 0 5 1.4 6 3.6" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 12c1.2-2.2 2.8-3.6 6-3.6 3.4 0 5 1.4 6 3.6" />
+                </svg>
+                <svg
+                  v-else
+                  viewBox="0 0 24 24"
+                  class="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                >
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M4 12c2.8-2.2 4.4-2.2 7.2 0 2.8 2.2 4.4 2.2 7.2 0" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 8c1.6-1.4 2.8-1.4 4.4 0" />
+                </svg>
+              </span>
+              <span class="runtime-rhythm-label">节奏</span>
+              <span class="runtime-rhythm-value">{{ chapterRhythmLabel }}</span>
+            </div>
+          </section>
+          <section class="runtime-card">
+            <h3 class="runtime-card-title">人物</h3>
+            <p class="runtime-body-text">{{ playerRealmLabel }}</p>
+            <div v-if="playerRootElements.length > 0" class="runtime-root-line">
+              <div
+                v-for="item in playerRootElements"
+                :key="item.element"
+                class="runtime-root-item"
+              >
+                <span class="runtime-root-icon" :class="item.colorClass" aria-hidden="true">
+                  <svg
+                    v-if="item.element === 'Earth'"
+                    viewBox="0 0 24 24"
+                    class="h-5 w-5"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                  >
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 18h18L16 8h-8L3 18Z" />
+                  </svg>
+                  <svg
+                    v-else-if="item.element === 'Metal'"
+                    viewBox="0 0 24 24"
+                    class="h-5 w-5"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                  >
+                    <circle cx="12" cy="12" r="6.5" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 5.5v13M5.5 12h13" />
+                  </svg>
+                  <svg
+                    v-else-if="item.element === 'Wood'"
+                    viewBox="0 0 24 24"
+                    class="h-5 w-5"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                  >
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 20V8" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 10c3.5 0 5-2 5-4-3 0-5 1.8-5 4Z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 13c-3.5 0-5-2-5-4 3 0 5 1.8 5 4Z" />
+                  </svg>
+                  <svg
+                    v-else-if="item.element === 'Water'"
+                    viewBox="0 0 24 24"
+                    class="h-5 w-5"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                  >
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4c3.6 4.2 5.5 7 5.5 9.5A5.5 5.5 0 0 1 12 19a5.5 5.5 0 0 1-5.5-5.5C6.5 11 8.4 8.2 12 4Z" />
+                  </svg>
+                  <svg
+                    v-else
+                    viewBox="0 0 24 24"
+                    class="h-5 w-5"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                  >
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4c2.5 2 4.5 4.2 4.5 6.8 0 3.4-2.5 5.8-4.5 9.2-2-3.4-4.5-5.8-4.5-9.2C7.5 8.2 9.5 6 12 4Z" />
+                  </svg>
+                </span>
+                <span class="runtime-root-name" :class="item.colorClass">{{ item.label }}</span>
+              </div>
+              <span class="runtime-root-type">{{ playerRootTypeLabel }}</span>
+            </div>
+            <p v-else class="runtime-sub-text">{{ playerRootLabel }}</p>
+          </section>
+        </aside>
+
+        <section class="runtime-panel runtime-main-panel">
+          <div class="runtime-main-header">
+            <div class="runtime-main-scene">
+              <span class="runtime-main-chapter">{{ chapterIndexLabel }}</span>
+              <span v-if="showSceneGlyph" class="runtime-main-scene-icon" aria-hidden="true">
+                <svg
+                  viewBox="0 0 24 24"
+                  class="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                >
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M4 20h16" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 20V9h12v11" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 4l7 5H5l7-5Z" />
+                </svg>
+              </span>
+              <span class="runtime-main-scene-name">{{ sceneHeadlineLabel }}</span>
+            </div>
+            <div class="runtime-rhythm-badge runtime-rhythm-badge-compact" :class="rhythmToneClass">
+              <span class="runtime-rhythm-icon" aria-hidden="true">
+                <svg
+                  v-if="chapterRhythmLabel === '推演'"
+                  viewBox="0 0 24 24"
+                  class="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                >
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M4 16c2-5 4-8 8-8s6 3 8 8" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M7 10h10" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12" />
+                </svg>
+                <svg
+                  v-else-if="chapterRhythmLabel === '凝思'"
+                  viewBox="0 0 24 24"
+                  class="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                >
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 16c1.2-2.2 2.8-3.6 6-3.6 3.4 0 5 1.4 6 3.6" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 12c1.2-2.2 2.8-3.6 6-3.6 3.4 0 5 1.4 6 3.6" />
+                </svg>
+                <svg
+                  v-else
+                  viewBox="0 0 24 24"
+                  class="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                >
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M4 12c2.8-2.2 4.4-2.2 7.2 0 2.8 2.2 4.4 2.2 7.2 0" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 8c1.6-1.4 2.8-1.4 4.4 0" />
+                </svg>
+              </span>
+              <span class="runtime-rhythm-label">节奏</span>
+              <span class="runtime-rhythm-value">{{ chapterRhythmLabel }}</span>
+            </div>
+          </div>
+          <div class="runtime-main-body">
             <StoryViewport
               ref="storyViewportRef"
               :has-scene="Boolean(gameStore.plotState && gameStore.currentScene)"
@@ -111,30 +217,48 @@
               :option-source-label="optionSourceLabel"
               :is-game-initialized="gameStore.isGameInitialized"
             />
+          </div>
+        </section>
 
-            <div class="border-t border-slate-700 bg-slate-900/80 p-4 sm:p-5 md:p-6 backdrop-blur">
-              <GameInteractionPanel
-                :should-show-input-panel="shouldShowInputPanel"
-                :error="gameStore.error"
-                :is-no-input-advance-state="isNoInputAdvanceState"
-                :available-options="gameStore.availableOptions"
-                :input-mode="inputMode"
-                :is-loading="isLoading"
-                :free-text-input="freeTextInput"
-                :input-validation="inputValidation"
-                :is-game-initialized="gameStore.isGameInitialized"
-                :is-waiting-for-input="gameStore.isWaitingForInput"
-                :loading-message="loadingMessage"
-                :can-stop-auto-advance="autoAdvanceRunning"
-                :auto-advance-stop-hint="autoAdvanceStopHint"
-                @switch-mode="setInputMode"
-                @select-option="handleOptionSelect"
-                @update:free-text-input="freeTextInput = $event"
-                @submit-free-text="handleFreeTextSubmit"
-                @continue="handleContinue"
-                @stop-auto-advance="requestStopAutoAdvance"
-              />
-            </div>
+        <aside class="runtime-panel runtime-side-right">
+          <section class="runtime-card runtime-interaction-card">
+            <h3 class="runtime-card-title runtime-interaction-title">题签交互</h3>
+            <p class="runtime-sub-text runtime-interaction-subtitle">选项自由输入</p>
+            <GameInteractionPanel
+              :should-show-input-panel="shouldShowInputPanel"
+              :error="gameStore.error"
+              :is-no-input-advance-state="isNoInputAdvanceState"
+              :available-options="gameStore.availableOptions"
+              :input-mode="inputMode"
+              :is-loading="isLoading"
+              :free-text-input="freeTextInput"
+              :input-validation="inputValidation"
+              :is-game-initialized="gameStore.isGameInitialized"
+              :is-waiting-for-input="gameStore.isWaitingForInput"
+              :loading-message="loadingMessage"
+              :can-stop-auto-advance="autoAdvanceRunning"
+              :auto-advance-stop-hint="autoAdvanceStopHint"
+              @switch-mode="setInputMode"
+              @select-option="handleOptionSelect"
+              @update:free-text-input="freeTextInput = $event"
+              @submit-free-text="handleFreeTextSubmit"
+              @continue="handleContinue"
+              @stop-auto-advance="requestStopAutoAdvance"
+            />
+          </section>
+        </aside>
+      </div>
+
+      <div class="runtime-bottom-bar">
+        <InkQuickActionDock
+          :is-game-initialized="gameStore.isGameInitialized"
+          @open-character="showCharacterInfo = true"
+          @open-info="showInfoTabs = true"
+          @open-save="showSaveDialog = true"
+          @open-load="showLoadDialog = true"
+        />
+        <div class="runtime-bottom-right">
+          <button type="button" class="runtime-bottom-btn" @click="openStorySettingsDialog">系统设置</button>
         </div>
       </div>
     </div>
@@ -164,7 +288,7 @@
       :is-open="showInfoTabs"
       :game-store="gameStore"
       :player-realm-label="playerRealmLabel"
-      :player-combat-power-label="playerCombatPowerLabel"
+      :player-combat-power-label="'不显示'"
       :chapter-progress-label="chapterProgressLabel"
       :chapter-interaction-label="chapterInteractionLabel"
       :world-location-list="worldLocationList"
@@ -189,20 +313,17 @@
       @dismiss="dismissRuntimeNotification"
     />
   </div>
-  </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watchEffect, watch } from 'vue';
+import { computed, ref, watchEffect, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useGameStore } from '../stores/gameStore';
 import CharacterInfoModal from './CharacterInfoModal.vue';
-import ChapterStatusStrip from './ChapterStatusStrip.vue';
-import ContextStatusCard from './ContextStatusCard.vue';
 import GameInfoCenterDialog from './GameInfoCenterDialog.vue';
-import GameTopBar from './GameTopBar.vue';
-import GameInteractionPanel from './GameInteractionPanel.vue';
 import GameSystemDialogs from './GameSystemDialogs.vue';
+import GameInteractionPanel from './GameInteractionPanel.vue';
+import InkQuickActionDock from './InkQuickActionDock.vue';
 import NotificationCenter, { type NotificationItem } from './NotificationCenter.vue';
 import StoryViewport from './StoryViewport.vue';
 import type { ConsistencyPolicy } from '../types/game';
@@ -228,14 +349,11 @@ const {
   showSaveDialog,
   showLoadDialog,
   showLLMDialog,
-  showAudioPanel,
   showStorySettings,
   showInfoTabs,
   showConsistencySettings,
-  showSystemMenu,
   showCharacterInfo,
   showShortcutsDialog,
-  closeSystemMenu,
   closeAllDialogs,
 } = useUiPanels();
 const storySettings = ref<StorySettings>(getStorySettings());
@@ -258,23 +376,22 @@ const storyViewportRef = ref<{ scrollToBottom: () => void } | null>(null);
 const previousChapterParagraphs = ref<string[]>([]);
 const isDevMode = import.meta.env.DEV;
 const travelPending = ref(false);
-const showMobileStatusCard = ref(false);
-const MOBILE_STATUS_CARD_STORAGE_KEY = 'nobody_mobile_status_card_expanded';
-const MOBILE_STATUS_CARD_ID = 'mobile-status-card';
 
 const currentChapterTitle = computed(
   () => gameStore.plotState?.current_chapter?.title || gameStore.currentScene?.name || '第一章'
 );
+const realmStageLabel = (subLevel?: number): string => {
+  if (!subLevel || subLevel <= 1) return '初期';
+  if (subLevel === 2) return '中期';
+  if (subLevel === 3) return '后期';
+  return '圆满';
+};
 const playerRealmLabel = computed(() => {
   const realm = gameStore.playerCharacter?.stats?.cultivation_realm;
   if (!realm) {
     return '凡人';
   }
-  return `${realm.name} (${realm.level}-${realm.sub_level})`;
-});
-const playerCombatPowerLabel = computed(() => {
-  const power = gameStore.playerCharacter?.stats?.combat_power;
-  return typeof power === 'number' ? power.toLocaleString() : '未知';
+  return `${realm.name}${realmStageLabel(realm.sub_level)}（${realm.level}-${realm.sub_level}）`;
 });
 const chapterProgressLabel = computed(() => {
   const chapter = gameStore.plotState?.current_chapter;
@@ -283,6 +400,28 @@ const chapterProgressLabel = computed(() => {
   }
   return `${chapter.index} / ${chapter.title || '未命名章节'}`;
 });
+const chapterIndexLabel = computed(() => {
+  const chapter = gameStore.plotState?.current_chapter;
+  const idx = chapter?.index ?? 1;
+  const cn = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
+  const suffix = idx >= 0 && idx < cn.length ? cn[idx] : String(idx);
+  return `第${suffix}章`;
+});
+const chapterNameLabel = computed(() => {
+  const raw = currentChapterTitle.value.trim();
+  const stripped = raw.replace(/^第[零一二三四五六七八九十百千万\d]+章[\s·、:：-]*/u, '').trim();
+  if (stripped.length === 0) return raw;
+  return stripped;
+});
+const sceneHeadlineLabel = computed(() => {
+  const chapterName = chapterNameLabel.value.trim();
+  if (chapterName.length > 0 && !/^第[零一二三四五六七八九十百千万\d]+章$/u.test(chapterName)) {
+    return chapterName;
+  }
+  const location = currentLocationLabel.value.trim();
+  return location.length > 0 ? location : '无名之地';
+});
+const showSceneGlyph = computed(() => /[堂殿阁楼宫门院府台塔]/u.test(sceneHeadlineLabel.value));
 const chapterInteractionLabel = computed(() => {
   const chapter = gameStore.plotState?.current_chapter;
   if (!chapter) {
@@ -291,6 +430,111 @@ const chapterInteractionLabel = computed(() => {
   const min = gameStore.plotState?.settings?.min_interactions_per_chapter ?? 0;
   const max = gameStore.plotState?.settings?.max_interactions_per_chapter ?? 0;
   return `${chapter.interaction_count} / ${min}-${max}`;
+});
+const chapterRhythmLabel = computed(() => {
+  if (isLoading.value || plotInteractionState.value === 'resolving') {
+    return '推演';
+  }
+  if (plotInteractionState.value === 'waiting_for_choice') {
+    return '舒缓';
+  }
+  if (plotInteractionState.value === 'waiting_for_free_text') {
+    return '凝思';
+  }
+  return '流转';
+});
+const rhythmToneClass = computed(() => {
+  if (chapterRhythmLabel.value === '推演') return 'runtime-rhythm-gold';
+  if (chapterRhythmLabel.value === '凝思') return 'runtime-rhythm-ink';
+  return 'runtime-rhythm-cool';
+});
+const gameTimeLabel = computed(() => {
+  const time = gameStore.gameState?.game_time;
+  if (!time) {
+    return '第0年 · 第0月 · 第0日';
+  }
+  return `第${time.year}年 · 第${time.month}月 · 第${time.day}日`;
+});
+const spiritStoneLabel = computed(() => {
+  const inventory = gameStore.playerCharacter?.inventory ?? [];
+  if (inventory.length === 0) {
+    return '0';
+  }
+  const parsed = inventory.reduce((sum, item) => {
+    const text = String(item ?? '');
+    if (!/灵石|spirit\s*stone/i.test(text)) {
+      return sum;
+    }
+    const num = text.match(/(\d+)/);
+    return sum + (num ? Number(num[1]) : 1);
+  }, 0);
+  if (parsed > 0) {
+    return parsed.toLocaleString();
+  }
+  return inventory.length.toLocaleString();
+});
+const playerRootLabel = computed(() => {
+  const root = gameStore.playerCharacter?.stats?.spiritual_root;
+  if (!root) {
+    return '灵根未显';
+  }
+  const elements = (root.elements?.length ? root.elements : [root.element]).map((value) => String(value));
+  const mapped = elements.map((value) => {
+    const names: Record<string, string> = {
+      Fire: '火',
+      Water: '水',
+      Wood: '木',
+      Metal: '金',
+      Earth: '土',
+    };
+    return names[value] ?? value;
+  });
+  if (mapped.length === 1) {
+    return `${mapped[0]}灵根`;
+  }
+  if (mapped.length === 2) {
+    return `${mapped.join('')}双灵根`;
+  }
+  if (mapped.length === 3) {
+    return `${mapped.join('')}三灵根`;
+  }
+  return `${mapped.join('/')}杂灵根`;
+});
+type RootElement = 'Fire' | 'Water' | 'Wood' | 'Metal' | 'Earth';
+const rootElementNameMap: Record<RootElement, string> = {
+  Fire: '火',
+  Water: '水',
+  Wood: '木',
+  Metal: '金',
+  Earth: '土',
+};
+const rootElementClassMap: Record<RootElement, string> = {
+  Fire: 'runtime-root-fire',
+  Water: 'runtime-root-water',
+  Wood: 'runtime-root-wood',
+  Metal: 'runtime-root-metal',
+  Earth: 'runtime-root-earth',
+};
+const playerRootElements = computed(() => {
+  const root = gameStore.playerCharacter?.stats?.spiritual_root;
+  if (!root) return [];
+  const values = (root.elements?.length ? root.elements : [root.element])
+    .map((value) => String(value))
+    .filter((value): value is RootElement =>
+      value === 'Fire' || value === 'Water' || value === 'Wood' || value === 'Metal' || value === 'Earth');
+
+  return values.map((element) => ({
+    element,
+    label: rootElementNameMap[element],
+    colorClass: rootElementClassMap[element],
+  }));
+});
+const playerRootTypeLabel = computed(() => {
+  const count = playerRootElements.value.length;
+  if (count <= 1) return '灵根';
+  if (count === 2) return '双灵根';
+  if (count === 3) return '三灵根';
+  return '杂灵根';
 });
 const locationNameMap = computed(() =>
   buildLocationLabelMap(
@@ -325,10 +569,32 @@ const recentCombatReview = computed(() => {
     .map((event) => `[t=${event.timestamp}] ${event.description}`);
 });
 const currentChapterParagraphs = computed(() => {
+  const decodeEscapedText = (value: string): string =>
+    value
+      .replace(/\\\\/g, '\\')
+      .replace(/\\"/g, '"')
+      .replace(/\\n/g, '\n')
+      .replace(/\\t/g, '\t');
+  const normalizeGeneratedBlock = (block: string): string => {
+    const trimmed = block.trim();
+    if (trimmed.length === 0) {
+      return '';
+    }
+    if (!trimmed.includes('"text"')) {
+      return trimmed;
+    }
+    const textField = trimmed.match(/"text"\s*:\s*"([\s\S]*?)"\s*(?:,|\})/);
+    if (!textField || !textField[1]) {
+      return trimmed;
+    }
+    return decodeEscapedText(textField[1]).trim();
+  };
   const content = gameStore.plotState?.current_chapter?.content ?? [];
   const combined = content.length > 0 ? content.join('\n\n') : gameStore.currentScene?.description ?? '';
   return combined
     .split(/\n{2,}/)
+    .map((text) => normalizeGeneratedBlock(text))
+    .flatMap((text) => text.split(/\n{2,}/))
     .map((text) => text.trim())
     .filter((text) => text.length > 0);
 });
@@ -394,21 +660,21 @@ const optionSourceLabel = computed(() => {
     return '';
   }
   const labels: Record<string, string> = {
-    llm_structured: 'LLM-结构化',
-    llm_regenerated: 'LLM-再生成',
+    llm_structured: '模型结构化',
+    llm_regenerated: '模型再生成',
     rule_fallback: '规则回退',
     rule_fallback_latency_budget: '规则回退（时延预算）',
     previous_reused: '复用上一组选项',
     not_waiting_for_input: '当前无需输入',
     consistency_non_waiting_fallback: '一致性兜底自动推进',
   };
-  return labels[source] ?? source;
+  return labels[source] ?? '未知来源';
 });
 const optionSourceHint = computed(() => {
   const source = gameStore.plotState?.last_option_generation_source ?? '';
   const diag = gameStore.plotState?.last_generation_diagnostics ?? '';
   if (source === 'rule_fallback_latency_budget') {
-    return '受时延预算影响，已跳过 LLM 选项再生成';
+    return '受时延预算影响，已跳过模型选项再生成';
   }
   if (diag.includes('skipped(latency_budget)')) {
     return '部分增强步骤因时延预算被跳过';
@@ -428,39 +694,15 @@ const interactionStateLabel = computed(() => {
   };
   return mapping[plotInteractionState.value] ?? plotInteractionState.value;
 });
-const mobileInteractionShortLabel = computed(() => {
-  const mapping: Record<string, string> = {
-    auto_advance: '自动',
-    waiting_for_choice: '选项',
-    waiting_for_free_text: '输入',
-    resolving: '处理中',
-    cooldown: '冷却',
-  };
-  return mapping[plotInteractionState.value] ?? interactionStateLabel.value;
+const interactionStateToneClass = computed(() => {
+  if (plotInteractionState.value === 'resolving') return 'runtime-state-gold';
+  if (plotInteractionState.value === 'waiting_for_free_text') return 'runtime-state-ink';
+  if (plotInteractionState.value === 'cooldown') return 'runtime-state-ember';
+  return 'runtime-state-cool';
 });
-const buildMobileStatusSummary = (
-  chapterProgress: string,
-  location: string,
-  interaction: string,
-): string => {
-  const parts = [chapterProgress.trim()];
-  const normalizedLocation = location.trim();
-  if (normalizedLocation && normalizedLocation !== '未知') {
-    parts.push(normalizedLocation);
-  }
-  if (interaction.trim()) {
-    parts.push(interaction.trim());
-  }
-  return parts.join(' · ');
-};
-const mobileStatusSummary = computed(
-  () =>
-    buildMobileStatusSummary(
-      chapterProgressLabel.value,
-      currentLocationLabel.value,
-      mobileInteractionShortLabel.value,
-    ),
-);
+const activeThemeClass = computed(() => {
+  return 'theme-scroll';
+});
 const consistencyRiskScore = computed(() => {
   const structured = gameStore.plotState?.last_consistency_risk_score;
   if (typeof structured === 'number') {
@@ -497,15 +739,6 @@ const {
 const runtimeNotifications = computed<NotificationItem[]>(() => {
   const out: NotificationItem[] = [];
 
-  if (gameStore.error) {
-    out.push({
-      id: 'runtime-error',
-      kind: 'error',
-      title: '系统错误',
-      message: gameStore.error,
-      priority: 'banner',
-    });
-  }
   if (autoAdvanceStopHint.value) {
     out.push({
       id: 'auto-advance-stop',
@@ -545,56 +778,9 @@ const handleTravel = async (locationId: string) => {
   }
 };
 
-const toggleAudioPanel = () => {
-  playClick();
-  showAudioPanel.value = !showAudioPanel.value;
-};
-
-const toggleSystemMenu = () => {
-  playClick();
-  showSystemMenu.value = !showSystemMenu.value;
-  if (!showSystemMenu.value) {
-    showAudioPanel.value = false;
-  }
-};
-
-const toggleMobileStatusCard = () => {
-  playClick();
-  showMobileStatusCard.value = !showMobileStatusCard.value;
-  if (typeof window !== 'undefined') {
-    window.localStorage.setItem(
-      MOBILE_STATUS_CARD_STORAGE_KEY,
-      showMobileStatusCard.value ? '1' : '0',
-    );
-  }
-};
-
-const handleMobileStatusSummaryKeydown = (event: KeyboardEvent) => {
-  if (event.key !== 'Enter' && event.key !== ' ') {
-    return;
-  }
-  event.preventDefault();
-  toggleMobileStatusCard();
-};
-
-const openShortcutsDialog = () => {
-  closeSystemMenu();
-  showShortcutsDialog.value = true;
-};
-
-const openLlmDialog = () => {
-  closeSystemMenu();
-  showLLMDialog.value = true;
-};
-
 const openStorySettingsDialog = () => {
-  closeSystemMenu();
+  playClick();
   showStorySettings.value = true;
-};
-
-const openConsistencySettingsFromMenu = async () => {
-  closeSystemMenu();
-  await openConsistencySettings();
 };
 
 const applyStorySettings = async (settings: StorySettings) => {
@@ -611,21 +797,6 @@ const applyStorySettings = async (settings: StorySettings) => {
     );
   } catch (error) {
     console.error('更新剧情设置失败：', error);
-  }
-};
-
-const openConsistencySettings = async () => {
-  try {
-    const policy = await invokeWithTimeout<ConsistencyPolicy>(
-      'get_consistency_policy',
-      undefined,
-      8000,
-      '读取一致性策略超时',
-    );
-    consistencyPolicy.value = policy;
-    showConsistencySettings.value = true;
-  } catch (error) {
-    console.error('读取一致性策略失败：', error);
   }
 };
 
@@ -735,14 +906,518 @@ const handleKeydown = (event: KeyboardEvent) => {
 };
 
 useGameHotkeys(handleKeydown);
-
-onMounted(() => {
-  if (typeof window === 'undefined') {
-    return;
-  }
-  const stored = window.localStorage.getItem(MOBILE_STATUS_CARD_STORAGE_KEY);
-  if (stored != null) {
-    showMobileStatusCard.value = stored === '1';
-  }
-});
 </script>
+
+<style scoped>
+.game-shell {
+  font-family: 'Noto Serif SC', 'Source Han Serif SC', 'STSong', 'SimSun', serif;
+  background:
+    radial-gradient(circle at 10% 22%, color-mix(in srgb, var(--ink-title-color) 22%, transparent), transparent 34%),
+    radial-gradient(circle at 82% 8%, rgba(59, 122, 107, 0.08), transparent 28%),
+    linear-gradient(145deg, var(--ink-paper), var(--ink-paper-elevated));
+}
+
+.runtime-topbar {
+  height: 56px;
+  border-radius: 12px;
+  border: 1px solid var(--ink-border-soft);
+  border-bottom-color: #d0c5b5;
+  background: var(--ink-card-bg);
+  padding: 0 18px;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 14px;
+}
+
+.runtime-top-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-self: start;
+}
+
+.runtime-brand {
+  margin: 0;
+  color: var(--ink-text-primary);
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.runtime-seal-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  border: 1px solid var(--ink-accent-main);
+  background: color-mix(in srgb, var(--ink-accent-main) 14%, transparent);
+  color: var(--ink-accent-main);
+  transition: border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease, transform 120ms ease;
+}
+
+.runtime-top-center {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.runtime-top-main {
+  margin: 0;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+.runtime-chapter-number {
+  color: var(--ink-title-color);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.runtime-chapter-name {
+  color: var(--ink-text-primary);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.runtime-state-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 16px;
+  border: 1px solid var(--ink-border-accent);
+  background: var(--ink-card-bg);
+  padding: 3px 10px;
+}
+
+.runtime-state-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.9;
+}
+
+.runtime-state-label {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.runtime-state-cool {
+  color: var(--ink-text-cool);
+}
+
+.runtime-state-gold {
+  color: var(--ink-title-color);
+}
+
+.runtime-state-ink {
+  color: var(--ink-text-ink);
+}
+
+.runtime-state-ember {
+  color: var(--ink-accent-main);
+}
+
+.runtime-top-right {
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink-text-muted);
+  font-size: 12px;
+}
+
+.runtime-resource {
+  border-radius: 999px;
+  border: 1px solid var(--ink-border-accent);
+  background: #f8f4ec;
+  color: var(--ink-title-color);
+  padding: 4px 11px;
+  transition: background-color 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.runtime-content {
+  margin-top: 18px;
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr) 280px;
+  gap: 20px;
+}
+
+.runtime-panel {
+  min-height: 0;
+}
+
+.runtime-card,
+.runtime-main-panel {
+  position: relative;
+  border-radius: 14px;
+  border: 1px solid var(--ink-border-strong);
+  background: var(--ink-card-bg);
+  box-shadow: var(--ink-shadow-card);
+}
+
+.runtime-card {
+  padding: 20px;
+  background-image: radial-gradient(circle at 80% 14%, rgba(59, 122, 107, 0.04), transparent 30%);
+}
+
+.runtime-side-left .runtime-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.runtime-side-left {
+  display: grid;
+  align-content: start;
+  gap: 22px;
+}
+
+.runtime-card-title {
+  margin: 0;
+  color: var(--ink-title-color);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.35;
+  font-family: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', serif;
+}
+
+.runtime-chapter-title {
+  margin: 0;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.runtime-sub-text {
+  margin: 0;
+  color: var(--ink-text-muted);
+  font-size: 14px;
+  line-height: 1.6;
+  letter-spacing: 0.01em;
+}
+
+.runtime-root-line {
+  margin-top: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.runtime-root-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.runtime-root-icon {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+}
+
+.runtime-root-name {
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.runtime-root-type {
+  color: var(--ink-text-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.runtime-root-earth {
+  color: #8d6a46;
+}
+
+.runtime-root-metal {
+  color: var(--ink-title-color);
+}
+
+.runtime-root-wood {
+  color: var(--ink-text-ink);
+}
+
+.runtime-root-water {
+  color: #3b6f9b;
+}
+
+.runtime-root-fire {
+  color: var(--ink-accent-main);
+}
+
+.runtime-body-text {
+  margin: 0;
+  color: var(--ink-text-primary);
+  font-size: 16px;
+  line-height: 1.65;
+  letter-spacing: 0.005em;
+}
+
+.runtime-accent-cool {
+  color: var(--ink-text-cool);
+}
+
+.runtime-rhythm-badge {
+  margin-top: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--ink-border-accent);
+  border-radius: 16px;
+  background: var(--ink-card-bg);
+  padding: 4px 12px;
+}
+
+.runtime-rhythm-badge-compact {
+  margin-top: 0;
+  padding: 3px 10px;
+}
+
+.runtime-rhythm-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.runtime-rhythm-label {
+  color: var(--ink-text-muted);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+.runtime-rhythm-value {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.runtime-rhythm-cool .runtime-rhythm-icon,
+.runtime-rhythm-cool .runtime-rhythm-value {
+  color: var(--ink-text-cool);
+}
+
+.runtime-rhythm-gold .runtime-rhythm-icon,
+.runtime-rhythm-gold .runtime-rhythm-value {
+  color: var(--ink-title-color);
+}
+
+.runtime-rhythm-ink .runtime-rhythm-icon,
+.runtime-rhythm-ink .runtime-rhythm-value {
+  color: var(--ink-text-ink);
+}
+
+.runtime-main-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 24px;
+  border-color: #ddcfbc;
+  background: var(--ink-paper);
+  background-image:
+    radial-gradient(circle at 10% 88%, rgba(178, 62, 62, 0.035), transparent 35%),
+    radial-gradient(circle at 88% 16%, rgba(59, 122, 107, 0.04), transparent 30%);
+}
+
+.runtime-main-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 0 16px;
+  margin-bottom: 8px;
+}
+
+.runtime-main-scene {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.runtime-main-chapter {
+  color: var(--ink-title-color);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  font-family: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', serif;
+}
+
+.runtime-main-scene-icon {
+  color: var(--ink-title-color);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.runtime-main-scene-name {
+  color: var(--ink-text-primary);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.005em;
+  font-family: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', serif;
+}
+
+.runtime-main-body {
+  min-height: 0;
+  flex: 1;
+  padding: 0;
+}
+
+.runtime-main-body :deep(.runtime-story-scroll) {
+  height: 100%;
+  min-height: 420px;
+  max-height: none;
+  overflow-x: hidden;
+  border-radius: 12px;
+  border: 1px solid var(--ink-border-strong);
+  background: var(--ink-card-bg);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  padding: 24px 24px 90px;
+}
+
+.runtime-main-body :deep(.runtime-story-scroll::-webkit-scrollbar) {
+  width: 8px;
+}
+
+.runtime-main-body :deep(.runtime-story-scroll::-webkit-scrollbar-track) {
+  border-radius: 4px;
+  background: var(--ink-card-bg-muted);
+}
+
+.runtime-main-body :deep(.runtime-story-scroll::-webkit-scrollbar-thumb) {
+  border-radius: 4px;
+  background: var(--ink-border-accent);
+}
+
+.runtime-main-body :deep(.runtime-story-scroll) {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ink-border-accent) var(--ink-card-bg-muted);
+}
+
+.runtime-main-body :deep([data-paragraph-index]) {
+  font-family: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', serif;
+}
+
+.runtime-side-right .runtime-interaction-card {
+  height: 100%;
+  overflow: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.runtime-interaction-title,
+.runtime-interaction-subtitle {
+  margin: 0;
+}
+
+.runtime-interaction-title {
+  font-size: 18px;
+  line-height: 1.35;
+}
+
+.runtime-interaction-subtitle {
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.runtime-interaction-card :deep(.mx-auto.max-w-3xl) {
+  max-width: none;
+  margin: 0;
+}
+
+.runtime-interaction-card :deep(.ink-interaction-panel) {
+  padding: 0;
+}
+
+.runtime-bottom-bar {
+  margin-top: 18px;
+  min-height: 64px;
+  border-top: 1px solid #d9cbb8;
+  border-radius: 12px;
+  background: var(--ink-card-bg-soft);
+  padding: 11px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.runtime-bottom-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.runtime-bottom-btn {
+  border-radius: 8px;
+  border: 1px solid var(--ink-border-accent);
+  background: #f8f3ea;
+  color: var(--ink-text-primary);
+  padding: 8px 18px;
+  transition: border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease, transform 120ms ease;
+}
+
+.runtime-bottom-btn:hover,
+.runtime-resource:hover,
+.runtime-seal-btn:hover {
+  border-color: var(--ink-title-color);
+  background: var(--ink-paper);
+  box-shadow: 0 3px 10px rgba(45, 42, 36, 0.1);
+}
+
+.runtime-bottom-btn:active,
+.runtime-resource:active,
+.runtime-seal-btn:active {
+  transform: scale(0.98);
+}
+
+@media (max-width: 1180px) {
+  .runtime-content {
+    grid-template-columns: 1fr;
+  }
+
+  .runtime-side-right .runtime-interaction-card {
+    height: auto;
+  }
+
+  .runtime-topbar {
+    grid-template-columns: 1fr;
+    height: auto;
+    padding: 10px 14px;
+  }
+
+  .runtime-top-right {
+    justify-self: start;
+  }
+
+  .runtime-bottom-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .runtime-main-header {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 0 0 12px;
+  }
+
+  .runtime-main-body {
+    padding: 0;
+  }
+
+  .runtime-main-panel {
+    padding: 18px;
+  }
+}
+</style>
+

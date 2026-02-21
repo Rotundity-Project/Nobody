@@ -1,13 +1,9 @@
-<template>
+﻿<template>
   <div class="mx-auto max-w-3xl">
-    <UiPanel padding="md">
-      <p class="mb-3 text-xs uppercase tracking-[0.24em] text-slate-400">
-        交互操作
-      </p>
-
+    <UiPanel padding="md" class="ink-interaction-panel">
       <div
         v-if="shouldShowInputPanel"
-        class="space-y-4"
+        class="ink-interaction-stack"
       >
         <InputStatusNotice
           :error="error"
@@ -107,3 +103,17 @@ defineEmits<{
   (event: 'stop-auto-advance'): void;
 }>();
 </script>
+
+<style scoped>
+.ink-interaction-stack {
+  display: grid;
+  gap: 8px;
+}
+
+.ink-interaction-panel {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+</style>

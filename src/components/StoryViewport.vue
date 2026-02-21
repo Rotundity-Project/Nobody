@@ -1,74 +1,52 @@
-﻿<template>
-  <div
-    ref="scrollElement"
-    class="relative flex-1 overflow-y-auto px-4 pb-5 pt-0 sm:px-6 sm:pb-6 sm:pt-1 md:px-7 md:pb-7 md:pt-1 xl:px-8 xl:pb-8 xl:pt-2"
-  >
+<template>
+  <div class="story-viewport-frame relative flex-1 overflow-hidden rounded-[12px]">
     <div
-      v-if="showReadingLocator"
-      class="pointer-events-none absolute right-3 top-2 z-20 sm:right-4"
+      ref="scrollElement"
+      class="runtime-story-scroll relative h-full overflow-y-auto"
+      tabindex="0"
+      @keydown="handleViewportKeydown"
     >
+      <ScrollToBottomButton
+        :visible="showScrollToBottomButton"
+        @scroll="scrollToBottom"
+      />
+      <StoryScenePanel
+        :has-scene="hasScene"
+        :chapter-title="chapterTitle"
+        :show-recap="showRecap && currentPage === 0"
+        :recap-summary="recapSummary"
+        :paragraphs="currentPageParagraphs"
+        :option-source-label="optionSourceLabel"
+        :is-game-initialized="isGameInitialized"
+        :scroll-element="scrollElement"
+      />
       <div
-        data-testid="reading-locator"
-        class="pointer-events-auto w-fit max-w-[min(84vw,22rem)] rounded-lg border border-slate-700/90 bg-slate-900/90 px-2 py-1.5 text-[11px] text-slate-200 shadow-sm backdrop-blur sm:px-3 sm:py-2 sm:text-xs"
-      >
-        <div class="flex items-center justify-between gap-2 sm:gap-3">
-          <p
-            data-testid="reading-locator-summary"
-            aria-live="polite"
-            aria-atomic="true"
-          >
-            阅读定位：{{ readingProgressPercent }}% · {{ readingProgressCompact }}
-          </p>
-          <button
-            data-testid="toggle-reading-locator"
-            class="rounded bg-slate-700 px-1.5 py-0.5 text-[10px] text-slate-100 hover:bg-slate-600 sm:px-2 sm:text-[11px]"
-            :aria-expanded="showReadingLocatorDetails ? 'true' : 'false'"
-            :aria-controls="READING_LOCATOR_DETAILS_ID"
-            :aria-label="showReadingLocatorDetails ? '收起阅读定位详情' : '展开阅读定位详情'"
-            @click="toggleReadingLocatorDetails"
-          >
-            {{ showReadingLocatorDetails ? '收起' : '展开' }}
-          </button>
-        </div>
-        <div
-          v-if="showReadingLocatorDetails"
-          :id="READING_LOCATOR_DETAILS_ID"
-          class="mt-2 space-y-2"
-        >
-          <p>段落进度：{{ currentParagraphIndex }} / {{ paragraphs.length }}</p>
-          <div class="flex gap-2">
-            <button
-              class="rounded bg-slate-700 px-2 py-1 text-[11px] text-slate-100 hover:bg-slate-600"
-              @click="scrollToTop"
-            >
-              顶部
-            </button>
-            <button
-              class="rounded bg-slate-700 px-2 py-1 text-[11px] text-slate-100 hover:bg-slate-600"
-              @click="scrollToBottom"
-            >
-              底部
-            </button>
-          </div>
-        </div>
-      </div>
+        class="story-reading-fade pointer-events-none absolute inset-x-0 bottom-0 h-20 rounded-b-[12px]"
+        :style="readingFadeStyle"
+      />
     </div>
-
-    <ScrollToBottomButton
-      :visible="showScrollToBottomButton"
-      @scroll="scrollToBottom"
-    />
-    <StoryScenePanel
-      :has-scene="hasScene"
-      :chapter-title="chapterTitle"
-      :show-recap="showRecap"
-      :recap-summary="recapSummary"
-      :paragraphs="paragraphs"
-      :option-source-label="optionSourceLabel"
-      :is-game-initialized="isGameInitialized"
-      :scroll-element="scrollElement"
-    />
-    <div class="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-slate-950 to-transparent" />
+    <div
+      v-if="totalPages > 1"
+      class="story-page-nav"
+    >
+      <button
+        type="button"
+        class="story-page-btn"
+        :disabled="currentPage <= 0"
+        @click="goPrevPage"
+      >
+        上一页
+      </button>
+      <span class="story-page-text">第 {{ currentPage + 1 }} / {{ totalPages }} 页</span>
+      <button
+        type="button"
+        class="story-page-btn"
+        :disabled="currentPage >= totalPages - 1"
+        @click="goNextPage"
+      >
+        下一页
+      </button>
+    </div>
   </div>
 </template>
 
@@ -89,57 +67,86 @@ const props = defineProps<{
 
 const scrollElement = ref<HTMLElement | null>(null);
 const readingProgress = ref(0);
-const showReadingLocatorDetails = ref(false);
-const READING_LOCATOR_STORAGE_KEY = 'nobody_reading_locator_expanded';
-const READING_LOCATOR_DETAILS_ID = 'reading-locator-details';
+const hasScrollableContent = ref(false);
+const currentPage = ref(0);
 
-const showReadingLocator = computed(
-  () => props.isGameInitialized && props.hasScene && props.paragraphs.length > 0,
-);
-const showScrollToBottomButton = computed(
-  () => showReadingLocator.value && readingProgress.value < 0.95,
-);
-const readingProgressPercent = computed(() => Math.round(readingProgress.value * 100));
-const currentParagraphIndex = computed(() => {
-  if (props.paragraphs.length === 0) {
-    return 0;
+const PAGE_TRIGGER_CHAR_COUNT = 1200;
+const PAGE_CHAR_BUDGET = 850;
+
+const splitLongParagraph = (text: string, budget: number): string[] => {
+  const trimmed = text.trim();
+  if (trimmed.length <= budget) return [trimmed];
+  const out: string[] = [];
+  let start = 0;
+  while (start < trimmed.length) {
+    const next = Math.min(trimmed.length, start + budget);
+    out.push(trimmed.slice(start, next));
+    start = next;
   }
-  const estimated = Math.round(readingProgress.value * props.paragraphs.length);
-  return Math.min(props.paragraphs.length, Math.max(1, estimated));
+  return out;
+};
+
+const pagedParagraphGroups = computed(() => {
+  const nonEmpty = props.paragraphs
+    .map((text) => text.trim())
+    .filter((text) => text.length > 0);
+  if (nonEmpty.length === 0) return [[]];
+
+  const totalChars = nonEmpty.reduce((sum, text) => sum + text.length, 0);
+  if (totalChars <= PAGE_TRIGGER_CHAR_COUNT) {
+    return [nonEmpty];
+  }
+
+  const pages: string[][] = [];
+  let current: string[] = [];
+  let used = 0;
+
+  for (const para of nonEmpty) {
+    for (const chunk of splitLongParagraph(para, PAGE_CHAR_BUDGET)) {
+      const nextSize = used + chunk.length;
+      if (current.length > 0 && nextSize > PAGE_CHAR_BUDGET) {
+        pages.push(current);
+        current = [];
+        used = 0;
+      }
+      current.push(chunk);
+      used += chunk.length;
+    }
+  }
+
+  if (current.length > 0) {
+    pages.push(current);
+  }
+  return pages.length > 0 ? pages : [nonEmpty];
 });
-const readingProgressCompact = computed(() => `${currentParagraphIndex.value}/${props.paragraphs.length}`);
+
+const totalPages = computed(() => pagedParagraphGroups.value.length);
+const currentPageParagraphs = computed(() => pagedParagraphGroups.value[currentPage.value] ?? []);
+
+const showScrollToBottomButton = computed(
+  () =>
+    props.isGameInitialized
+    && props.hasScene
+    && props.paragraphs.length > 0
+    && totalPages.value <= 1
+    && hasScrollableContent.value
+    && readingProgress.value < 0.95,
+);
+const readingFadeStyle = computed(() => ({
+  background: 'linear-gradient(to top, color-mix(in srgb, var(--ink-bg-base) 86%, transparent), transparent)',
+}));
 
 const updateReadingProgress = () => {
   const el = scrollElement.value;
   if (!el) {
+    hasScrollableContent.value = false;
     return;
   }
-  const maxScrollable = Math.max(1, el.scrollHeight - el.clientHeight);
+  const rawScrollable = el.scrollHeight - el.clientHeight;
+  hasScrollableContent.value = rawScrollable > 24;
+  const maxScrollable = Math.max(1, rawScrollable);
   const ratio = el.scrollTop / maxScrollable;
   readingProgress.value = Math.max(0, Math.min(1, Number.isFinite(ratio) ? ratio : 0));
-};
-
-const getStoredLocatorExpanded = (): boolean | null => {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-  const raw = window.localStorage.getItem(READING_LOCATOR_STORAGE_KEY);
-  if (raw == null) {
-    return null;
-  }
-  return raw === '1';
-};
-
-const persistLocatorExpanded = (expanded: boolean) => {
-  if (typeof window === 'undefined') {
-    return;
-  }
-  window.localStorage.setItem(READING_LOCATOR_STORAGE_KEY, expanded ? '1' : '0');
-};
-
-const toggleReadingLocatorDetails = () => {
-  showReadingLocatorDetails.value = !showReadingLocatorDetails.value;
-  persistLocatorExpanded(showReadingLocatorDetails.value);
 };
 
 const resolveScrollBehavior = (): ScrollBehavior => {
@@ -147,16 +154,6 @@ const resolveScrollBehavior = (): ScrollBehavior => {
     return 'smooth';
   }
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
-};
-
-const scrollToTop = () => {
-  if (!scrollElement.value || typeof scrollElement.value.scrollTo !== 'function') {
-    return;
-  }
-  scrollElement.value.scrollTo({
-    top: 0,
-    behavior: resolveScrollBehavior(),
-  });
 };
 
 const scrollToBottom = () => {
@@ -182,12 +179,33 @@ const resetViewportScroll = async () => {
   updateReadingProgress();
 };
 
+const goPrevPage = () => {
+  if (currentPage.value <= 0) return;
+  currentPage.value -= 1;
+  void resetViewportScroll();
+};
+
+const goNextPage = () => {
+  if (currentPage.value >= totalPages.value - 1) return;
+  currentPage.value += 1;
+  void resetViewportScroll();
+};
+
+const handleViewportKeydown = (event: KeyboardEvent) => {
+  if (totalPages.value <= 1) return;
+  if (event.key === 'ArrowLeft' || event.key === 'PageUp') {
+    event.preventDefault();
+    goPrevPage();
+    return;
+  }
+  if (event.key === 'ArrowRight' || event.key === 'PageDown') {
+    event.preventDefault();
+    goNextPage();
+  }
+};
+
 onMounted(() => {
   scrollElement.value?.addEventListener('scroll', updateReadingProgress, { passive: true });
-  const stored = getStoredLocatorExpanded();
-  if (stored != null) {
-    showReadingLocatorDetails.value = stored;
-  }
   updateReadingProgress();
 });
 
@@ -198,6 +216,7 @@ onUnmounted(() => {
 watch(
   () => props.paragraphs.length,
   () => {
+    currentPage.value = Math.max(0, totalPages.value - 1);
     updateReadingProgress();
   },
 );
@@ -205,7 +224,17 @@ watch(
 watch(
   () => [props.chapterTitle, props.paragraphs[0] ?? ''],
   () => {
+    currentPage.value = Math.max(0, totalPages.value - 1);
     void resetViewportScroll();
+  },
+);
+
+watch(
+  totalPages,
+  (next) => {
+    if (currentPage.value > next - 1) {
+      currentPage.value = Math.max(0, next - 1);
+    }
   },
 );
 
@@ -213,3 +242,52 @@ defineExpose({
   scrollToBottom,
 });
 </script>
+
+<style scoped>
+.story-page-nav {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  z-index: 8;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--ink-border-accent, #b7a88c);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink-card-bg, #f5f0e8) 92%, transparent);
+  padding: 6px 10px;
+  backdrop-filter: blur(2px);
+}
+
+.story-page-btn {
+  border: 1px solid var(--ink-border-strong, #d9c0b0);
+  border-radius: 999px;
+  background: var(--ink-paper, #faf7f2);
+  color: var(--ink-text-primary, #2d2a24);
+  padding: 3px 10px;
+  font-size: 12px;
+  transition: border-color 180ms ease, background-color 180ms ease, opacity 180ms ease;
+}
+
+.story-page-btn:hover:not(:disabled) {
+  border-color: var(--ink-title-color, #b78c4a);
+  background: #fff;
+}
+
+.story-page-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.story-page-text {
+  color: var(--ink-text-muted, #5e5a54);
+  font-size: 12px;
+  min-width: 90px;
+  text-align: center;
+}
+
+.story-reading-fade {
+  z-index: 2;
+}
+</style>

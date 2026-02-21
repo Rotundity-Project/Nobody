@@ -1,9 +1,11 @@
-<template>
+﻿<template>
   <InfoTabsDialog
     :is-open="isOpen"
     :player-name="gameStore.playerCharacter?.name || '无名弟子'"
     :player-realm="playerRealmLabel"
     :player-combat-power="playerCombatPowerLabel"
+    :player-root-label="playerRootTypeLabel"
+    :player-root-elements="playerRootElements"
     :player-location="playerLocationLabel"
     :chapter-progress="chapterProgressLabel"
     :chapter-interaction="chapterInteractionLabel"
@@ -19,8 +21,8 @@
     :is-game-running="gameStore.isGameInitialized"
     :event-count="gameStore.gameState?.event_history?.length ?? 0"
     :is-dev-mode="isDevMode"
-    :debug-chapter="`${gameStore.plotState?.current_chapter?.index ?? 0} / ${gameStore.plotState?.current_chapter?.title ?? 'n/a'}`"
-    :debug-option-source="optionSourceLabel || 'n/a'"
+    :debug-chapter="`${gameStore.plotState?.current_chapter?.index ?? 0} / ${gameStore.plotState?.current_chapter?.title ?? '无'}`"
+    :debug-option-source="optionSourceLabel || '无'"
     :debug-option-hint="optionSourceHint || ''"
     :debug-risk-score="consistencyRiskScore"
     :debug-diagnostics="gameStore.plotState?.last_generation_diagnostics || ''"
@@ -34,7 +36,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import InfoTabsDialog from './InfoTabsDialog.vue';
-import type { MapLocationOverview } from '../types/game';
+import type { Element, MapLocationOverview } from '../types/game';
 import { buildLocationLabelMap, formatLocationLabel } from '../shared/locationLabel';
 
 type WorldLocation = {
@@ -47,6 +49,12 @@ type GameStoreView = {
   playerCharacter?: {
     name?: string;
     location?: string;
+    stats?: {
+      spiritual_root?: {
+        element?: Element;
+        elements?: Element[];
+      };
+    };
   } | null;
   currentScene?: {
     location?: string;
@@ -105,4 +113,31 @@ const playerLocationLabel = computed(() =>
     locationLabelMap.value,
   ),
 );
+
+const rootLabelMap: Record<Element, string> = {
+  Fire: '火',
+  Water: '水',
+  Wood: '木',
+  Metal: '金',
+  Earth: '土',
+};
+
+const playerRootElements = computed(() => {
+  const root = props.gameStore.playerCharacter?.stats?.spiritual_root as {
+    element?: Element;
+    elements?: Element[];
+  } | undefined;
+  if (!root) return [];
+  const values = root.elements && root.elements.length > 0 ? root.elements : (root.element ? [root.element] : []);
+  return values.map((element) => ({ element, label: rootLabelMap[element] ?? '未知' }));
+});
+
+const playerRootTypeLabel = computed(() => {
+  const count = playerRootElements.value.length;
+  if (count <= 1) return '灵根';
+  if (count === 2) return '双灵根';
+  if (count === 3) return '三灵根';
+  return '杂灵根';
+});
 </script>
+

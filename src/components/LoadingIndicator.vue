@@ -1,24 +1,29 @@
-<template>
+﻿<template>
   <div class="w-full space-y-3 text-center">
     <div class="flex items-center justify-center gap-3">
       <div
-        class="inline-block animate-spin rounded-full border-2 border-slate-600 border-t-amber-300"
-        :class="sizeClass"
+        class="inline-block animate-spin rounded-full border-2"
+        :style="spinnerStyle"
+        :class="{
+          'h-4 w-4': size === 'sm',
+          'h-6 w-6': size === 'md',
+          'h-8 w-8': size === 'lg',
+        }"
       ></div>
       <div class="text-left">
-        <p class="text-slate-100">{{ message }}</p>
-        <p v-if="detail" class="text-xs text-slate-400">{{ detail }}</p>
+        <p :style="messageStyle">{{ message }}</p>
+        <p v-if="detail" class="text-xs" :style="detailStyle">{{ detail }}</p>
       </div>
     </div>
-    <div class="h-1.5 overflow-hidden rounded-full bg-slate-800/90" aria-hidden="true">
+    <div class="h-1.5 overflow-hidden rounded-full" :style="progressTrackStyle" aria-hidden="true">
       <div
         v-if="progressPercent !== null"
-        class="h-full rounded-full bg-amber-300/90 transition-all duration-300"
-        :style="{ width: `${progressPercent}%` }"
+        class="h-full rounded-full transition-all duration-300"
+        :style="{ ...progressFillStyle, width: `${progressPercent}%` }"
       ></div>
-      <div v-else class="loading-bar h-full w-1/3 rounded-full bg-amber-300/90"></div>
+      <div v-else class="loading-bar h-full w-1/3 rounded-full" :style="progressFillStyle"></div>
     </div>
-    <p v-if="progressText" class="text-xs text-slate-400">{{ progressText }}</p>
+    <p v-if="progressText" class="text-xs" :style="detailStyle">{{ progressText }}</p>
   </div>
 </template>
 
@@ -42,23 +47,28 @@ const props = withDefaults(
   },
 );
 
-const sizeClass = computed(() => {
-  switch (props.size) {
-    case 'sm':
-      return 'h-4 w-4';
-    case 'lg':
-      return 'h-8 w-8';
-    default:
-      return 'h-6 w-6';
-  }
-});
-
 const progressPercent = computed(() => {
   if (props.progress == null) {
     return null;
   }
   return Math.max(0, Math.min(100, props.progress));
 });
+const spinnerStyle = computed(() => ({
+  borderColor: 'color-mix(in srgb, var(--ink-border) 85%, transparent)',
+  borderTopColor: 'var(--ink-accent-note)',
+}));
+const messageStyle = computed(() => ({
+  color: 'var(--ink-text-primary)',
+}));
+const detailStyle = computed(() => ({
+  color: 'var(--ink-text-muted)',
+}));
+const progressTrackStyle = computed(() => ({
+  background: 'color-mix(in srgb, var(--ink-text-primary) 9%, transparent)',
+}));
+const progressFillStyle = computed(() => ({
+  background: 'color-mix(in srgb, var(--ink-accent-note) 82%, transparent)',
+}));
 </script>
 
 <style scoped>

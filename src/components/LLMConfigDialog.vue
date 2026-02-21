@@ -1,58 +1,94 @@
 ﻿<template>
-  <div v-if="isOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-    <div class="w-full max-w-2xl panel-surface rounded-2xl p-6">
-      <div class="mb-4 flex items-center justify-between">
-        <h3 class="text-xl font-display text-amber-100">LLM 模型配置</h3>
-        <button class="rounded bg-slate-700 px-3 py-1 text-sm text-slate-200" @click="$emit('close')">关闭</button>
-      </div>
-
-      <div class="space-y-3">
-        <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <label class="text-sm text-slate-300">
-            Endpoint
-            <input v-model="form.endpoint" class="mt-1 w-full rounded border border-slate-600 bg-slate-800 px-3 py-2 text-white" />
-          </label>
-          <label class="text-sm text-slate-300">
-            模型名称
-            <input v-model="form.model" class="mt-1 w-full rounded border border-slate-600 bg-slate-800 px-3 py-2 text-white" />
-          </label>
-        </div>
-
-        <label class="text-sm text-slate-300">
-          API Key
-          <input v-model="form.apiKey" type="password" class="mt-1 w-full rounded border border-slate-600 bg-slate-800 px-3 py-2 text-white" />
+  <div v-if="inline" class="llm-inline-wrap">
+    <div class="space-y-3">
+      <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <label class="text-sm text-[#5e5a54]">
+          Endpoint
+          <input v-model="form.endpoint" class="llm-input" />
         </label>
-
-        <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <label class="text-sm text-slate-300">
-            maxTokens
-            <input v-model.number="form.maxTokens" type="number" min="1" class="mt-1 w-full rounded border border-slate-600 bg-slate-800 px-3 py-2 text-white" />
-          </label>
-          <label class="text-sm text-slate-300">
-            temperature
-            <input v-model.number="form.temperature" type="number" min="0" max="2" step="0.1" class="mt-1 w-full rounded border border-slate-600 bg-slate-800 px-3 py-2 text-white" />
-          </label>
-        </div>
-
-        <p class="text-xs text-slate-400">当前状态：{{ statusText }}</p>
-        <LoadingIndicator
-          v-if="busy"
-          :message="loadingMessage"
-          detail="正在与模型服务交互..."
-          size="sm"
-        />
-        <p v-if="message" class="text-sm text-emerald-300">{{ message }}</p>
-        <p v-if="error" class="text-sm text-red-300">{{ error }}</p>
-
-        <div class="flex flex-wrap gap-2">
-          <button class="rounded bg-amber-500 px-3 py-2 text-sm text-slate-900" @click="saveConfig" :disabled="busy || !isFormValid">保存配置</button>
-          <button class="rounded bg-emerald-500 px-3 py-2 text-sm text-slate-900" @click="testConnection" :disabled="busy">测试连接</button>
-          <button class="rounded bg-slate-700 px-3 py-2 text-sm text-white" @click="loadStatus" :disabled="busy">刷新状态</button>
-          <button class="rounded bg-slate-700 px-3 py-2 text-sm text-white" @click="clearConfig" :disabled="busy">清除运行时配置</button>
-        </div>
-        <p v-if="!isFormValid" class="text-sm text-amber-300">{{ formValidation.join('；') }}</p>
+        <label class="text-sm text-[#5e5a54]">
+          模型名称
+          <input v-model="form.model" class="llm-input" />
+        </label>
       </div>
+
+      <label class="text-sm text-[#5e5a54]">
+        API Key
+        <input v-model="form.apiKey" type="password" class="llm-input" />
+      </label>
+
+      <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <label class="text-sm text-[#5e5a54]">
+          maxTokens
+          <input v-model.number="form.maxTokens" type="number" min="1" class="llm-input" />
+        </label>
+        <label class="text-sm text-[#5e5a54]">
+          temperature
+          <input v-model.number="form.temperature" type="number" min="0" max="2" step="0.1" class="llm-input" />
+        </label>
+      </div>
+
+      <p class="text-xs text-[#6a655d]">当前状态：{{ statusText }}</p>
+      <LoadingIndicator
+        v-if="busy"
+        :message="loadingMessage"
+        detail="正在与模型服务交互..."
+        size="sm"
+      />
+      <p v-if="message" class="text-sm text-[#3b7a6b]">{{ message }}</p>
+      <p v-if="error" class="text-sm text-[#9a3434]">{{ error }}</p>
+
+      <div class="flex flex-wrap gap-2">
+        <button class="llm-btn llm-btn-primary" @click="saveConfig" :disabled="busy || !isFormValid">保存配置</button>
+        <button class="llm-btn llm-btn-success" @click="testConnection" :disabled="busy">测试连接</button>
+        <button class="llm-btn" @click="loadStatus" :disabled="busy">刷新状态</button>
+        <button class="llm-btn" @click="clearConfig" :disabled="busy">清除运行时配置</button>
+      </div>
+      <p v-if="!isFormValid" class="text-sm text-[#b78c4a]">{{ formValidation.join('；') }}</p>
     </div>
+  </div>
+
+  <div v-else-if="isOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/25 p-4">
+    <section class="llm-modal w-full max-w-4xl rounded-2xl p-5">
+      <header class="mb-3 flex items-center justify-between">
+        <h3 class="text-xl font-display text-[#b78c4a]">LLM 模型配置</h3>
+        <button class="llm-btn" @click="$emit('close')">关闭</button>
+      </header>
+      <div class="llm-dialog-grid">
+        <aside class="llm-left">
+          <p class="llm-sub-title">设置分组</p>
+          <div class="mt-2 grid gap-2">
+            <button type="button" class="llm-chip llm-chip-active text-left">模型配置</button>
+          </div>
+        </aside>
+        <section class="llm-right">
+          <div class="llm-inline-wrap p-3">
+            <div class="space-y-3">
+              <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <label class="text-sm text-[#5e5a54]">Endpoint<input v-model="form.endpoint" class="llm-input" /></label>
+                <label class="text-sm text-[#5e5a54]">模型名称<input v-model="form.model" class="llm-input" /></label>
+              </div>
+              <label class="text-sm text-[#5e5a54]">API Key<input v-model="form.apiKey" type="password" class="llm-input" /></label>
+              <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <label class="text-sm text-[#5e5a54]">maxTokens<input v-model.number="form.maxTokens" type="number" min="1" class="llm-input" /></label>
+                <label class="text-sm text-[#5e5a54]">temperature<input v-model.number="form.temperature" type="number" min="0" max="2" step="0.1" class="llm-input" /></label>
+              </div>
+              <p class="text-xs text-[#6a655d]">当前状态：{{ statusText }}</p>
+              <LoadingIndicator v-if="busy" :message="loadingMessage" detail="正在与模型服务交互..." size="sm" />
+              <p v-if="message" class="text-sm text-[#3b7a6b]">{{ message }}</p>
+              <p v-if="error" class="text-sm text-[#9a3434]">{{ error }}</p>
+              <div class="flex flex-wrap gap-2">
+                <button class="llm-btn llm-btn-primary" @click="saveConfig" :disabled="busy || !isFormValid">保存配置</button>
+                <button class="llm-btn llm-btn-success" @click="testConnection" :disabled="busy">测试连接</button>
+                <button class="llm-btn" @click="loadStatus" :disabled="busy">刷新状态</button>
+                <button class="llm-btn" @click="clearConfig" :disabled="busy">清除运行时配置</button>
+              </div>
+              <p v-if="!isFormValid" class="text-sm text-[#b78c4a]">{{ formValidation.join('；') }}</p>
+            </div>
+          </div>
+        </section>
+      </div>
+    </section>
   </div>
 </template>
 
@@ -71,7 +107,9 @@ interface LLMConfigStatus {
   temperature?: number;
 }
 
-const props = defineProps<{ isOpen: boolean }>();
+const props = withDefaults(defineProps<{ isOpen: boolean; inline?: boolean }>(), {
+  inline: false,
+});
 defineEmits<{ close: [] }>();
 
 const form = reactive({
@@ -158,7 +196,6 @@ const formValidation = computed(() => {
 const isFormValid = computed(() => formValidation.value.length === 0);
 
 const saveConfig = async () => {
-  // 验证表单
   if (!isFormValid.value) {
     error.value = formValidation.value.join('；');
     return;
@@ -185,7 +222,6 @@ const saveConfig = async () => {
       '保存配置超时，请检查网络或重试',
     );
     if (form.apiKey.trim()) {
-      // 只在 API Key 非空时保存到 localStorage
       window.localStorage.setItem(API_KEY_STORAGE, form.apiKey.trim());
     } else {
       window.localStorage.removeItem(API_KEY_STORAGE);
@@ -247,3 +283,91 @@ const clearConfig = async () => {
   }
 };
 </script>
+
+<style scoped>
+.llm-modal,
+.llm-inline-wrap {
+  background: #f5f0e8;
+  border: 1px solid #d9d0c0;
+}
+
+.llm-dialog-grid {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 14px;
+}
+
+.llm-left,
+.llm-right {
+  border: 1px solid #d9d0c0;
+  border-radius: 12px;
+  background: #efe7da;
+  padding: 12px;
+}
+
+.llm-sub-title {
+  margin: 0;
+  color: #b78c4a;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+}
+
+.llm-chip {
+  border: 1px solid #b7a88c;
+  border-radius: 8px;
+  background: #f5f0e8;
+  color: #2d2a24;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.llm-chip-active {
+  border-color: #b78c4a;
+}
+
+.llm-input {
+  margin-top: 4px;
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid #d9d0c0;
+  background: #fbf8f3;
+  padding: 8px 10px;
+  color: #2d2a24;
+}
+
+.llm-btn {
+  border: 1px solid #b7a88c;
+  border-radius: 8px;
+  background: #f8f3ea;
+  color: #2d2a24;
+  padding: 7px 12px;
+  font-size: 13px;
+}
+
+.llm-btn:hover {
+  border-color: #b78c4a;
+  background: #faf7f2;
+}
+
+.llm-btn-primary {
+  border-color: #b78c4a;
+  background: #efe4cf;
+}
+
+.llm-btn-success {
+  border-color: #3b7a6b;
+  background: #edf5f2;
+  color: #2f6a5d;
+}
+
+.llm-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 900px) {
+  .llm-dialog-grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>

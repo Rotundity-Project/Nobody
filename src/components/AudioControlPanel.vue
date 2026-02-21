@@ -1,29 +1,29 @@
 ﻿<template>
-  <div class="space-y-4">
-    <div class="flex items-center justify-between">
+  <div class="audio-panel space-y-4">
+    <div v-if="showSwitches" class="flex items-center justify-between">
       <div>
-        <p class="text-sm text-slate-300">背景音乐</p>
-        <p class="text-xs text-slate-500">控制环境氛围与场景铺垫</p>
+        <p class="text-sm text-[#2d2a24]">背景音乐</p>
+        <p class="text-xs text-[#6a655d]">控制环境氛围与场景铺垫</p>
       </div>
       <button
         data-testid="toggle-bgm-btn"
-        class="rounded-full px-3 py-1 text-xs font-semibold transition-colors"
-        :class="settings.bgmEnabled ? 'bg-amber-400 text-slate-900' : 'bg-slate-700 text-slate-300'"
+        class="audio-toggle-btn rounded-full px-3 py-1 text-xs font-semibold transition-colors"
+        :class="settings.bgmEnabled ? 'audio-toggle-on' : 'audio-toggle-off'"
         @click="toggleBgm"
       >
         {{ settings.bgmEnabled ? '开启' : '关闭' }}
       </button>
     </div>
 
-    <div class="flex items-center justify-between">
+    <div v-if="showSwitches" class="flex items-center justify-between">
       <div>
-        <p class="text-sm text-slate-300">界面音效</p>
-        <p class="text-xs text-slate-500">按钮点击与交互提示音</p>
+        <p class="text-sm text-[#2d2a24]">界面音效</p>
+        <p class="text-xs text-[#6a655d]">按钮点击与交互提示音</p>
       </div>
       <button
         data-testid="toggle-sfx-btn"
-        class="rounded-full px-3 py-1 text-xs font-semibold transition-colors"
-        :class="settings.sfxEnabled ? 'bg-emerald-400 text-slate-900' : 'bg-slate-700 text-slate-300'"
+        class="audio-toggle-btn rounded-full px-3 py-1 text-xs font-semibold transition-colors"
+        :class="settings.sfxEnabled ? 'audio-toggle-on-cool' : 'audio-toggle-off'"
         @click="toggleSfx"
       >
         {{ settings.sfxEnabled ? '开启' : '关闭' }}
@@ -32,8 +32,8 @@
 
     <div>
       <div class="flex items-center justify-between">
-        <p class="text-sm text-slate-300">总音量</p>
-        <span class="text-xs text-slate-400">{{ Math.round(settings.master * 100) }}%</span>
+        <p class="text-sm text-[#2d2a24]">总音量</p>
+        <span class="text-xs text-[#6a655d]">{{ Math.round(settings.master * 100) }}%</span>
       </div>
       <input
         v-model.number="settings.master"
@@ -42,29 +42,29 @@
         min="0"
         max="1"
         step="0.01"
-        class="mt-2 w-full accent-amber-400"
+        class="audio-range mt-2 w-full"
         @input="updateMaster"
       />
 
       <div class="mt-2 flex flex-wrap gap-2">
         <button
           data-testid="volume-preset-low"
-          class="rounded-md border border-slate-600 px-2.5 py-1 text-[11px] text-slate-200 transition-colors hover:bg-slate-800"
+          class="audio-chip-btn"
           @click="setMasterPreset(0.25)"
         >低</button>
         <button
           data-testid="volume-preset-mid"
-          class="rounded-md border border-slate-600 px-2.5 py-1 text-[11px] text-slate-200 transition-colors hover:bg-slate-800"
+          class="audio-chip-btn"
           @click="setMasterPreset(0.55)"
         >中</button>
         <button
           data-testid="volume-preset-high"
-          class="rounded-md border border-slate-600 px-2.5 py-1 text-[11px] text-slate-200 transition-colors hover:bg-slate-800"
+          class="audio-chip-btn"
           @click="setMasterPreset(0.8)"
         >高</button>
         <button
           data-testid="volume-toggle-mute"
-          class="rounded-md border border-amber-500/40 px-2.5 py-1 text-[11px] text-amber-100 transition-colors hover:bg-amber-500/10"
+          class="audio-chip-btn audio-chip-btn-accent"
           @click="toggleMute"
         >{{ isMuted ? '恢复音量' : '静音' }}</button>
       </div>
@@ -82,6 +82,12 @@ import {
   setMasterVolume,
   setSfxEnabled,
 } from '../utils/audioSystem';
+
+withDefaults(defineProps<{
+  showSwitches?: boolean;
+}>(), {
+  showSwitches: true,
+});
 
 const settings = reactive(getAudioSettings());
 let previousMasterVolume = Math.max(0.01, settings.master || 0.55);
@@ -130,3 +136,53 @@ const toggleSfx = () => {
   playClick();
 };
 </script>
+
+<style scoped>
+.audio-panel {
+  color: #2d2a24;
+}
+
+.audio-toggle-btn {
+  border: 1px solid #b7a88c;
+}
+
+.audio-toggle-on {
+  background: #efe4cf;
+  color: #7a612f;
+}
+
+.audio-toggle-on-cool {
+  background: #edf5f2;
+  color: #2f6a5d;
+}
+
+.audio-toggle-off {
+  background: #f8f3ea;
+  color: #6a655d;
+}
+
+.audio-range {
+  accent-color: #b78c4a;
+}
+
+.audio-chip-btn {
+  border: 1px solid #b7a88c;
+  border-radius: 8px;
+  background: #f8f3ea;
+  color: #2d2a24;
+  padding: 4px 10px;
+  font-size: 11px;
+  transition: background-color 180ms ease, border-color 180ms ease;
+}
+
+.audio-chip-btn:hover {
+  border-color: #b78c4a;
+  background: #faf7f2;
+}
+
+.audio-chip-btn-accent {
+  border-color: #b78c4a;
+  color: #7a612f;
+  background: #efe4cf;
+}
+</style>

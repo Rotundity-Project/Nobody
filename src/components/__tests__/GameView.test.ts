@@ -363,38 +363,14 @@ describe('GameView', () => {
     expect(executePlayerActionMock).toHaveBeenCalledTimes(3);
   });
 
-  it('loads consistency policy when opening consistency settings', async () => {
-    invokeWithTimeoutMock.mockResolvedValue({
-      recent_window: 3,
-      cross_chapter_window: 3,
-      duplicate_recent_threshold: 0.92,
-      duplicate_cross_chapter_threshold: 0.88,
-      weight_warning: 5,
-      weight_critical: 12,
-      code_weights: {},
-    });
-
+  it('opens story settings from runtime bottom bar', async () => {
     const wrapper = mount(GameView);
-    const systemCenterBtn = wrapper
-      .findAll('button')
-      .find((btn) => btn.text().includes('系统中心'));
-    expect(systemCenterBtn).toBeTruthy();
-    await systemCenterBtn!.trigger('click');
-    await flushPromises();
-
     const settingsBtn = wrapper
       .findAll('button')
-      .find((btn) => btn.text().includes('一致性设置'));
+      .find((btn) => btn.text().includes('系统设置'));
     expect(settingsBtn).toBeTruthy();
     await settingsBtn!.trigger('click');
-    await flushPromises();
-
-    expect(invokeWithTimeoutMock).toHaveBeenCalledWith(
-      'get_consistency_policy',
-      undefined,
-      8000,
-      '读取一致性策略超时',
-    );
+    expect(playClickMock).toHaveBeenCalled();
   });
 
   it('shows structured consistency risk score in debug panel', () => {
@@ -418,44 +394,19 @@ describe('GameView', () => {
     expect(dialog.text()).toContain('23');
   });
 
-  it('toggles mobile status card visibility', async () => {
+  it('renders runtime top summary with chapter and interaction state', () => {
     const wrapper = mount(GameView);
-    const toggleBtn = wrapper.get('[data-testid="toggle-mobile-status-card"]');
-    const summaryBar = wrapper.get('[data-testid="mobile-status-summary-bar"]');
-    expect(toggleBtn.text()).toContain('展开');
-    expect(toggleBtn.attributes('aria-expanded')).toBe('false');
-    expect(toggleBtn.attributes('aria-label')).toBe('展开状态卡');
-    expect(toggleBtn.attributes('aria-live')).toBe('polite');
-    expect(toggleBtn.attributes('aria-atomic')).toBe('true');
-    expect(summaryBar.attributes('aria-controls')).toBe('mobile-status-card');
-    expect(wrapper.find('#mobile-status-card').exists()).toBe(false);
-
-    await toggleBtn.trigger('click');
-
-    expect(toggleBtn.text()).toContain('收起');
-    expect(toggleBtn.attributes('aria-expanded')).toBe('true');
-    expect(toggleBtn.attributes('aria-label')).toBe('收起状态卡');
-    expect(wrapper.find('#mobile-status-card').exists()).toBe(true);
-    expect(window.localStorage.getItem('nobody_mobile_status_card_expanded')).toBe('1');
+    expect(wrapper.text()).toContain('第一章');
+    expect(wrapper.text()).toContain('等待自由输入');
   });
 
-  it('toggles mobile status card by tapping summary bar', async () => {
+  it('keeps old mobile status test ids removed in new runtime layout', () => {
     const wrapper = mount(GameView);
-    const summaryBar = wrapper.get('[data-testid="mobile-status-summary-bar"]');
-    const summaryText = wrapper.get('[data-testid="mobile-status-summary-text"]');
-    const toggleBtn = wrapper.get('[data-testid="toggle-mobile-status-card"]');
-    expect(summaryBar.attributes('aria-expanded')).toBe('false');
-    expect(summaryText.attributes('aria-live')).toBe('polite');
-    expect(summaryText.attributes('aria-atomic')).toBe('true');
-    expect(toggleBtn.attributes('aria-expanded')).toBe('false');
-
-    await summaryBar.trigger('click');
-
-    expect(summaryBar.attributes('aria-expanded')).toBe('true');
-    expect(toggleBtn.attributes('aria-expanded')).toBe('true');
+    expect(wrapper.find('[data-testid="mobile-status-summary-bar"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="toggle-mobile-status-card"]').exists()).toBe(false);
   });
 
-  it('omits unknown location from mobile summary text', () => {
+  it('falls back to unknown location without broken separators', () => {
     storeRef = buildStore({
       currentScene: null,
       playerCharacter: {
@@ -484,34 +435,10 @@ describe('GameView', () => {
     });
 
     const wrapper = mount(GameView);
-    const summaryText = wrapper.get('[data-testid="mobile-status-summary-text"]').text();
-    expect(summaryText).toContain('2 / 云海试炼');
-    expect(summaryText).toContain('选项');
-    expect(summaryText).not.toContain('未知');
-    expect(summaryText).not.toContain(' ·  · ');
-  });
-
-  it('toggles mobile status card by keyboard on summary bar', async () => {
-    const wrapper = mount(GameView);
-    const summaryBar = wrapper.get('[data-testid="mobile-status-summary-bar"]');
-    const toggleBtn = wrapper.get('[data-testid="toggle-mobile-status-card"]');
-
-    await summaryBar.trigger('keydown', { key: 'Enter' });
-    expect(toggleBtn.attributes('aria-expanded')).toBe('true');
-
-    await summaryBar.trigger('keydown', { key: ' ' });
-    expect(toggleBtn.attributes('aria-expanded')).toBe('false');
-  });
-
-  it('restores mobile status card expanded state from localStorage', async () => {
-    window.localStorage.setItem('nobody_mobile_status_card_expanded', '1');
-
-    const wrapper = mount(GameView);
-    await wrapper.vm.$nextTick();
-    const toggleBtn = wrapper.get('[data-testid="toggle-mobile-status-card"]');
-
-    expect(toggleBtn.text()).toContain('收起');
-    expect(toggleBtn.attributes('aria-expanded')).toBe('true');
+    expect(wrapper.text()).toContain('第二章');
+    expect(wrapper.text()).toContain('云海试炼');
+    expect(wrapper.text()).toContain('所在：未知');
+    expect(wrapper.text()).not.toContain(' ·  · ');
   });
 });
 

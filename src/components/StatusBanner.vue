@@ -20,20 +20,22 @@ const props = withDefaults(
   },
 );
 
+const baseClass = 'rounded-lg border px-3 py-2 shadow-sm';
+
 const wrapperClass = computed(() => {
   switch (props.kind) {
     case 'loading':
-      return 'rounded border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-amber-100';
+      return `${baseClass} border-[#b78c4a]/40 bg-[#faf7f2] text-[#7a5f2f]`;
     case 'success':
-      return 'rounded border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-emerald-100';
+      return `${baseClass} border-[#3b7a6b]/35 bg-[#f3f8f6] text-[#2c675a]`;
     case 'error':
-      return 'rounded border border-red-500/40 bg-red-500/10 px-3 py-2 text-red-100';
+      return `${baseClass} border-[#b23e3e]/35 bg-[#fdf5f4] text-[#9a3434]`;
     case 'auto_advance':
-      return 'rounded border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-sky-100';
+      return `${baseClass} border-[#3b7a6b]/35 bg-[#f1f7f5] text-[#2d6b5e]`;
     case 'validation':
-      return 'rounded border border-violet-500/40 bg-violet-500/10 px-3 py-2 text-violet-100';
+      return `${baseClass} border-[#8a6a3a]/35 bg-[#faf6ef] text-[#70552d]`;
     default:
-      return 'rounded border border-slate-600 bg-slate-800/70 px-3 py-2 text-slate-200';
+      return `${baseClass} border-[#d9d0c0] bg-[#f8f4ec] text-[#5e5a54]`;
   }
 });
 </script>

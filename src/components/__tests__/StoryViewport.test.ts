@@ -1,5 +1,5 @@
-﻿import { mount } from '@vue/test-utils';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { mount } from '@vue/test-utils';
+import { describe, expect, it } from 'vitest';
 import StoryViewport from '../StoryViewport.vue';
 
 const ScrollStub = {
@@ -28,36 +28,48 @@ const buildWrapper = () =>
   });
 
 describe('StoryViewport', () => {
-  beforeEach(() => {
-    window.localStorage.removeItem('nobody_reading_locator_expanded');
-  });
-
   it('renders container with expected classes', () => {
     const wrapper = buildWrapper();
     expect(wrapper.classes()).toContain('relative');
     expect(wrapper.classes()).toContain('flex-1');
   });
 
-  it('shows reading locator when story paragraphs exist', () => {
+  it('does not render reading locator block', () => {
     const wrapper = buildWrapper();
-    expect(wrapper.text()).toContain('阅读定位');
-    expect(wrapper.find('[data-testid="reading-locator"]').exists()).toBe(true);
-    const locatorSummary = wrapper.get('[data-testid="reading-locator-summary"]');
-    expect(locatorSummary.text()).toContain('/2');
-    expect(locatorSummary.attributes('aria-live')).toBe('polite');
-    expect(locatorSummary.attributes('aria-atomic')).toBe('true');
+    expect(wrapper.text()).not.toContain('阅读定位');
+    expect(wrapper.find('[data-testid="reading-locator"]').exists()).toBe(false);
+  });
+
+  it('shows scroll-to-bottom button when content is scrollable and not at bottom', async () => {
+    const wrapper = buildWrapper();
+    const host = wrapper.get('.runtime-story-scroll').element as HTMLElement;
+    Object.defineProperty(host, 'scrollHeight', { configurable: true, value: 420 });
+    Object.defineProperty(host, 'clientHeight', { configurable: true, value: 180 });
+    host.scrollTop = 0;
+    host.dispatchEvent(new Event('scroll'));
+    await wrapper.vm.$nextTick();
     expect(wrapper.get('[data-testid="scroll-bottom-visible"]').text()).toBe('true');
   });
 
   it('hides scroll-to-bottom button when reading progress reaches bottom', async () => {
     const wrapper = buildWrapper();
-    const host = wrapper.element as HTMLElement;
+    const host = wrapper.get('.runtime-story-scroll').element as HTMLElement;
     Object.defineProperty(host, 'scrollHeight', { configurable: true, value: 400 });
     Object.defineProperty(host, 'clientHeight', { configurable: true, value: 200 });
     host.scrollTop = 200;
     host.dispatchEvent(new Event('scroll'));
     await wrapper.vm.$nextTick();
+    expect(wrapper.get('[data-testid="scroll-bottom-visible"]').text()).toBe('false');
+  });
 
+  it('hides scroll-to-bottom button when content is not scrollable', async () => {
+    const wrapper = buildWrapper();
+    const host = wrapper.get('.runtime-story-scroll').element as HTMLElement;
+    Object.defineProperty(host, 'scrollHeight', { configurable: true, value: 180 });
+    Object.defineProperty(host, 'clientHeight', { configurable: true, value: 180 });
+    host.scrollTop = 0;
+    host.dispatchEvent(new Event('scroll'));
+    await wrapper.vm.$nextTick();
     expect(wrapper.get('[data-testid="scroll-bottom-visible"]').text()).toBe('false');
   });
 
@@ -69,7 +81,7 @@ describe('StoryViewport', () => {
     });
 
     const wrapper = buildWrapper();
-    const host = wrapper.element as HTMLElement & {
+    const host = wrapper.get('.runtime-story-scroll').element as HTMLElement & {
       scrollTo?: (options?: ScrollToOptions | number, y?: number) => void;
       scrollHeight: number;
     };
@@ -96,32 +108,6 @@ describe('StoryViewport', () => {
     });
   });
 
-  it('toggles reading locator details', async () => {
-    const wrapper = buildWrapper();
-    const toggleBtn = wrapper.get('[data-testid="toggle-reading-locator"]');
-    expect(toggleBtn.attributes('aria-controls')).toBe('reading-locator-details');
-    expect(toggleBtn.attributes('aria-label')).toBe('展开阅读定位详情');
-
-    expect(wrapper.text()).not.toContain('段落进度');
-
-    await toggleBtn.trigger('click');
-
-    expect(wrapper.text()).toContain('段落进度');
-    expect(wrapper.find('#reading-locator-details').exists()).toBe(true);
-    expect(window.localStorage.getItem('nobody_reading_locator_expanded')).toBe('1');
-    expect(toggleBtn.attributes('aria-expanded')).toBe('true');
-    expect(toggleBtn.attributes('aria-label')).toBe('收起阅读定位详情');
-  });
-
-  it('restores locator details state from localStorage', async () => {
-    window.localStorage.setItem('nobody_reading_locator_expanded', '0');
-    const wrapper = buildWrapper();
-    await wrapper.vm.$nextTick();
-
-    expect(wrapper.text()).not.toContain('段落进度');
-    expect(wrapper.get('[data-testid="toggle-reading-locator"]').attributes('aria-expanded')).toBe('false');
-  });
-
   it('exposes scrollToBottom method', () => {
     const wrapper = buildWrapper();
     expect(typeof (wrapper.vm as { scrollToBottom?: unknown }).scrollToBottom).toBe('function');
@@ -129,7 +115,7 @@ describe('StoryViewport', () => {
 
   it('resets scroll to top when chapter changes', async () => {
     const wrapper = buildWrapper();
-    const host = wrapper.element as HTMLElement;
+    const host = wrapper.get('.runtime-story-scroll').element as HTMLElement;
     host.scrollTop = 120;
 
     await wrapper.setProps({
@@ -139,5 +125,57 @@ describe('StoryViewport', () => {
     await wrapper.vm.$nextTick();
 
     expect(host.scrollTop).toBe(0);
+  });
+
+  it('shows page navigation when story content is too long', async () => {
+    const wrapper = mount(StoryViewport, {
+      props: {
+        hasScene: true,
+        chapterTitle: '第一章',
+        showRecap: false,
+        recapSummary: '',
+        paragraphs: Array.from({ length: 14 }, (_, i) => `第${i + 1}段：` + '剧情'.repeat(80)),
+        optionSourceLabel: '',
+        isGameInitialized: true,
+      },
+      global: {
+        stubs: {
+          ScrollToBottomButton: ScrollStub,
+          StoryScenePanel: true,
+        },
+      },
+    });
+
+    expect(wrapper.text()).toContain('第 1 /');
+    const nextBtn = wrapper.findAll('button').find((btn) => btn.text() === '下一页');
+    expect(nextBtn).toBeTruthy();
+    await nextBtn!.trigger('click');
+    expect(wrapper.text()).toContain('第 2 /');
+  });
+
+  it('supports keyboard pagination for long content', async () => {
+    const wrapper = mount(StoryViewport, {
+      props: {
+        hasScene: true,
+        chapterTitle: '第一章',
+        showRecap: false,
+        recapSummary: '',
+        paragraphs: Array.from({ length: 14 }, (_, i) => `第${i + 1}段：` + '剧情'.repeat(80)),
+        optionSourceLabel: '',
+        isGameInitialized: true,
+      },
+      global: {
+        stubs: {
+          ScrollToBottomButton: ScrollStub,
+          StoryScenePanel: true,
+        },
+      },
+    });
+
+    expect(wrapper.text()).toContain('第 1 /');
+    await wrapper.get('.runtime-story-scroll').trigger('keydown', { key: 'ArrowRight' });
+    expect(wrapper.text()).toContain('第 2 /');
+    await wrapper.get('.runtime-story-scroll').trigger('keydown', { key: 'ArrowLeft' });
+    expect(wrapper.text()).toContain('第 1 /');
   });
 });

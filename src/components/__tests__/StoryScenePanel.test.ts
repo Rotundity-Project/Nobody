@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import StoryScenePanel from '../StoryScenePanel.vue';
 
 describe('StoryScenePanel', () => {
-  it('renders story content and rhythm info when scene exists', () => {
+  it('renders story content and source info when scene exists', () => {
     const wrapper = mount(StoryScenePanel, {
       props: {
         hasScene: true,
@@ -23,10 +23,9 @@ describe('StoryScenePanel', () => {
       },
     });
 
-    expect(wrapper.text()).toContain('第二章');
-    expect(wrapper.text()).toContain('本章 2 段');
     expect(wrapper.text()).toContain('选项来源：LLM-结构化');
-    expect(wrapper.get('[data-testid="rhythm-badge"]').text()).toContain('节奏：紧凑');
+    expect(wrapper.text()).not.toContain('本章 2 段');
+    expect(wrapper.find('[data-testid="rhythm-badge"]').exists()).toBe(false);
   });
 
   it('renders empty state when game is not initialized', () => {
@@ -75,7 +74,7 @@ describe('StoryScenePanel', () => {
       },
     });
 
-    expect(wrapper.text()).toContain('本章 2 段');
     expect(wrapper.get('[data-testid="virtual-list"]').text()).toBe('第一段|第二段');
+    expect(wrapper.text()).not.toContain('本章');
   });
 });

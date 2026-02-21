@@ -37,7 +37,7 @@ vi.mock('../../stores/gameStore', () => ({
 }));
 
 const AudioStub = { name: 'AudioControlPanel', template: '<div />' };
-const LlmStub = { name: 'LLMConfigDialog', props: ['isOpen'], template: '<div />' };
+const LlmStub = { name: 'LLMConfigDialog', props: ['isOpen', 'inline'], template: '<div />' };
 const SaveLoadStub = {
   name: 'SaveLoadDialog',
   props: ['isOpen', 'mode'],
@@ -326,97 +326,6 @@ describe('MainMenu', () => {
     });
   });
 
-  it('applies quick volume preset and mute toggle', async () => {
-    const wrapper = mount(MainMenu, {
-      global: {
-        stubs: {
-          AudioControlPanel: AudioStub,
-          LLMConfigDialog: LlmStub,
-          SaveLoadDialog: SaveLoadStub,
-        },
-      },
-    });
-    await wrapper.get('[data-testid="open-audio-btn"]').trigger('click');
-    const quickVolumeGroup = wrapper.find('[data-testid="quick-audio-group"]');
-    expect(quickVolumeGroup.exists()).toBe(true);
-    expect(wrapper.find('[data-testid="quick-audio-group"]').exists()).toBe(true);
-    expect(wrapper.find('#quick-audio-heading').exists()).toBe(true);
-    expect(quickVolumeGroup.attributes('aria-labelledby')).toBe('quick-audio-heading');
-    expect(quickVolumeGroup.attributes('aria-describedby')).toBe('quick-volume-status');
-    expect(quickVolumeGroup.attributes('aria-label')).toContain('当前音量 55%');
-    expect(quickVolumeGroup.attributes('aria-label')).toContain('BGM 开');
-    expect(quickVolumeGroup.attributes('aria-label')).toContain('音效 开');
-
-    await wrapper.get('[data-testid="quick-volume-60-btn"]').trigger('click');
-    expect(setMasterVolumeMock).toHaveBeenCalledWith(0.6);
-    expect(wrapper.get('[data-testid="quick-volume-status"]').text()).toContain('当前 60%');
-    expect(wrapper.get('[data-testid="quick-mute-btn"]').attributes('aria-label')).toContain('静音，当前音量 60%');
-    expect(wrapper.get('[data-testid="quick-volume-60-btn"]').classes()).toContain('border-emerald-400');
-    expect(wrapper.get('[data-testid="quick-volume-60-btn"]').attributes('aria-label')).toBe('音量预设 60%，当前已选中');
-    expect(wrapper.get('[data-testid="quick-volume-60-btn"]').attributes('aria-describedby')).toBe('quick-volume-status');
-    expect(wrapper.get('[data-testid="quick-mute-btn"]').attributes('aria-describedby')).toBe('quick-volume-status');
-    expect(wrapper.get('[data-testid="quick-volume-60-btn"]').attributes('aria-pressed')).toBe('true');
-    expect(wrapper.get('[data-testid="quick-volume-30-btn"]').attributes('aria-describedby')).toBe('quick-volume-status');
-    expect(wrapper.get('[data-testid="quick-volume-30-btn"]').attributes('aria-label')).toBe('音量预设 30%，点击设置');
-    expect(wrapper.get('[data-testid="quick-volume-30-btn"]').attributes('aria-pressed')).toBe('false');
-
-    await wrapper.get('[data-testid="quick-mute-btn"]').trigger('click');
-    expect(setMasterVolumeMock).toHaveBeenCalledWith(0);
-    expect(wrapper.get('[data-testid="quick-volume-status"]').text()).toContain('已静音');
-    expect(quickVolumeGroup.attributes('aria-label')).toContain('当前静音');
-    expect(wrapper.get('[data-testid="quick-mute-btn"]').attributes('aria-label')).toContain('恢复音量，恢复到 60%');
-    expect(wrapper.get('[data-testid="quick-mute-btn"]').attributes('aria-pressed')).toBe('true');
-
-    await wrapper.get('[data-testid="quick-mute-btn"]').trigger('click');
-    expect(setMasterVolumeMock).toHaveBeenCalledWith(0.6);
-    expect(wrapper.get('[data-testid="quick-volume-status"]').text()).toContain('当前 60%');
-    expect(wrapper.get('[data-testid="quick-mute-btn"]').attributes('aria-label')).toContain('静音，当前音量 60%');
-    expect(wrapper.get('[data-testid="quick-mute-btn"]').attributes('aria-pressed')).toBe('false');
-
-    await wrapper.get('[data-testid="quick-volume-100-btn"]').trigger('click');
-    expect(setMasterVolumeMock).toHaveBeenCalledWith(1);
-    expect(wrapper.get('[data-testid="quick-volume-status"]').text()).toContain('当前 100%');
-    expect(quickVolumeGroup.attributes('aria-label')).toContain('当前音量 100%');
-    expect(wrapper.get('[data-testid="quick-volume-100-btn"]').classes()).toContain('border-emerald-400');
-    expect(wrapper.get('[data-testid="quick-volume-100-btn"]').attributes('aria-label')).toBe('音量预设 100%，当前已选中');
-    expect(wrapper.get('[data-testid="quick-volume-100-btn"]').attributes('aria-describedby')).toBe('quick-volume-status');
-    expect(wrapper.get('[data-testid="quick-volume-100-btn"]').attributes('aria-pressed')).toBe('true');
-    expect(wrapper.get('[data-testid="quick-volume-60-btn"]').attributes('aria-label')).toBe('音量预设 60%，点击设置');
-    expect(wrapper.get('[data-testid="quick-volume-60-btn"]').attributes('aria-pressed')).toBe('false');
-  });
-
-  it('toggles quick bgm and sfx buttons', async () => {
-    const wrapper = mount(MainMenu, {
-      global: {
-        stubs: {
-          AudioControlPanel: AudioStub,
-          LLMConfigDialog: LlmStub,
-          SaveLoadDialog: SaveLoadStub,
-        },
-      },
-    });
-    await wrapper.get('[data-testid="open-audio-btn"]').trigger('click');
-
-    expect(wrapper.get('[data-testid="quick-bgm-btn"]').text()).toContain('BGM 开');
-    expect(wrapper.get('[data-testid="quick-sfx-btn"]').text()).toContain('音效 开');
-    expect(wrapper.get('[data-testid="quick-bgm-btn"]').attributes('aria-label')).toBe('关闭 BGM，当前已开启');
-    expect(wrapper.get('[data-testid="quick-sfx-btn"]').attributes('aria-label')).toBe('关闭音效，当前已开启');
-    expect(wrapper.get('[data-testid="quick-bgm-btn"]').attributes('aria-describedby')).toBe('quick-volume-status');
-    expect(wrapper.get('[data-testid="quick-sfx-btn"]').attributes('aria-describedby')).toBe('quick-volume-status');
-
-    await wrapper.get('[data-testid="quick-bgm-btn"]').trigger('click');
-    expect(setBgmEnabledMock).toHaveBeenCalledWith(false);
-    expect(wrapper.get('[data-testid="quick-bgm-btn"]').attributes('aria-pressed')).toBe('false');
-    expect(wrapper.get('[data-testid="quick-bgm-btn"]').attributes('aria-label')).toBe('开启 BGM，当前已关闭');
-    expect(wrapper.get('[data-testid="quick-bgm-btn"]').text()).toContain('BGM 关');
-
-    await wrapper.get('[data-testid="quick-sfx-btn"]').trigger('click');
-    expect(setSfxEnabledMock).toHaveBeenCalledWith(false);
-    expect(wrapper.get('[data-testid="quick-sfx-btn"]').attributes('aria-pressed')).toBe('false');
-    expect(wrapper.get('[data-testid="quick-sfx-btn"]').attributes('aria-label')).toBe('开启音效，当前已关闭');
-    expect(wrapper.get('[data-testid="quick-sfx-btn"]').text()).toContain('音效 关');
-  });
-
   it('shows refresh label after initial fetch', async () => {
     const wrapper = mount(MainMenu, {
       global: {
@@ -475,8 +384,6 @@ describe('MainMenu', () => {
     expect(audioToggle.attributes('aria-describedby')).toBe('quick-volume-status');
     expect(audioToggle.attributes('aria-label')).toContain('展开音量控制');
     expect(audioToggle.attributes('aria-label')).toContain('当前音量 55%');
-    expect(audioToggle.attributes('aria-label')).toContain('BGM 开');
-    expect(audioToggle.attributes('aria-label')).toContain('音效 开');
     expect(audioToggle.attributes('aria-expanded')).toBe('false');
     expect(wrapper.find('#main-menu-audio-panel').exists()).toBe(false);
 
@@ -484,13 +391,11 @@ describe('MainMenu', () => {
     await audioToggle.trigger('click');
 
     expect(wrapper.get('[data-testid="quick-volume-status"]').text()).toContain('当前 30%');
-    expect(wrapper.get('[data-testid="quick-volume-30-btn"]').classes()).toContain('border-emerald-400');
-    expect(wrapper.get('[data-testid="quick-volume-30-btn"]').attributes('aria-pressed')).toBe('true');
-    expect(wrapper.get('[data-testid="quick-volume-60-btn"]').attributes('aria-pressed')).toBe('false');
     expect(audioToggle.attributes('aria-label')).toContain('收起音量控制');
     expect(audioToggle.attributes('aria-label')).toContain('当前音量 30%');
     expect(audioToggle.attributes('aria-expanded')).toBe('true');
     expect(wrapper.find('#main-menu-audio-panel').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="quick-audio-group"]').exists()).toBe(false);
   });
 
   it('shows retry button when load saves failed and retries successfully', async () => {

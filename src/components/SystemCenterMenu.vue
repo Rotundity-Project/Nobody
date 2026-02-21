@@ -1,51 +1,57 @@
-<template>
+﻿<template>
   <div
     ref="menuRootRef"
     class="relative"
   >
     <button
-      class="rounded-lg bg-slate-700 px-4 py-2 text-white transition-colors duration-200 hover:bg-slate-600"
+      type="button"
+      class="ink-menu-trigger"
       @click="$emit('toggle-menu')"
     >
-      系统中心
+      系统中枢
     </button>
     <div
       v-if="isOpen"
-      class="panel-surface absolute right-0 z-20 mt-2 w-72 space-y-2 rounded-xl p-4"
+      class="ink-menu-panel absolute right-0 z-20 mt-2 w-72 space-y-2 rounded-xl p-4"
     >
       <button
-        class="w-full rounded-md bg-slate-800 px-3 py-2 text-left text-sm text-slate-100 transition-colors hover:bg-slate-700"
+        type="button"
+        class="ink-menu-item"
         @click="$emit('open-shortcuts')"
       >
         快捷键
       </button>
       <button
-        class="w-full rounded-md bg-emerald-600 px-3 py-2 text-left text-sm text-slate-900 transition-colors hover:bg-emerald-500"
+        type="button"
+        class="ink-menu-item ink-menu-item-accent"
         @click="$emit('open-llm')"
       >
         LLM 设置
       </button>
       <button
-        class="w-full rounded-md bg-slate-800 px-3 py-2 text-left text-sm text-slate-100 transition-colors hover:bg-slate-700"
+        type="button"
+        class="ink-menu-item"
         @click="$emit('open-story-settings')"
       >
         剧情设置
       </button>
       <button
-        class="w-full rounded-md bg-slate-800 px-3 py-2 text-left text-sm text-slate-100 transition-colors hover:bg-slate-700"
+        type="button"
+        class="ink-menu-item"
         @click="$emit('open-consistency')"
       >
         一致性设置
       </button>
       <button
-        class="w-full rounded-md bg-slate-800 px-3 py-2 text-left text-sm text-slate-100 transition-colors hover:bg-slate-700"
+        type="button"
+        class="ink-menu-item"
         @click="$emit('toggle-audio')"
       >
         音量设置
       </button>
       <div
         v-if="showAudioPanel"
-        class="mt-1 rounded-lg border border-slate-700 bg-slate-900/50 p-3"
+        class="mt-1 rounded-lg border border-black/10 bg-black/5 p-3"
       >
         <AudioControlPanel />
       </div>
