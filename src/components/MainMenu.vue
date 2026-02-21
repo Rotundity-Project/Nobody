@@ -1,73 +1,91 @@
 ﻿<template>
-  <div class="min-h-screen flex items-center justify-center px-4 py-8">
-    <div class="panel-surface w-full max-w-3xl rounded-2xl p-6 sm:p-10">
-      <div class="space-y-3 text-center">
-        <p class="text-xs uppercase tracking-[0.3em] text-amber-200/70">Immortal Chronicle</p>
-        <h1 class="text-4xl sm:text-6xl font-display text-glow text-amber-200">
-          Nobody
-        </h1>
-        <p class="text-lg sm:text-xl text-slate-300 font-story">修仙模拟器</p>
-      </div>
+  <div class="main-menu-shell min-h-screen px-4 py-8 sm:px-6 sm:py-10">
+    <div class="main-menu-guide">
+      建议流程：新游戏 -> 选择剧本 -> 进入主界面推进剧情
+    </div>
 
-      <div class="mt-8 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-        <div class="space-y-3">
-          <button
-            type="button"
-            data-testid="new-game-btn"
-            @click="handleNewGame"
-            class="w-full sm:w-64 rounded-lg bg-amber-600 px-6 py-3 font-medium text-slate-900 transition-colors duration-200 hover:bg-amber-500"
-          >
-            新游戏
-          </button>
-          <button
-            type="button"
-            data-testid="continue-game-btn"
-            @click="openLoadDialog"
-            class="w-full sm:w-64 rounded-lg bg-slate-700 px-6 py-3 font-medium text-slate-100 transition-colors duration-200 hover:bg-slate-600"
-          >
-            读取存档
-          </button>
-          <button
-            type="button"
-            data-testid="llm-settings-btn"
-            @click="handleSettings"
-            class="w-full sm:w-64 rounded-lg bg-emerald-600 px-6 py-3 font-medium text-slate-900 transition-colors duration-200 hover:bg-emerald-500"
-          >
-            LLM 设置
-          </button>
-          <p class="pt-1 text-xs text-slate-400">
-            建议流程：新游戏 -> 选择剧本 -> 进入主界面推进剧情
-          </p>
-        </div>
-
-        <div
-          id="recent-save-card"
-          data-testid="recent-save-card"
-          class="rounded-xl border border-slate-700 bg-slate-900/60 p-4"
-          :aria-busy="recentSaveLoading ? 'true' : 'false'"
+    <div class="main-menu-frame mx-auto w-full max-w-[1320px]">
+      <aside class="menu-left-rail">
+        <button
+          type="button"
+          data-testid="new-game-btn"
+          class="menu-btn menu-btn-primary"
+          @click="handleNewGame"
         >
-          <h2 class="text-sm font-semibold text-slate-200">最近存档</h2>
+          新游戏
+        </button>
+        <button
+          type="button"
+          data-testid="continue-game-btn"
+          class="menu-btn"
+          :aria-expanded="showSavePanel ? 'true' : 'false'"
+          aria-controls="recent-save-card"
+          @click="openLoadDialog"
+        >
+          读取存档
+        </button>
+        <button
+          type="button"
+          data-testid="llm-settings-btn"
+          class="menu-btn"
+          @click="handleSettings"
+        >
+          LLM 设置
+        </button>
+        <button
+          type="button"
+          data-testid="open-audio-btn"
+          class="menu-btn"
+          :aria-label="audioPanelToggleAriaLabel"
+          :aria-describedby="audioPanelToggleDescribedBy"
+          aria-controls="main-menu-audio-panel"
+          :aria-expanded="showAudioPanel ? 'true' : 'false'"
+          @click="toggleAudioPanel"
+        >
+          {{ showAudioPanel ? '收起游戏设置' : '游戏设置' }}
+        </button>
+        <p
+          id="quick-volume-status"
+          data-testid="quick-volume-status"
+          class="menu-volume-pill"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          {{ quickMasterVolume <= 0 ? '已静音' : `当前 ${Math.round(quickMasterVolume * 100)}%` }}
+        </p>
+      </aside>
+
+      <main class="menu-main-stage">
+        <header class="main-menu-header">
+          <p class="main-menu-en-title">NOBODY</p>
+          <p class="main-menu-cn-title">小人物</p>
+          <div class="main-menu-seal" aria-hidden="true">无名印</div>
+        </header>
+
+        <section class="menu-card mt-6">
+          <h2 class="menu-card-title">最近存档</h2>
           <p
             v-if="latestSave"
             id="latest-save-summary"
             data-testid="latest-save-summary"
-            class="mt-2 text-xs leading-5 text-slate-300"
+            class="mt-2 text-sm leading-6 text-[#2d2a24]"
             aria-live="polite"
             aria-atomic="true"
           >
             槽位 {{ latestSave.slot_id }} · {{ latestSavePlayerLabel }} · {{ latestSaveRealmLabel }}
-              <span class="mt-1 flex flex-wrap items-center gap-1.5">
+            <span class="mt-1 flex flex-wrap items-center gap-1.5">
               <span
                 v-if="showLatestSaveLocationTag"
-                class="rounded border border-slate-600/80 bg-slate-800/70 px-1.5 py-0.5 text-[11px] text-slate-200"
+                class="menu-chip"
               >
                 位置：{{ latestSaveLocationLabel }}
               </span>
-              <span class="rounded border border-slate-600/80 bg-slate-800/70 px-1.5 py-0.5 text-[11px] text-slate-200">
+              <span class="menu-chip">
                 时间：{{ latestSaveGameTimeLabel }}
               </span>
             </span>
-            <span class="mt-1 block text-[11px] text-slate-400">
+            <span class="mt-1 block text-xs text-[#6a655d]">
               <template v-if="hasLatestSaveTimestamp">
                 最近保存：{{ latestSaveTimestampLabel }}（{{ latestSaveAgeLabel }}）
               </template>
@@ -80,7 +98,7 @@
             v-else-if="recentSaveLoading"
             id="loading-save-hint"
             data-testid="loading-save-hint"
-            class="mt-2 text-xs leading-5 text-slate-400"
+            class="mt-2 text-sm leading-6 text-[#6a655d]"
             role="status"
             aria-live="polite"
             aria-atomic="true"
@@ -91,52 +109,29 @@
             v-else
             id="no-save-hint"
             data-testid="no-save-hint"
-            class="mt-2 text-xs leading-5 text-slate-400"
+            class="mt-2 text-sm leading-6 text-[#6a655d]"
             role="status"
             aria-live="polite"
             aria-atomic="true"
           >
             暂无可用存档，可先开始新游戏创建进度。
           </p>
-
           <p
             v-if="recentSaveError"
             id="recent-save-error"
             data-testid="recent-save-error"
-            class="mt-2 text-xs text-red-300"
+            class="mt-2 text-sm text-[#9f3b2f]"
             role="alert"
             aria-live="assertive"
             aria-atomic="true"
           >
             {{ recentSaveError }}
           </p>
-          <button
-            type="button"
-            v-if="recentSaveError && !recentSaveLoading"
-            data-testid="retry-load-saves-btn"
-            class="mt-2 rounded-md border border-red-400/40 px-2.5 py-1 text-[11px] text-red-200 transition-colors hover:bg-red-500/10"
-            :aria-label="retryLoadSavesAriaLabel"
-            :aria-describedby="retryLoadSavesDescribedBy"
-            @click="fetchLatestSave"
-          >
-            重试读取
-          </button>
-          <p
-            v-else-if="lastRefreshLabel"
-            id="recent-save-refresh-label"
-            data-testid="recent-save-refresh-label"
-            class="mt-2 text-[11px] text-slate-500"
-            role="status"
-            aria-live="polite"
-            aria-atomic="true"
-          >
-            最近刷新：{{ lastRefreshLabel }}（{{ relativeRefreshLabel }}）
-          </p>
           <p
             v-if="shouldShowRefreshStatus && lastRefreshStatusLabel"
             id="recent-save-refresh-status"
             data-testid="recent-save-refresh-status"
-            class="mt-1 text-[11px]"
+            class="mt-1 text-xs"
             :class="refreshStatusToneClass"
             :role="refreshStatusRole"
             :aria-live="refreshStatusAriaLive"
@@ -144,36 +139,62 @@
           >
             刷新状态：{{ lastRefreshStatusLabel }}
           </p>
+          <p
+            v-if="lastRefreshLabel"
+            id="recent-save-refresh-label"
+            data-testid="recent-save-refresh-label"
+            class="mt-1 text-xs text-[#6a655d]"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            最近刷新：{{ lastRefreshLabel }}（{{ relativeRefreshLabel }}）
+          </p>
+        </section>
+      </main>
+    </div>
 
-          <div class="mt-4 rounded-lg border border-slate-700/70 bg-slate-950/30 p-3">
-            <p
-              id="save-actions-heading"
-              class="mb-2 text-[11px] uppercase tracking-[0.18em] text-slate-400"
-            >
-              存档操作
-            </p>
+    <div
+      v-if="showSavePanel"
+      class="menu-overlay"
+      @click.self="showSavePanel = false"
+    >
+      <section
+        id="recent-save-card"
+        data-testid="recent-save-card"
+        class="menu-dialog"
+        :aria-busy="recentSaveLoading ? 'true' : 'false'"
+      >
+        <header class="menu-dialog-header">
+          <h2 class="menu-card-title">读取存档</h2>
+          <button type="button" class="menu-inline-btn" @click="showSavePanel = false">关闭</button>
+        </header>
+        <div class="menu-dialog-body">
+          <aside class="menu-dialog-left">
+            <p id="save-actions-heading" class="menu-sub-title">存档槽位</p>
             <div
               data-testid="save-actions-group"
-              class="grid gap-2 sm:grid-cols-3"
+              class="mt-2 grid gap-2"
               role="group"
               aria-labelledby="save-actions-heading"
               :aria-describedby="saveActionsGroupDescribedBy"
             >
-            <button
-              type="button"
-              data-testid="recent-save-btn"
-              class="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-100 transition-colors hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60"
-              :disabled="!latestSave || quickLoadPending || recentSaveLoading"
-              :aria-label="recentSaveActionAriaLabel"
-              :aria-describedby="recentSaveActionDescribedBy"
-              @click="loadLatestSave"
-            >
-              {{ quickLoadPending ? '加载中...' : '继续最近存档' }}
-            </button>
+              <button
+                v-for="slot in saveSlots"
+                :key="slot.slot_id"
+                type="button"
+                class="menu-chip-btn text-left"
+                :class="selectedSaveSlotId === slot.slot_id ? 'border-[#b78c4a]' : ''"
+                @click="selectedSaveSlotId = slot.slot_id"
+              >
+                槽位 {{ slot.slot_id }} · {{ normalizeSaveText(slot.player_name, '未命名角色') }}
+              </button>
+              <p v-if="saveSlots.length === 0" class="text-xs text-[#6a655d]">暂无存档槽位</p>
+            </div>
             <button
               type="button"
               data-testid="refresh-save-btn"
-              class="rounded-md border border-slate-600 bg-slate-900/70 px-3 py-2 text-xs font-medium text-slate-200 transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              class="menu-btn mt-3 text-sm disabled:cursor-not-allowed disabled:opacity-60"
               :disabled="recentSaveLoading || quickLoadPending"
               :aria-label="refreshActionAriaLabel"
               aria-controls="recent-save-card"
@@ -184,39 +205,88 @@
             </button>
             <button
               type="button"
-              data-testid="open-audio-btn"
-              class="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-100 transition-colors hover:bg-amber-500/20"
-              :aria-label="audioPanelToggleAriaLabel"
-              :aria-describedby="audioPanelToggleDescribedBy"
-              aria-controls="main-menu-audio-panel"
-              :aria-expanded="showAudioPanel ? 'true' : 'false'"
-              @click="toggleAudioPanel"
+              class="menu-inline-btn mt-2"
+              @click="showSavePanel = true"
             >
-              {{ showAudioPanel ? '收起音量控制' : '音量控制' }}
+              打开完整存档列表
             </button>
-          </div>
-          </div>
-
-          <div class="mt-3 rounded-lg border border-slate-700/70 bg-slate-950/30 p-3">
-            <div class="mb-2 flex items-center justify-between">
-              <span
-                id="quick-audio-heading"
-                class="text-[11px] uppercase tracking-[0.18em] text-slate-400"
-              >
-                音频快捷
+          </aside>
+          <section class="menu-dialog-right">
+            <p class="menu-sub-title">存档信息</p>
+            <p v-if="selectedSaveSlot" class="mt-2 text-sm leading-6 text-[#2d2a24]">
+              槽位 {{ selectedSaveSlot.slot_id }} · {{ normalizeSaveText(selectedSaveSlot.player_name, '未命名角色') }}
+              · {{ normalizeSaveText(selectedSaveSlot.realm, '境界未知') }}
+              <span class="mt-1 block text-xs text-[#6a655d]">
+                <template v-if="formatLocationLabel(selectedSaveSlot.location) !== '未知'">
+                  位置：{{ formatLocationLabel(selectedSaveSlot.location) }} ·
+                </template>
+                时间：{{ normalizeSaveText(selectedSaveSlot.game_time, '时间未知') }}
               </span>
-              <span
-                id="quick-volume-status"
-                data-testid="quick-volume-status"
-                class="text-[11px]"
-                :class="quickMasterVolume <= 0 ? 'text-amber-200' : 'text-slate-400'"
-                role="status"
-                aria-live="polite"
-                aria-atomic="true"
+            </p>
+            <p v-else class="mt-2 text-sm text-[#6a655d]">请选择左侧存档槽。</p>
+            <div class="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                data-testid="recent-save-btn"
+                class="menu-btn menu-btn-primary text-sm disabled:cursor-not-allowed disabled:opacity-60"
+                :disabled="!latestSave || quickLoadPending || recentSaveLoading"
+                :aria-label="recentSaveActionAriaLabel"
+                :aria-describedby="recentSaveActionDescribedBy"
+                @click="loadLatestSave"
               >
-                {{ quickMasterVolume <= 0 ? '已静音' : `当前 ${Math.round(quickMasterVolume * 100)}%` }}
-              </span>
+                {{ quickLoadPending ? '加载中...' : '继续最近存档' }}
+              </button>
+              <button
+                v-if="recentSaveError && !recentSaveLoading"
+                type="button"
+                data-testid="retry-load-saves-btn"
+                class="menu-inline-btn"
+                :aria-label="retryLoadSavesAriaLabel"
+                :aria-describedby="retryLoadSavesDescribedBy"
+                @click="fetchLatestSave"
+              >
+                重试读取
+              </button>
             </div>
+          </section>
+        </div>
+      </section>
+    </div>
+
+    <div
+      v-if="showAudioPanel"
+      id="main-menu-audio-panel"
+      class="menu-overlay"
+      @click.self="showAudioPanel = false"
+    >
+      <section class="menu-dialog">
+        <header class="menu-dialog-header">
+          <h2 class="menu-card-title">游戏设置</h2>
+          <button type="button" class="menu-inline-btn" @click="showAudioPanel = false">关闭</button>
+        </header>
+        <div class="menu-dialog-body">
+          <aside class="menu-dialog-left">
+            <p id="quick-audio-heading" class="menu-sub-title">设置分组</p>
+            <div class="mt-2 grid gap-2">
+              <button
+                type="button"
+                class="menu-chip-btn text-left"
+                :class="settingsTab === 'volume' ? 'border-[#b78c4a]' : ''"
+                @click="settingsTab = 'volume'"
+              >
+                音量控制
+              </button>
+              <button
+                type="button"
+                class="menu-chip-btn text-left"
+                :class="settingsTab === 'audio' ? 'border-[#b78c4a]' : ''"
+                @click="settingsTab = 'audio'"
+              >
+                音频开关
+              </button>
+            </div>
+          </aside>
+          <section class="menu-dialog-right">
             <div
               data-testid="quick-audio-group"
               class="flex flex-wrap items-center gap-2"
@@ -225,107 +295,87 @@
               :aria-label="quickAudioGroupAriaLabel"
               aria-describedby="quick-volume-status"
             >
-            <button
-              type="button"
-              data-testid="quick-mute-btn"
-              class="rounded-md border border-amber-500/40 px-2.5 py-1 text-[11px] text-amber-100 transition-colors hover:bg-amber-500/10"
-              :aria-pressed="quickMasterVolume <= 0 ? 'true' : 'false'"
-              :aria-label="quickMuteAriaLabel"
-              aria-describedby="quick-volume-status"
-              @click="toggleQuickMute"
-            >
-              {{ quickMasterVolume <= 0 ? '恢复' : '静音' }}
-            </button>
-            <button
-              type="button"
-              data-testid="quick-volume-30-btn"
-              class="rounded-md border px-2.5 py-1 text-[11px] transition-colors"
-              :class="isActiveQuickVolume(0.3)
-                ? 'border-emerald-400 bg-emerald-500/15 text-emerald-200'
-                : 'border-slate-600 text-slate-200 hover:bg-slate-800'"
-              :aria-pressed="isActiveQuickVolume(0.3) ? 'true' : 'false'"
-              :aria-label="quickVolumePresetAriaLabel(0.3)"
-              aria-describedby="quick-volume-status"
-              @click="applyQuickVolume(0.3)"
-            >
-              30%
-            </button>
-            <button
-              type="button"
-              data-testid="quick-volume-60-btn"
-              class="rounded-md border px-2.5 py-1 text-[11px] transition-colors"
-              :class="isActiveQuickVolume(0.6)
-                ? 'border-emerald-400 bg-emerald-500/15 text-emerald-200'
-                : 'border-slate-600 text-slate-200 hover:bg-slate-800'"
-              :aria-pressed="isActiveQuickVolume(0.6) ? 'true' : 'false'"
-              :aria-label="quickVolumePresetAriaLabel(0.6)"
-              aria-describedby="quick-volume-status"
-              @click="applyQuickVolume(0.6)"
-            >
-              60%
-            </button>
-            <button
-              type="button"
-              data-testid="quick-volume-100-btn"
-              class="rounded-md border px-2.5 py-1 text-[11px] transition-colors"
-              :class="isActiveQuickVolume(1)
-                ? 'border-emerald-400 bg-emerald-500/15 text-emerald-200'
-                : 'border-slate-600 text-slate-200 hover:bg-slate-800'"
-              :aria-pressed="isActiveQuickVolume(1) ? 'true' : 'false'"
-              :aria-label="quickVolumePresetAriaLabel(1)"
-              aria-describedby="quick-volume-status"
-              @click="applyQuickVolume(1)"
-            >
-              100%
-            </button>
-            <button
-              type="button"
-              data-testid="quick-bgm-btn"
-              class="rounded-md border px-2.5 py-1 text-[11px] transition-colors"
-              :class="quickBgmEnabled
-                ? 'border-emerald-400 bg-emerald-500/15 text-emerald-200'
-                : 'border-slate-600 text-slate-200 hover:bg-slate-800'"
-              :aria-pressed="quickBgmEnabled ? 'true' : 'false'"
-              :aria-label="quickBgmAriaLabel"
-              aria-describedby="quick-volume-status"
-              @click="toggleQuickBgm"
-            >
-              {{ quickBgmEnabled ? 'BGM 开' : 'BGM 关' }}
-            </button>
-            <button
-              type="button"
-              data-testid="quick-sfx-btn"
-              class="rounded-md border px-2.5 py-1 text-[11px] transition-colors"
-              :class="quickSfxEnabled
-                ? 'border-emerald-400 bg-emerald-500/15 text-emerald-200'
-                : 'border-slate-600 text-slate-200 hover:bg-slate-800'"
-              :aria-pressed="quickSfxEnabled ? 'true' : 'false'"
-              :aria-label="quickSfxAriaLabel"
-              aria-describedby="quick-volume-status"
-              @click="toggleQuickSfx"
-            >
-              {{ quickSfxEnabled ? '音效 开' : '音效 关' }}
-            </button>
-          </div>
-          </div>
+              <button
+                type="button"
+                data-testid="quick-mute-btn"
+                class="menu-chip-btn"
+                :aria-pressed="quickMasterVolume <= 0 ? 'true' : 'false'"
+                :aria-label="quickMuteAriaLabel"
+                aria-describedby="quick-volume-status"
+                @click="toggleQuickMute"
+              >
+                {{ quickMasterVolume <= 0 ? '恢复' : '静音' }}
+              </button>
+              <button
+                type="button"
+                data-testid="quick-volume-30-btn"
+                class="menu-chip-btn"
+                :class="isActiveQuickVolume(0.3) ? 'border-emerald-400' : ''"
+                :aria-pressed="isActiveQuickVolume(0.3) ? 'true' : 'false'"
+                :aria-label="quickVolumePresetAriaLabel(0.3)"
+                aria-describedby="quick-volume-status"
+                @click="applyQuickVolume(0.3)"
+              >
+                30%
+              </button>
+              <button
+                type="button"
+                data-testid="quick-volume-60-btn"
+                class="menu-chip-btn"
+                :class="isActiveQuickVolume(0.6) ? 'border-emerald-400' : ''"
+                :aria-pressed="isActiveQuickVolume(0.6) ? 'true' : 'false'"
+                :aria-label="quickVolumePresetAriaLabel(0.6)"
+                aria-describedby="quick-volume-status"
+                @click="applyQuickVolume(0.6)"
+              >
+                60%
+              </button>
+              <button
+                type="button"
+                data-testid="quick-volume-100-btn"
+                class="menu-chip-btn"
+                :class="isActiveQuickVolume(1) ? 'border-emerald-400' : ''"
+                :aria-pressed="isActiveQuickVolume(1) ? 'true' : 'false'"
+                :aria-label="quickVolumePresetAriaLabel(1)"
+                aria-describedby="quick-volume-status"
+                @click="applyQuickVolume(1)"
+              >
+                100%
+              </button>
+              <button
+                type="button"
+                data-testid="quick-bgm-btn"
+                class="menu-chip-btn"
+                :aria-pressed="quickBgmEnabled ? 'true' : 'false'"
+                :aria-label="quickBgmAriaLabel"
+                aria-describedby="quick-volume-status"
+                @click="toggleQuickBgm"
+              >
+                {{ quickBgmEnabled ? 'BGM 开' : 'BGM 关' }}
+              </button>
+              <button
+                type="button"
+                data-testid="quick-sfx-btn"
+                class="menu-chip-btn"
+                :aria-pressed="quickSfxEnabled ? 'true' : 'false'"
+                :aria-label="quickSfxAriaLabel"
+                aria-describedby="quick-volume-status"
+                @click="toggleQuickSfx"
+              >
+                {{ quickSfxEnabled ? '音效 开' : '音效 关' }}
+              </button>
+            </div>
+            <div class="menu-sub-card mt-4">
+              <AudioControlPanel v-if="settingsTab === 'volume'" />
+              <p v-else class="text-sm text-[#6a655d]">
+                使用上方快捷按钮切换 BGM 与音效状态。
+              </p>
+            </div>
+          </section>
         </div>
-      </div>
-
-      <div
-        v-if="showAudioPanel"
-        id="main-menu-audio-panel"
-        class="mt-6 rounded-xl border border-slate-700 bg-slate-900/60 p-4"
-      >
-        <AudioControlPanel />
-      </div>
+      </section>
     </div>
 
-    <SaveLoadDialog
-      :is-open="showLoadDialog"
-      mode="load"
-      @close="showLoadDialog = false"
-      @loaded="handleLoadedFromDialog"
-    />
     <LLMConfigDialog :is-open="showLLMDialog" @close="showLLMDialog = false" />
   </div>
 </template>
@@ -335,7 +385,6 @@ import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import AudioControlPanel from './AudioControlPanel.vue';
 import LLMConfigDialog from './LLMConfigDialog.vue';
-import SaveLoadDialog from './SaveLoadDialog.vue';
 import { getAudioSettings, playClick, setBgmEnabled, setMasterVolume, setSfxEnabled } from '../utils/audioSystem';
 import { useGameStore } from '../stores/gameStore';
 import type { SaveInfo } from '../types/game';
@@ -346,11 +395,14 @@ const gameStore = useGameStore();
 
 const showLLMDialog = ref(false);
 const showAudioPanel = ref(false);
-const showLoadDialog = ref(false);
+const showSavePanel = ref(true);
+const settingsTab = ref<'volume' | 'audio'>('volume');
 const recentSaveLoading = ref(false);
 const quickLoadPending = ref(false);
 const recentSaveError = ref('');
 const latestSave = ref<SaveInfo | null>(null);
+const saveSlots = ref<SaveInfo[]>([]);
+const selectedSaveSlotId = ref<number | null>(null);
 const lastRefreshAt = ref<number | null>(null);
 const lastRefreshSucceeded = ref<boolean | null>(null);
 const refreshNowTick = ref(Date.now());
@@ -381,6 +433,12 @@ const latestSaveLocationLabel = computed(() => formatLocationLabel(latestSave.va
 const showLatestSaveLocationTag = computed(
   () => latestSaveLocationLabel.value.trim().length > 0 && latestSaveLocationLabel.value !== '未知',
 );
+const selectedSaveSlot = computed(() => {
+  if (!selectedSaveSlotId.value) {
+    return latestSave.value;
+  }
+  return saveSlots.value.find((slot) => slot.slot_id === selectedSaveSlotId.value) ?? latestSave.value;
+});
 const latestSaveTimestampLabel = computed(() => {
   const ts = latestSave.value?.timestamp;
   if (!ts || !Number.isFinite(ts)) {
@@ -601,11 +659,20 @@ const fetchLatestSave = async () => {
     const slots = await gameStore.listSaveSlots();
     if (!Array.isArray(slots) || slots.length === 0) {
       latestSave.value = null;
+      saveSlots.value = [];
+      selectedSaveSlotId.value = null;
       return;
     }
-    latestSave.value = [...slots].sort((a, b) => b.timestamp - a.timestamp)[0] ?? null;
+    const sorted = [...slots].sort((a, b) => b.timestamp - a.timestamp);
+    saveSlots.value = sorted;
+    latestSave.value = sorted[0] ?? null;
+    if (selectedSaveSlotId.value == null || !sorted.some((slot) => slot.slot_id === selectedSaveSlotId.value)) {
+      selectedSaveSlotId.value = sorted[0]?.slot_id ?? null;
+    }
   } catch (error) {
     latestSave.value = null;
+    saveSlots.value = [];
+    selectedSaveSlotId.value = null;
     recentSaveError.value = error instanceof Error ? error.message : '读取最近存档失败';
   } finally {
     recentSaveLoading.value = false;
@@ -632,7 +699,8 @@ const handleNewGame = () => {
 
 const openLoadDialog = () => {
   playClick();
-  showLoadDialog.value = true;
+  showSavePanel.value = true;
+  void fetchLatestSave();
 };
 
 const handleSettings = () => {
@@ -706,12 +774,6 @@ const loadLatestSave = async () => {
   }
 };
 
-const handleLoadedFromDialog = () => {
-  showLoadDialog.value = false;
-  router.push('/game');
-  void fetchLatestSave();
-};
-
 onMounted(() => {
   syncQuickVolumeFromSettings();
   refreshNowTick.value = Date.now();
@@ -729,3 +791,240 @@ onUnmounted(() => {
   window.removeEventListener('focus', syncQuickVolumeFromSettings);
 });
 </script>
+
+<style scoped>
+.main-menu-shell {
+  font-family: 'Noto Serif SC', 'STKaiti', 'KaiTi', serif;
+  color: #2d2a24;
+  background:
+    radial-gradient(circle at 12% 20%, rgba(183, 140, 74, 0.08), transparent 35%),
+    radial-gradient(circle at 85% 6%, rgba(59, 122, 107, 0.07), transparent 30%),
+    linear-gradient(145deg, #faf7f2, #f1eade);
+}
+
+.main-menu-guide {
+  max-width: 1320px;
+  margin: 0 auto 10px auto;
+  text-align: right;
+  font-size: 12px;
+  color: #3b7a6b;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  text-decoration-color: rgba(59, 122, 107, 0.35);
+}
+
+.main-menu-frame {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.menu-left-rail {
+  position: sticky;
+  top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.menu-main-stage {
+  min-height: 72vh;
+  background: rgba(250, 247, 242, 0.9);
+  border: 1px solid #d9d0c0;
+  border-radius: 16px;
+  box-shadow: 0 10px 24px rgba(55, 47, 34, 0.08);
+  padding: 24px;
+}
+
+.main-menu-header {
+  position: relative;
+  text-align: center;
+  padding: 18px 0 8px;
+}
+
+.main-menu-en-title {
+  margin: 0;
+  font-family: 'ZCOOL QingKe HuangYou', 'Cinzel', 'Noto Serif SC', serif;
+  font-size: clamp(3.3rem, 8vw, 6.2rem);
+  line-height: 1;
+  letter-spacing: 0.06em;
+  color: #322618;
+}
+
+.main-menu-cn-title {
+  margin: 10px 0 0;
+  font-size: clamp(1.3rem, 2.3vw, 2rem);
+  color: #5e4f3a;
+}
+
+.main-menu-seal {
+  position: absolute;
+  right: 6%;
+  top: 8px;
+  width: 88px;
+  height: 88px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #9f3b2f;
+  border-radius: 6px;
+  transform: rotate(-9deg);
+  color: #9f3b2f;
+  background: rgba(159, 59, 47, 0.04);
+  font-size: 14px;
+  letter-spacing: 0.08em;
+}
+
+.menu-card {
+  background: #f5f0e8;
+  border: 1px solid #d9d0c0;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  padding: 20px;
+}
+
+.menu-card-title {
+  margin: 0;
+  color: #b78c4a;
+  font-size: 1.45rem;
+  font-weight: 700;
+}
+
+.menu-btn {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid #b78c4a;
+  background: #f5f0e8;
+  color: #2d2a24;
+  padding: 13px 16px;
+  font-size: 1rem;
+  transition: box-shadow 180ms ease, transform 120ms ease, background-color 180ms ease;
+}
+
+.menu-btn:hover {
+  background: #f0e8dc;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.menu-btn:active {
+  transform: translateY(1px);
+}
+
+.menu-btn-primary {
+  background: #ede1c9;
+}
+
+.menu-volume-pill {
+  margin: 0;
+  text-align: center;
+  border: 1px solid #c8b89f;
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: rgba(245, 240, 232, 0.88);
+  color: #6a655d;
+}
+
+.menu-chip,
+.menu-chip-btn,
+.menu-inline-btn {
+  border: 1px solid #c8b89f;
+  border-radius: 8px;
+  background: #f5f0e8;
+  color: #2d2a24;
+}
+
+.menu-chip {
+  padding: 2px 8px;
+  font-size: 12px;
+}
+
+.menu-chip-btn {
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.menu-inline-btn {
+  padding: 6px 12px;
+  font-size: 14px;
+}
+
+.menu-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(37, 31, 20, 0.36);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.menu-dialog {
+  width: min(100%, 1080px);
+  max-height: min(90vh, 840px);
+  overflow: auto;
+  border-radius: 16px;
+  border: 1px solid #d9d0c0;
+  background: #f6f1e8;
+  box-shadow: 0 16px 34px rgba(44, 35, 22, 0.18);
+  padding: 20px;
+}
+
+.menu-dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.menu-dialog-body {
+  margin-top: 14px;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 280px 1fr;
+}
+
+.menu-dialog-left,
+.menu-dialog-right {
+  border: 1px solid #d9d0c0;
+  border-radius: 12px;
+  background: #ece5d8;
+  padding: 12px;
+}
+
+.menu-sub-card {
+  border: 1px solid #d9d0c0;
+  border-radius: 10px;
+  background: #f5f0e8;
+  padding: 12px;
+}
+
+.menu-sub-title {
+  margin: 0;
+  color: #b78c4a;
+  letter-spacing: 0.06em;
+  font-size: 12px;
+}
+
+@media (max-width: 980px) {
+  .main-menu-frame {
+    grid-template-columns: 1fr;
+  }
+
+  .menu-left-rail {
+    position: static;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .menu-dialog-body {
+    grid-template-columns: 1fr;
+  }
+
+  .main-menu-seal {
+    position: static;
+    margin: 12px auto 0;
+  }
+}
+</style>

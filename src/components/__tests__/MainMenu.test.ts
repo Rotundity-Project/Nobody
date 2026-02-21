@@ -336,6 +336,7 @@ describe('MainMenu', () => {
         },
       },
     });
+    await wrapper.get('[data-testid="open-audio-btn"]').trigger('click');
     const quickVolumeGroup = wrapper.find('[data-testid="quick-audio-group"]');
     expect(quickVolumeGroup.exists()).toBe(true);
     expect(wrapper.find('[data-testid="quick-audio-group"]').exists()).toBe(true);
@@ -394,6 +395,7 @@ describe('MainMenu', () => {
         },
       },
     });
+    await wrapper.get('[data-testid="open-audio-btn"]').trigger('click');
 
     expect(wrapper.get('[data-testid="quick-bgm-btn"]').text()).toContain('BGM 开');
     expect(wrapper.get('[data-testid="quick-sfx-btn"]').text()).toContain('音效 开');

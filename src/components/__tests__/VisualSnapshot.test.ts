@@ -102,11 +102,10 @@ describe('visual snapshots', () => {
     const wrapper = shallowMount(GameRuntimeView, {
       global: {
         stubs: {
-          GameTopBar: true,
-          ChapterStatusStrip: true,
-          ContextStatusCard: true,
-          StoryViewport: true,
-          GameInteractionPanel: true,
+          InkTopBar: true,
+          PoemStatusSlip: true,
+          InkStoryStage: true,
+          InkQuickActionDock: true,
           GameSystemDialogs: true,
           GameInfoCenterDialog: true,
           CharacterInfoModal: true,
