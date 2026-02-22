@@ -119,7 +119,7 @@ describe('gameStore', () => {
     const gameState = baseGameState(script);
     const plotState = basePlotState();
 
-    invokeMock.mockImplementation((command: string) => {
+    invokeWithTimeoutMock.mockImplementation((command: string) => {
       if (command === 'initialize_game') {
         return Promise.resolve(gameState);
       }
@@ -143,6 +143,7 @@ describe('gameStore', () => {
     const script = baseScript();
     const gameState = baseGameState(script);
     const plotState = basePlotState();
+    plotState.last_generation_diagnostics = '回退：测试诊断';
 
     invokeWithTimeoutMock.mockImplementation((command: string) => {
       if (command === 'execute_player_action') {
@@ -167,11 +168,12 @@ describe('gameStore', () => {
     expect(invokeWithTimeoutMock).toHaveBeenCalledWith(
       'execute_player_action',
       { action: expect.any(Object) },
-      140000,
+      70000,
       expect.any(String),
     );
     expect(store.gameState).toEqual(gameState);
     expect(store.plotState).toEqual(plotState);
+    expect(store.error).toBeNull();
     expect(store.isLoading).toBe(false);
   });
 
@@ -203,8 +205,10 @@ describe('gameStore', () => {
     const gameState = baseGameState(script);
     const plotState = basePlotState();
 
-    invokeWithTimeoutMock.mockResolvedValue(script);
-    invokeMock.mockImplementation((command: string) => {
+    invokeWithTimeoutMock.mockImplementation((command: string) => {
+      if (command === 'generate_random_script') {
+        return Promise.resolve(script);
+      }
       if (command === 'initialize_game') {
         return Promise.resolve(gameState);
       }

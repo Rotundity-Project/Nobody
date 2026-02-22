@@ -95,11 +95,21 @@ export const useGameStore = defineStore('game', {
       try {
         const trimmedName = playerName?.trim();
         script.initial_state.player_name = trimmedName || '无名弟子';
-        const gameState = await invoke<GameState>('initialize_game', { script });
+        const gameState = await invokeWithTimeout<GameState>(
+          'initialize_game',
+          { script },
+          35000,
+          '初始化世界超时，请检查 LLM 配置后重试',
+        );
         this.currentScript = script;
         this.gameState = gameState;
 
-        const plotState = await invoke<PlotState>('initialize_plot');
+        const plotState = await invokeWithTimeout<PlotState>(
+          'initialize_plot',
+          undefined,
+          35000,
+          '初始化剧情超时，请检查 LLM 配置后重试',
+        );
         this.plotState = plotState;
         await this.refreshWorldRegistry();
         await this.refreshReachableLocations();
@@ -120,7 +130,7 @@ export const useGameStore = defineStore('game', {
         await invokeWithTimeout<string>(
           'execute_player_action',
           { action },
-          140000,
+          70000,
           '剧情推进超时，请稍后重试',
         );
 
@@ -146,7 +156,6 @@ export const useGameStore = defineStore('game', {
         // 显示 LLM 诊断信息（如果有）
         if (plotState.last_generation_diagnostics) {
           console.warn('LLM 诊断信息:', plotState.last_generation_diagnostics);
-          this.error = plotState.last_generation_diagnostics;
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -253,11 +262,21 @@ export const useGameStore = defineStore('game', {
         );
         const trimmedName = playerName?.trim();
         script.initial_state.player_name = trimmedName || '无名弟子';
-        const gameState = await invoke<GameState>('initialize_game', { script });
+        const gameState = await invokeWithTimeout<GameState>(
+          'initialize_game',
+          { script },
+          35000,
+          '初始化世界超时，请检查 LLM 配置后重试',
+        );
         this.currentScript = script;
         this.gameState = gameState;
 
-        const plotState = await invoke<PlotState>('initialize_plot');
+        const plotState = await invokeWithTimeout<PlotState>(
+          'initialize_plot',
+          undefined,
+          35000,
+          '初始化剧情超时，请检查 LLM 配置后重试',
+        );
         this.plotState = plotState;
         await this.refreshWorldRegistry();
         await this.refreshReachableLocations();

@@ -2402,7 +2402,7 @@ pub async fn execute_player_action(
             plot_state.current_scene.available_options = plot_update.available_options;
             "llm_structured".to_string()
         } else {
-            let llm_regenerated = if total_started.elapsed().as_millis()
+            let llm_regenerated = if options_started.elapsed().as_millis()
                 <= OPTION_LLM_LATENCY_BUDGET_MS
             {
                 plot_engine.generate_player_options_with_llm(
@@ -2418,7 +2418,7 @@ pub async fn execute_player_action(
                 (
                     plot_engine
                         .generate_player_options(&plot_state.current_scene, &game_state.player.stats),
-                    if total_started.elapsed().as_millis() <= OPTION_LLM_LATENCY_BUDGET_MS {
+                    if options_started.elapsed().as_millis() <= OPTION_LLM_LATENCY_BUDGET_MS {
                         "rule_fallback".to_string()
                     } else {
                         "rule_fallback_latency_budget".to_string()
@@ -2833,7 +2833,14 @@ pub async fn initialize_plot(
             state.player.name,
             state.player.stats.cultivation_realm.name,
             state.player.stats.spiritual_root.display_elements(),
-            state.player.location,
+            state
+                .script
+                .world_setting
+                .locations
+                .iter()
+                .find(|loc| loc.id == state.player.location)
+                .map(|loc| loc.name.clone())
+                .unwrap_or(state.player.location),
         )
     };
 
@@ -2841,6 +2848,12 @@ pub async fn initialize_plot(
     let opening = plot_engine
         .generate_opening_plot_async(&player_name, &realm_name, &spiritual_root, &location)
         .await;
+    if !opening.from_llm {
+        return Err(
+            "初始化剧情失败：未获取到 LLM 开局内容（已禁止预设文案回退）。请检查模型配置、网络与超时后重试。"
+                .to_string(),
+        );
+    }
 
     let opening_options = if opening.options.is_empty() {
         None

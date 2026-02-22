@@ -178,6 +178,7 @@ pub struct PlotEngine {
 pub struct OpeningPlot {
     pub text: String,
     pub options: Vec<String>,
+    pub from_llm: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -189,6 +190,16 @@ struct ChapterSegment {
     chapter_summary: Option<String>,
     options: Vec<String>,
     generation_diagnostics: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+struct QuickStorySkeleton {
+    scene: String,
+    event: String,
+    conflict: String,
+    progression: String,
+    hook: String,
+    options: Vec<String>,
 }
 
 impl PlotEngine {
@@ -805,6 +816,13 @@ impl PlotEngine {
             return self.apply_chapter_segment_rules(current_state, segment);
         }
 
+        let (skeleton_segment, skeleton_reason) = self
+            .generate_chapter_segment_from_skeleton_async(current_state, action_result)
+            .await;
+        if let Some(segment) = skeleton_segment {
+            return self.apply_chapter_segment_rules(current_state, segment);
+        }
+
         let (plain_text, plain_reason) = self
             .generate_plot_text_with_llm_async(current_state, action_result)
             .await;
@@ -826,12 +844,68 @@ impl PlotEngine {
             );
         }
 
+        let (micro_text, micro_reason) = self
+            .generate_plot_text_micro_with_llm_async(current_state, action_result)
+            .await;
+        if let Some(text) = micro_text {
+            let degrade_reason = match (llm_reason.clone(), skeleton_reason.clone(), plain_reason.clone()) {
+                (Some(a), Some(b), Some(c)) => format!("{a}；骨架生成失败({b})；纯文本续写失败({c})"),
+                (Some(a), Some(b), None) => format!("{a}；骨架生成失败({b})"),
+                (Some(a), None, Some(c)) => format!("{a}；纯文本续写失败({c})"),
+                (None, Some(b), Some(c)) => format!("骨架生成失败({b})；纯文本续写失败({c})"),
+                (Some(a), None, None) => a,
+                (None, Some(b), None) => format!("骨架生成失败({b})"),
+                (None, None, Some(c)) => format!("纯文本续写失败({c})"),
+                (None, None, None) => "主链路未命中".to_string(),
+            };
+            return self.apply_chapter_segment_rules(
+                current_state,
+                ChapterSegment {
+                    text,
+                    needs_player_input: true,
+                    chapter_end: false,
+                    chapter_title: None,
+                    chapter_summary: None,
+                    options: vec![],
+                    generation_diagnostics: Some(format!("回退：{}；已降级为LLM轻量文本续写", degrade_reason)),
+                },
+            );
+        }
+
         let text = self.generate_plot_text_fallback(current_state, action_result);
-        let fallback_reason = match (llm_reason, plain_reason) {
-            (Some(s), Some(p)) => format!("{s}；纯文本续写失败({p})"),
-            (Some(s), None) => s,
-            (None, Some(p)) => format!("纯文本续写失败({p})"),
-            (None, None) => "LLM 续写不可用（可能无配置或返回不可解析）".to_string(),
+        let fallback_reason = match (llm_reason, skeleton_reason, plain_reason, micro_reason) {
+            (Some(s), Some(sk), Some(p), Some(m)) => {
+                format!("{s}；骨架生成失败({sk})；纯文本续写失败({p})；轻量续写失败({m})")
+            }
+            (Some(s), Some(sk), Some(p), None) => {
+                format!("{s}；骨架生成失败({sk})；纯文本续写失败({p})")
+            }
+            (Some(s), Some(sk), None, Some(m)) => {
+                format!("{s}；骨架生成失败({sk})；轻量续写失败({m})")
+            }
+            (Some(s), None, Some(p), Some(m)) => {
+                format!("{s}；纯文本续写失败({p})；轻量续写失败({m})")
+            }
+            (Some(s), Some(sk), None, None) => format!("{s}；骨架生成失败({sk})"),
+            (Some(s), None, Some(p), None) => format!("{s}；纯文本续写失败({p})"),
+            (Some(s), None, None, Some(m)) => format!("{s}；轻量续写失败({m})"),
+            (None, Some(sk), Some(p), Some(m)) => {
+                format!("骨架生成失败({sk})；纯文本续写失败({p})；轻量续写失败({m})")
+            }
+            (None, Some(sk), Some(p), None) => {
+                format!("骨架生成失败({sk})；纯文本续写失败({p})")
+            }
+            (None, Some(sk), None, Some(m)) => {
+                format!("骨架生成失败({sk})；轻量续写失败({m})")
+            }
+            (None, None, Some(p), Some(m)) => {
+                format!("纯文本续写失败({p})；轻量续写失败({m})")
+            }
+            (Some(s), None, None, None) => s,
+            (None, Some(sk), None, None) => format!("骨架生成失败({sk})"),
+            (None, None, Some(p), None) => format!("纯文本续写失败({p})"),
+            (None, None, None, Some(m)) => format!("轻量续写失败({m})"),
+            (None, None, None, None) => "LLM 续写不可用（可能无配置或返回不可解析）".to_string(),
         };
         ChapterSegment {
             text,
@@ -1130,8 +1204,8 @@ impl PlotEngine {
             llm_service.api_config.max_tokens.clamp(900, 1500)
         };
         let prompt_limit = output_max.saturating_mul(if llm_priority_mode { 10 } else { 8 });
-        let primary_timeout_secs: u64 = if llm_priority_mode { 28 } else { 20 };
-        let retry_timeout_secs: u64 = if llm_priority_mode { 16 } else { 12 };
+        let primary_timeout_secs: u64 = if llm_priority_mode { 14 } else { 10 };
+        let retry_timeout_secs: u64 = if llm_priority_mode { 8 } else { 6 };
 
         let prompt = self.prompt_builder.build_prompt_with_token_limit(
             PromptTemplate::PlotGeneration,
@@ -1320,8 +1394,8 @@ impl PlotEngine {
         } else {
             llm_service.api_config.max_tokens.clamp(850, 1300)
         };
-        let primary_timeout_secs: u64 = if llm_priority_mode { 22 } else { 16 };
-        let retry_timeout_secs: u64 = if llm_priority_mode { 14 } else { 10 };
+        let primary_timeout_secs: u64 = if llm_priority_mode { 10 } else { 8 };
+        let retry_timeout_secs: u64 = if llm_priority_mode { 6 } else { 5 };
         let prompt = self.prompt_builder.build_prompt_with_token_limit(
             PromptTemplate::PlotGeneration,
             &PromptContext {
@@ -1524,6 +1598,191 @@ impl PlotEngine {
         }
     }
 
+    async fn generate_chapter_segment_from_skeleton_async(
+        &self,
+        current_state: &PlotState,
+        action_result: &ActionResult,
+    ) -> (Option<ChapterSegment>, Option<String>) {
+        if cfg!(test) {
+            return (None, None);
+        }
+        let llm_service = match self.resolve_llm_service() {
+            Some(service) => service,
+            None => return (None, Some("未检测到可用 LLM 配置".to_string())),
+        };
+        let output_max = llm_service.api_config.max_tokens.clamp(300, 700);
+        let prompt = self.prompt_builder.build_prompt_with_token_limit(
+            PromptTemplate::PlotGeneration,
+            &PromptContext {
+                scene: Some(format!(
+                    "玩家刚刚行动：{}；请先输出叙事骨架。",
+                    action_result.description
+                )),
+                location: Some(current_state.current_scene.location.clone()),
+                actor_name: Some("player".to_string()),
+                actor_realm: None,
+                actor_combat_power: None,
+                history_events: action_result.events.clone(),
+                world_setting_summary: Some("先状态后叙事，输出可验证事实".to_string()),
+            },
+            &PromptConstraints {
+                numerical_rules: vec!["必须与行动结果保持一致".to_string()],
+                world_rules: vec![
+                    "输出严格 JSON".to_string(),
+                    "仅使用字段 scene,event,conflict,progression,hook,options".to_string(),
+                    "scene/event/conflict/progression/hook 每个字段尽量 30-80 字".to_string(),
+                    "options 必须是 2-4 条简短选项".to_string(),
+                    "不要输出多余字段".to_string(),
+                ],
+                output_schema_hint: Some(
+                    "{\"scene\":\"string\",\"event\":\"string\",\"conflict\":\"string\",\"progression\":\"string\",\"hook\":\"string\",\"options\":[\"string\"]}".to_string(),
+                ),
+            },
+            output_max.saturating_mul(3),
+        );
+
+        let response = match tokio::time::timeout(
+            Duration::from_secs(6),
+            llm_service.generate(LLMRequest {
+                prompt,
+                max_tokens: Some(output_max),
+                temperature: Some(0.55),
+            }),
+        )
+        .await
+        {
+            Ok(Ok(resp)) => resp,
+            Ok(Err(err)) => return (None, Some(Self::llm_error_reason(&err))),
+            Err(_) => return (None, Some("骨架生成超时".to_string())),
+        };
+
+        let Some(json_val) = self.extract_json_value(&response.text) else {
+            return (None, Some("骨架生成返回非JSON".to_string()));
+        };
+        let Some(obj) = json_val.as_object() else {
+            return (None, Some("骨架生成JSON结构非法".to_string()));
+        };
+
+        let read_field = |name: &str| -> String {
+            obj.get(name)
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .trim()
+                .to_string()
+        };
+        let skeleton = QuickStorySkeleton {
+            scene: read_field("scene"),
+            event: read_field("event"),
+            conflict: read_field("conflict"),
+            progression: read_field("progression"),
+            hook: read_field("hook"),
+            options: obj
+                .get("options")
+                .and_then(Value::as_array)
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(Value::as_str)
+                        .map(str::trim)
+                        .filter(|v| !v.is_empty())
+                        .take(4)
+                        .map(ToString::to_string)
+                        .collect::<Vec<String>>()
+                })
+                .unwrap_or_default(),
+        };
+        if skeleton.scene.is_empty()
+            || skeleton.event.is_empty()
+            || skeleton.conflict.is_empty()
+            || skeleton.progression.is_empty()
+            || skeleton.hook.is_empty()
+        {
+            return (None, Some("骨架字段不完整".to_string()));
+        }
+
+        let composed = format!(
+            "{}。{}。{}。{}。{}。",
+            skeleton.scene, skeleton.event, skeleton.conflict, skeleton.progression, skeleton.hook
+        );
+        (
+            Some(ChapterSegment {
+                text: composed,
+                needs_player_input: true,
+                chapter_end: false,
+                chapter_title: None,
+                chapter_summary: None,
+                options: skeleton.options,
+                generation_diagnostics: Some("已降级为骨架生成（LLM两阶段）".to_string()),
+            }),
+            None,
+        )
+    }
+
+    async fn generate_plot_text_micro_with_llm_async(
+        &self,
+        current_state: &PlotState,
+        action_result: &ActionResult,
+    ) -> (Option<String>, Option<String>) {
+        if cfg!(test) {
+            return (None, None);
+        }
+        let llm_service = match self.resolve_llm_service() {
+            Some(service) => service,
+            None => return (None, Some("未检测到可用 LLM 配置".to_string())),
+        };
+        let output_max = llm_service.api_config.max_tokens.clamp(220, 520);
+        let prompt = self.prompt_builder.build_prompt_with_token_limit(
+            PromptTemplate::PlotGeneration,
+            &PromptContext {
+                scene: Some(format!(
+                    "快速续写一段短剧情。玩家行动：{}。",
+                    action_result.description
+                )),
+                location: Some(current_state.current_scene.location.clone()),
+                actor_name: Some("player".to_string()),
+                actor_realm: None,
+                actor_combat_power: None,
+                history_events: action_result.events.clone(),
+                world_setting_summary: Some("轻量降级模式：优先可用与可验证性".to_string()),
+            },
+            &PromptConstraints {
+                numerical_rules: vec!["必须与行动结果保持一致".to_string()],
+                world_rules: vec![
+                    "仅输出纯文本".to_string(),
+                    "必须使用中文".to_string(),
+                    "控制在 260-420 字".to_string(),
+                    "至少给出一个明确后果和一个下一步钩子".to_string(),
+                    "禁止空泛口号".to_string(),
+                ],
+                output_schema_hint: Some("仅返回正文纯文本，不要 JSON。".to_string()),
+            },
+            output_max.saturating_mul(2),
+        );
+
+        let response = match tokio::time::timeout(
+            Duration::from_secs(5),
+            llm_service.generate(LLMRequest {
+                prompt: prompt.clone(),
+                max_tokens: Some(output_max),
+                temperature: Some(0.62),
+            }),
+        )
+        .await
+        {
+            Ok(Ok(resp)) => resp,
+            Ok(Err(err)) => return (None, Some(Self::llm_error_reason(&err))),
+            Err(_) => return (None, Some("轻量续写请求超时".to_string())),
+        };
+
+        let text = match self.parse_plain_text_response(&response.text) {
+            Ok(v) => v,
+            Err(err) => return (None, Some(err)),
+        };
+        if text.chars().count() < 120 {
+            return (None, Some("轻量续写文本过短".to_string()));
+        }
+        (Some(text), None)
+    }
+
     fn generate_plot_text_fallback(&self, current_state: &PlotState, action_result: &ActionResult) -> String {
         let action_desc = action_result.description.trim();
         let event_line = if action_result.events.is_empty() {
@@ -1587,11 +1846,24 @@ impl PlotEngine {
                     location,
                 ),
                 options: vec![],
+                from_llm: false,
             };
         }
 
         if let Some(opening) = self
             .generate_opening_plot_with_llm_async(
+                player_name,
+                realm_name,
+                spiritual_root,
+                location,
+            )
+            .await
+        {
+            return opening;
+        }
+
+        if let Some(opening) = self
+            .generate_opening_plot_micro_with_llm_async(
                 player_name,
                 realm_name,
                 spiritual_root,
@@ -1610,6 +1882,7 @@ impl PlotEngine {
                 location,
             ),
             options: vec![],
+            from_llm: false,
         }
     }
 
@@ -1633,6 +1906,8 @@ impl PlotEngine {
         spiritual_root: &str,
         location: &str,
     ) -> Option<OpeningPlot> {
+        const OPENING_PRIMARY_TIMEOUT_SECS: u64 = 24;
+        const OPENING_RETRY_TIMEOUT_SECS: u64 = 16;
         let llm_service = self.resolve_llm_service()?;
         let output_max = llm_service.api_config.max_tokens.clamp(900, 1500);
         let prompt_limit = output_max.saturating_mul(6);
@@ -1664,16 +1939,18 @@ impl PlotEngine {
             prompt_limit,
         );
 
-        let response = match llm_service
-            .generate(LLMRequest {
+        let response = match tokio::time::timeout(
+            Duration::from_secs(OPENING_PRIMARY_TIMEOUT_SECS),
+            llm_service.generate(LLMRequest {
                 prompt: prompt.clone(),
                 max_tokens: Some(output_max),
                 temperature: Some(0.7),
-            })
-            .await
+            }),
+        )
+        .await
         {
-            Ok(resp) => resp,
-            Err(_) => {
+            Ok(Ok(resp)) => resp,
+            _ => {
                 let retry_prompt = self.prompt_builder.build_prompt_with_token_limit(
                     PromptTemplate::PlotGeneration,
                     &PromptContext {
@@ -1700,14 +1977,17 @@ impl PlotEngine {
                     },
                     output_max.saturating_mul(3),
                 );
-                llm_service
-                    .generate(LLMRequest {
+                tokio::time::timeout(
+                    Duration::from_secs(OPENING_RETRY_TIMEOUT_SECS),
+                    llm_service.generate(LLMRequest {
                         prompt: retry_prompt,
                         max_tokens: Some(output_max),
                         temperature: Some(0.7),
-                    })
-                    .await
-                    .ok()?
+                    }),
+                )
+                .await
+                .ok()?
+                .ok()?
             }
         };
 
@@ -1761,13 +2041,21 @@ impl PlotEngine {
                 .unwrap_or_default();
 
             if !text.is_empty() {
-                return Some(OpeningPlot { text, options });
+                return Some(OpeningPlot {
+                    text,
+                    options,
+                    from_llm: true,
+                });
             }
         }
 
         if let Some(text) = self.extract_string_field_raw(&response.text, "segment_text") {
             let options = self.extract_options_field_raw(&response.text);
-            return Some(OpeningPlot { text, options });
+            return Some(OpeningPlot {
+                text,
+                options,
+                from_llm: true,
+            });
         }
 
         let text = response.text.trim().to_string();
@@ -1778,6 +2066,85 @@ impl PlotEngine {
         Some(OpeningPlot {
             text,
             options: vec![],
+            from_llm: true,
+        })
+    }
+
+    async fn generate_opening_plot_micro_with_llm_async(
+        &self,
+        player_name: &str,
+        realm_name: &str,
+        spiritual_root: &str,
+        location: &str,
+    ) -> Option<OpeningPlot> {
+        let llm_service = self.resolve_llm_service()?;
+        let output_max = llm_service.api_config.max_tokens.clamp(240, 520);
+        let prompt = self.prompt_builder.build_prompt_with_token_limit(
+            PromptTemplate::PlotGeneration,
+            &PromptContext {
+                scene: Some("快速生成修仙开篇（轻量模式）并给出行动选项".to_string()),
+                location: Some(location.to_string()),
+                actor_name: Some(player_name.to_string()),
+                actor_realm: Some(realm_name.to_string()),
+                actor_combat_power: None,
+                history_events: vec![],
+                world_setting_summary: Some(format!("主角灵根：{}", spiritual_root)),
+            },
+            &PromptConstraints {
+                numerical_rules: vec!["不得出现跨境界夸张成长".to_string()],
+                world_rules: vec![
+                    "输出严格 JSON".to_string(),
+                    "字段仅包含 segment_text 与 options".to_string(),
+                    "segment_text 控制在 260-420 字".to_string(),
+                    "options 必须为 2-4 条".to_string(),
+                    "必须使用中文".to_string(),
+                ],
+                output_schema_hint: Some(
+                    "{\"segment_text\":\"string\",\"options\":[\"string\"]}".to_string(),
+                ),
+            },
+            output_max.saturating_mul(2),
+        );
+        let response = match tokio::time::timeout(
+            Duration::from_secs(5),
+            llm_service.generate(LLMRequest {
+                prompt,
+                max_tokens: Some(output_max),
+                temperature: Some(0.6),
+            }),
+        )
+        .await
+        {
+            Ok(Ok(resp)) => resp,
+            _ => return None,
+        };
+        let value = self.extract_json_value(&response.text)?;
+        let text = value
+            .get("segment_text")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .trim()
+            .to_string();
+        if text.is_empty() {
+            return None;
+        }
+        let options = value
+            .get("options")
+            .and_then(Value::as_array)
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(Value::as_str)
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .take(4)
+                    .map(ToString::to_string)
+                    .collect::<Vec<String>>()
+            })
+            .unwrap_or_default();
+        Some(OpeningPlot {
+            text,
+            options,
+            from_llm: true,
         })
     }
     pub fn generate_player_options(
