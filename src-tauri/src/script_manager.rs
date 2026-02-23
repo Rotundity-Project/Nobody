@@ -1,28 +1,31 @@
-use crate::llm_runtime_config::resolve_llm_config;
+﻿use crate::llm_runtime_config::resolve_llm_config;
 use crate::llm_service::{LLMRequest, LLMService};
 use crate::models::{Element, Grade, SpiritualRoot};
 use crate::novel_parser::{NovelParser, ParsedNovelData};
-use crate::prompt_builder::{PromptBuilder, PromptConstraints, PromptContext, PromptTemplate};
-use crate::response_validator::{ResponseValidator, ValidationConstraints};
 use crate::script::{InitialState, Location, Script, ScriptType, WorldSetting};
 use anyhow::{anyhow, Result};
 use std::collections::HashSet;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
+use tokio::time::Duration;
 
 // Script manager for loading and validating scripts
 pub struct ScriptManager {
     llm_service: Option<LLMService>,
-    prompt_builder: PromptBuilder,
-    response_validator: ResponseValidator,
 }
 
 impl ScriptManager {
+    fn resolve_random_script_long_timeout_secs() -> u64 {
+        std::env::var("NOBODY_RANDOM_SCRIPT_TIMEOUT_SECS")
+            .ok()
+            .and_then(|v| v.trim().parse::<u64>().ok())
+            .map(|v| v.clamp(10, 3000))
+            .unwrap_or(3000)
+    }
+
     pub fn new() -> Self {
         Self {
             llm_service: Self::initialize_llm_service_from_env(),
-            prompt_builder: PromptBuilder::default(),
-            response_validator: ResponseValidator::default(),
         }
     }
 
@@ -34,8 +37,6 @@ impl ScriptManager {
     pub fn with_llm_service(llm_service: LLMService) -> Self {
         Self {
             llm_service: Some(llm_service),
-            prompt_builder: PromptBuilder::default(),
-            response_validator: ResponseValidator::default(),
         }
     }
 
@@ -162,81 +163,229 @@ impl ScriptManager {
     }
 
     pub async fn generate_random_script(&self) -> Result<Script> {
-        let generated = if let Some(llm_service) = &self.llm_service {
-            self.generate_random_script_with_llm(llm_service).await
-        } else {
-            Err(anyhow!(
-                "未检测到 LLM 配置，使用本地随机剧本模板"
-            ))
-        };
-
-        match generated {
-            Ok(script) => Ok(script),
-            Err(_) => self.generate_fallback_random_script(),
+        if let Some(llm_service) = &self.llm_service {
+            return self.generate_random_script_with_llm(llm_service).await;
         }
+        Err(anyhow!("未检测到可用 LLM 配置，无法生成随机剧本"))
     }
 
     async fn generate_random_script_with_llm(&self, llm_service: &LLMService) -> Result<Script> {
-        let mut constraints = PromptConstraints {
-            numerical_rules: vec![
-                "境界等级必须按顺序提升".to_string(),
-                "初始年龄必须在 10 到 100 之间".to_string(),
-            ],
-            world_rules: vec![
-                "剧本至少包含一个修炼境界与一个地点".to_string(),
-                "initial_state.starting_location 必须存在于 world_setting.locations".to_string(),
-                "所有文本字段使用中文".to_string(),
-            ],
-            output_schema_hint: Some(
-                "返回严格 JSON，必须匹配 Script 结构，不要 markdown 包裹。".to_string(),
-            ),
-        };
-        constraints.numerical_rules.push(
-            "随机角色需体现灵根稀有度分布：天灵根（单灵根）5%，双灵根15%，三灵根25%，伪灵根（四/五灵根）55%".to_string(),
-        );
-        constraints.world_rules.push(
-            "灵根数量越少越稀有，修行速度与宗门重视程度应更高".to_string(),
-        );
-        let context = PromptContext {
-            scene: Some("生成一个可游玩的随机修仙世界剧本".to_string()),
-            location: None,
-            actor_name: None,
-            actor_realm: None,
-            actor_combat_power: None,
-            history_events: Vec::new(),
-            world_setting_summary: Some(
-                "需要一个适合新手开局、设定自洽、可直接进入游戏的中文场景".to_string(),
-            ),
-        };
+        let mut errors: Vec<String> = Vec::new();
+        let fast_prompt = Self::build_random_script_seed_prompt_fast();
+        let compact_prompt = Self::build_random_script_seed_prompt_compact();
 
-        let prompt = self.prompt_builder.build_prompt_with_token_limit(
-            PromptTemplate::ScriptGeneration,
-            &context,
-            &constraints,
-            700,
-        );
-
-        let llm_response = llm_service
-            .generate(LLMRequest {
-                prompt,
-                max_tokens: Some(700),
-                temperature: Some(0.7),
-            })
+        let quick_a = async {
+            tokio::time::timeout(
+                Duration::from_secs(8),
+                llm_service.generate(LLMRequest {
+                    prompt: fast_prompt.clone(),
+                    max_tokens: Some(128),
+                    temperature: Some(0.45),
+                }),
+            )
             .await
-            .map_err(|e| anyhow!("LLM 随机剧本生成失败: {}", e))?;
-
-        let validation_constraints = ValidationConstraints {
-            require_json: true,
-            max_realm_level: None,
-            min_combat_power: None,
-            max_combat_power: None,
-            max_current_age: Some(120),
         };
-        self.response_validator
-            .validate_response(&llm_response, &validation_constraints)
-            .map_err(|e| anyhow!("生成结果校验失败: {}", e))?;
+        let quick_b = async {
+            tokio::time::timeout(
+                Duration::from_secs(8),
+                llm_service.generate(LLMRequest {
+                    prompt: compact_prompt.clone(),
+                    max_tokens: Some(96),
+                    temperature: Some(0.3),
+                }),
+            )
+            .await
+        };
 
-        let script = self.parse_generated_script_response(&llm_response.text)?;
+        let (res_a, res_b) = tokio::join!(quick_a, quick_b);
+        for (tag, result) in [("A", res_a), ("B", res_b)] {
+            let llm_text = match result {
+                Ok(Ok(resp)) => resp.text,
+                Ok(Err(err)) => {
+                    errors.push(format!("LLM 请求失败({}): {}", tag, err));
+                    continue;
+                }
+                Err(_) => {
+                    errors.push(format!("LLM 请求超时({})(8s)", tag));
+                    continue;
+                }
+            };
+
+            let Some(payload) = Self::extract_json_value(&llm_text) else {
+                errors.push(format!("种子 JSON 解析失败({})", tag));
+                continue;
+            };
+            if let Ok(script) = self.build_script_from_seed_payload(&payload) {
+                return Ok(script);
+            }
+            errors.push(format!("种子脚本构建失败({})", tag));
+        }
+
+        let emergency_prompt = Self::build_random_script_seed_prompt_emergency();
+        let emergency = tokio::time::timeout(
+            Duration::from_secs(6),
+            llm_service.generate(LLMRequest {
+                prompt: emergency_prompt,
+                max_tokens: Some(72),
+                temperature: Some(0.2),
+            }),
+        )
+        .await;
+        match emergency {
+            Ok(Ok(resp)) => {
+                if let Some(payload) = Self::extract_json_value(&resp.text) {
+                    if let Ok(script) = self.build_script_from_seed_payload(&payload) {
+                        return Ok(script);
+                    }
+                    errors.push("紧急请求返回不可构建".to_string());
+                } else {
+                    errors.push("紧急请求返回非 JSON".to_string());
+                }
+            }
+            Ok(Err(err)) => errors.push(format!("LLM 请求失败(C): {}", err)),
+            Err(_) => errors.push("LLM 请求超时(C)(6s)".to_string()),
+        }
+
+        let long_timeout = Self::resolve_random_script_long_timeout_secs();
+        let long_prompt = Self::build_random_script_seed_prompt_fast();
+        let long_try = tokio::time::timeout(
+            Duration::from_secs(long_timeout),
+            llm_service.generate(LLMRequest {
+                prompt: long_prompt,
+                max_tokens: Some(180),
+                temperature: Some(0.4),
+            }),
+        )
+        .await;
+        match long_try {
+            Ok(Ok(resp)) => {
+                if let Some(payload) = Self::extract_json_value(&resp.text) {
+                    if let Ok(script) = self.build_script_from_seed_payload(&payload) {
+                        return Ok(script);
+                    }
+                    errors.push(format!("长超时请求返回不可构建({}s)", long_timeout));
+                } else {
+                    errors.push(format!("长超时请求返回非 JSON({}s)", long_timeout));
+                }
+            }
+            Ok(Err(err)) => errors.push(format!("LLM 请求失败(D): {}", err)),
+            Err(_) => errors.push(format!("LLM 请求超时(D)({}s)", long_timeout)),
+        }
+
+        Err(anyhow!(
+            "随机剧本生成失败（重试后仍失败）：{}",
+            errors.join(" | ")
+        ))
+    }
+
+    fn build_random_script_seed_prompt_fast() -> String {
+        [
+            "只返回 JSON，不要解释，不要 markdown。",
+            "字段固定：world_name,location_name,location_name_2,faction_name,technique_name,opening_hook。",
+            "值必须是中文短语，长度 2-10 字。",
+            "示例格式：{\"world_name\":\"...\",\"location_name\":\"...\",\"location_name_2\":\"...\",\"faction_name\":\"...\",\"technique_name\":\"...\",\"opening_hook\":\"...\"}",
+        ]
+        .join("\n")
+    }
+
+    fn build_random_script_seed_prompt_compact() -> String {
+        "{\"task\":\"generate_xianxia_seed\",\"return\":\"json_only\",\"fields\":[\"world_name\",\"location_name\",\"location_name_2\",\"faction_name\",\"technique_name\",\"opening_hook\"],\"lang\":\"zh\"}".to_string()
+    }
+
+    fn build_random_script_seed_prompt_emergency() -> String {
+        "输出 JSON: {\"world_name\":\"\",\"location_name\":\"\",\"location_name_2\":\"\",\"faction_name\":\"\",\"technique_name\":\"\",\"opening_hook\":\"\"}".to_string()
+    }
+
+    fn extract_json_value(raw_text: &str) -> Option<serde_json::Value> {
+        if let Ok(v) = serde_json::from_str::<serde_json::Value>(raw_text) {
+            return Some(v);
+        }
+        let start = raw_text.find('{')?;
+        let end = raw_text.rfind('}')?;
+        serde_json::from_str::<serde_json::Value>(&raw_text[start..=end]).ok()
+    }
+
+    fn build_script_from_seed_payload(&self, payload: &serde_json::Value) -> Result<Script> {
+        let get_str = |k: &str, d: &str| -> String {
+            payload
+                .get(k)
+                .and_then(|v| v.as_str())
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .unwrap_or(d)
+                .to_string()
+        };
+
+        let world_name = get_str("world_name", "随机修仙开局");
+        let location_1 = get_str("location_name", "宗门外谷");
+        let location_2 = get_str("location_name_2", "乱石林");
+        let faction_name = get_str("faction_name", "青云宗");
+        let technique_name = get_str("technique_name", "基础吐纳诀");
+
+        let seed = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|e| anyhow!("System clock error: {}", e))?
+            .as_secs();
+        let id = format!("random_{}", seed);
+        let loc1_id = "loc_start";
+        let loc2_id = "loc_outer";
+
+        let script = serde_json::from_value::<Script>(serde_json::json!({
+            "id": id,
+            "name": world_name,
+            "script_type": "RandomGenerated",
+            "world_setting": {
+                "cultivation_realms": [
+                    { "name": "炼气", "level": 1, "sub_level": 0, "power_multiplier": 1.0 },
+                    { "name": "筑基", "level": 2, "sub_level": 0, "power_multiplier": 2.0 },
+                    { "name": "金丹", "level": 3, "sub_level": 0, "power_multiplier": 4.0 }
+                ],
+                "spiritual_roots": [
+                    { "element": "Fire", "grade": "Double", "affinity": 0.75 },
+                    { "element": "Water", "grade": "Triple", "affinity": 0.62 },
+                    { "element": "Wood", "grade": "Pseudo", "affinity": 0.58 }
+                ],
+                "techniques": [
+                    {
+                        "id": "tech_start",
+                        "name": technique_name,
+                        "description": "入门可修行的基础功法。",
+                        "required_realm_level": 1,
+                        "element": null
+                    }
+                ],
+                "locations": [
+                    {
+                        "id": loc1_id,
+                        "name": location_1,
+                        "description": "灵气较为平稳，适合作为开局据点。",
+                        "spiritual_energy": 1.2
+                    },
+                    {
+                        "id": loc2_id,
+                        "name": location_2,
+                        "description": "地形复杂，潜藏机缘与风险。",
+                        "spiritual_energy": 1.5
+                    }
+                ],
+                "factions": [
+                    {
+                        "id": "faction_main",
+                        "name": faction_name,
+                        "description": "在此地具有影响力的主要势力。",
+                        "power_level": 65
+                    }
+                ]
+            },
+            "initial_state": {
+                "player_name": "无名弟子",
+                "player_spiritual_root": { "element": "Fire", "grade": "Double", "affinity": 0.75 },
+                "starting_location": loc1_id,
+                "starting_age": 16
+            }
+        }))
+        .map_err(|e| anyhow!("Failed to build seed script: {}", e))?;
+
         self.validate_script(&script)?;
         Ok(script)
     }
@@ -268,13 +417,13 @@ impl ScriptManager {
 
         let script = serde_json::from_value::<Script>(serde_json::json!({
             "id": id,
-            "name": "随机修仙开局",
+            "name": "闅忔満淇粰寮€灞€",
             "script_type": "RandomGenerated",
             "world_setting": {
                 "cultivation_realms": [
-                    { "name": "练气", "level": 1, "sub_level": 0, "power_multiplier": 1.0 },
-                    { "name": "筑基", "level": 2, "sub_level": 0, "power_multiplier": 2.0 },
-                    { "name": "金丹", "level": 3, "sub_level": 0, "power_multiplier": 4.0 }
+                    { "name": "缁冩皵", "level": 1, "sub_level": 0, "power_multiplier": 1.0 },
+                    { "name": "绛戝熀", "level": 2, "sub_level": 0, "power_multiplier": 2.0 },
+                    { "name": "閲戜腹", "level": 3, "sub_level": 0, "power_multiplier": 4.0 }
                 ],
                 "spiritual_roots": [
                     { "element": "Fire", "grade": "Double", "affinity": 0.75 },
@@ -314,7 +463,7 @@ impl ScriptManager {
                 ]
             },
             "initial_state": {
-                "player_name": "无名弟子",
+                "player_name": "鏃犲悕寮熷瓙",
                 "player_spiritual_root": { "element": "Fire", "grade": "Double", "affinity": 0.75 },
                 "starting_location": "sect_valley",
                 "starting_age": 16
@@ -383,8 +532,8 @@ impl ScriptManager {
         if results.is_empty() {
             results.push(Location {
                 id: "novel_origin".to_string(),
-                name: "小说起点".to_string(),
-                description: "从小说导入的默认起点".to_string(),
+                name: "灏忚璧风偣".to_string(),
+                description: "浠庡皬璇村鍏ョ殑榛樿璧风偣".to_string(),
                 spiritual_energy: 1.0,
             });
         }
@@ -903,3 +1052,5 @@ mod proptests {
         }
     }
 }
+
+

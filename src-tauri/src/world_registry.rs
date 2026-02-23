@@ -8,6 +8,7 @@ use crate::plot_engine::PlotState;
 use crate::state_patch_validator::{default_key_field, validate_patch_row};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
+use std::time::Duration;
 use std::collections::BTreeSet;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -40,6 +41,11 @@ pub struct TurnUpdateResult {
     pub state_patch: Value,
 }
 
+const BOOTSTRAP_LLM_TIMEOUT_SECS: u64 = 3000;
+const TURN_UPDATE_LLM_TIMEOUT_SECS: u64 = 3000;
+const BOOTSTRAP_LLM_MAX_ATTEMPTS: u8 = 2;
+const TURN_UPDATE_LLM_MAX_ATTEMPTS: u8 = 2;
+
 impl WorldRegistry {
     pub async fn bootstrap_with_llm(
         game_state: &GameState,
@@ -51,14 +57,23 @@ impl WorldRegistry {
         let mut prompt = build_bootstrap_prompt(game_state, reference_78, supplement);
         let mut last_error: Option<String> = None;
 
-        for _attempt in 0..3 {
-            let response = service
-                .generate(LLMRequest {
+        for _attempt in 0..BOOTSTRAP_LLM_MAX_ATTEMPTS {
+            let response = tokio::time::timeout(
+                Duration::from_secs(BOOTSTRAP_LLM_TIMEOUT_SECS),
+                service.generate(LLMRequest {
                     prompt: prompt.clone(),
                     max_tokens: Some(2200),
                     temperature: Some(0.35),
-                })
-                .await;
+                }),
+            )
+            .await;
+            let response = match response {
+                Ok(v) => v,
+                Err(_) => {
+                    last_error = Some("bootstrap request timeout".to_string());
+                    continue;
+                }
+            };
             let response = match response {
                 Ok(v) => v,
                 Err(err) => {
@@ -172,8 +187,34 @@ impl WorldRegistry {
         reference_78: &str,
         supplement: &str,
     ) -> Option<TurnUpdateResult> {
-        let cfg = resolve_llm_config()?;
-        let service = LLMService::new(cfg).ok()?;
+        let (result, _) = self
+            .generate_turn_update_with_llm_diagnostic(
+                game_state,
+                plot_state,
+                player_action,
+                reference_78,
+                supplement,
+            )
+            .await;
+        result
+    }
+
+    pub async fn generate_turn_update_with_llm_diagnostic(
+        &self,
+        game_state: &GameState,
+        plot_state: &PlotState,
+        player_action: &str,
+        reference_78: &str,
+        supplement: &str,
+    ) -> (Option<TurnUpdateResult>, Option<String>) {
+        let cfg = match resolve_llm_config() {
+            Some(v) => v,
+            None => return (None, Some("turn update missing llm config".to_string())),
+        };
+        let service = match LLMService::new(cfg) {
+            Ok(v) => v,
+            Err(err) => return (None, Some(format!("turn update llm service init failed: {}", err))),
+        };
         let mut prompt = build_turn_prompt(
             self,
             game_state,
@@ -184,14 +225,23 @@ impl WorldRegistry {
         );
         let mut last_error: Option<String> = None;
 
-        for _attempt in 0..3 {
-            let response = service
-                .generate(LLMRequest {
+        for _attempt in 0..TURN_UPDATE_LLM_MAX_ATTEMPTS {
+            let response = tokio::time::timeout(
+                Duration::from_secs(TURN_UPDATE_LLM_TIMEOUT_SECS),
+                service.generate(LLMRequest {
                     prompt: prompt.clone(),
                     max_tokens: Some(2200),
                     temperature: Some(0.4),
-                })
-                .await;
+                }),
+            )
+            .await;
+            let response = match response {
+                Ok(v) => v,
+                Err(_) => {
+                    last_error = Some("turn update request timeout".to_string());
+                    continue;
+                }
+            };
             let response = match response {
                 Ok(v) => v,
                 Err(err) => {
@@ -218,7 +268,7 @@ impl WorldRegistry {
             };
 
             match parse_turn_update_payload(&parsed) {
-                Ok(result) => return Some(result),
+                Ok(result) => return (Some(result), None),
                 Err(err) => {
                     last_error = Some(err.clone());
                     prompt = build_turn_repair_prompt(
@@ -235,8 +285,10 @@ impl WorldRegistry {
             }
         }
 
-        let _ = last_error;
-        None
+        (
+            None,
+            Some(last_error.unwrap_or_else(|| "turn update failed for unknown reason".to_string())),
+        )
     }
 
     pub fn apply_state_patch_transactional(&mut self, patch: &Value) -> Result<Vec<String>, String> {
@@ -384,8 +436,8 @@ impl WorldRegistry {
 
     pub fn validate_turn_narrative_contract(&self, narrative: &str) -> Result<(), String> {
         let chars = narrative.chars().count();
-        if !(700..=1000).contains(&chars) {
-            return Err(format!("narrative_segment length out of range: {} (expected 700-1000)", chars));
+        if !(500..=1200).contains(&chars) {
+            return Err(format!("narrative_segment length out of range: {} (expected 500-1200)", chars));
         }
 
         let sentences = narrative
@@ -397,7 +449,7 @@ impl WorldRegistry {
             .iter()
             .filter(|s| sentence_has_fact_anchor(s))
             .count();
-        let required_hits = (chars / 120).max(1);
+        let required_hits = (chars / 180).max(1);
         if factual_hits < required_hits {
             return Err(format!(
                 "narrative factual density too low: {} < {} (per 120 chars)",
@@ -460,11 +512,12 @@ Return strict JSON only:\n\
     \"story_state\": [],\
     \"world_facts\": []\
   }},\
-  \"narrative_segment\": \"700-1000 chars Chinese narrative\",\
+  \"narrative_segment\": \"500-1200 chars Chinese narrative\",\
   \"choices\": [\"...\",\"...\",\"...\"]\
 }}\n\
 Extra constraints:\n\
-- narrative_segment must be 700-1000 Chinese characters.\n\
+- narrative_segment must be 500-1200 Chinese characters.\n\
+- narrative_segment must use second-person pronoun \"你\" consistently for protagonist.\n\
 - Write concrete actions, resources, locations, relations, injuries or time cost. Avoid empty rhetoric.\n\
 - Any newly introduced proper noun must be marked as 《name》 in narrative_segment.\n\
 - Every marked entity 《name》 must exist in state_patch or pre-existing tables.\n",
@@ -498,7 +551,7 @@ fn build_turn_repair_prompt(
 Your previous turn JSON failed validation.\n\
 Validation error: {}\n\
 Previous output snippet:\n{}\n\
-Return a full corrected JSON object only. Keep narrative_segment in 700-1000 chars.",
+Return a full corrected JSON object only. Keep narrative_segment in 500-1200 chars.",
         build_turn_prompt(
             registry,
             game_state,
@@ -527,9 +580,9 @@ fn parse_turn_update_payload(value: &Value) -> Result<TurnUpdateResult, String> 
         return Err("turn update narrative_segment is empty".to_string());
     }
     let chars = narrative.chars().count();
-    if !(700..=1000).contains(&chars) {
+    if !(500..=1200).contains(&chars) {
         return Err(format!(
-            "turn update narrative_segment length out of range: {} (expected 700-1000)",
+            "turn update narrative_segment length out of range: {} (expected 500-1200)",
             chars
         ));
     }

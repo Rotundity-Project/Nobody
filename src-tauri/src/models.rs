@@ -13,6 +13,21 @@ pub enum Element {
     Ice,      // 冰
 }
 
+impl Element {
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            Element::Metal => "金",
+            Element::Wood => "木",
+            Element::Water => "水",
+            Element::Fire => "火",
+            Element::Earth => "土",
+            Element::Thunder => "雷",
+            Element::Wind => "风",
+            Element::Ice => "冰",
+        }
+    }
+}
+
 /// 灵根品质
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Grade {
@@ -60,7 +75,7 @@ impl SpiritualRoot {
     pub fn display_elements(&self) -> String {
         self.effective_elements()
             .iter()
-            .map(|e| format!("{:?}", e))
+            .map(|e| e.display_name().to_string())
             .collect::<Vec<String>>()
             .join("、")
     }

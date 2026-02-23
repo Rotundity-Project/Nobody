@@ -241,6 +241,13 @@ const parseSpiritualRoots = (input: string): Element[] => {
   return Array.from(new Set(mapped));
 };
 
+const formatDurationMs = (ms: number): string => {
+  if (!Number.isFinite(ms) || ms <= 0) {
+    return '0.00s';
+  }
+  return `${(ms / 1000).toFixed(2)}s`;
+};
+
 const sealWhispers = [
   '印启灵光：先定心，再择路。',
   '印记示意：道在脚下，莫问远山。',
@@ -367,12 +374,14 @@ const loadRandomScript = async () => {
       script.initial_state.player_spiritual_root.element = customRoots[0];
       script.initial_state.player_spiritual_root.elements = customRoots;
     }
+    const initStartedAt = Date.now();
     await gameStore.initializeGame(script, script.initial_state.player_name);
+    const elapsed = gameStore.lastInitializationDurationMs ?? (Date.now() - initStartedAt);
     loadingProgress.value = 100;
-    loadingProgressText.value = '生成进度 2/2';
+    loadingProgressText.value = `生成进度 2/2（创建角色 ${formatDurationMs(elapsed)}）`;
     router.push('/game');
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '随机剧本生成失败';
+    error.value = err instanceof Error ? err.message : String(err);
   } finally {
     isLoading.value = false;
     loadingMessage.value = '加载中';

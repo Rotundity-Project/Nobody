@@ -168,7 +168,7 @@ describe('gameStore', () => {
     expect(invokeWithTimeoutMock).toHaveBeenCalledWith(
       'execute_player_action',
       { action: expect.any(Object) },
-      70000,
+      3000000,
       expect.any(String),
     );
     expect(store.gameState).toEqual(gameState);

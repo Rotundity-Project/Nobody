@@ -78,6 +78,8 @@ pub fn run() {
             tauri_commands::build_context_bundle_command,
             tauri_commands::get_world_registry,
             tauri_commands::apply_world_registry_patch,
+            tauri_commands::summarize_generation_diagnostics,
+            tauri_commands::summarize_generation_failures,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

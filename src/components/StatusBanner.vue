@@ -1,7 +1,7 @@
 ﻿<template>
   <div :class="wrapperClass" role="status" aria-live="polite">
-    <p class="text-sm font-medium">{{ title }}</p>
-    <p v-if="message" class="mt-1 text-xs opacity-90">{{ message }}</p>
+    <p class="status-title text-sm font-medium">{{ title }}</p>
+    <p v-if="message" class="status-message mt-1 text-xs opacity-90">{{ message }}</p>
   </div>
 </template>
 
@@ -39,3 +39,11 @@ const wrapperClass = computed(() => {
   }
 });
 </script>
+
+<style scoped>
+.status-title,
+.status-message {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+</style>

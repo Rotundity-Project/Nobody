@@ -26,7 +26,7 @@
     :debug-option-hint="optionSourceHint || ''"
     :debug-risk-score="consistencyRiskScore"
     :debug-diagnostics="gameStore.plotState?.last_generation_diagnostics || ''"
-    :system-error="gameStore.error"
+    :system-error="systemErrorView"
     @close="$emit('close')"
     @clear-error="$emit('clear-error')"
     @travel="$emit('travel', $event)"
@@ -113,6 +113,24 @@ const playerLocationLabel = computed(() =>
     locationLabelMap.value,
   ),
 );
+const systemErrorView = computed(() => {
+  const raw = props.gameStore.error ?? '';
+  if (!raw) {
+    return null;
+  }
+  if (props.isDevMode) {
+    return raw;
+  }
+  const isVerboseDiagnostics = raw.includes('；选项来源：')
+    || raw.includes('；耗时(ms)：')
+    || raw.includes('回退：')
+    || raw.includes('已降级为骨架生成')
+    || raw.includes('双通道生成：');
+  if (isVerboseDiagnostics) {
+    return '本轮剧情生成质量不稳定，建议检查 LLM 设置后重试。';
+  }
+  return raw;
+});
 
 const rootLabelMap: Record<Element, string> = {
   Fire: '火',

@@ -8,7 +8,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-const DEFAULT_TIMEOUT_SECS: u64 = 30;
+const DEFAULT_TIMEOUT_SECS: u64 = 3000;
 const DEFAULT_CACHE_MAX_ENTRIES: usize = 512;
 const DEFAULT_CACHE_TTL_SECS: u64 = 600;
 const DEFAULT_MAX_RETRIES: u32 = 2;
@@ -114,11 +114,20 @@ pub struct LLMService {
 }
 
 impl LLMService {
+    fn resolve_http_timeout_secs() -> u64 {
+        std::env::var("NOBODY_LLM_HTTP_TIMEOUT_SECS")
+            .ok()
+            .and_then(|v| v.trim().parse::<u64>().ok())
+            .map(|v| v.clamp(5, 3000))
+            .unwrap_or(DEFAULT_TIMEOUT_SECS)
+    }
+
     pub fn new(api_config: LLMConfig) -> Result<Self, LLMServiceError> {
         api_config.validate()?;
+        let timeout_secs = Self::resolve_http_timeout_secs();
 
         let client = Client::builder()
-            .timeout(Duration::from_secs(DEFAULT_TIMEOUT_SECS))
+            .timeout(Duration::from_secs(timeout_secs))
             .build()
             .map_err(LLMServiceError::Http)?;
 

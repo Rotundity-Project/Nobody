@@ -18,9 +18,10 @@
         </div>
         <div class="runtime-top-right">
           <p>{{ gameTimeLabel }}</p>
-          <button type="button" class="runtime-resource" @click="showInfoTabs = true">
-            灵石(背包) · {{ spiritStoneLabel }}
-          </button>
+          <p class="runtime-resource-pill">灵石 · {{ spiritStoneLabel }}</p>
+          <p v-if="characterCreationDurationLabel" class="runtime-sub-text">
+            创建角色耗时 · {{ characterCreationDurationLabel }}
+          </p>
         </div>
       </header>
 
@@ -409,7 +410,7 @@
             <p class="runtime-sub-text runtime-interaction-subtitle">选项自由输入</p>
             <GameInteractionPanel
               :should-show-input-panel="shouldShowInputPanel"
-              :error="gameStore.error"
+              :error="userFacingError"
               :is-no-input-advance-state="isNoInputAdvanceState"
               :available-options="gameStore.availableOptions"
               :input-mode="inputMode"
@@ -428,6 +429,12 @@
               @continue="handleContinue"
               @stop-auto-advance="requestStopAutoAdvance"
             />
+            <div v-if="shouldShowLlmSetupShortcut" class="runtime-llm-shortcut">
+              <p class="runtime-sub-text">检测到本轮选项续写未命中 LLM，可直接打开设置后重试。</p>
+              <button type="button" class="runtime-bottom-btn px-3 py-1 text-xs" @click="openLlmDialogFromError">
+                打开 LLM 设置
+              </button>
+            </div>
           </section>
         </aside>
       </div>
@@ -435,10 +442,14 @@
       <div class="runtime-bottom-bar">
         <InkQuickActionDock
           :is-game-initialized="gameStore.isGameInitialized"
-          @open-character="showCharacterInfo = true"
-          @open-info="showInfoTabs = true"
-          @open-save="showSaveDialog = true"
-          @open-load="showLoadDialog = true"
+          @open-character="openCharacterDialog"
+          @open-info="openInfoDialog"
+          @open-backpack="openQuickPanel('backpack')"
+          @open-techniques="openQuickPanel('techniques')"
+          @open-factions="openQuickPanel('factions')"
+          @open-world="openQuickPanel('world')"
+          @open-save="openSaveDialog"
+          @open-load="openLoadDialog"
         />
         <div class="runtime-bottom-right">
           <button type="button" class="runtime-bottom-btn" @click="openStorySettingsDialog">系统设置</button>
@@ -490,6 +501,13 @@
       :character="gameStore.playerCharacter"
       @close="showCharacterInfo = false"
     />
+    <RuntimeQuickPanelsDialog
+      :is-open="showQuickPanel"
+      :active-tab="activeQuickPanelTab"
+      :panels="quickPanels"
+      @update:active-tab="activeQuickPanelTab = $event"
+      @close="showQuickPanel = false"
+    />
     <NotificationCenter
       v-if="runtimeNotifications.length > 0"
       :notifications="runtimeNotifications"
@@ -508,6 +526,7 @@ import GameSystemDialogs from './GameSystemDialogs.vue';
 import GameInteractionPanel from './GameInteractionPanel.vue';
 import InkQuickActionDock from './InkQuickActionDock.vue';
 import NotificationCenter, { type NotificationItem } from './NotificationCenter.vue';
+import RuntimeQuickPanelsDialog, { type RuntimeQuickTab } from './RuntimeQuickPanelsDialog.vue';
 import StoryViewport from './StoryViewport.vue';
 import type { ConsistencyPolicy } from '../types/game';
 import {
@@ -559,6 +578,21 @@ const storyViewportRef = ref<{ scrollToBottom: () => void } | null>(null);
 const previousChapterParagraphs = ref<string[]>([]);
 const isDevMode = import.meta.env.DEV;
 const travelPending = ref(false);
+const showQuickPanel = ref(false);
+const QUICK_PANEL_TAB_STORAGE_KEY = 'runtime.quick_panel.active_tab';
+const allowedQuickTabs: RuntimeQuickTab[] = ['backpack', 'techniques', 'factions', 'world'];
+const loadSavedQuickPanelTab = (): RuntimeQuickTab => {
+  try {
+    const raw = localStorage.getItem(QUICK_PANEL_TAB_STORAGE_KEY) ?? '';
+    if (allowedQuickTabs.includes(raw as RuntimeQuickTab)) {
+      return raw as RuntimeQuickTab;
+    }
+  } catch {
+    // Ignore storage errors in restricted contexts.
+  }
+  return 'backpack';
+};
+const activeQuickPanelTab = ref<RuntimeQuickTab>(loadSavedQuickPanelTab());
 
 const currentChapterTitle = computed(
   () => gameStore.plotState?.current_chapter?.title || gameStore.currentScene?.name || '第一章'
@@ -592,9 +626,18 @@ const chapterIndexLabel = computed(() => {
 });
 const chapterNameLabel = computed(() => {
   const raw = currentChapterTitle.value.trim();
-  const stripped = raw.replace(/^第[零一二三四五六七八九十百千万\d]+章[\s·、:：-]*/u, '').trim();
-  if (stripped.length === 0) return raw;
-  return stripped;
+  const chapterOnlyPattern = /^第[零一二三四五六七八九十百千万\d]+章$/u;
+  const stripped = raw
+    .replace(/^第[零一二三四五六七八九十百千万\d]+章[\s·、:：-]*/u, '')
+    .trim();
+  if (stripped.length > 0 && !chapterOnlyPattern.test(stripped)) {
+    return stripped;
+  }
+  const sceneName = (gameStore.currentScene?.name ?? '').trim();
+  if (sceneName.length > 0 && !chapterOnlyPattern.test(sceneName)) {
+    return sceneName;
+  }
+  return '未命名章节';
 });
 const sceneHeadlineLabel = computed(() => {
   const chapterName = chapterNameLabel.value.trim();
@@ -656,6 +699,127 @@ const spiritStoneLabel = computed(() => {
   }
   return inventory.length.toLocaleString();
 });
+const characterCreationDurationLabel = computed(() => {
+  const ms = gameStore.lastInitializationDurationMs;
+  if (typeof ms !== 'number' || !Number.isFinite(ms) || ms <= 0) {
+    return '';
+  }
+  const secs = ms / 1000;
+  return `${secs.toFixed(2)}s`;
+});
+const backpackPanelItems = computed(() => {
+  const inventory = gameStore.playerCharacter?.inventory ?? [];
+  const toItem = (item: string, index: number) => {
+    const isSpiritStone = /灵石|spirit\s*stone/i.test(item);
+    return {
+      id: `bag-${index}`,
+      title: String(item),
+      meta: isSpiritStone ? `灵石统计：${spiritStoneLabel.value}` : undefined,
+      badge: isSpiritStone ? '灵石' : undefined,
+      featured: isSpiritStone,
+    };
+  };
+  return inventory
+    .map((item, index) => toItem(String(item), index))
+    .sort((a, b) => Number(b.featured) - Number(a.featured));
+});
+const techniquePanelItems = computed(() => {
+  const learned = gameStore.playerCharacter?.stats?.techniques ?? [];
+  const worldTechniques = gameStore.gameState?.script?.world_setting?.techniques ?? [];
+  const worldMap = new Map(worldTechniques.map((tech) => [tech.name, tech]));
+  const fromLearned = learned.map((name, index) => {
+    const mapped = worldMap.get(name);
+    return {
+      id: `learned-${index}-${name}`,
+      title: name,
+      description: mapped?.description || '已掌握功法',
+      meta: mapped ? `需求境界：${mapped.required_realm_level}` : '来源：角色面板',
+    };
+  });
+  const learnedSet = new Set(learned);
+  const fromWorld = worldTechniques
+    .filter((tech) => !learnedSet.has(tech.name))
+    .slice(0, 24)
+    .map((tech) => ({
+      id: `world-tech-${tech.id}`,
+      title: tech.name,
+      description: tech.description,
+      meta: `需求境界：${tech.required_realm_level}`,
+    }));
+  return [...fromLearned, ...fromWorld];
+});
+const factionPanelItems = computed(() => {
+  const scriptFactions = gameStore.gameState?.script?.world_setting?.factions ?? [];
+  const worldFactions = Object.values(gameStore.gameState?.world_state?.factions ?? {});
+  const merged = [...scriptFactions];
+  for (const faction of worldFactions) {
+    if (!merged.some((item) => item.id === faction.id)) {
+      merged.push(faction);
+    }
+  }
+  return merged.map((faction) => ({
+    id: `faction-${faction.id}`,
+    title: faction.name,
+    description: faction.description,
+    meta: `势力等级：${faction.power_level}`,
+  }));
+});
+const worldPanelItems = computed(() => ([
+  {
+    id: 'world-session',
+    title: `会话：${worldRegistrySessionLabel.value}`,
+    description: `来源：${worldRegistrySourceLabel.value}`,
+  },
+  {
+    id: 'world-count-characters',
+    title: `人物：${worldRegistryCounts.value.characters}`,
+    meta: `地图点：${worldRegistryCounts.value.map_nodes}，地图边：${worldRegistryCounts.value.map_edges}`,
+  },
+  {
+    id: 'world-count-assets',
+    title: `功法：${worldRegistryCounts.value.techniques}，背包：${worldRegistryCounts.value.inventory_items}`,
+    meta: `势力：${worldRegistryCounts.value.factions}，剧情态：${worldRegistryCounts.value.story_state}`,
+  },
+  {
+    id: 'world-count-facts',
+    title: `事实：${worldRegistryCounts.value.world_facts}`,
+    meta: `当前位置：${currentLocationLabel.value}`,
+  },
+]));
+const quickPanels = computed(() => ([
+  {
+    id: 'backpack' as const,
+    label: '背包',
+    title: '背包',
+    subtitle: '当前携带物与可追踪资源',
+    emptyText: '背包为空。',
+    items: backpackPanelItems.value,
+  },
+  {
+    id: 'techniques' as const,
+    label: '功法',
+    title: '功法',
+    subtitle: '已掌握与世界可见功法',
+    emptyText: '尚未获得可展示功法。',
+    items: techniquePanelItems.value,
+  },
+  {
+    id: 'factions' as const,
+    label: '势力',
+    title: '势力',
+    subtitle: '世界中的门派与组织',
+    emptyText: '暂无势力信息。',
+    items: factionPanelItems.value,
+  },
+  {
+    id: 'world' as const,
+    label: '世界',
+    title: '世界快照',
+    subtitle: '本轮世界状态索引',
+    emptyText: '暂无世界快照。',
+    items: worldPanelItems.value,
+  },
+]));
 const playerRootLabel = computed(() => {
   const root = gameStore.playerCharacter?.stats?.spiritual_root;
   if (!root) {
@@ -1004,7 +1168,8 @@ const hasBlockingOverlay = computed(
     || showConsistencySettings.value
     || showInfoTabs.value
     || showCharacterInfo.value
-    || showShortcutsDialog.value,
+    || showShortcutsDialog.value
+    || showQuickPanel.value
 );
 const optionSourceLabel = computed(() => {
   const source = gameStore.plotState?.last_option_generation_source;
@@ -1033,9 +1198,77 @@ const optionSourceHint = computed(() => {
   }
   return '';
 });
+const userFacingError = computed(() => {
+  const raw = gameStore.error ?? '';
+  if (!raw) {
+    return null;
+  }
+  if (isDevMode) {
+    return raw;
+  }
+  const isVerboseDiagnostics = raw.includes('；选项来源：')
+    || raw.includes('；耗时(ms)：')
+    || raw.includes('回退：')
+    || raw.includes('已降级为骨架生成')
+    || raw.includes('双通道生成：');
+  if (isVerboseDiagnostics) {
+    return '本轮剧情生成质量不稳定，建议检查 LLM 设置后重试。';
+  }
+  return raw;
+});
+const shouldShowLlmSetupShortcut = computed(() => {
+  const err = userFacingError.value ?? '';
+  return err.includes('选项续写未获取到 LLM 剧情文本');
+});
 const handleBackToMenu = () => {
   router.push('/');
 };
+const closeRuntimeQuickPanels = () => {
+  showQuickPanel.value = false;
+};
+const openCharacterDialog = () => {
+  playClick();
+  closeAllDialogs();
+  closeRuntimeQuickPanels();
+  showCharacterInfo.value = true;
+};
+const openInfoDialog = () => {
+  playClick();
+  closeAllDialogs();
+  closeRuntimeQuickPanels();
+  showInfoTabs.value = true;
+};
+const openSaveDialog = () => {
+  playClick();
+  closeAllDialogs();
+  closeRuntimeQuickPanels();
+  showSaveDialog.value = true;
+};
+const openLoadDialog = () => {
+  playClick();
+  closeAllDialogs();
+  closeRuntimeQuickPanels();
+  showLoadDialog.value = true;
+};
+const openLlmDialogFromError = () => {
+  playClick();
+  closeAllDialogs();
+  closeRuntimeQuickPanels();
+  showLLMDialog.value = true;
+};
+const openQuickPanel = (tab: RuntimeQuickTab) => {
+  playClick();
+  closeAllDialogs();
+  activeQuickPanelTab.value = tab;
+  showQuickPanel.value = true;
+};
+watch(activeQuickPanelTab, (tab) => {
+  try {
+    localStorage.setItem(QUICK_PANEL_TAB_STORAGE_KEY, tab);
+  } catch {
+    // Ignore storage errors in restricted contexts.
+  }
+});
 const interactionStateLabel = computed(() => {
   const mapping: Record<string, string> = {
     auto_advance: '自动推进',
@@ -1090,6 +1323,16 @@ const {
 });
 const runtimeNotifications = computed<NotificationItem[]>(() => {
   const out: NotificationItem[] = [];
+
+  if (characterCreationDurationLabel.value) {
+    out.push({
+      id: `character-init-${characterCreationDurationLabel.value}`,
+      kind: 'info',
+      title: '角色创建完成',
+      message: `创建耗时 ${characterCreationDurationLabel.value}`,
+      priority: 'toast',
+    });
+  }
 
   if (autoAdvanceStopHint.value) {
     out.push({
@@ -1363,6 +1606,7 @@ const handleKeydown = (event: KeyboardEvent) => {
 
   if (event.key === 'Escape') {
     closeAllDialogs();
+    closeRuntimeQuickPanels();
     return;
   }
 
@@ -1533,13 +1777,15 @@ useGameHotkeys(handleKeydown);
   font-size: 12px;
 }
 
-.runtime-resource {
+.runtime-resource-pill {
   border-radius: 999px;
   border: 1px solid var(--ink-border-accent);
   background: #f8f4ec;
   color: var(--ink-title-color);
   padding: 4px 11px;
-  transition: background-color 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+  font-size: 12px;
+  line-height: 1.3;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 
 .runtime-content {
@@ -1850,6 +2096,15 @@ useGameHotkeys(handleKeydown);
   max-width: 100%;
 }
 
+.runtime-llm-shortcut {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px dashed var(--ink-border-accent);
+  padding-top: 10px;
+}
+
 .runtime-bottom-bar {
   margin-top: 18px;
   min-height: 64px;
@@ -1869,6 +2124,36 @@ useGameHotkeys(handleKeydown);
   gap: 16px;
 }
 
+.runtime-bottom-bar :deep(.ink-dock) {
+  gap: 8px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.runtime-bottom-bar :deep(.ink-dock-btn) {
+  min-width: 60px;
+  border-radius: 12px;
+  border-color: #c6b295;
+  background: linear-gradient(180deg, #f8f4ec, #efe7da);
+  padding: 7px 14px;
+  font-size: 14px;
+  line-height: 1.1;
+}
+
+.runtime-bottom-bar :deep(.ink-dock-btn:hover) {
+  border-color: #b78c4a;
+  background: linear-gradient(180deg, #fdf9f1, #f3ebdf);
+  box-shadow: 0 4px 12px rgba(45, 42, 36, 0.12);
+}
+
+.runtime-bottom-bar :deep(.ink-dock-btn-primary) {
+  border-color: #b68b46;
+  background: linear-gradient(180deg, #f4ecd9, #ead7b5);
+  color: #6b4f2f;
+}
+
 .runtime-bottom-btn {
   border-radius: 8px;
   border: 1px solid var(--ink-border-accent);
@@ -1879,7 +2164,6 @@ useGameHotkeys(handleKeydown);
 }
 
 .runtime-bottom-btn:hover,
-.runtime-resource:hover,
 .runtime-seal-btn:hover {
   border-color: var(--ink-title-color);
   background: var(--ink-paper);
@@ -1887,7 +2171,6 @@ useGameHotkeys(handleKeydown);
 }
 
 .runtime-bottom-btn:active,
-.runtime-resource:active,
 .runtime-seal-btn:active {
   transform: scale(0.98);
 }

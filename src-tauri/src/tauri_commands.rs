@@ -28,6 +28,7 @@ use crate::world_registry::{apply_registry_to_game_state, WorldRegistry};
 use crate::app_error::AppError;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{Mutex, OnceLock};
 use std::time::Instant;
@@ -1419,6 +1420,28 @@ pub struct GenerationTimingSummary {
     pub option_gen_p95_ms: u64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct GenerationFailureReason {
+    pub stage: String,
+    pub reason: String,
+    pub count: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct GenerationFailureSummary {
+    pub sample_count: usize,
+    pub structured_ok_count: usize,
+    pub plain_ok_count: usize,
+    pub skeleton_ok_count: usize,
+    pub micro_ok_count: usize,
+    pub preset_fallback_count: usize,
+    pub turn_update_fallback_count: usize,
+    pub option_llm_blocked_count: usize,
+    pub top_reasons: Vec<GenerationFailureReason>,
+}
+
 fn percentile_u64(samples: &[u64], p: f64) -> u64 {
     if samples.is_empty() {
         return 0;
@@ -1477,6 +1500,116 @@ fn summarize_generation_timing_diagnostics(
         total_p99_ms: percentile_u64(&total, 0.99),
         plot_gen_p95_ms: percentile_u64(&plot, 0.95),
         option_gen_p95_ms: percentile_u64(&option, 0.95),
+    })
+}
+
+fn extract_turn_update_fallback_reason(diag: &str) -> Option<String> {
+    let marker = "双通道生成：fallback(plot_engine_only";
+    let start = diag.find(marker)?;
+    let tail = &diag[start..];
+    let reason_marker = "reason=";
+    let reason_start = tail.find(reason_marker)?;
+    let reason_tail = &tail[(reason_start + reason_marker.len())..];
+    let end_idx = reason_tail
+        .find(')')
+        .or_else(|| reason_tail.find('；'))
+        .unwrap_or(reason_tail.len());
+    let reason = reason_tail[..end_idx].trim();
+    if reason.is_empty() {
+        None
+    } else {
+        Some(reason.to_string())
+    }
+}
+
+fn extract_preset_fallback_reason(diag: &str) -> Option<String> {
+    let marker = "回退：";
+    let start = diag.find(marker)?;
+    let tail = &diag[(start + marker.len())..];
+    let end_marker = "；纯文本续写也失败，已使用预设文本";
+    let end = tail.find(end_marker)?;
+    let reason = tail[..end].trim();
+    if reason.is_empty() {
+        None
+    } else {
+        Some(reason.to_string())
+    }
+}
+
+fn summarize_generation_failure_diagnostics(
+    diagnostics: &[String],
+) -> Option<GenerationFailureSummary> {
+    if diagnostics.is_empty() {
+        return None;
+    }
+
+    let mut structured_ok_count = 0usize;
+    let mut plain_ok_count = 0usize;
+    let mut skeleton_ok_count = 0usize;
+    let mut micro_ok_count = 0usize;
+    let mut preset_fallback_count = 0usize;
+    let mut turn_update_fallback_count = 0usize;
+    let mut option_llm_blocked_count = 0usize;
+    let mut reason_counter: HashMap<(String, String), usize> = HashMap::new();
+
+    for diag in diagnostics {
+        if diag.contains("链路：structured_ok") {
+            structured_ok_count += 1;
+        }
+        if diag.contains("链路：plain_ok") {
+            plain_ok_count += 1;
+        }
+        if diag.contains("链路：skeleton_ok") {
+            skeleton_ok_count += 1;
+        }
+        if diag.contains("链路：micro_ok") {
+            micro_ok_count += 1;
+        }
+        if diag.contains("链路：preset_fallback") {
+            preset_fallback_count += 1;
+            if let Some(reason) = extract_preset_fallback_reason(diag) {
+                *reason_counter
+                    .entry(("preset_fallback".to_string(), reason))
+                    .or_insert(0) += 1;
+            }
+        }
+        if diag.contains("双通道生成：fallback(plot_engine_only") {
+            turn_update_fallback_count += 1;
+            if let Some(reason) = extract_turn_update_fallback_reason(diag) {
+                *reason_counter
+                    .entry(("turn_update".to_string(), reason))
+                    .or_insert(0) += 1;
+            }
+        }
+        if diag.contains("本轮为选项续写：未获得可用 LLM 剧情文本")
+            || diag.contains("本次选项续写未获取到 LLM 剧情文本")
+        {
+            option_llm_blocked_count += 1;
+        }
+    }
+
+    let mut top_reasons = reason_counter
+        .into_iter()
+        .map(|((stage, reason), count)| GenerationFailureReason { stage, reason, count })
+        .collect::<Vec<_>>();
+    top_reasons.sort_by(|a, b| {
+        b.count
+            .cmp(&a.count)
+            .then_with(|| a.stage.cmp(&b.stage))
+            .then_with(|| a.reason.cmp(&b.reason))
+    });
+    top_reasons.truncate(8);
+
+    Some(GenerationFailureSummary {
+        sample_count: diagnostics.len(),
+        structured_ok_count,
+        plain_ok_count,
+        skeleton_ok_count,
+        micro_ok_count,
+        preset_fallback_count,
+        turn_update_fallback_count,
+        option_llm_blocked_count,
+        top_reasons,
     })
 }
 
@@ -1717,6 +1850,7 @@ pub async fn execute_player_action(
             &context,
         )
         .map_err(|e| e.to_string())?;
+    let selected_option_requires_llm_story = action.selected_option_id.is_some();
 
     let mut combat_guard_reason: Option<String> = None;
     let mut combat_strategy_note: Option<String> = None;
@@ -2042,7 +2176,11 @@ pub async fn execute_player_action(
     }
 
     let mut plot_update = plot_engine
-        .advance_plot_async(&plot_state_for_generation, &action_result)
+        .advance_plot_async_with_policy(
+            &plot_state_for_generation,
+            &action_result,
+            !selected_option_requires_llm_story,
+        )
         .await;
     let plot_generation_ms = total_started.elapsed().as_millis();
 
@@ -2086,7 +2224,11 @@ pub async fn execute_player_action(
         );
 
         let mut regenerated_update = plot_engine
-            .advance_plot_async(&regenerated_state, &action_result)
+            .advance_plot_async_with_policy(
+                &regenerated_state,
+                &action_result,
+                !selected_option_requires_llm_story,
+            )
             .await;
         let regenerated_report = validate_and_repair_plot_update(
             &plot_state,
@@ -2144,7 +2286,11 @@ pub async fn execute_player_action(
             regen_hint
         );
         let mut regenerated_update = plot_engine
-            .advance_plot_async(&regenerated_state, &action_result)
+            .advance_plot_async_with_policy(
+                &regenerated_state,
+                &action_result,
+                !selected_option_requires_llm_story,
+            )
             .await;
         let regenerated_report = validate_and_repair_plot_update(
             &plot_state,
@@ -2204,21 +2350,42 @@ pub async fn execute_player_action(
                 .to_string(),
         );
     }
+    if selected_option_requires_llm_story
+        && diagnostics_used_preset_fallback(plot_update.generation_diagnostics.as_deref())
+    {
+        if let Some(rescue_text) = plot_engine
+            .generate_option_plot_rescue_async(&plot_state_for_generation, &action_result)
+            .await
+        {
+            plot_update.plot_text = rescue_text;
+            plot_update.generation_diagnostics = match plot_update.generation_diagnostics.take() {
+                Some(diag) => Some(format!("{diag}；选项续写救援：llm_plain_rescue")),
+                None => Some("选项续写救援：llm_plain_rescue".to_string()),
+            };
+        } else {
+            return Err(
+                "本轮为选项续写：未获得可用 LLM 剧情文本，已阻止写入预设回退文本。请检查模型配置后重试。"
+                    .to_string(),
+            );
+        }
+    }
 
     // Phase 2: 双通道（state_patch + narrative）优先，失败则保留现有 plot_engine 结果。
     if let Some(mut registry) = world_registry.clone() {
         let reference_78 = std::fs::read_to_string(SPEC_78_PATH).unwrap_or_default();
         let supplement_78 = std::fs::read_to_string(SPEC_78_SUPPLEMENT_PATH).unwrap_or_default();
-        if let Some(turn_result) = registry
-            .generate_turn_update_with_llm(
+        let turn_update_started = Instant::now();
+        let (turn_result, turn_update_error) = registry
+            .generate_turn_update_with_llm_diagnostic(
                 &game_state,
                 &plot_state,
                 &action.content,
                 &reference_78,
                 &supplement_78,
             )
-            .await
-        {
+            .await;
+        let turn_update_ms = turn_update_started.elapsed().as_millis();
+        if let Some(turn_result) = turn_result {
             let previous_plot_text = plot_update.plot_text.clone();
             let previous_options = plot_update.available_options.clone();
             let previous_waiting = plot_update.is_waiting_for_input;
@@ -2292,9 +2459,16 @@ pub async fn execute_player_action(
                     apply_registry_to_game_state(&mut game_state, &registry);
                     world_registry = Some(registry);
                     let note = if patch_notes.is_empty() {
-                        "双通道生成：llm_turn_update(no_patch)".to_string()
+                        format!(
+                            "双通道生成：llm_turn_update(no_patch,turn_update_ms={})",
+                            turn_update_ms
+                        )
                     } else {
-                        format!("双通道生成：llm_turn_update({})", patch_notes.join(","))
+                        format!(
+                            "双通道生成：llm_turn_update({},turn_update_ms={})",
+                            patch_notes.join(","),
+                            turn_update_ms
+                        )
                     };
                     match &mut plot_update.generation_diagnostics {
                         Some(diag) => {
@@ -2324,11 +2498,23 @@ pub async fn execute_player_action(
                 }
             };
         } else {
+            let fallback_note = match turn_update_error {
+                Some(err) => format!(
+                    "双通道生成：fallback(plot_engine_only,turn_update_ms={},reason={})",
+                    turn_update_ms, err
+                ),
+                None => format!(
+                    "双通道生成：fallback(plot_engine_only,turn_update_ms={})",
+                    turn_update_ms
+                ),
+            };
             match &mut plot_update.generation_diagnostics {
-                Some(diag) => diag.push_str("；双通道生成：fallback(plot_engine_only)"),
+                Some(diag) => {
+                    diag.push('；');
+                    diag.push_str(&fallback_note);
+                }
                 None => {
-                    plot_update.generation_diagnostics =
-                        Some("双通道生成：fallback(plot_engine_only)".to_string())
+                    plot_update.generation_diagnostics = Some(fallback_note)
                 }
             }
         }
@@ -2998,6 +3184,14 @@ pub async fn summarize_generation_diagnostics(
         .ok_or_else(|| "未找到可解析的耗时诊断数据".to_string())
 }
 
+#[tauri::command]
+pub async fn summarize_generation_failures(
+    diagnostics: Vec<String>,
+) -> Result<GenerationFailureSummary, String> {
+    summarize_generation_failure_diagnostics(&diagnostics)
+        .ok_or_else(|| "未提供可统计的诊断数据".to_string())
+}
+
 async fn generate_novel_from_events(title: &str, events: &[crate::event_log::GameEvent]) -> Result<Novel, String> {
     let generator = NovelGenerator::new();
     generator.generate_novel(title.to_string(), events).await
@@ -3389,6 +3583,24 @@ mod tests {
         )));
         assert!(!diagnostics_used_preset_fallback(Some("回退：仅降级为纯文本续写")));
         assert!(!diagnostics_used_preset_fallback(None));
+    }
+
+    #[test]
+    fn test_summarize_generation_failure_diagnostics() {
+        let input = vec![
+            "链路：structured_ok；阶段耗时(ms)：structured=900,plain=0,skeleton=0,micro=0；双通道生成：fallback(plot_engine_only,turn_update_ms=2000,reason=turn update request timeout)".to_string(),
+            "回退：LLM 结构化剧情生成超时；骨架生成失败(骨架生成超时)；纯文本续写失败(纯文本续写请求超时)；轻量续写失败(轻量续写请求超时)；纯文本续写也失败，已使用预设文本；链路：preset_fallback；阶段耗时(ms)：structured=1000,plain=1000,skeleton=1000,micro=1000；双通道生成：fallback(plot_engine_only,turn_update_ms=1500,reason=turn update output is not valid JSON object)".to_string(),
+            "链路：plain_ok；阶段耗时(ms)：structured=1200,plain=800,skeleton=0,micro=0；本次选项续写未获取到 LLM 剧情文本".to_string(),
+        ];
+        let summary = summarize_generation_failure_diagnostics(&input).unwrap();
+        assert_eq!(summary.sample_count, 3);
+        assert_eq!(summary.structured_ok_count, 1);
+        assert_eq!(summary.plain_ok_count, 1);
+        assert_eq!(summary.preset_fallback_count, 1);
+        assert_eq!(summary.turn_update_fallback_count, 2);
+        assert_eq!(summary.option_llm_blocked_count, 1);
+        assert!(!summary.top_reasons.is_empty());
+        assert_eq!(summary.top_reasons[0].stage, "turn_update");
     }
 
     #[test]

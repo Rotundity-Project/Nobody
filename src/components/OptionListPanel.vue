@@ -30,7 +30,7 @@
               </span>
             </div>
           <p class="text-[15px] leading-[1.65] text-[#2d2a24]">
-            {{ `选项${toCnNumber(index + 1)} · ${option.description}` }}
+            {{ `选项${toCnNumber(index + 1)} · ${normalizeOptionDescription(option.description)}` }}
           </p>
           <p
             v-if="option.requirements && option.requirements.length > 0"
@@ -186,6 +186,16 @@ const optionIcon = (option: PlayerOption, index: number): OptionIcon => {
 const toCnNumber = (num: number): string => {
   const labels = ['一', '二', '三', '四', '五'];
   return labels[num - 1] ?? String(num);
+};
+
+const normalizeOptionDescription = (raw: string): string => {
+  const text = String(raw ?? '').trim();
+  if (!text) return '';
+  const stripped = text
+    .replace(/^选项\s*[一二三四五六七八九十百千万\d]+\s*[：:、.\-]\s*/u, '')
+    .replace(/^选项\s*[一二三四五六七八九十百千万\d]+\s*/u, '')
+    .trim();
+  return stripped || text;
 };
 </script>
 

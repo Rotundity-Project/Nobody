@@ -16,6 +16,7 @@ interface GameStoreState {
   currentScript: Script | null;
   gameState: GameState | null;
   plotState: PlotState | null;
+  lastInitializationDurationMs: number | null;
   reachableLocationIds: string[];
   mapOverview: MapLocationOverview[];
   worldRegistry: WorldRegistry | null;
@@ -23,11 +24,15 @@ interface GameStoreState {
   error: string | null;
 }
 
+const LLM_TIMEOUT_MS = 3000 * 1000;
+const OPTION_LLM_STORY_BLOCKED_MARKER = '本轮为选项续写：未获得可用 LLM 剧情文本';
+
 export const useGameStore = defineStore('game', {
   state: (): GameStoreState => ({
     currentScript: null,
     gameState: null,
     plotState: null,
+    lastInitializationDurationMs: null,
     reachableLocationIds: [],
     mapOverview: [],
     worldRegistry: null,
@@ -91,6 +96,8 @@ export const useGameStore = defineStore('game', {
     async initializeGame(script: Script, playerName?: string) {
       this.isLoading = true;
       this.error = null;
+      this.lastInitializationDurationMs = null;
+      const startedAt = Date.now();
 
       try {
         const trimmedName = playerName?.trim();
@@ -98,7 +105,7 @@ export const useGameStore = defineStore('game', {
         const gameState = await invokeWithTimeout<GameState>(
           'initialize_game',
           { script },
-          35000,
+          LLM_TIMEOUT_MS,
           '初始化世界超时，请检查 LLM 配置后重试',
         );
         this.currentScript = script;
@@ -107,10 +114,11 @@ export const useGameStore = defineStore('game', {
         const plotState = await invokeWithTimeout<PlotState>(
           'initialize_plot',
           undefined,
-          35000,
+          LLM_TIMEOUT_MS,
           '初始化剧情超时，请检查 LLM 配置后重试',
         );
         this.plotState = plotState;
+        this.lastInitializationDurationMs = Date.now() - startedAt;
         await this.refreshWorldRegistry();
         await this.refreshReachableLocations();
         await this.refreshMapOverview();
@@ -130,7 +138,7 @@ export const useGameStore = defineStore('game', {
         await invokeWithTimeout<string>(
           'execute_player_action',
           { action },
-          70000,
+          LLM_TIMEOUT_MS,
           '剧情推进超时，请稍后重试',
         );
 
@@ -174,7 +182,11 @@ export const useGameStore = defineStore('game', {
             this.error = '剧情推进超时，请稍后重试。你可以尝试重连或调整 LLM 设置。';
           }
         } else {
-          this.error = `操作失败: ${message}`;
+          if (message.includes(OPTION_LLM_STORY_BLOCKED_MARKER)) {
+            this.error = '本次选项续写未获取到 LLM 剧情文本，系统已拦截预设剧情回退。请检查并更新 LLM 配置后重试。';
+          } else {
+            this.error = `操作失败: ${message}`;
+          }
         }
         throw error;
       } finally {
@@ -252,6 +264,8 @@ export const useGameStore = defineStore('game', {
     async initializeRandomGame(playerName?: string) {
       this.isLoading = true;
       this.error = null;
+      this.lastInitializationDurationMs = null;
+      const startedAt = Date.now();
 
       try {
         const script = await invokeWithTimeout<Script>(
@@ -265,7 +279,7 @@ export const useGameStore = defineStore('game', {
         const gameState = await invokeWithTimeout<GameState>(
           'initialize_game',
           { script },
-          35000,
+          LLM_TIMEOUT_MS,
           '初始化世界超时，请检查 LLM 配置后重试',
         );
         this.currentScript = script;
@@ -274,10 +288,11 @@ export const useGameStore = defineStore('game', {
         const plotState = await invokeWithTimeout<PlotState>(
           'initialize_plot',
           undefined,
-          35000,
+          LLM_TIMEOUT_MS,
           '初始化剧情超时，请检查 LLM 配置后重试',
         );
         this.plotState = plotState;
+        this.lastInitializationDurationMs = Date.now() - startedAt;
         await this.refreshWorldRegistry();
         await this.refreshReachableLocations();
         await this.refreshMapOverview();
@@ -306,6 +321,7 @@ export const useGameStore = defineStore('game', {
       this.currentScript = null;
       this.gameState = null;
       this.plotState = null;
+      this.lastInitializationDurationMs = null;
       this.reachableLocationIds = [];
       this.mapOverview = [];
       this.worldRegistry = null;
