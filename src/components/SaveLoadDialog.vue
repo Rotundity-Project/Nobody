@@ -1,8 +1,8 @@
 ﻿<template>
   <div
     v-if="isOpen"
-    class="fixed inset-0 flex items-center justify-center"
-    style="z-index: 50; background-color: rgba(0, 0, 0, 0.75);"
+    class="save-load-overlay fixed inset-0 flex items-center justify-center"
+    style="z-index: 50;"
     @click.self="handleClose"
   >
     <div
@@ -253,3 +253,9 @@ const formatDate = (timestamp: number): string => {
   return date.toLocaleString();
 };
 </script>
+
+<style scoped>
+.save-load-overlay {
+  background-color: color-mix(in srgb, var(--ink-text-primary) 75%, transparent);
+}
+</style>

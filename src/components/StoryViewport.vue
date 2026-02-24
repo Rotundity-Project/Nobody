@@ -320,8 +320,8 @@ defineExpose({
   width: max-content;
   max-width: calc(100% - 8px);
   box-shadow:
-    0 8px 22px rgba(45, 42, 36, 0.16),
-    inset 0 1px 0 rgba(255, 255, 255, 0.48);
+    0 8px 22px color-mix(in srgb, var(--ink-text-primary) 22%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--ink-paper) 78%, transparent);
   opacity: 1;
   transform: translateX(-50%) translateY(0);
   transition: opacity 220ms ease, transform 220ms ease;

@@ -5,7 +5,7 @@
         v-for="(text, idx) in paragraphs"
         :key="idx"
         :data-paragraph-index="idx + 1"
-        class="font-story text-base leading-[1.7] whitespace-pre-wrap indent-[2em] text-[#2d2a24]"
+        class="font-story text-base leading-[1.7] whitespace-pre-wrap indent-[2em] text-[var(--ink-text-primary)]"
       >
         {{ text }}
       </p>
@@ -16,7 +16,7 @@
         v-for="(text, idx) in visibleItems"
         :key="visibleStart + idx"
         :data-paragraph-index="visibleStart + idx + 1"
-          class="font-story text-base leading-[1.7] whitespace-pre-wrap indent-[2em] text-[#2d2a24]"
+          class="font-story text-base leading-[1.7] whitespace-pre-wrap indent-[2em] text-[var(--ink-text-primary)]"
         >
           {{ text }}
         </p>

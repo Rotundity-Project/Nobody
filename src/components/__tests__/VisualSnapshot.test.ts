@@ -4,6 +4,7 @@ import MainMenu from '../MainMenu.vue';
 import ScriptSelector from '../ScriptSelector.vue';
 import GameRuntimeView from '../GameRuntimeView.vue';
 import InfoTabsDialog from '../InfoTabsDialog.vue';
+import CharacterInfoModal from '../CharacterInfoModal.vue';
 
 const normalizeSnapshotHtml = (html: string): string =>
   html
@@ -74,8 +75,32 @@ vi.mock('../../stores/gameStore', () => ({
 }));
 
 describe('visual snapshots', () => {
+  const mountWithTheme = (
+    component: unknown,
+    theme: 'theme-scroll' | 'theme-night',
+    options: Record<string, unknown> = {},
+  ) =>
+    shallowMount(
+      {
+        components: { TestedComponent: component },
+        template: `<div class="${theme}"><TestedComponent /></div>`,
+      },
+      options as never,
+    );
+
   it('MainMenu snapshot', () => {
     const wrapper = shallowMount(MainMenu, {
+      global: {
+        stubs: {
+          LLMConfigDialog: true,
+        },
+      },
+    });
+    expect(normalizeSnapshotHtml(wrapper.html())).toMatchSnapshot();
+  });
+
+  it('MainMenu snapshot (theme-night)', () => {
+    const wrapper = mountWithTheme(MainMenu, 'theme-night', {
       global: {
         stubs: {
           LLMConfigDialog: true,
@@ -98,8 +123,39 @@ describe('visual snapshots', () => {
     expect(normalizeSnapshotHtml(wrapper.html())).toMatchSnapshot();
   });
 
+  it('ScriptSelector snapshot (theme-night)', () => {
+    const wrapper = mountWithTheme(ScriptSelector, 'theme-night', {
+      global: {
+        stubs: {
+          LoadingIndicator: true,
+          StatusBanner: true,
+          UiPanel: true,
+        },
+      },
+    });
+    expect(normalizeSnapshotHtml(wrapper.html())).toMatchSnapshot();
+  });
+
   it('GameRuntimeView snapshot', () => {
     const wrapper = shallowMount(GameRuntimeView, {
+      global: {
+        stubs: {
+          InkTopBar: true,
+          PoemStatusSlip: true,
+          InkStoryStage: true,
+          InkQuickActionDock: true,
+          GameSystemDialogs: true,
+          GameInfoCenterDialog: true,
+          CharacterInfoModal: true,
+          NotificationCenter: true,
+        },
+      },
+    });
+    expect(normalizeSnapshotHtml(wrapper.html())).toMatchSnapshot();
+  });
+
+  it('GameRuntimeView snapshot (theme-night)', () => {
+    const wrapper = mountWithTheme(GameRuntimeView, 'theme-night', {
       global: {
         stubs: {
           InkTopBar: true,
@@ -150,6 +206,43 @@ describe('visual snapshots', () => {
           UiPanel: true,
           NovelExporter: true,
           StatusBanner: true,
+        },
+      },
+    });
+    expect(normalizeSnapshotHtml(wrapper.html())).toMatchSnapshot();
+  });
+
+  it('CharacterInfoModal snapshot', () => {
+    const wrapper = shallowMount(CharacterInfoModal, {
+      props: {
+        isOpen: true,
+        character: {
+          id: 'player_1',
+          name: '花尊',
+          stats: {
+            cultivation_realm: { name: '炼气', level: 1, sub_level: 2 },
+            combat_power: 88,
+            spiritual_root: {
+              element: 'Metal',
+              elements: ['Metal'],
+              grade: 'Heavenly',
+              affinity: 0.85,
+            },
+            lifespan: {
+              current_age: 17,
+              max_age: 120,
+              realm_bonus: 10,
+            },
+            techniques: ['清风诀'],
+          },
+          location: '宗门外谷',
+          inventory: [],
+          personality_tags: ['谨慎'],
+        },
+      },
+      global: {
+        stubs: {
+          CharacterPanel: true,
         },
       },
     });

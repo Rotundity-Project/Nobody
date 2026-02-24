@@ -1,7 +1,7 @@
 ﻿<template>
   <div
     v-if="isOpen"
-    class="fixed inset-0 z-[120] flex items-center justify-center bg-black/30 p-4"
+    class="runtime-quick-overlay fixed inset-0 z-[120] flex items-center justify-center p-4"
     @click.self="$emit('close')"
   >
     <section class="runtime-quick-dialog w-full max-w-2xl rounded-2xl p-4 sm:p-5">
@@ -280,10 +280,14 @@ const highlightParts = (value: string | undefined): HighlightPart[] => {
 
 <style scoped>
 .runtime-quick-dialog {
-  border: 1px solid #d8ccb9;
-  background: linear-gradient(140deg, rgba(251, 248, 242, 0.98), rgba(244, 238, 229, 0.96));
-  box-shadow: 0 16px 36px rgba(45, 42, 36, 0.2);
+  border: 1px solid var(--ink-border-soft);
+  background: color-mix(in srgb, var(--ink-paper) 95%, var(--ink-card-bg));
+  box-shadow: var(--ink-shadow-panel);
   backdrop-filter: blur(8px);
+}
+
+.runtime-quick-overlay {
+  background: color-mix(in srgb, var(--ink-text-primary) 30%, transparent);
 }
 
 .runtime-quick-head {
@@ -301,24 +305,24 @@ const highlightParts = (value: string | undefined): HighlightPart[] => {
 
 .runtime-quick-tab {
   border-radius: 10px;
-  border: 1px solid #c6b295;
-  background: linear-gradient(180deg, #f8f4ec, #efe7da);
-  color: #5d4f3b;
+  border: 1px solid var(--ink-border-accent);
+  background: color-mix(in srgb, var(--ink-paper) 76%, var(--ink-card-bg));
+  color: color-mix(in srgb, var(--ink-text-primary) 75%, var(--ink-text-muted));
   padding: 6px 12px;
   font-size: 13px;
 }
 
 .runtime-quick-tab-active {
-  border-color: #b78c4a;
-  background: linear-gradient(180deg, #f4ecd9, #ead7b5);
-  color: #6b4f2f;
+  border-color: var(--ink-title-color);
+  background: color-mix(in srgb, var(--ink-title-color) 24%, var(--ink-paper));
+  color: color-mix(in srgb, var(--ink-title-color) 78%, var(--ink-text-primary));
 }
 
 .runtime-quick-close {
   border-radius: 10px;
-  border: 1px solid #c8ad84;
-  background: rgba(245, 235, 219, 0.8);
-  color: #6b4f2f;
+  border: 1px solid var(--ink-border-accent);
+  background: color-mix(in srgb, var(--ink-paper) 72%, var(--ink-card-bg));
+  color: color-mix(in srgb, var(--ink-title-color) 78%, var(--ink-text-primary));
   padding: 6px 14px;
   font-size: 13px;
 }
@@ -332,7 +336,7 @@ const highlightParts = (value: string | undefined): HighlightPart[] => {
 
 .runtime-quick-title {
   margin: 0;
-  color: #9a6e31;
+  color: var(--ink-title-color);
   font-size: 21px;
   font-weight: 700;
   line-height: 1.25;
@@ -340,7 +344,7 @@ const highlightParts = (value: string | undefined): HighlightPart[] => {
 
 .runtime-quick-subtitle {
   margin: 6px 0 0;
-  color: #6b655d;
+  color: var(--ink-text-muted);
   font-size: 13px;
   line-height: 1.6;
 }
@@ -352,16 +356,16 @@ const highlightParts = (value: string | undefined): HighlightPart[] => {
 }
 
 .runtime-quick-search-label {
-  color: #6b655d;
+  color: var(--ink-text-muted);
   font-size: 12px;
   line-height: 1.4;
 }
 
 .runtime-quick-search {
   border-radius: 10px;
-  border: 1px solid #d7c9b4;
-  background: rgba(255, 255, 255, 0.72);
-  color: #3d372f;
+  border: 1px solid var(--ink-border-soft);
+  background: color-mix(in srgb, var(--ink-paper) 70%, transparent);
+  color: var(--ink-text-primary);
   padding: 7px 10px;
   font-size: 13px;
   line-height: 1.35;
@@ -369,13 +373,13 @@ const highlightParts = (value: string | undefined): HighlightPart[] => {
 
 .runtime-quick-empty {
   margin: 12px 0 0;
-  color: #6b655d;
+  color: var(--ink-text-muted);
   font-size: 14px;
 }
 
 .runtime-quick-feedback {
   margin: 8px 0 0;
-  color: #6b4f2f;
+  color: color-mix(in srgb, var(--ink-title-color) 78%, var(--ink-text-primary));
   font-size: 12px;
   line-height: 1.4;
 }
@@ -390,24 +394,24 @@ const highlightParts = (value: string | undefined): HighlightPart[] => {
 
 .runtime-quick-item {
   border-radius: 12px;
-  border: 1px solid #dbcdb9;
-  background: rgba(255, 255, 255, 0.68);
+  border: 1px solid var(--ink-border-soft);
+  background: color-mix(in srgb, var(--ink-paper) 68%, transparent);
   padding: 10px 12px;
 }
 
 .runtime-quick-item-featured {
-  border-color: #cdb179;
-  background: linear-gradient(180deg, rgba(255, 251, 240, 0.88), rgba(247, 238, 218, 0.7));
+  border-color: color-mix(in srgb, var(--ink-title-color) 58%, var(--ink-border-accent));
+  background: color-mix(in srgb, var(--ink-title-color) 14%, var(--ink-paper));
 }
 
 .runtime-quick-item-selected {
-  border-color: #b78c4a;
-  box-shadow: 0 0 0 2px rgba(183, 140, 74, 0.2);
+  border-color: var(--ink-title-color);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ink-title-color) 34%, transparent);
 }
 
 .runtime-quick-item-title {
   margin: 0;
-  color: #2d2a24;
+  color: var(--ink-text-primary);
   font-size: 15px;
   font-weight: 600;
   line-height: 1.5;
@@ -419,9 +423,9 @@ const highlightParts = (value: string | undefined): HighlightPart[] => {
 
 .runtime-quick-item-badge {
   border-radius: 999px;
-  border: 1px solid #c9ab75;
-  background: rgba(237, 222, 190, 0.65);
-  color: #7b5e33;
+  border: 1px solid color-mix(in srgb, var(--ink-title-color) 62%, var(--ink-border-accent));
+  background: color-mix(in srgb, var(--ink-title-color) 22%, var(--ink-paper));
+  color: color-mix(in srgb, var(--ink-title-color) 82%, var(--ink-text-primary));
   padding: 1px 8px;
   font-size: 11px;
   font-weight: 600;
@@ -430,7 +434,7 @@ const highlightParts = (value: string | undefined): HighlightPart[] => {
 
 .runtime-quick-mark {
   border-radius: 4px;
-  background: rgba(236, 203, 132, 0.55);
+  background: color-mix(in srgb, var(--ink-title-color) 48%, transparent);
   color: inherit;
   padding: 0 1px;
 }
@@ -438,7 +442,7 @@ const highlightParts = (value: string | undefined): HighlightPart[] => {
 .runtime-quick-item-desc,
 .runtime-quick-item-meta {
   margin: 4px 0 0;
-  color: #5e5a54;
+  color: var(--ink-text-muted);
   font-size: 13px;
   line-height: 1.6;
   overflow-wrap: anywhere;
@@ -446,6 +450,6 @@ const highlightParts = (value: string | undefined): HighlightPart[] => {
 }
 
 .runtime-quick-item-meta {
-  color: #6f5937;
+  color: color-mix(in srgb, var(--ink-title-color) 64%, var(--ink-text-primary));
 }
 </style>

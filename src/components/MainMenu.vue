@@ -1,5 +1,5 @@
 ﻿<template>
-  <div class="main-menu-shell min-h-screen px-4 py-8 sm:px-6 sm:py-10">
+  <div class="main-menu-shell theme-scroll min-h-screen px-4 py-8 sm:px-6 sm:py-10">
     <div class="main-menu-guide">
       建议流程：新游戏 -> 选择剧本 -> 进入主界面推进剧情
     </div>
@@ -77,7 +77,7 @@
             v-if="latestSave"
             id="latest-save-summary"
             data-testid="latest-save-summary"
-            class="mt-2 text-sm leading-6 text-[#2d2a24]"
+            class="menu-text-primary mt-2 text-sm leading-6"
             aria-live="polite"
             aria-atomic="true"
           >
@@ -93,7 +93,7 @@
                 时间：{{ latestSaveGameTimeLabel }}
               </span>
             </span>
-            <span class="mt-1 block text-xs text-[#6a655d]">
+            <span class="menu-text-muted mt-1 block text-xs">
               <template v-if="hasLatestSaveTimestamp">
                 最近保存：{{ latestSaveTimestampLabel }}（{{ latestSaveAgeLabel }}）
               </template>
@@ -106,7 +106,7 @@
             v-else-if="recentSaveLoading"
             id="loading-save-hint"
             data-testid="loading-save-hint"
-            class="mt-2 text-sm leading-6 text-[#6a655d]"
+            class="menu-text-muted mt-2 text-sm leading-6"
             role="status"
             aria-live="polite"
             aria-atomic="true"
@@ -117,7 +117,7 @@
             v-else
             id="no-save-hint"
             data-testid="no-save-hint"
-            class="mt-2 text-sm leading-6 text-[#6a655d]"
+            class="menu-text-muted mt-2 text-sm leading-6"
             role="status"
             aria-live="polite"
             aria-atomic="true"
@@ -128,7 +128,7 @@
             v-if="recentSaveError"
             id="recent-save-error"
             data-testid="recent-save-error"
-            class="mt-2 text-sm text-[#9f3b2f]"
+            class="menu-text-error mt-2 text-sm"
             role="alert"
             aria-live="assertive"
             aria-atomic="true"
@@ -151,7 +151,7 @@
             v-if="lastRefreshLabel"
             id="recent-save-refresh-label"
             data-testid="recent-save-refresh-label"
-            class="mt-1 text-xs text-[#6a655d]"
+            class="menu-text-muted mt-1 text-xs"
             role="status"
             aria-live="polite"
             aria-atomic="true"
@@ -192,12 +192,12 @@
                 :key="slot.slot_id"
                 type="button"
                 class="menu-chip-btn text-left"
-                :class="selectedSaveSlotId === slot.slot_id ? 'border-[#b78c4a]' : ''"
+                :class="selectedSaveSlotId === slot.slot_id ? 'menu-chip-btn-active' : ''"
                 @click="selectedSaveSlotId = slot.slot_id"
               >
                 槽位 {{ slot.slot_id }} · {{ normalizeSaveText(slot.player_name, '未命名角色') }}
               </button>
-              <p v-if="saveSlots.length === 0" class="text-xs text-[#6a655d]">暂无存档槽位</p>
+              <p v-if="saveSlots.length === 0" class="menu-text-muted text-xs">暂无存档槽位</p>
             </div>
             <button
               type="button"
@@ -221,17 +221,17 @@
           </aside>
           <section class="menu-dialog-right">
             <p class="menu-sub-title">存档信息</p>
-            <p v-if="selectedSaveSlot" class="mt-2 text-sm leading-6 text-[#2d2a24]">
+            <p v-if="selectedSaveSlot" class="menu-text-primary mt-2 text-sm leading-6">
               槽位 {{ selectedSaveSlot.slot_id }} · {{ normalizeSaveText(selectedSaveSlot.player_name, '未命名角色') }}
               · {{ normalizeSaveText(selectedSaveSlot.realm, '境界未知') }}
-              <span class="mt-1 block text-xs text-[#6a655d]">
+              <span class="menu-text-muted mt-1 block text-xs">
                 <template v-if="formatLocationLabel(selectedSaveSlot.location) !== '未知'">
                   位置：{{ formatLocationLabel(selectedSaveSlot.location) }} ·
                 </template>
                 时间：{{ normalizeSaveText(selectedSaveSlot.game_time, '时间未知') }}
               </span>
             </p>
-            <p v-else class="mt-2 text-sm text-[#6a655d]">请选择左侧存档槽。</p>
+            <p v-else class="menu-text-muted mt-2 text-sm">请选择左侧存档槽。</p>
             <div class="mt-4 flex flex-wrap gap-2">
               <button
                 type="button"
@@ -278,7 +278,7 @@
             <div class="mt-2 grid gap-2">
               <button
                 type="button"
-                class="menu-chip-btn border-[#b78c4a] text-left"
+                class="menu-chip-btn menu-chip-btn-active text-left"
               >
                 音量控制
               </button>
@@ -309,7 +309,7 @@
             <div class="mt-2 grid gap-2">
               <button
                 type="button"
-                class="menu-chip-btn border-[#b78c4a] text-left"
+                class="menu-chip-btn menu-chip-btn-active text-left"
               >
                 模型配置
               </button>
@@ -690,11 +690,11 @@ onUnmounted(() => {
 <style scoped>
 .main-menu-shell {
   font-family: 'Noto Serif SC', 'STKaiti', 'KaiTi', serif;
-  color: var(--ink-text-primary, #2d2a24);
+  color: var(--ink-text-primary);
   background:
-    radial-gradient(circle at 12% 20%, color-mix(in srgb, var(--ink-title-color, #b78c4a) 24%, transparent), transparent 35%),
-    radial-gradient(circle at 85% 6%, rgba(59, 122, 107, 0.07), transparent 30%),
-    linear-gradient(145deg, var(--ink-paper, #faf7f2), var(--ink-paper-elevated, #f1eade));
+    radial-gradient(circle at 12% 20%, color-mix(in srgb, var(--ink-title-color) 24%, transparent), transparent 35%),
+    radial-gradient(circle at 85% 6%, color-mix(in srgb, var(--ink-text-cool) 18%, transparent), transparent 30%),
+    linear-gradient(145deg, var(--ink-paper), var(--ink-paper-elevated));
 }
 
 .main-menu-guide {
@@ -702,10 +702,10 @@ onUnmounted(() => {
   margin: 0 auto 10px auto;
   text-align: right;
   font-size: 12px;
-  color: var(--ink-text-cool, #3b7a6b);
+  color: var(--ink-text-cool);
   text-decoration: underline;
   text-underline-offset: 4px;
-  text-decoration-color: rgba(59, 122, 107, 0.35);
+  text-decoration-color: color-mix(in srgb, var(--ink-text-cool) 45%, transparent);
 }
 
 .main-menu-frame {
@@ -725,10 +725,10 @@ onUnmounted(() => {
 
 .menu-main-stage {
   min-height: 72vh;
-  background: color-mix(in srgb, var(--ink-paper, #faf7f2) 90%, transparent);
-  border: 1px solid var(--ink-border-soft, #d9d0c0);
+  background: color-mix(in srgb, var(--ink-paper) 90%, transparent);
+  border: 1px solid var(--ink-border-soft);
   border-radius: 16px;
-  box-shadow: var(--ink-shadow-panel, 0 10px 24px rgba(55, 47, 34, 0.08));
+  box-shadow: var(--ink-shadow-panel);
   padding: 24px;
 }
 
@@ -744,13 +744,13 @@ onUnmounted(() => {
   font-size: clamp(3.3rem, 8vw, 6.2rem);
   line-height: 1;
   letter-spacing: 0.06em;
-  color: #322618;
+  color: var(--ink-text-primary);
 }
 
 .main-menu-cn-title {
   margin: 10px 0 0;
   font-size: clamp(1.3rem, 2.3vw, 2rem);
-  color: #5e4f3a;
+  color: var(--ink-text-muted);
 }
 
 .main-menu-seal {
@@ -762,14 +762,14 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 2px solid var(--ink-accent-seal, #9f3b2f);
+  border: 2px solid var(--ink-accent-seal);
   border-radius: 6px;
   transform: rotate(-9deg) translateY(0);
-  color: var(--ink-accent-seal, #9f3b2f);
-  background: color-mix(in srgb, var(--ink-accent-seal, #9f3b2f) 8%, transparent);
+  color: var(--ink-accent-seal);
+  background: color-mix(in srgb, var(--ink-accent-seal) 8%, transparent);
   font-size: 14px;
   letter-spacing: 0.08em;
-  box-shadow: 0 3px 12px rgba(159, 59, 47, 0.14);
+  box-shadow: 0 3px 12px color-mix(in srgb, var(--ink-accent-seal) 30%, transparent);
   transition: transform 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
   animation: main-seal-float 2.8s ease-in-out infinite;
 }
@@ -778,7 +778,7 @@ onUnmounted(() => {
   content: '';
   position: absolute;
   inset: -5px;
-  border: 1px solid rgba(159, 59, 47, 0.24);
+  border: 1px solid color-mix(in srgb, var(--ink-accent-seal) 40%, transparent);
   border-radius: 10px;
   opacity: 0;
   transform: scale(0.92);
@@ -787,8 +787,8 @@ onUnmounted(() => {
 
 .main-menu-seal:hover {
   transform: rotate(-9deg) translateY(-2px);
-  background: rgba(159, 59, 47, 0.08);
-  box-shadow: 0 8px 18px rgba(159, 59, 47, 0.18);
+  background: color-mix(in srgb, var(--ink-accent-seal) 14%, transparent);
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--ink-accent-seal) 34%, transparent);
 }
 
 .main-menu-seal:hover::before,
@@ -803,28 +803,30 @@ onUnmounted(() => {
 
 .main-menu-seal:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px rgba(159, 59, 47, 0.22), 0 8px 18px rgba(159, 59, 47, 0.18);
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--ink-accent-seal) 36%, transparent),
+    0 8px 18px color-mix(in srgb, var(--ink-accent-seal) 34%, transparent);
 }
 
 .main-menu-seal-whisper {
   margin: 2px 0 0;
   text-align: center;
-  color: var(--ink-text-muted, #6a655d);
+  color: var(--ink-text-muted);
   font-size: 12px;
   letter-spacing: 0.04em;
 }
 
 .menu-card {
-  background: var(--ink-card-bg, #f5f0e8);
-  border: 1px solid var(--ink-border-soft, #d9d0c0);
+  background: var(--ink-card-bg);
+  border: 1px solid var(--ink-border-soft);
   border-radius: 12px;
-  box-shadow: var(--ink-shadow-card, 0 4px 12px rgba(0, 0, 0, 0.05));
+  box-shadow: var(--ink-shadow-card);
   padding: 20px;
 }
 
 .menu-card-title {
   margin: 0;
-  color: var(--ink-title-color, #b78c4a);
+  color: var(--ink-title-color);
   font-size: 1.45rem;
   font-weight: 700;
 }
@@ -832,17 +834,17 @@ onUnmounted(() => {
 .menu-btn {
   width: 100%;
   border-radius: 10px;
-  border: 1px solid var(--ink-title-color, #b78c4a);
-  background: var(--ink-card-bg, #f5f0e8);
-  color: var(--ink-text-primary, #2d2a24);
+  border: 1px solid var(--ink-title-color);
+  background: var(--ink-card-bg);
+  color: var(--ink-text-primary);
   padding: 13px 16px;
   font-size: 1rem;
   transition: box-shadow 180ms ease, transform 120ms ease, background-color 180ms ease;
 }
 
 .menu-btn:hover {
-  background: var(--ink-paper, #faf7f2);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  background: var(--ink-paper);
+  box-shadow: var(--ink-shadow-card);
 }
 
 .menu-btn:active {
@@ -850,26 +852,26 @@ onUnmounted(() => {
 }
 
 .menu-btn-primary {
-  background: #ede1c9;
+  background: color-mix(in srgb, var(--ink-title-color) 28%, var(--ink-paper));
 }
 
 .menu-volume-pill {
   margin: 0;
   text-align: center;
-  border: 1px solid #c8b89f;
+  border: 1px solid var(--ink-border-accent);
   border-radius: 999px;
   padding: 4px 8px;
-  background: color-mix(in srgb, var(--ink-card-bg, #f5f0e8) 88%, transparent);
-  color: var(--ink-text-muted, #6a655d);
+  background: color-mix(in srgb, var(--ink-card-bg) 88%, transparent);
+  color: var(--ink-text-muted);
 }
 
 .menu-chip,
 .menu-chip-btn,
 .menu-inline-btn {
-  border: 1px solid #c8b89f;
+  border: 1px solid var(--ink-border-accent);
   border-radius: 8px;
-  background: var(--ink-card-bg, #f5f0e8);
-  color: var(--ink-text-primary, #2d2a24);
+  background: var(--ink-card-bg);
+  color: var(--ink-text-primary);
 }
 
 .menu-chip {
@@ -891,7 +893,7 @@ onUnmounted(() => {
   position: fixed;
   inset: 0;
   z-index: 60;
-  background: rgba(37, 31, 20, 0.36);
+  background: color-mix(in srgb, var(--ink-text-primary) 30%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -903,9 +905,9 @@ onUnmounted(() => {
   max-height: min(90vh, 840px);
   overflow: auto;
   border-radius: 16px;
-  border: 1px solid var(--ink-border-soft, #d9d0c0);
-  background: #f6f1e8;
-  box-shadow: 0 16px 34px rgba(44, 35, 22, 0.18);
+  border: 1px solid var(--ink-border-soft);
+  background: color-mix(in srgb, var(--ink-paper) 88%, var(--ink-card-bg));
+  box-shadow: var(--ink-shadow-panel);
   padding: 20px;
 }
 
@@ -925,24 +927,40 @@ onUnmounted(() => {
 
 .menu-dialog-left,
 .menu-dialog-right {
-  border: 1px solid var(--ink-border-soft, #d9d0c0);
+  border: 1px solid var(--ink-border-soft);
   border-radius: 12px;
-  background: var(--ink-card-bg-muted, #ece5d8);
+  background: var(--ink-card-bg-muted);
   padding: 12px;
 }
 
 .menu-sub-card {
-  border: 1px solid var(--ink-border-soft, #d9d0c0);
+  border: 1px solid var(--ink-border-soft);
   border-radius: 10px;
-  background: var(--ink-card-bg, #f5f0e8);
+  background: var(--ink-card-bg);
   padding: 12px;
 }
 
 .menu-sub-title {
   margin: 0;
-  color: var(--ink-title-color, #b78c4a);
+  color: var(--ink-title-color);
   letter-spacing: 0.06em;
   font-size: 12px;
+}
+
+.menu-text-primary {
+  color: var(--ink-text-primary);
+}
+
+.menu-text-muted {
+  color: var(--ink-text-muted);
+}
+
+.menu-text-error {
+  color: color-mix(in srgb, var(--ink-accent-main) 86%, var(--ink-text-primary));
+}
+
+.menu-chip-btn-active {
+  border-color: var(--ink-title-color);
 }
 
 @media (max-width: 980px) {

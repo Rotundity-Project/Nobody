@@ -2,41 +2,42 @@
   <div v-if="inline" class="llm-inline-wrap">
     <div class="space-y-3">
       <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <label class="text-sm text-[#5e5a54]">
+        <label class="llm-label text-sm">
           Endpoint
           <input v-model="form.endpoint" class="llm-input" />
         </label>
-        <label class="text-sm text-[#5e5a54]">
-          模型名称
+        <label class="llm-label text-sm">
+          模型ID（model）
           <input v-model="form.model" class="llm-input" />
         </label>
       </div>
+      <p class="llm-note text-xs">提示：这里填写 provider 的 modelId（如 `xopkimik25`），不是展示名称。</p>
 
-      <label class="text-sm text-[#5e5a54]">
+      <label class="llm-label text-sm">
         API Key
         <input v-model="form.apiKey" type="password" class="llm-input" />
       </label>
 
       <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <label class="text-sm text-[#5e5a54]">
+        <label class="llm-label text-sm">
           maxTokens
           <input v-model.number="form.maxTokens" type="number" min="1" class="llm-input" />
         </label>
-        <label class="text-sm text-[#5e5a54]">
+        <label class="llm-label text-sm">
           temperature
           <input v-model.number="form.temperature" type="number" min="0" max="2" step="0.1" class="llm-input" />
         </label>
       </div>
 
-      <p class="text-xs text-[#6a655d]">当前状态：{{ statusText }}</p>
+      <p class="llm-note text-xs">当前状态：{{ statusText }}</p>
       <LoadingIndicator
         v-if="busy"
         :message="loadingMessage"
         detail="正在与模型服务交互..."
         size="sm"
       />
-      <p v-if="message" class="text-sm text-[#3b7a6b]">{{ message }}</p>
-      <p v-if="error" class="text-sm text-[#9a3434]">{{ error }}</p>
+      <p v-if="message" class="llm-message text-sm">{{ message }}</p>
+      <p v-if="error" class="llm-error text-sm">{{ error }}</p>
 
       <div class="flex flex-wrap gap-2">
         <button class="llm-btn llm-btn-primary" @click="saveConfig" :disabled="busy || !isFormValid">保存配置</button>
@@ -44,14 +45,14 @@
         <button class="llm-btn" @click="loadStatus" :disabled="busy">刷新状态</button>
         <button class="llm-btn" @click="clearConfig" :disabled="busy">清除运行时配置</button>
       </div>
-      <p v-if="!isFormValid" class="text-sm text-[#b78c4a]">{{ formValidation.join('；') }}</p>
+      <p v-if="!isFormValid" class="llm-warning text-sm">{{ formValidation.join('；') }}</p>
     </div>
   </div>
 
   <div v-else-if="isOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/25 p-4">
     <section class="llm-modal w-full max-w-4xl rounded-2xl p-5">
       <header class="mb-3 flex items-center justify-between">
-        <h3 class="text-xl font-display text-[#b78c4a]">LLM 模型配置</h3>
+        <h3 class="llm-title text-xl font-display">LLM 模型配置</h3>
         <button class="llm-btn" @click="$emit('close')">关闭</button>
       </header>
       <div class="llm-dialog-grid">
@@ -65,25 +66,26 @@
           <div class="llm-inline-wrap p-3">
             <div class="space-y-3">
               <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <label class="text-sm text-[#5e5a54]">Endpoint<input v-model="form.endpoint" class="llm-input" /></label>
-                <label class="text-sm text-[#5e5a54]">模型名称<input v-model="form.model" class="llm-input" /></label>
+                <label class="llm-label text-sm">Endpoint<input v-model="form.endpoint" class="llm-input" /></label>
+                <label class="llm-label text-sm">模型ID（model）<input v-model="form.model" class="llm-input" /></label>
               </div>
-              <label class="text-sm text-[#5e5a54]">API Key<input v-model="form.apiKey" type="password" class="llm-input" /></label>
+              <p class="llm-note text-xs">提示：这里填写 provider 的 modelId（如 `xopkimik25`），不是展示名称。</p>
+              <label class="llm-label text-sm">API Key<input v-model="form.apiKey" type="password" class="llm-input" /></label>
               <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <label class="text-sm text-[#5e5a54]">maxTokens<input v-model.number="form.maxTokens" type="number" min="1" class="llm-input" /></label>
-                <label class="text-sm text-[#5e5a54]">temperature<input v-model.number="form.temperature" type="number" min="0" max="2" step="0.1" class="llm-input" /></label>
+                <label class="llm-label text-sm">maxTokens<input v-model.number="form.maxTokens" type="number" min="1" class="llm-input" /></label>
+                <label class="llm-label text-sm">temperature<input v-model.number="form.temperature" type="number" min="0" max="2" step="0.1" class="llm-input" /></label>
               </div>
-              <p class="text-xs text-[#6a655d]">当前状态：{{ statusText }}</p>
+              <p class="llm-note text-xs">当前状态：{{ statusText }}</p>
               <LoadingIndicator v-if="busy" :message="loadingMessage" detail="正在与模型服务交互..." size="sm" />
-              <p v-if="message" class="text-sm text-[#3b7a6b]">{{ message }}</p>
-              <p v-if="error" class="text-sm text-[#9a3434]">{{ error }}</p>
+              <p v-if="message" class="llm-message text-sm">{{ message }}</p>
+              <p v-if="error" class="llm-error text-sm">{{ error }}</p>
               <div class="flex flex-wrap gap-2">
                 <button class="llm-btn llm-btn-primary" @click="saveConfig" :disabled="busy || !isFormValid">保存配置</button>
                 <button class="llm-btn llm-btn-success" @click="testConnection" :disabled="busy">测试连接</button>
                 <button class="llm-btn" @click="loadStatus" :disabled="busy">刷新状态</button>
                 <button class="llm-btn" @click="clearConfig" :disabled="busy">清除运行时配置</button>
               </div>
-              <p v-if="!isFormValid" class="text-sm text-[#b78c4a]">{{ formValidation.join('；') }}</p>
+              <p v-if="!isFormValid" class="llm-warning text-sm">{{ formValidation.join('；') }}</p>
             </div>
           </div>
         </section>
@@ -182,7 +184,7 @@ const formValidation = computed(() => {
     errors.push('Endpoint 不能为空');
   }
   if (!form.model.trim()) {
-    errors.push('模型名称不能为空');
+    errors.push('模型ID不能为空');
   }
   if (form.maxTokens < 1 || form.maxTokens > 32000) {
     errors.push('maxTokens 必须在 1-32000 之间');
@@ -358,6 +360,30 @@ const clearConfig = async () => {
   border-color: #3b7a6b;
   background: #edf5f2;
   color: #2f6a5d;
+}
+
+.llm-label {
+  color: var(--ink-text-muted);
+}
+
+.llm-note {
+  color: color-mix(in srgb, var(--ink-text-muted) 92%, transparent);
+}
+
+.llm-message {
+  color: var(--ink-text-cool);
+}
+
+.llm-error {
+  color: var(--ink-accent-main);
+}
+
+.llm-warning {
+  color: var(--ink-title-color);
+}
+
+.llm-title {
+  color: var(--ink-title-color);
 }
 
 .llm-btn:disabled {

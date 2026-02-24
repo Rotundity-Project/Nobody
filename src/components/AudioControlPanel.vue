@@ -2,8 +2,8 @@
   <div class="audio-panel space-y-4">
     <div v-if="showSwitches" class="flex items-center justify-between">
       <div>
-        <p class="text-sm text-[#2d2a24]">背景音乐</p>
-        <p class="text-xs text-[#6a655d]">控制环境氛围与场景铺垫</p>
+        <p class="text-sm text-[var(--ink-text-primary)]">背景音乐</p>
+        <p class="text-xs text-[var(--ink-text-muted)]">控制环境氛围与场景铺垫</p>
       </div>
       <button
         data-testid="toggle-bgm-btn"
@@ -17,8 +17,8 @@
 
     <div v-if="showSwitches" class="flex items-center justify-between">
       <div>
-        <p class="text-sm text-[#2d2a24]">界面音效</p>
-        <p class="text-xs text-[#6a655d]">按钮点击与交互提示音</p>
+        <p class="text-sm text-[var(--ink-text-primary)]">界面音效</p>
+        <p class="text-xs text-[var(--ink-text-muted)]">按钮点击与交互提示音</p>
       </div>
       <button
         data-testid="toggle-sfx-btn"
@@ -32,8 +32,8 @@
 
     <div>
       <div class="flex items-center justify-between">
-        <p class="text-sm text-[#2d2a24]">总音量</p>
-        <span class="text-xs text-[#6a655d]">{{ Math.round(settings.master * 100) }}%</span>
+        <p class="text-sm text-[var(--ink-text-primary)]">总音量</p>
+        <span class="text-xs text-[var(--ink-text-muted)]">{{ Math.round(settings.master * 100) }}%</span>
       </div>
       <input
         v-model.number="settings.master"
@@ -139,50 +139,50 @@ const toggleSfx = () => {
 
 <style scoped>
 .audio-panel {
-  color: #2d2a24;
+  color: var(--ink-text-primary);
 }
 
 .audio-toggle-btn {
-  border: 1px solid #b7a88c;
+  border: 1px solid var(--ink-border-accent);
 }
 
 .audio-toggle-on {
-  background: #efe4cf;
-  color: #7a612f;
+  background: color-mix(in srgb, var(--ink-title-color) 18%, var(--ink-paper));
+  color: color-mix(in srgb, var(--ink-title-color) 72%, var(--ink-text-primary));
 }
 
 .audio-toggle-on-cool {
-  background: #edf5f2;
-  color: #2f6a5d;
+  background: color-mix(in srgb, var(--ink-text-cool) 12%, var(--ink-paper));
+  color: var(--ink-text-cool);
 }
 
 .audio-toggle-off {
-  background: #f8f3ea;
-  color: #6a655d;
+  background: var(--ink-paper-elevated);
+  color: var(--ink-text-muted);
 }
 
 .audio-range {
-  accent-color: #b78c4a;
+  accent-color: var(--ink-title-color);
 }
 
 .audio-chip-btn {
-  border: 1px solid #b7a88c;
+  border: 1px solid var(--ink-border-accent);
   border-radius: 8px;
-  background: #f8f3ea;
-  color: #2d2a24;
+  background: var(--ink-paper-elevated);
+  color: var(--ink-text-primary);
   padding: 4px 10px;
   font-size: 11px;
   transition: background-color 180ms ease, border-color 180ms ease;
 }
 
 .audio-chip-btn:hover {
-  border-color: #b78c4a;
-  background: #faf7f2;
+  border-color: var(--ink-title-color);
+  background: var(--ink-paper);
 }
 
 .audio-chip-btn-accent {
-  border-color: #b78c4a;
-  color: #7a612f;
-  background: #efe4cf;
+  border-color: var(--ink-title-color);
+  color: color-mix(in srgb, var(--ink-title-color) 72%, var(--ink-text-primary));
+  background: color-mix(in srgb, var(--ink-title-color) 18%, var(--ink-paper));
 }
 </style>

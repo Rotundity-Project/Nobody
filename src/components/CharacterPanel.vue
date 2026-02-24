@@ -1,6 +1,6 @@
 ﻿<template>
   <div class="ink-character-panel max-h-[70vh] overflow-y-auto rounded-2xl p-5">
-    <h3 class="mb-4 text-xl font-display text-[#b78c4a]">角色信息</h3>
+    <h3 class="mb-4 text-xl font-display text-[var(--ink-title-color)]">角色信息</h3>
 
     <div v-if="character" class="space-y-4">
       <section class="border-b border-slate-700 pb-4">
@@ -348,43 +348,43 @@ const lifespanBarClass = (lifespan: Lifespan): string => {
 
 <style scoped>
 .ink-character-panel {
-  background: #f5f0e8;
-  border: 1px solid #d9d0c0;
-  box-shadow: 0 8px 20px rgba(45, 42, 36, 0.08);
+  background: var(--ink-card-bg);
+  border: 1px solid var(--ink-border-soft);
+  box-shadow: var(--ink-shadow-panel);
 }
 
 .ink-character-panel .text-white {
-  color: #2d2a24 !important;
+  color: var(--ink-text-primary) !important;
 }
 
 .ink-character-panel .text-slate-500,
 .ink-character-panel .text-slate-400 {
-  color: #6b655d !important;
+  color: var(--ink-text-muted) !important;
 }
 
 .ink-character-panel .text-slate-300,
 .ink-character-panel .text-slate-200 {
-  color: #4d4943 !important;
+  color: color-mix(in srgb, var(--ink-text-primary) 86%, var(--ink-text-muted)) !important;
 }
 
 .ink-character-panel .border-slate-700 {
-  border-color: #d9d0c0 !important;
+  border-color: var(--ink-border-soft) !important;
 }
 
 .ink-character-panel .bg-slate-700 {
-  background: #e6ddd0 !important;
+  background: var(--ink-card-bg-muted) !important;
 }
 
 .ink-character-panel .bg-slate-900\/40 {
-  background: #f2ebdf !important;
+  background: var(--ink-paper-elevated) !important;
 }
 
 .ink-character-panel .bg-indigo-700\/40 {
-  background: rgba(183, 140, 74, 0.14) !important;
+  background: color-mix(in srgb, var(--ink-title-color) 14%, transparent) !important;
 }
 
 .ink-character-panel .text-indigo-100 {
-  color: #7a612f !important;
+  color: color-mix(in srgb, var(--ink-title-color) 74%, var(--ink-text-primary)) !important;
 }
 
 .root-row {
@@ -414,22 +414,22 @@ const lifespanBarClass = (lifespan: Lifespan): string => {
 }
 
 .root-earth {
-  color: #9b7a56;
+  color: var(--runtime-root-earth);
 }
 
 .root-metal {
-  color: #c8a661;
+  color: var(--ink-title-color);
 }
 
 .root-wood {
-  color: #2f6a5d;
+  color: var(--ink-text-ink);
 }
 
 .root-water {
-  color: #4a7fa9;
+  color: var(--runtime-root-water);
 }
 
 .root-fire {
-  color: #c05252;
+  color: var(--ink-accent-main);
 }
 </style>

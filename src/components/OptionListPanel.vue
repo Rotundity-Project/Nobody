@@ -8,38 +8,38 @@
       :class="[
         disabled
           ? 'cursor-not-allowed opacity-50'
-          : 'cursor-pointer border-[#d9c0b0] bg-[#ffffff] hover:border-[#b78c4a] hover:bg-[#faf7f2]',
+          : 'option-btn-enabled cursor-pointer',
       ]"
       @click="$emit('select', option)"
     >
         <div class="flex items-start justify-between gap-2">
           <div class="min-w-0">
             <div class="mb-2 flex items-center gap-2">
-              <span class="text-sm text-[#5e5a54]">选项{{ toCnNumber(index + 1) }}</span>
+              <span class="option-meta text-sm">选项{{ toCnNumber(index + 1) }}</span>
               <span
                 v-if="optionTag(option) === 'risk'"
-                class="inline-flex items-center rounded-full border border-[#b23e3e]/40 bg-[#b23e3e]/10 px-2 py-0.5 text-[11px] text-[#b23e3e]"
+                class="option-tag option-tag-risk inline-flex items-center rounded-full border px-2 py-0.5 text-[11px]"
               >
                 风险
               </span>
               <span
                 v-else-if="optionTag(option) === 'probe'"
-                class="inline-flex items-center rounded-full border border-[#3b7a6b]/40 bg-[#3b7a6b]/10 px-2 py-0.5 text-[11px] text-[#3b7a6b]"
+                class="option-tag option-tag-probe inline-flex items-center rounded-full border px-2 py-0.5 text-[11px]"
               >
                 探查
               </span>
             </div>
-          <p class="text-[15px] leading-[1.65] text-[#2d2a24]">
+          <p class="option-text text-[15px] leading-[1.65]">
             {{ `选项${toCnNumber(index + 1)} · ${normalizeOptionDescription(option.description)}` }}
           </p>
           <p
             v-if="option.requirements && option.requirements.length > 0"
-            class="mt-1 text-sm text-[#5e5a54]"
+            class="option-meta mt-1 text-sm"
           >
             条件：{{ option.requirements.join('，') }}
           </p>
         </div>
-        <span class="mt-0.5 text-[#b78c4a]" aria-hidden="true">
+        <span class="option-arrow mt-0.5" aria-hidden="true">
           <svg
             v-if="optionIcon(option, index) === 'eye'"
             viewBox="0 0 24 24"
@@ -201,11 +201,50 @@ const normalizeOptionDescription = (raw: string): string => {
 
 <style scoped>
 .option-btn {
-  box-shadow: 0 2px 10px rgba(45, 42, 36, 0.04);
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--ink-text-primary) 10%, transparent);
+}
+
+.option-btn-enabled {
+  border-color: var(--ink-border-strong);
+  background: var(--ink-paper);
+}
+
+.option-btn-enabled:hover {
+  border-color: var(--ink-title-color);
+  background: var(--ink-paper-elevated);
+}
+
+.option-meta {
+  color: var(--ink-text-muted);
+}
+
+.option-text {
+  color: var(--ink-text-primary);
+}
+
+.option-arrow {
+  color: var(--ink-title-color);
+}
+
+.option-tag {
+  border-color: color-mix(in srgb, var(--ink-border-soft) 60%, transparent);
+  background: color-mix(in srgb, var(--ink-surface) 35%, transparent);
+}
+
+.option-tag-risk {
+  border-color: color-mix(in srgb, var(--ink-accent-main) 40%, transparent);
+  background: color-mix(in srgb, var(--ink-accent-main) 12%, transparent);
+  color: var(--ink-accent-main);
+}
+
+.option-tag-probe {
+  border-color: color-mix(in srgb, var(--ink-text-cool) 40%, transparent);
+  background: color-mix(in srgb, var(--ink-text-cool) 12%, transparent);
+  color: var(--ink-text-cool);
 }
 
 .option-btn:hover {
-  box-shadow: 0 4px 14px rgba(45, 42, 36, 0.08);
+  box-shadow: 0 4px 14px var(--ink-action-shadow-hover);
   transform: translateY(-1px);
 }
 </style>

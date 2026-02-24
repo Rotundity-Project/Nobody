@@ -1,7 +1,7 @@
 ﻿<template>
   <div
     v-if="visible"
-    class="inline-flex items-center gap-2 rounded-[10px] border border-[#d9c0b0] bg-[#f5f0e8] p-1"
+    class="input-mode-tabs inline-flex items-center gap-2 rounded-[10px] border p-1"
   >
     <button
       type="button"
@@ -40,18 +40,23 @@ defineEmits<{
 }
 
 .ink-tab-btn-active {
-  border-color: #b78c4a;
-  background: #faf7f2;
-  color: #2d2a24;
+  border-color: var(--ink-title-color);
+  background: var(--ink-paper);
+  color: var(--ink-text-primary);
 }
 
 .ink-tab-btn-idle {
-  color: #5e5a54;
+  color: var(--ink-text-muted);
 }
 
 .ink-tab-btn-idle:hover {
-  border-color: #d9c0b0;
-  background: #f8f3ea;
-  color: #2d2a24;
+  border-color: var(--ink-border-strong);
+  background: var(--ink-paper-elevated);
+  color: var(--ink-text-primary);
+}
+
+.input-mode-tabs {
+  border-color: var(--ink-border-strong);
+  background: var(--ink-card-bg);
 }
 </style>

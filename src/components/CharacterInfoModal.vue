@@ -1,7 +1,7 @@
 ﻿<template>
   <div
     v-if="isOpen"
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/25 p-4"
+    class="ink-character-modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4"
     @click.self="$emit('close')"
   >
     <div class="ink-character-modal w-full max-w-md rounded-2xl p-3">
@@ -34,25 +34,29 @@ defineEmits<{
 
 <style scoped>
 .ink-character-modal {
-  border: 1px solid #d9d0c0;
-  background: rgba(250, 247, 242, 0.96);
-  box-shadow: 0 14px 32px rgba(45, 42, 36, 0.14);
+  border: 1px solid var(--modal-border);
+  background: var(--modal-bg);
+  box-shadow: var(--modal-shadow);
   backdrop-filter: blur(6px);
 }
 
+.ink-character-modal-overlay {
+  background: var(--modal-overlay-bg);
+}
+
 .ink-close-btn {
-  border: 1px solid #b23e3e;
+  border: 1px solid var(--ink-accent-main);
   border-radius: 8px;
-  background: rgba(178, 62, 62, 0.08);
-  color: #9a3434;
+  background: color-mix(in srgb, var(--ink-accent-main) 10%, var(--ink-paper));
+  color: color-mix(in srgb, var(--ink-accent-main) 82%, var(--ink-text-primary));
   padding: 7px 15px;
   font-size: 14px;
   transition: border-color 180ms ease, background-color 180ms ease, transform 120ms ease;
 }
 
 .ink-close-btn:hover {
-  border-color: #b78c4a;
-  background: #faf7f2;
+  border-color: var(--ink-title-color);
+  background: var(--ink-paper);
 }
 
 .ink-close-btn:active {

@@ -17,7 +17,7 @@
         />
         <p
           v-else
-          class="text-sm text-[#5e5a54]"
+          class="text-sm text-[var(--ink-text-muted)]"
         >
           当前章节暂无正文内容。
         </p>
@@ -25,7 +25,7 @@
 
       <p
         v-if="optionSourceLabel"
-        class="mt-3 text-xs text-[#5e5a54]"
+        class="mt-3 text-xs text-[var(--ink-text-muted)]"
       >
         选项来源：{{ optionSourceLabel }}
       </p>
@@ -33,7 +33,7 @@
 
     <div
       v-if="!isGameInitialized"
-      class="text-center text-[#5e5a54]"
+      class="text-center text-[var(--ink-text-muted)]"
     >
       <p>当前没有进行中的游戏，请先开始新游戏。</p>
     </div>

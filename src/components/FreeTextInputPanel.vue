@@ -62,23 +62,23 @@ const onInput = (event: Event) => {
   width: 100%;
   min-height: 132px;
   border-radius: 8px;
-  border: 1px solid #d9c0b0;
-  background: #ffffff;
+  border: 1px solid var(--ink-border-strong);
+  background: var(--ink-paper);
   padding: 12px 16px;
-  color: #2d2a24;
+  color: var(--ink-text-primary);
   line-height: 1.65;
   outline: none;
   transition: border-color 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
 }
 
 .free-text-input::placeholder {
-  color: #8c8478;
+  color: color-mix(in srgb, var(--ink-text-muted) 78%, transparent);
 }
 
 .free-text-input:focus {
-  border-color: #b78c4a;
-  box-shadow: 0 0 0 2px rgba(183, 140, 74, 0.12);
-  background: #faf7f2;
+  border-color: var(--ink-title-color);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ink-title-color) 18%, transparent);
+  background: var(--ink-paper-elevated);
 }
 
 .free-text-foot {
@@ -95,30 +95,30 @@ const onInput = (event: Event) => {
 }
 
 .free-text-validation-ok {
-  color: #5e5a54;
+  color: var(--ink-text-muted);
 }
 
 .free-text-validation-error {
-  color: #b23e3e;
+  color: var(--ink-accent-main);
 }
 
 .free-text-submit {
   border-radius: 8px;
-  border: 1px solid #b7a88c;
+  border: 1px solid var(--ink-border-accent);
   padding: 8px 14px;
   font-size: 14px;
   transition: border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease, transform 120ms ease;
 }
 
 .free-text-submit-enabled {
-  background: #f8f3ea;
-  color: #2d2a24;
+  background: var(--ink-paper-elevated);
+  color: var(--ink-text-primary);
 }
 
 .free-text-submit-enabled:hover {
-  border-color: #b78c4a;
-  background: #faf7f2;
-  box-shadow: 0 3px 10px rgba(45, 42, 36, 0.08);
+  border-color: var(--ink-title-color);
+  background: var(--ink-paper);
+  box-shadow: 0 3px 10px var(--ink-action-shadow-hover);
 }
 
 .free-text-submit-enabled:active {
@@ -127,9 +127,9 @@ const onInput = (event: Event) => {
 
 .free-text-submit-disabled {
   cursor: not-allowed;
-  border-color: #d9d0c0;
-  background: #ece5d8;
-  color: #8b857c;
+  border-color: var(--ink-border-soft);
+  background: var(--ink-card-bg-muted);
+  color: color-mix(in srgb, var(--ink-text-muted) 80%, transparent);
 }
 
 @media (max-width: 640px) {

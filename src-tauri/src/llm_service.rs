@@ -176,7 +176,9 @@ impl LLMService {
             )));
         }
 
-        let request_hash = self.build_request_hash(&request.prompt, max_tokens, temperature);
+        let request_url = self.request_url();
+        let request_hash =
+            self.build_request_hash(&request.prompt, &request_url, max_tokens, temperature);
         if let Some(cached) = self.get_cached_response(&request_hash) {
             return Ok(cached);
         }
@@ -196,7 +198,7 @@ impl LLMService {
             attempt += 1;
             let response = self
                 .client
-                .post(&self.api_config.endpoint)
+                .post(&request_url)
                 .bearer_auth(&self.api_config.api_key)
                 .json(&payload)
                 .send()
@@ -228,7 +230,14 @@ impl LLMService {
                 return Err(err);
             }
 
-            let value: Value = response.json().await?;
+            let raw_body = response.text().await?;
+            let value: Value = serde_json::from_str(&raw_body).map_err(|err| {
+                LLMServiceError::InvalidResponse(format!(
+                    "response is not valid JSON: {}; body={}",
+                    err,
+                    truncate_for_error(&raw_body, 240)
+                ))
+            })?;
             let parsed = Self::parse_response(value)?;
             self.cache_response(&request_hash, &parsed);
             return Ok(parsed);
@@ -244,7 +253,9 @@ impl LLMService {
     pub fn cache_response_for_request(&self, request: &LLMRequest, response: &LLMResponse) {
         let max_tokens = request.max_tokens.unwrap_or(self.api_config.max_tokens);
         let temperature = request.temperature.unwrap_or(self.api_config.temperature);
-        let request_hash = self.build_request_hash(&request.prompt, max_tokens, temperature);
+        let request_url = self.request_url();
+        let request_hash =
+            self.build_request_hash(&request.prompt, &request_url, max_tokens, temperature);
         self.cache_response(&request_hash, response);
     }
 
@@ -252,14 +263,24 @@ impl LLMService {
         self.with_cache(|cache| cache.get(request_hash))
     }
 
-    fn build_request_hash(&self, prompt: &str, max_tokens: u32, temperature: f32) -> String {
+    fn build_request_hash(
+        &self,
+        prompt: &str,
+        request_url: &str,
+        max_tokens: u32,
+        temperature: f32,
+    ) -> String {
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        self.api_config.endpoint.hash(&mut hasher);
+        request_url.hash(&mut hasher);
         self.api_config.model.hash(&mut hasher);
         prompt.hash(&mut hasher);
         max_tokens.hash(&mut hasher);
         temperature.to_bits().hash(&mut hasher);
         format!("{:016x}", hasher.finish())
+    }
+
+    fn request_url(&self) -> String {
+        normalize_chat_endpoint(&self.api_config.endpoint)
     }
 
     fn with_cache<T>(&self, f: impl FnOnce(&mut ResponseCache) -> T) -> T {
@@ -315,6 +336,25 @@ impl LLMService {
             total_tokens,
         })
     }
+}
+
+fn normalize_chat_endpoint(endpoint: &str) -> String {
+    let trimmed = endpoint.trim().trim_end_matches('/');
+    if trimmed.ends_with("/chat/completions") {
+        return trimmed.to_string();
+    }
+    if trimmed.ends_with("/v1") || trimmed.ends_with("/v2") {
+        return format!("{trimmed}/chat/completions");
+    }
+    trimmed.to_string()
+}
+
+fn truncate_for_error(text: &str, max_chars: usize) -> String {
+    if text.chars().count() <= max_chars {
+        return text.to_string();
+    }
+    let truncated = text.chars().take(max_chars).collect::<String>();
+    format!("{truncated}...")
 }
 
 fn is_retryable_status(status: u16) -> bool {
@@ -652,5 +692,20 @@ mod tests {
         assert!(!is_retryable_error(&api_err));
         let timeout = LLMServiceError::Timeout;
         assert!(is_retryable_error(&timeout));
+    }
+
+    #[test]
+    fn test_normalize_chat_endpoint_for_version_path() {
+        let endpoint = "https://maas-api.cn-huabei-1.xf-yun.com/v2";
+        assert_eq!(
+            normalize_chat_endpoint(endpoint),
+            "https://maas-api.cn-huabei-1.xf-yun.com/v2/chat/completions"
+        );
+    }
+
+    #[test]
+    fn test_normalize_chat_endpoint_keeps_completion_path() {
+        let endpoint = "https://api.openai.com/v1/chat/completions";
+        assert_eq!(normalize_chat_endpoint(endpoint), endpoint);
     }
 }

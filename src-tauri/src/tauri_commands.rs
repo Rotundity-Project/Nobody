@@ -1712,7 +1712,7 @@ fn validate_output_path(path: &str, allowed_exts: &[&str]) -> Result<(), AppErro
 
 fn validate_llm_config_input(input: &LLMConfigInput) -> Result<(), AppError> {
     validate_endpoint(&input.endpoint)?;
-    validate_non_empty(&input.model, "模型名称")?;
+    validate_non_empty(&input.model, "模型ID(model)")?;
     if input.max_tokens == 0 || input.max_tokens > 8192 {
         return Err(AppError::new(
             crate::app_error::AppErrorKind::InvalidInput,

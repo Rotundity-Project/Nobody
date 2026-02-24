@@ -45,6 +45,9 @@
   --accent-cool: #6dd0b2;
   --text-strong: #f8fafc;
   --text-muted: #94a3b8;
+  --ink-glow-accent: rgba(242, 200, 107, 0.25);
+  --ink-panel-shadow-strong: rgba(0, 0, 0, 0.35);
+  --ink-action-shadow-hover: rgba(45, 42, 36, 0.08);
 }
 
 .theme-scroll {
@@ -73,28 +76,325 @@
   --ink-shadow-card: 0 4px 12px rgba(45, 42, 36, 0.05);
   --ink-shadow-panel: 0 10px 24px rgba(55, 47, 34, 0.08);
   --ink-shadow: 0 10px 30px rgba(46, 37, 24, 0.09);
+  --ink-overlay-cool-soft: rgba(59, 122, 107, 0.08);
+  --ink-overlay-strong: rgba(25, 16, 13, 0.11);
+  --ink-overlay-seal: rgba(61, 24, 24, 0.12);
+  --ink-pattern-ember: rgba(66, 40, 31, 0.1);
+  --ink-pattern-ink: rgba(41, 29, 22, 0.08);
+  --ink-pattern-seal-soft: rgba(84, 36, 30, 0.06);
+  --ink-elevated-glow: rgba(59, 122, 107, 0.04);
+  --ink-overlay-seal-subtle: rgba(178, 62, 62, 0.035);
+  --ink-story-wash: rgba(245, 238, 226, 0.9);
+  --ink-shadow-story-soft: rgba(0, 0, 0, 0.05);
+  --ink-highlight-inner-strong: rgba(255, 255, 255, 0.5);
+  --ink-dev-field-surface: rgba(255, 255, 255, 0.8);
+  --ink-dev-preview-surface: rgba(0, 0, 0, 0.05);
+  --ink-dock-fill-top: rgba(255, 250, 241, 0.84);
+  --ink-dock-fill-bottom: rgba(236, 224, 204, 0.9);
+  --ink-dock-grain: rgba(88, 50, 37, 0.06);
+  --ink-dock-highlight-inner: rgba(255, 255, 255, 0.45);
+  --ink-dock-shadow-inner: rgba(70, 44, 30, 0.18);
+  --ink-btn-fill-top: rgba(255, 251, 243, 0.86);
+  --ink-btn-fill-bottom: rgba(238, 226, 208, 0.9);
+  --ink-btn-grain: rgba(86, 46, 32, 0.05);
+  --ink-btn-highlight-inner: rgba(255, 255, 255, 0.46);
+  --ink-btn-shadow-inner: rgba(70, 44, 30, 0.17);
+  --ink-option-fill-top: rgba(248, 242, 233, 0.88);
+  --ink-option-fill-bottom: rgba(236, 226, 208, 0.9);
+  --ink-option-grain: rgba(72, 42, 31, 0.05);
+  --ink-option-highlight-inner: rgba(255, 255, 255, 0.4);
+  --ink-option-highlight-hover: rgba(255, 255, 255, 0.45);
+  --ink-elevation-soft: rgba(45, 42, 36, 0.12);
+  --ink-elevation-muted: rgba(45, 42, 36, 0.1);
+  --ink-elevation-option: rgba(45, 36, 28, 0.08);
+  --ink-elevation-option-strong: rgba(45, 36, 28, 0.14);
+  --ink-ambient-warm: rgba(170, 124, 83, 0.12);
+  --ink-ambient-cool: rgba(74, 107, 122, 0.1);
+  --runtime-shell-bg:
+    radial-gradient(circle at 10% 22%, color-mix(in srgb, var(--ink-title-color) 22%, transparent), transparent 34%),
+    radial-gradient(circle at 82% 8%, var(--ink-overlay-cool-soft), transparent 28%),
+    linear-gradient(145deg, var(--ink-paper), var(--ink-paper-elevated));
+  --runtime-shell-overlay:
+    radial-gradient(circle at 12% 14%, var(--ink-overlay-strong), transparent 28%),
+    radial-gradient(circle at 85% 18%, var(--ink-overlay-seal), transparent 32%),
+    repeating-radial-gradient(circle at 18% 24%, var(--ink-pattern-ember) 0 1px, transparent 1px 18px),
+    repeating-linear-gradient(135deg, var(--ink-pattern-ink) 0 2px, transparent 2px 20px),
+    repeating-linear-gradient(45deg, var(--ink-pattern-seal-soft) 0 1px, transparent 1px 14px);
+  --runtime-shell-overlay-size-desktop: 100% 100%, 100% 100%, 260px 260px, 200px 200px, 120px 120px;
+  --runtime-shell-overlay-size-mobile: 100% 100%, 100% 100%, 180px 180px, 150px 150px, 90px 90px;
+  --runtime-shell-overlay-opacity: 0.42;
+  --runtime-card-sheen: radial-gradient(circle at 80% 14%, var(--ink-elevated-glow), transparent 30%);
+  --runtime-main-panel-border: #ddcfbc;
+  --runtime-main-panel-bg:
+    radial-gradient(circle at 10% 88%, var(--ink-overlay-seal-subtle), transparent 35%),
+    radial-gradient(circle at 88% 16%, var(--ink-elevated-glow), transparent 30%);
+  --runtime-story-bg-color: #f5eee2;
+  --runtime-story-bg-image:
+    linear-gradient(var(--ink-story-wash), var(--ink-story-wash)),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'%3E%3Cg fill='none' stroke='%234d2d24' stroke-opacity='0.18' stroke-width='1.1'%3E%3Cpath d='M8 34c10-10 28-10 38 0 8-8 20-8 28 0'/%3E%3Cpath d='M78 52c8-8 20-8 28 0 10-10 28-10 38 0'/%3E%3Cpath d='M16 104c12-9 27-9 39 0 9-8 21-8 30 0'/%3E%3Cpath d='M84 122c9-8 21-8 30 0 12-10 26-10 38 0'/%3E%3C/g%3E%3C/svg%3E");
+  --runtime-story-bg-repeat: no-repeat, repeat;
+  --runtime-story-bg-size: auto, 220px 220px;
+  --runtime-story-shadow: 0 4px 12px var(--ink-shadow-story-soft);
+  --runtime-topbar-border-bottom: #d0c5b5;
+  --runtime-resource-pill-bg: #f8f4ec;
+  --runtime-resource-pill-shadow: inset 0 1px 0 var(--ink-highlight-inner-strong);
+  --runtime-bottom-bar-border-top: #d9cbb8;
+  --runtime-root-earth: #8d6a46;
+  --runtime-root-water: #3b6f9b;
+  --runtime-dev-muted: #6b655d;
+  --runtime-dev-text: #4b463f;
+  --runtime-dev-border: #d2c8b7;
+  --runtime-dev-field-bg: var(--ink-dev-field-surface);
+  --runtime-dev-preview-bg: var(--ink-dev-preview-surface);
+  --runtime-dev-error: #b14534;
+  --runtime-dock-btn-border: #a88763;
+  --runtime-dock-btn-border-top: #c0a07e;
+  --runtime-dock-btn-border-bottom: #8f6c4a;
+  --runtime-dock-btn-bg:
+    linear-gradient(180deg, var(--ink-dock-fill-top), var(--ink-dock-fill-bottom)),
+    repeating-linear-gradient(0deg, var(--ink-dock-grain) 0 1px, transparent 1px 4px);
+  --runtime-dock-btn-shadow:
+    inset 0 1px 0 var(--ink-dock-highlight-inner),
+    inset 0 -1px 0 var(--ink-dock-shadow-inner);
+  --runtime-dock-btn-hover-border: #b78c4a;
+  --runtime-dock-btn-hover-bg: linear-gradient(180deg, #fdf9f1, #f3ebdf);
+  --runtime-dock-btn-hover-shadow: 0 4px 12px var(--ink-elevation-soft);
+  --runtime-dock-btn-primary-border: #b68b46;
+  --runtime-dock-btn-primary-bg: linear-gradient(180deg, #f4ecd9, #ead7b5);
+  --runtime-dock-btn-primary-text: #6b4f2f;
+  --runtime-btn-border: #a98762;
+  --runtime-btn-border-top: #b89773;
+  --runtime-btn-border-bottom: #8a6646;
+  --runtime-btn-bg:
+    linear-gradient(180deg, var(--ink-btn-fill-top), var(--ink-btn-fill-bottom)),
+    repeating-linear-gradient(0deg, var(--ink-btn-grain) 0 1px, transparent 1px 4px);
+  --runtime-btn-shadow:
+    inset 0 1px 0 var(--ink-btn-highlight-inner),
+    inset 0 -1px 0 var(--ink-btn-shadow-inner);
+  --runtime-btn-hover-border: var(--ink-title-color);
+  --runtime-btn-hover-bg: var(--ink-paper);
+  --runtime-btn-hover-shadow: 0 3px 10px var(--ink-elevation-muted);
+  --runtime-option-btn-border: #b39577;
+  --runtime-option-btn-border-top: #c4a98d;
+  --runtime-option-btn-border-bottom: #917250;
+  --runtime-option-btn-bg:
+    linear-gradient(180deg, var(--ink-option-fill-top), var(--ink-option-fill-bottom)),
+    repeating-linear-gradient(45deg, var(--ink-option-grain) 0 1px, transparent 1px 8px);
+  --runtime-option-btn-shadow:
+    inset 0 1px 0 var(--ink-option-highlight-inner),
+    0 3px 8px var(--ink-elevation-option);
+  --runtime-option-btn-hover-border: #9a7b59;
+  --runtime-option-btn-hover-shadow:
+    inset 0 1px 0 var(--ink-option-highlight-hover),
+    0 6px 14px var(--ink-elevation-option-strong);
+  --script-shell-bg:
+    radial-gradient(circle at 10% 18%, color-mix(in srgb, var(--ink-title-color) 18%, transparent), transparent 34%),
+    radial-gradient(circle at 84% 10%, color-mix(in srgb, var(--ink-text-cool) 18%, transparent), transparent 30%),
+    linear-gradient(145deg, var(--ink-paper), var(--ink-paper-elevated));
+  --script-paper-bg: color-mix(in srgb, var(--ink-paper) 92%, transparent);
+  --script-paper-overlay:
+    radial-gradient(circle at 14% 24%, color-mix(in srgb, var(--ink-text-primary) 10%, transparent), transparent 24%),
+    radial-gradient(circle at 78% 12%, color-mix(in srgb, var(--ink-title-color) 16%, transparent), transparent 28%);
+  --script-title-shadow: 0 2px 6px color-mix(in srgb, var(--ink-text-primary) 18%, transparent);
+  --script-card-shadow: 0 2px 8px color-mix(in srgb, var(--ink-text-primary) 10%, transparent);
+  --script-card-shadow-hover: 0 8px 14px color-mix(in srgb, var(--ink-text-primary) 24%, transparent);
+  --script-overlay-bg: color-mix(in srgb, var(--ink-text-primary) 28%, transparent);
+  --script-dialog-bg: color-mix(in srgb, var(--ink-paper) 88%, var(--ink-card-bg));
+  --info-drawer-border: var(--ink-border-soft);
+  --info-drawer-bg: color-mix(in srgb, var(--ink-paper) 96%, transparent);
+  --info-panel-bg: var(--ink-card-bg);
+  --info-map-card-bg: var(--ink-paper-elevated);
+  --info-current-badge-bg: var(--ink-title-color);
+  --info-current-badge-text: var(--ink-paper);
+  --modal-overlay-bg: color-mix(in srgb, var(--ink-text-primary) 25%, transparent);
+  --modal-bg: color-mix(in srgb, var(--ink-paper) 96%, transparent);
+  --modal-border: var(--ink-border-soft);
+  --modal-shadow: var(--ink-shadow-panel);
   background:
-    radial-gradient(circle at 12% 18%, rgba(170, 124, 83, 0.12), transparent 48%),
-    radial-gradient(circle at 82% 10%, rgba(74, 107, 122, 0.1), transparent 44%),
+    radial-gradient(circle at 12% 18%, var(--ink-ambient-warm), transparent 48%),
+    radial-gradient(circle at 82% 10%, var(--ink-ambient-cool), transparent 44%),
     linear-gradient(140deg, var(--ink-bg-base), var(--ink-bg-elevated));
 }
 
 .theme-night {
   --ink-bg-base: #0e1718;
   --ink-bg-elevated: #1c2a2d;
+  --ink-paper: #213133;
+  --ink-paper-elevated: #1c2b2d;
+  --ink-card-bg: #26393b;
+  --ink-card-bg-soft: #223335;
+  --ink-card-bg-muted: #2a4042;
   --ink-surface: rgba(15, 26, 27, 0.6);
   --ink-surface-strong: rgba(18, 31, 33, 0.82);
   --ink-border: rgba(177, 198, 188, 0.18);
+  --ink-border-soft: rgba(146, 171, 161, 0.42);
+  --ink-border-strong: rgba(132, 160, 150, 0.46);
+  --ink-border-accent: #7f9a91;
   --ink-text-primary: #e8edf0;
   --ink-text-muted: #b7c2c6;
   --ink-title-color: #d7bf85;
+  --ink-text-ink: #8dc1b4;
   --ink-accent-main: #4d8b77;
+  --ink-accent-seal: #b85a3f;
   --ink-accent-note: #d2b36a;
   --ink-accent-cool: #b85a3f;
+  --ink-shadow-card: 0 6px 16px rgba(2, 8, 8, 0.28);
+  --ink-shadow-panel: 0 16px 34px rgba(2, 8, 8, 0.4);
   --ink-shadow: 0 16px 40px rgba(3, 10, 11, 0.42);
+  --ink-overlay-cool-soft: rgba(77, 139, 119, 0.18);
+  --ink-overlay-note-soft: rgba(210, 179, 106, 0.1);
+  --ink-overlay-strong: rgba(9, 18, 18, 0.4);
+  --ink-overlay-seal: rgba(16, 34, 32, 0.36);
+  --ink-pattern-frost: rgba(180, 194, 186, 0.08);
+  --ink-elevated-glow: rgba(77, 139, 119, 0.1);
+  --ink-overlay-seal-subtle: rgba(184, 90, 63, 0.11);
+  --ink-main-panel-border-soft: rgba(177, 198, 188, 0.35);
+  --ink-story-wash: rgba(31, 45, 47, 0.92);
+  --ink-shadow-story-soft: rgba(2, 8, 8, 0.3);
+  --ink-runtime-border-soft: rgba(146, 171, 161, 0.45);
+  --ink-runtime-border-muted: rgba(146, 171, 161, 0.38);
+  --ink-runtime-pill-bg: rgba(39, 57, 59, 0.92);
+  --ink-runtime-pill-highlight: rgba(230, 242, 236, 0.18);
+  --ink-dev-field-surface: rgba(33, 49, 51, 0.88);
+  --ink-dev-preview-surface: rgba(7, 14, 14, 0.28);
+  --ink-dock-fill-top: rgba(37, 55, 57, 0.92);
+  --ink-dock-fill-bottom: rgba(29, 45, 47, 0.96);
+  --ink-dock-grain: rgba(216, 228, 220, 0.08);
+  --ink-dock-highlight-inner: rgba(230, 242, 236, 0.16);
+  --ink-dock-shadow-inner: rgba(9, 18, 18, 0.35);
+  --ink-dock-hover-top: rgba(44, 66, 68, 0.96);
+  --ink-dock-hover-bottom: rgba(34, 52, 54, 0.98);
+  --ink-dock-primary-top: rgba(92, 74, 41, 0.92);
+  --ink-dock-primary-bottom: rgba(72, 58, 35, 0.96);
+  --ink-btn-fill-top: rgba(40, 58, 60, 0.9);
+  --ink-btn-fill-bottom: rgba(31, 47, 49, 0.96);
+  --ink-btn-grain: rgba(216, 228, 220, 0.07);
+  --ink-btn-highlight-inner: rgba(230, 242, 236, 0.17);
+  --ink-btn-shadow-inner: rgba(9, 18, 18, 0.32);
+  --ink-btn-hover-top: rgba(49, 70, 72, 0.95);
+  --ink-btn-hover-bottom: rgba(36, 54, 56, 0.98);
+  --ink-option-fill-top: rgba(38, 57, 59, 0.9);
+  --ink-option-fill-bottom: rgba(30, 46, 48, 0.96);
+  --ink-option-grain: rgba(219, 229, 222, 0.08);
+  --ink-option-highlight-inner: rgba(230, 242, 236, 0.15);
+  --ink-option-highlight-hover: rgba(230, 242, 236, 0.2);
+  --ink-elevation-soft: rgba(3, 10, 11, 0.36);
+  --ink-elevation-muted: rgba(3, 10, 11, 0.34);
+  --ink-elevation-option: rgba(3, 10, 11, 0.3);
+  --ink-elevation-option-strong: rgba(3, 10, 11, 0.4);
+  --ink-script-shell-cool: rgba(77, 139, 119, 0.2);
+  --ink-script-shell-note: rgba(210, 179, 106, 0.12);
+  --ink-script-paper-overlay-deep: rgba(10, 22, 22, 0.34);
+  --ink-script-paper-overlay-note: rgba(210, 179, 106, 0.14);
+  --ink-script-title-shadow: rgba(2, 9, 9, 0.36);
+  --ink-script-card-shadow: rgba(3, 10, 11, 0.24);
+  --ink-script-card-shadow-strong: rgba(3, 10, 11, 0.4);
+  --ink-script-overlay-veil: rgba(3, 10, 11, 0.54);
+  --ink-modal-overlay-veil: rgba(3, 10, 11, 0.52);
+  --ink-ambient-warm: rgba(210, 179, 106, 0.1);
+  --ink-ambient-cool: rgba(77, 139, 119, 0.18);
+  --ink-action-shadow-hover: rgba(3, 10, 11, 0.3);
+  --runtime-shell-bg:
+    radial-gradient(circle at 12% 18%, var(--ink-overlay-cool-soft), transparent 34%),
+    radial-gradient(circle at 84% 10%, var(--ink-overlay-note-soft), transparent 30%),
+    linear-gradient(145deg, #121d1f, #1a292b);
+  --runtime-shell-overlay:
+    radial-gradient(circle at 16% 14%, var(--ink-overlay-strong), transparent 36%),
+    radial-gradient(circle at 86% 18%, var(--ink-overlay-seal), transparent 34%),
+    repeating-radial-gradient(circle at 20% 24%, var(--ink-pattern-frost) 0 1px, transparent 1px 18px);
+  --runtime-shell-overlay-size-desktop: 100% 100%, 100% 100%, 240px 240px;
+  --runtime-shell-overlay-size-mobile: 100% 100%, 100% 100%, 170px 170px;
+  --runtime-shell-overlay-opacity: 0.36;
+  --runtime-card-sheen: radial-gradient(circle at 80% 14%, var(--ink-elevated-glow), transparent 32%);
+  --runtime-main-panel-border: var(--ink-main-panel-border-soft);
+  --runtime-main-panel-bg:
+    radial-gradient(circle at 12% 88%, var(--ink-overlay-seal-subtle), transparent 36%),
+    radial-gradient(circle at 88% 16%, var(--ink-elevated-glow), transparent 30%);
+  --runtime-story-bg-color: #1f2d2f;
+  --runtime-story-bg-image:
+    linear-gradient(var(--ink-story-wash), var(--ink-story-wash)),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'%3E%3Cg fill='none' stroke='%23d7bf85' stroke-opacity='0.18' stroke-width='1.1'%3E%3Cpath d='M8 34c10-10 28-10 38 0 8-8 20-8 28 0'/%3E%3Cpath d='M78 52c8-8 20-8 28 0 10-10 28-10 38 0'/%3E%3Cpath d='M16 104c12-9 27-9 39 0 9-8 21-8 30 0'/%3E%3Cpath d='M84 122c9-8 21-8 30 0 12-10 26-10 38 0'/%3E%3C/g%3E%3C/svg%3E");
+  --runtime-story-bg-repeat: no-repeat, repeat;
+  --runtime-story-bg-size: auto, 220px 220px;
+  --runtime-story-shadow: 0 6px 18px var(--ink-shadow-story-soft);
+  --runtime-topbar-border-bottom: var(--ink-runtime-border-soft);
+  --runtime-resource-pill-bg: var(--ink-runtime-pill-bg);
+  --runtime-resource-pill-shadow: inset 0 1px 0 var(--ink-runtime-pill-highlight);
+  --runtime-bottom-bar-border-top: var(--ink-runtime-border-muted);
+  --runtime-root-earth: #b8976e;
+  --runtime-root-water: #79adc7;
+  --runtime-dev-muted: #b6c5c0;
+  --runtime-dev-text: #d7e3de;
+  --runtime-dev-border: #678079;
+  --runtime-dev-field-bg: var(--ink-dev-field-surface);
+  --runtime-dev-preview-bg: var(--ink-dev-preview-surface);
+  --runtime-dev-error: #e58773;
+  --runtime-dock-btn-border: #5d756e;
+  --runtime-dock-btn-border-top: #749089;
+  --runtime-dock-btn-border-bottom: #40534f;
+  --runtime-dock-btn-bg:
+    linear-gradient(180deg, var(--ink-dock-fill-top), var(--ink-dock-fill-bottom)),
+    repeating-linear-gradient(0deg, var(--ink-dock-grain) 0 1px, transparent 1px 4px);
+  --runtime-dock-btn-shadow:
+    inset 0 1px 0 var(--ink-dock-highlight-inner),
+    inset 0 -1px 0 var(--ink-dock-shadow-inner);
+  --runtime-dock-btn-hover-border: #89ab9f;
+  --runtime-dock-btn-hover-bg: linear-gradient(180deg, var(--ink-dock-hover-top), var(--ink-dock-hover-bottom));
+  --runtime-dock-btn-hover-shadow: 0 4px 14px var(--ink-elevation-soft);
+  --runtime-dock-btn-primary-border: #c39e5a;
+  --runtime-dock-btn-primary-bg: linear-gradient(180deg, var(--ink-dock-primary-top), var(--ink-dock-primary-bottom));
+  --runtime-dock-btn-primary-text: #f3dfb2;
+  --runtime-btn-border: #5d756e;
+  --runtime-btn-border-top: #729089;
+  --runtime-btn-border-bottom: #3f534f;
+  --runtime-btn-bg:
+    linear-gradient(180deg, var(--ink-btn-fill-top), var(--ink-btn-fill-bottom)),
+    repeating-linear-gradient(0deg, var(--ink-btn-grain) 0 1px, transparent 1px 4px);
+  --runtime-btn-shadow:
+    inset 0 1px 0 var(--ink-btn-highlight-inner),
+    inset 0 -1px 0 var(--ink-btn-shadow-inner);
+  --runtime-btn-hover-border: #86a89d;
+  --runtime-btn-hover-bg: linear-gradient(180deg, var(--ink-btn-hover-top), var(--ink-btn-hover-bottom));
+  --runtime-btn-hover-shadow: 0 4px 14px var(--ink-elevation-muted);
+  --runtime-option-btn-border: #6c857e;
+  --runtime-option-btn-border-top: #84a198;
+  --runtime-option-btn-border-bottom: #4d635e;
+  --runtime-option-btn-bg:
+    linear-gradient(180deg, var(--ink-option-fill-top), var(--ink-option-fill-bottom)),
+    repeating-linear-gradient(45deg, var(--ink-option-grain) 0 1px, transparent 1px 8px);
+  --runtime-option-btn-shadow:
+    inset 0 1px 0 var(--ink-option-highlight-inner),
+    0 4px 11px var(--ink-elevation-option);
+  --runtime-option-btn-hover-border: #9ebeb3;
+  --runtime-option-btn-hover-shadow:
+    inset 0 1px 0 var(--ink-option-highlight-hover),
+    0 7px 16px var(--ink-elevation-option-strong);
+  --script-shell-bg:
+    radial-gradient(circle at 12% 20%, var(--ink-script-shell-cool), transparent 36%),
+    radial-gradient(circle at 84% 10%, var(--ink-script-shell-note), transparent 30%),
+    linear-gradient(145deg, #152325, #1c2d2f);
+  --script-paper-bg: color-mix(in srgb, #233436 92%, transparent);
+  --script-paper-overlay:
+    radial-gradient(circle at 16% 24%, var(--ink-script-paper-overlay-deep), transparent 28%),
+    radial-gradient(circle at 80% 12%, var(--ink-script-paper-overlay-note), transparent 30%);
+  --script-title-shadow: 0 2px 10px var(--ink-script-title-shadow);
+  --script-card-shadow: 0 2px 10px var(--ink-script-card-shadow);
+  --script-card-shadow-hover: 0 8px 16px var(--ink-script-card-shadow-strong);
+  --script-overlay-bg: var(--ink-script-overlay-veil);
+  --script-dialog-bg: color-mix(in srgb, #223335 86%, #1a292b);
+  --info-drawer-border: var(--ink-runtime-border-soft);
+  --info-drawer-bg: color-mix(in srgb, #1f3032 96%, transparent);
+  --info-panel-bg: #26393b;
+  --info-map-card-bg: #2a4042;
+  --info-current-badge-bg: #4f8f7d;
+  --info-current-badge-text: #e8f0ed;
+  --modal-overlay-bg: var(--ink-modal-overlay-veil);
+  --modal-bg: color-mix(in srgb, #243638 95%, transparent);
+  --modal-border: var(--ink-runtime-border-soft);
+  --modal-shadow: var(--ink-shadow-panel);
   background:
-    radial-gradient(circle at 10% 80%, rgba(77, 139, 119, 0.18), transparent 46%),
-    radial-gradient(circle at 90% 8%, rgba(210, 179, 106, 0.1), transparent 32%),
+    radial-gradient(circle at 10% 80%, var(--ink-ambient-cool), transparent 46%),
+    radial-gradient(circle at 90% 8%, var(--ink-ambient-warm), transparent 32%),
     linear-gradient(160deg, #111d22, #162325 36%, #1e302a 100%);
 }
 
@@ -120,13 +420,13 @@ body {
 }
 
 .text-glow {
-  text-shadow: 0 0 18px rgba(242, 200, 107, 0.25);
+  text-shadow: 0 0 18px var(--ink-glow-accent);
 }
 
 .panel-surface {
   background-color: var(--panel);
   border: 1px solid var(--panel-border);
-  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 20px 45px var(--ink-panel-shadow-strong);
 }
 
 .ink-topbar,
@@ -171,7 +471,7 @@ body {
 .ink-dock-btn:hover {
   border-color: #b78c4a;
   background: #faf7f2;
-  box-shadow: 0 2px 8px rgba(45, 42, 36, 0.08);
+  box-shadow: 0 2px 8px var(--ink-action-shadow-hover);
 }
 
 .ink-main-action:active,

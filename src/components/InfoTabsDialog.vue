@@ -8,8 +8,8 @@
       <div class="ink-info-panel h-full overflow-y-auto rounded-2xl p-4 sm:p-5">
         <div class="mb-4 flex items-center justify-between">
           <div>
-            <p class="text-xs uppercase tracking-[0.25em] text-[#6b655d]">世界层</p>
-            <h3 class="text-xl font-display text-[#b78c4a]">信息抽屉</h3>
+            <p class="info-text-muted text-xs uppercase tracking-[0.25em]">世界层</p>
+            <h3 class="info-title text-xl font-display">信息抽屉</h3>
           </div>
           <UiButton size="sm" class="ink-ui-btn" @click="$emit('close')">关闭</UiButton>
         </div>
@@ -27,7 +27,7 @@
           </UiButton>
         </div>
 
-        <section v-if="activeTab === 'character'" class="space-y-2 text-sm text-[#4d4943]">
+        <section v-if="activeTab === 'character'" class="info-text-body space-y-2 text-sm">
           <p>姓名：{{ playerName }}</p>
           <p>境界：{{ playerRealm }}</p>
           <div v-if="playerRootElementsSafe.length > 0" class="info-root-row">
@@ -96,41 +96,41 @@
                 <span class="info-root-name" :class="rootElementColorClass(item.element)">{{ item.label }}</span>
               </span>
             </div>
-            <span class="text-[#6b655d]">{{ playerRootLabelSafe }}</span>
+            <span class="info-text-muted">{{ playerRootLabelSafe }}</span>
           </div>
           <p>位置：{{ playerLocation }}</p>
         </section>
 
-        <section v-else-if="activeTab === 'progress'" class="space-y-2 text-sm text-[#4d4943]">
+        <section v-else-if="activeTab === 'progress'" class="info-text-body space-y-2 text-sm">
           <p>章节：{{ chapterProgress }}</p>
           <p>章节交互：{{ chapterInteraction }}</p>
           <p>剧情段落：{{ segmentCount }}</p>
           <p>当前状态：{{ isWaitingForInput ? '等待玩家输入' : '自动推进中' }}</p>
         </section>
 
-        <section v-else-if="activeTab === 'map'" class="space-y-3 text-sm text-[#4d4943]">
+        <section v-else-if="activeTab === 'map'" class="info-text-body space-y-3 text-sm">
           <p>当前位置：{{ normalizedCurrentLocationLabel }}</p>
-          <p class="text-xs text-[#6b655d]">可达节点：{{ reachableNodeCount }} / {{ resolvedMapNodes.length }}</p>
-          <div v-if="worldLocations.length === 0" class="text-[#6b655d]">暂无地图节点</div>
+          <p class="info-text-muted text-xs">可达节点：{{ reachableNodeCount }} / {{ resolvedMapNodes.length }}</p>
+          <div v-if="worldLocations.length === 0" class="info-text-muted">暂无地图节点</div>
           <div v-else class="grid gap-2 sm:grid-cols-2">
             <div
               v-for="loc in resolvedMapNodes"
               :key="loc.id"
-              class="rounded border border-[#d9d0c0] bg-[#f2ebdf] p-2"
+              class="info-map-card rounded border p-2"
             >
-              <p class="font-medium text-[#2d2a24]">
+              <p class="info-text-strong font-medium">
                 {{ loc.name }}
                 <span
                   v-if="loc.id === currentLocationId"
-                  class="ml-1 rounded bg-[#b78c4a] px-1.5 py-0.5 text-[10px] text-[#f8f3ea]"
+                  class="info-current-badge ml-1 rounded px-1.5 py-0.5 text-[10px]"
                 >
                   当前
                 </span>
               </p>
-              <p class="text-xs text-[#4d4943]">灵气强度 {{ Number(loc.spiritual_energy).toFixed(2) }} / 风险 {{ loc.riskLabel }}</p>
-              <p class="text-[11px] text-[#6b655d]">灵气差 {{ Number(loc.energyGap).toFixed(2) }}</p>
-              <p v-if="typeof loc.estimatedSteps === 'number'" class="text-[11px] text-[#6b655d]">预计步数 {{ loc.estimatedSteps }}</p>
-              <p v-if="loc.suggestedPath.length > 1" class="text-[11px] text-[#6b655d]">建议路径 {{ loc.suggestedPathLabels.join(' -> ') }}</p>
+              <p class="info-text-body text-xs">灵气强度 {{ Number(loc.spiritual_energy).toFixed(2) }} / 风险 {{ loc.riskLabel }}</p>
+              <p class="info-text-muted text-[11px]">灵气差 {{ Number(loc.energyGap).toFixed(2) }}</p>
+              <p v-if="typeof loc.estimatedSteps === 'number'" class="info-text-muted text-[11px]">预计步数 {{ loc.estimatedSteps }}</p>
+              <p v-if="loc.suggestedPath.length > 1" class="info-text-muted text-[11px]">建议路径 {{ loc.suggestedPathLabels.join(' -> ') }}</p>
               <p class="mt-1 text-[11px]" :class="loc.reachable ? 'text-emerald-300' : 'text-amber-300'">
                 {{ loc.reachable ? '可达' : '暂不可达' }}
               </p>
@@ -148,14 +148,14 @@
           </div>
         </section>
 
-        <section v-else-if="activeTab === 'review'" class="space-y-2 text-sm text-[#4d4943]">
-          <p class="text-[#6b655d]">最近战斗复盘</p>
-          <div v-if="recentCombatExplanations.length === 0" class="text-[#6b655d]">暂无战斗复盘记录</div>
+        <section v-else-if="activeTab === 'review'" class="info-text-body space-y-2 text-sm">
+          <p class="info-text-muted">最近战斗复盘</p>
+          <div v-if="recentCombatExplanations.length === 0" class="info-text-muted">暂无战斗复盘记录</div>
           <ul v-else class="space-y-2">
             <li
               v-for="(item, idx) in recentCombatExplanations"
               :key="`review-${idx}-${item}`"
-              class="rounded border border-[#d9d0c0] bg-[#f2ebdf] p-2 text-xs text-[#4d4943]"
+              class="info-map-card info-text-body rounded border p-2 text-xs"
             >
               {{ item }}
             </li>
@@ -166,21 +166,21 @@
           <NovelExporter :is-game-running="isGameRunning" :event-count="eventCount" />
         </section>
 
-        <section v-else-if="activeTab === 'debug'" class="space-y-2 text-xs text-[#4d4943]">
-          <p v-if="!isDevMode" class="text-[#6b655d]">当前为非开发模式，调试信息已隐藏。</p>
+        <section v-else-if="activeTab === 'debug'" class="info-text-body space-y-2 text-xs">
+          <p v-if="!isDevMode" class="info-text-muted">当前为非开发模式，调试信息已隐藏。</p>
           <template v-else>
             <p>章节：{{ debugChapter }}</p>
             <p>选项来源：{{ debugOptionSource || '无' }}</p>
             <p v-if="debugOptionHint">来源说明：{{ debugOptionHint }}</p>
             <p>等待输入：{{ isWaitingForInput ? '是' : '否' }}</p>
             <p>一致性风险分：{{ debugRiskScore ?? '无' }}</p>
-            <p class="whitespace-pre-wrap text-[#6b655d]">诊断：{{ debugDiagnostics || '无' }}</p>
+            <p class="info-text-muted whitespace-pre-wrap">诊断：{{ debugDiagnostics || '无' }}</p>
           </template>
         </section>
 
         <section v-else class="space-y-3">
           <StatusBanner v-if="systemError" kind="error" title="系统提示" :message="systemError" />
-          <p v-else class="text-sm text-[#6b655d]">当前无系统提示。</p>
+          <p v-else class="info-text-muted text-sm">当前无系统提示。</p>
           <UiButton v-if="systemError" size="sm" variant="danger" class="ink-ui-btn-danger" @click="$emit('clearError')">清除提示</UiButton>
         </section>
       </div>
@@ -387,35 +387,61 @@ const reachableNodeCount = computed(
 }
 
 .ink-info-drawer {
-  border-left: 1px solid #d9d0c0;
-  background: rgba(250, 247, 242, 0.96);
+  border-left: 1px solid var(--info-drawer-border);
+  background: var(--info-drawer-bg);
   backdrop-filter: blur(8px);
 }
 
 .ink-info-panel {
-  background: #f5f0e8;
-  border: 1px solid #d9d0c0;
-  box-shadow: 0 10px 28px rgba(45, 42, 36, 0.08);
+  background: var(--info-panel-bg);
+  border: 1px solid var(--ink-border-soft);
+  box-shadow: var(--ink-shadow-panel);
 }
 
 .ink-ui-btn :deep(button),
 .ink-ui-btn {
-  border: 1px solid #b7a88c !important;
-  background: #f8f3ea !important;
-  color: #2d2a24 !important;
+  border: 1px solid var(--ink-border-accent) !important;
+  background: var(--ink-paper) !important;
+  color: var(--ink-text-primary) !important;
 }
 
 .ink-ui-btn:hover :deep(button),
 .ink-ui-btn:hover {
-  border-color: #b78c4a !important;
-  background: #faf7f2 !important;
+  border-color: var(--ink-title-color) !important;
+  background: var(--ink-paper-elevated) !important;
 }
 
 .ink-ui-btn-danger :deep(button),
 .ink-ui-btn-danger {
-  border: 1px solid #b23e3e !important;
-  background: #fdf5f4 !important;
-  color: #9a3434 !important;
+  border: 1px solid var(--ink-accent-main) !important;
+  background: color-mix(in srgb, var(--ink-accent-main) 8%, var(--ink-paper)) !important;
+  color: color-mix(in srgb, var(--ink-accent-main) 86%, var(--ink-text-primary)) !important;
+}
+
+.info-title {
+  color: var(--ink-title-color);
+}
+
+.info-text-strong {
+  color: var(--ink-text-primary);
+}
+
+.info-text-body {
+  color: color-mix(in srgb, var(--ink-text-primary) 90%, var(--ink-text-muted));
+}
+
+.info-text-muted {
+  color: var(--ink-text-muted);
+}
+
+.info-map-card {
+  border-color: var(--ink-border-soft);
+  background: var(--info-map-card-bg);
+}
+
+.info-current-badge {
+  background: var(--info-current-badge-bg);
+  color: var(--info-current-badge-text);
 }
 
 .info-root-list {
@@ -445,22 +471,22 @@ const reachableNodeCount = computed(
 }
 
 .info-root-earth {
-  color: #9b7a56;
+  color: var(--runtime-root-earth);
 }
 
 .info-root-metal {
-  color: #c8a661;
+  color: var(--ink-title-color);
 }
 
 .info-root-wood {
-  color: #2f6a5d;
+  color: var(--ink-text-ink);
 }
 
 .info-root-water {
-  color: #4a7fa9;
+  color: var(--runtime-root-water);
 }
 
 .info-root-fire {
-  color: #c05252;
+  color: var(--ink-accent-main);
 }
 </style>

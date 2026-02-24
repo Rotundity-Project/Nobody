@@ -162,7 +162,7 @@
             <p class="runtime-sub-text">
               来源：{{ worldRegistrySourceLabel }}
             </p>
-            <div class="mt-2 grid grid-cols-2 gap-2 text-xs text-[#6b655d]">
+            <div class="runtime-dev-muted mt-2 grid grid-cols-2 gap-2 text-xs">
               <p>人物：{{ worldRegistryCounts.characters }}</p>
               <p>地图点：{{ worldRegistryCounts.map_nodes }}</p>
               <p>地图边：{{ worldRegistryCounts.map_edges }}</p>
@@ -173,14 +173,14 @@
               <p>事实：{{ worldRegistryCounts.world_facts }}</p>
             </div>
             <details class="mt-2">
-              <summary class="cursor-pointer text-xs text-[#6b655d]">查看 JSON 预览</summary>
-              <pre class="mt-2 max-h-40 overflow-auto rounded-lg bg-black/5 p-2 text-[10px] leading-4 text-[#524d45]">{{ worldRegistryPreview }}</pre>
+              <summary class="runtime-dev-muted cursor-pointer text-xs">查看 JSON 预览</summary>
+              <pre class="runtime-dev-preview runtime-dev-text mt-2 max-h-40 overflow-auto rounded-lg p-2 text-[10px] leading-4">{{ worldRegistryPreview }}</pre>
             </details>
             <details class="mt-2">
-              <summary class="cursor-pointer text-xs text-[#6b655d]">提交 Patch(JSON)</summary>
+              <summary class="runtime-dev-muted cursor-pointer text-xs">提交 Patch(JSON)</summary>
               <textarea
                 v-model="worldRegistryPatchInput"
-                class="mt-2 min-h-[120px] w-full rounded-lg border border-[#d2c8b7] bg-white/80 p-2 text-[11px] leading-4 text-[#4b463f]"
+                class="runtime-dev-field runtime-dev-text mt-2 min-h-[120px] w-full rounded-lg border p-2 text-[11px] leading-4"
                 spellcheck="false"
               />
               <div class="mt-2 flex items-center gap-2">
@@ -200,25 +200,25 @@
                   重置模板
                 </button>
               </div>
-              <p v-if="worldRegistryPatchError" class="mt-1 text-xs text-[#b14534]">{{ worldRegistryPatchError }}</p>
+              <p v-if="worldRegistryPatchError" class="runtime-dev-error mt-1 text-xs">{{ worldRegistryPatchError }}</p>
             </details>
             <details class="mt-2">
-              <summary class="cursor-pointer text-xs text-[#6b655d]">按表追加一行</summary>
+              <summary class="runtime-dev-muted cursor-pointer text-xs">按表追加一行</summary>
               <div class="mt-2 space-y-2 text-xs">
                 <label class="flex flex-col gap-1">
-                  <span class="text-[#6b655d]">目标表</span>
+                  <span class="runtime-dev-muted">目标表</span>
                   <select
                     v-model="worldRegistrySelectedTable"
-                    class="rounded-lg border border-[#d2c8b7] bg-white/80 px-2 py-1 text-[12px] text-[#4b463f]"
+                    class="runtime-dev-field runtime-dev-text rounded-lg border px-2 py-1 text-[12px]"
                   >
                     <option v-for="item in worldRegistryTableOptions" :key="item" :value="item">{{ item }}</option>
                   </select>
                 </label>
                 <label class="flex flex-col gap-1">
-                  <span class="text-[#6b655d]">行 JSON（对象）</span>
+                  <span class="runtime-dev-muted">行 JSON（对象）</span>
                   <textarea
                     v-model="worldRegistryRowInput"
-                    class="min-h-[96px] w-full rounded-lg border border-[#d2c8b7] bg-white/80 p-2 text-[11px] leading-4 text-[#4b463f]"
+                    class="runtime-dev-field runtime-dev-text min-h-[96px] w-full rounded-lg border p-2 text-[11px] leading-4"
                     spellcheck="false"
                   />
                 </label>
@@ -247,12 +247,12 @@
                   </button>
                 </div>
                 <label class="flex flex-col gap-1">
-                  <span class="text-[#6b655d]">目标索引（用于替换/删除）</span>
+                  <span class="runtime-dev-muted">目标索引（用于替换/删除）</span>
                   <input
                     v-model.number="worldRegistrySelectedIndex"
                     type="number"
                     min="0"
-                    class="w-28 rounded-lg border border-[#d2c8b7] bg-white/80 px-2 py-1 text-[12px] text-[#4b463f]"
+                    class="runtime-dev-field runtime-dev-text w-28 rounded-lg border px-2 py-1 text-[12px]"
                   />
                 </label>
                 <div class="flex items-center gap-2">
@@ -281,11 +281,11 @@
                   </button>
                 </div>
                 <label class="flex flex-col gap-1">
-                  <span class="text-[#6b655d]">主键字段（用于按主键更新/新增）</span>
+                  <span class="runtime-dev-muted">主键字段（用于按主键更新/新增）</span>
                   <input
                     v-model="worldRegistryKeyField"
                     type="text"
-                    class="w-40 rounded-lg border border-[#d2c8b7] bg-white/80 px-2 py-1 text-[12px] text-[#4b463f]"
+                    class="runtime-dev-field runtime-dev-text w-40 rounded-lg border px-2 py-1 text-[12px]"
                   />
                 </label>
                 <div class="flex items-center gap-2">
@@ -298,10 +298,10 @@
                     按主键更新/新增
                   </button>
                 </div>
-                <p v-if="worldRegistryRowError" class="text-xs text-[#b14534]">{{ worldRegistryRowError }}</p>
-                <div class="mt-1 rounded-lg bg-black/5 p-2">
-                  <p class="text-[11px] text-[#6b655d]">当前表预览（{{ worldRegistrySelectedTableRows.length }} 行）</p>
-                  <ul class="mt-1 max-h-28 overflow-auto space-y-1 text-[11px] text-[#4b463f]">
+                <p v-if="worldRegistryRowError" class="runtime-dev-error text-xs">{{ worldRegistryRowError }}</p>
+                <div class="runtime-dev-preview mt-1 rounded-lg p-2">
+                  <p class="runtime-dev-muted text-[11px]">当前表预览（{{ worldRegistrySelectedTableRows.length }} 行）</p>
+                  <ul class="runtime-dev-text mt-1 max-h-28 overflow-auto space-y-1 text-[11px]">
                     <li v-for="item in worldRegistrySelectedTableRowsPaged" :key="`${item.index}-${item.label}`">
                       [{{ item.index }}] {{ item.label }}
                     </li>
@@ -1785,18 +1785,33 @@ useGameHotkeys(handleKeydown);
 
 <style scoped>
 .game-shell {
+  position: relative;
+  isolation: isolate;
   font-family: 'Noto Serif SC', 'Source Han Serif SC', 'STSong', 'SimSun', serif;
-  background:
-    radial-gradient(circle at 10% 22%, color-mix(in srgb, var(--ink-title-color) 22%, transparent), transparent 34%),
-    radial-gradient(circle at 82% 8%, rgba(59, 122, 107, 0.08), transparent 28%),
-    linear-gradient(145deg, var(--ink-paper), var(--ink-paper-elevated));
+  background: var(--runtime-shell-bg);
+}
+
+.game-shell::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--runtime-shell-overlay);
+  background-size: var(--runtime-shell-overlay-size-desktop);
+  opacity: var(--runtime-shell-overlay-opacity);
+}
+
+.game-shell > * {
+  position: relative;
+  z-index: 1;
 }
 
 .runtime-topbar {
   height: 56px;
   border-radius: 12px;
   border: 1px solid var(--ink-border-soft);
-  border-bottom-color: #d0c5b5;
+  border-bottom-color: var(--runtime-topbar-border-bottom);
   background: var(--ink-card-bg);
   padding: 0 18px;
   display: grid;
@@ -1908,12 +1923,12 @@ useGameHotkeys(handleKeydown);
 .runtime-resource-pill {
   border-radius: 999px;
   border: 1px solid var(--ink-border-accent);
-  background: #f8f4ec;
+  background: var(--runtime-resource-pill-bg);
   color: var(--ink-title-color);
   padding: 4px 11px;
   font-size: 12px;
   line-height: 1.3;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  box-shadow: var(--runtime-resource-pill-shadow);
 }
 
 .runtime-content {
@@ -1942,7 +1957,7 @@ useGameHotkeys(handleKeydown);
 
 .runtime-card {
   padding: 20px;
-  background-image: radial-gradient(circle at 80% 14%, rgba(59, 122, 107, 0.04), transparent 30%);
+  background-image: var(--runtime-card-sheen);
 }
 
 .runtime-side-left .runtime-card {
@@ -1977,6 +1992,7 @@ useGameHotkeys(handleKeydown);
   letter-spacing: 0.01em;
   line-height: 1.35;
   font-family: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', serif;
+  display: inline-block;
 }
 
 .runtime-chapter-title {
@@ -1992,6 +2008,27 @@ useGameHotkeys(handleKeydown);
   font-size: 14px;
   line-height: 1.6;
   letter-spacing: 0.01em;
+}
+
+.runtime-dev-muted {
+  color: var(--runtime-dev-muted);
+}
+
+.runtime-dev-text {
+  color: var(--runtime-dev-text);
+}
+
+.runtime-dev-field {
+  border-color: var(--runtime-dev-border);
+  background: var(--runtime-dev-field-bg);
+}
+
+.runtime-dev-preview {
+  background: var(--runtime-dev-preview-bg);
+}
+
+.runtime-dev-error {
+  color: var(--runtime-dev-error);
 }
 
 .runtime-root-line {
@@ -2028,7 +2065,7 @@ useGameHotkeys(handleKeydown);
 }
 
 .runtime-root-earth {
-  color: #8d6a46;
+  color: var(--runtime-root-earth);
 }
 
 .runtime-root-metal {
@@ -2040,7 +2077,7 @@ useGameHotkeys(handleKeydown);
 }
 
 .runtime-root-water {
-  color: #3b6f9b;
+  color: var(--runtime-root-water);
 }
 
 .runtime-root-fire {
@@ -2112,11 +2149,9 @@ useGameHotkeys(handleKeydown);
   flex-direction: column;
   overflow: hidden;
   padding: 24px;
-  border-color: #ddcfbc;
+  border-color: var(--runtime-main-panel-border);
   background: var(--ink-paper);
-  background-image:
-    radial-gradient(circle at 10% 88%, rgba(178, 62, 62, 0.035), transparent 35%),
-    radial-gradient(circle at 88% 16%, rgba(59, 122, 107, 0.04), transparent 30%);
+  background-image: var(--runtime-main-panel-bg);
 }
 
 .runtime-main-header {
@@ -2170,6 +2205,7 @@ useGameHotkeys(handleKeydown);
 }
 
 .runtime-main-body :deep(.runtime-story-scroll) {
+  position: relative;
   height: 100%;
   min-height: 0;
   max-height: 100%;
@@ -2177,8 +2213,11 @@ useGameHotkeys(handleKeydown);
   overflow-x: hidden;
   border-radius: 12px;
   border: 1px solid var(--ink-border-strong);
-  background: var(--ink-card-bg);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  background-color: var(--runtime-story-bg-color);
+  background-image: var(--runtime-story-bg-image);
+  background-repeat: var(--runtime-story-bg-repeat);
+  background-size: var(--runtime-story-bg-size);
+  box-shadow: var(--runtime-story-shadow);
   padding: 24px;
 }
 
@@ -2260,7 +2299,7 @@ useGameHotkeys(handleKeydown);
   z-index: 10;
   margin-top: 18px;
   min-height: 64px;
-  border-top: 1px solid #d9cbb8;
+  border-top: 1px solid var(--runtime-bottom-bar-border-top);
   border-radius: 12px;
   background: var(--ink-card-bg-soft);
   padding: 11px 18px;
@@ -2287,40 +2326,60 @@ useGameHotkeys(handleKeydown);
 
 .runtime-bottom-bar :deep(.ink-dock-btn) {
   min-width: 60px;
-  border-radius: 12px;
-  border-color: #c6b295;
-  background: linear-gradient(180deg, #f8f4ec, #efe7da);
+  border-radius: 10px;
+  border: 1px solid var(--runtime-dock-btn-border);
+  border-top-color: var(--runtime-dock-btn-border-top);
+  border-bottom-color: var(--runtime-dock-btn-border-bottom);
+  background: var(--runtime-dock-btn-bg);
   padding: 7px 14px;
   font-size: 14px;
   line-height: 1.1;
+  box-shadow: var(--runtime-dock-btn-shadow);
 }
 
 .runtime-bottom-bar :deep(.ink-dock-btn:hover) {
-  border-color: #b78c4a;
-  background: linear-gradient(180deg, #fdf9f1, #f3ebdf);
-  box-shadow: 0 4px 12px rgba(45, 42, 36, 0.12);
+  border-color: var(--runtime-dock-btn-hover-border);
+  background: var(--runtime-dock-btn-hover-bg);
+  box-shadow: var(--runtime-dock-btn-hover-shadow);
 }
 
 .runtime-bottom-bar :deep(.ink-dock-btn-primary) {
-  border-color: #b68b46;
-  background: linear-gradient(180deg, #f4ecd9, #ead7b5);
-  color: #6b4f2f;
+  border-color: var(--runtime-dock-btn-primary-border);
+  background: var(--runtime-dock-btn-primary-bg);
+  color: var(--runtime-dock-btn-primary-text);
 }
 
 .runtime-bottom-btn {
   border-radius: 8px;
-  border: 1px solid var(--ink-border-accent);
-  background: #f8f3ea;
+  border: 1px solid var(--runtime-btn-border);
+  border-top-color: var(--runtime-btn-border-top);
+  border-bottom-color: var(--runtime-btn-border-bottom);
+  background: var(--runtime-btn-bg);
   color: var(--ink-text-primary);
   padding: 8px 18px;
+  box-shadow: var(--runtime-btn-shadow);
   transition: border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease, transform 120ms ease;
+}
+
+.runtime-interaction-card :deep(.option-btn) {
+  border-radius: 9px;
+  border: 1px solid var(--runtime-option-btn-border);
+  border-top-color: var(--runtime-option-btn-border-top);
+  border-bottom-color: var(--runtime-option-btn-border-bottom);
+  background: var(--runtime-option-btn-bg);
+  box-shadow: var(--runtime-option-btn-shadow);
+}
+
+.runtime-interaction-card :deep(.option-btn:hover) {
+  border-color: var(--runtime-option-btn-hover-border);
+  box-shadow: var(--runtime-option-btn-hover-shadow);
 }
 
 .runtime-bottom-btn:hover,
 .runtime-seal-btn:hover {
-  border-color: var(--ink-title-color);
-  background: var(--ink-paper);
-  box-shadow: 0 3px 10px rgba(45, 42, 36, 0.1);
+  border-color: var(--runtime-btn-hover-border);
+  background: var(--runtime-btn-hover-bg);
+  box-shadow: var(--runtime-btn-hover-shadow);
 }
 
 .runtime-bottom-btn:active,
@@ -2366,6 +2425,11 @@ useGameHotkeys(handleKeydown);
 
   .runtime-main-panel {
     padding: 18px;
+  }
+
+  .game-shell::before {
+    background-size: var(--runtime-shell-overlay-size-mobile);
+    opacity: var(--runtime-shell-overlay-opacity);
   }
 }
 </style>

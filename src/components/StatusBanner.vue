@@ -25,17 +25,17 @@ const baseClass = 'rounded-lg border px-3 py-2 shadow-sm';
 const wrapperClass = computed(() => {
   switch (props.kind) {
     case 'loading':
-      return `${baseClass} border-[#b78c4a]/40 bg-[#faf7f2] text-[#7a5f2f]`;
+      return `${baseClass} status-loading`;
     case 'success':
-      return `${baseClass} border-[#3b7a6b]/35 bg-[#f3f8f6] text-[#2c675a]`;
+      return `${baseClass} status-success`;
     case 'error':
-      return `${baseClass} border-[#b23e3e]/35 bg-[#fdf5f4] text-[#9a3434]`;
+      return `${baseClass} status-error`;
     case 'auto_advance':
-      return `${baseClass} border-[#3b7a6b]/35 bg-[#f1f7f5] text-[#2d6b5e]`;
+      return `${baseClass} status-auto-advance`;
     case 'validation':
-      return `${baseClass} border-[#8a6a3a]/35 bg-[#faf6ef] text-[#70552d]`;
+      return `${baseClass} status-validation`;
     default:
-      return `${baseClass} border-[#d9d0c0] bg-[#f8f4ec] text-[#5e5a54]`;
+      return `${baseClass} status-default`;
   }
 });
 </script>
@@ -45,5 +45,41 @@ const wrapperClass = computed(() => {
 .status-message {
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+
+.status-loading {
+  border-color: color-mix(in srgb, var(--ink-title-color) 40%, transparent);
+  background: color-mix(in srgb, var(--ink-paper) 88%, transparent);
+  color: color-mix(in srgb, var(--ink-title-color) 72%, var(--ink-text-primary));
+}
+
+.status-success {
+  border-color: color-mix(in srgb, var(--ink-text-cool) 35%, transparent);
+  background: color-mix(in srgb, var(--ink-text-cool) 11%, var(--ink-paper));
+  color: var(--ink-text-cool);
+}
+
+.status-error {
+  border-color: color-mix(in srgb, var(--ink-accent-main) 35%, transparent);
+  background: color-mix(in srgb, var(--ink-accent-main) 10%, var(--ink-paper));
+  color: var(--ink-accent-main);
+}
+
+.status-auto-advance {
+  border-color: color-mix(in srgb, var(--ink-text-cool) 35%, transparent);
+  background: color-mix(in srgb, var(--ink-text-cool) 9%, var(--ink-paper));
+  color: color-mix(in srgb, var(--ink-text-cool) 85%, var(--ink-text-primary));
+}
+
+.status-validation {
+  border-color: color-mix(in srgb, var(--ink-accent-note) 35%, transparent);
+  background: color-mix(in srgb, var(--ink-accent-note) 12%, var(--ink-paper));
+  color: color-mix(in srgb, var(--ink-accent-note) 76%, var(--ink-text-primary));
+}
+
+.status-default {
+  border-color: var(--ink-border-soft);
+  background: color-mix(in srgb, var(--ink-paper-elevated) 90%, transparent);
+  color: var(--ink-text-muted);
 }
 </style>
