@@ -1,7 +1,7 @@
 ﻿<template>
   <div
     v-if="isOpen"
-    class="fixed inset-0 z-[70] flex items-center justify-center bg-black/30 p-4"
+    class="fixed inset-0 z-[120] flex items-center justify-center bg-black/30 p-4"
     @click.self="$emit('close')"
   >
     <section class="runtime-quick-dialog w-full max-w-2xl rounded-2xl p-4 sm:p-5">
@@ -20,24 +20,24 @@
             {{ tab.label }}
           </button>
         </div>
-        <button type="button" class="runtime-quick-close" @click="$emit('close')">Close</button>
+        <button type="button" class="runtime-quick-close" @click="$emit('close')">关闭</button>
       </header>
       <section class="runtime-quick-body">
         <h3 class="runtime-quick-title">{{ activePanel?.title || '' }}</h3>
         <p v-if="activePanel?.subtitle" class="runtime-quick-subtitle">{{ activePanel.subtitle }}</p>
         <label class="runtime-quick-search-wrap">
-          <span class="runtime-quick-search-label">Filter</span>
+          <span class="runtime-quick-search-label">筛选</span>
           <input
             ref="searchInputRef"
             v-model.trim="searchKeyword"
             type="text"
             class="runtime-quick-search"
-            :placeholder="`Search ${activePanel?.label || ''}`"
+            :placeholder="`搜索${activePanel?.label || ''}`"
           />
         </label>
         <p v-if="copyFeedback" class="runtime-quick-feedback">{{ copyFeedback }}</p>
         <p v-if="!activePanel || filteredItems.length === 0" class="runtime-quick-empty">
-          {{ activePanel?.emptyText || 'No data.' }}
+          {{ activePanel?.emptyText || '暂无数据。' }}
         </p>
         <ul v-else class="runtime-quick-list">
           <li

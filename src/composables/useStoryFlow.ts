@@ -45,13 +45,20 @@ export const useStoryFlow = ({
   const autoAdvanceRunning = ref(false);
   const autoAdvanceStopRequested = ref(false);
   const autoAdvanceStopHint = ref('');
+  const safePlayClick = () => {
+    try {
+      playClick();
+    } catch (error) {
+      console.warn('播放点击音效失败，已忽略：', error);
+    }
+  };
 
   const handleOptionSelect = async (option: PlayerOption) => {
     try {
       autoAdvanceStopHint.value = '';
       isLoading.value = true;
       loadingMessage.value = '正在执行选项...';
-      playClick();
+      safePlayClick();
       await gameStore.executePlayerAction(createOptionAction(option));
     } catch (error) {
       console.error('执行行动失败：', error);
@@ -71,7 +78,7 @@ export const useStoryFlow = ({
       autoAdvanceStopHint.value = '';
       isLoading.value = true;
       loadingMessage.value = '正在解析输入...';
-      playClick();
+      safePlayClick();
       await gameStore.executePlayerAction(createFreeTextAction(freeTextInput.value));
       freeTextInput.value = '';
     } catch (error) {
@@ -88,7 +95,7 @@ export const useStoryFlow = ({
       autoAdvanceStopRequested.value = false;
       isLoading.value = true;
       loadingMessage.value = '正在续写剧情...';
-      playClick();
+      safePlayClick();
       autoAdvanceRunning.value = true;
       let step = 0;
       let stoppedByStagnation = false;

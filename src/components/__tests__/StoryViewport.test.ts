@@ -36,36 +36,13 @@ describe('StoryViewport', () => {
 
   it('does not render reading locator block', () => {
     const wrapper = buildWrapper();
-    expect(wrapper.text()).not.toContain('阅读定位');
     expect(wrapper.find('[data-testid="reading-locator"]').exists()).toBe(false);
   });
 
-  it('shows scroll-to-bottom button when content is scrollable and not at bottom', async () => {
+  it('keeps scroll-to-bottom button hidden in pagination mode', async () => {
     const wrapper = buildWrapper();
     const host = wrapper.get('.runtime-story-scroll').element as HTMLElement;
     Object.defineProperty(host, 'scrollHeight', { configurable: true, value: 420 });
-    Object.defineProperty(host, 'clientHeight', { configurable: true, value: 180 });
-    host.scrollTop = 0;
-    host.dispatchEvent(new Event('scroll'));
-    await wrapper.vm.$nextTick();
-    expect(wrapper.get('[data-testid="scroll-bottom-visible"]').text()).toBe('true');
-  });
-
-  it('hides scroll-to-bottom button when reading progress reaches bottom', async () => {
-    const wrapper = buildWrapper();
-    const host = wrapper.get('.runtime-story-scroll').element as HTMLElement;
-    Object.defineProperty(host, 'scrollHeight', { configurable: true, value: 400 });
-    Object.defineProperty(host, 'clientHeight', { configurable: true, value: 200 });
-    host.scrollTop = 200;
-    host.dispatchEvent(new Event('scroll'));
-    await wrapper.vm.$nextTick();
-    expect(wrapper.get('[data-testid="scroll-bottom-visible"]').text()).toBe('false');
-  });
-
-  it('hides scroll-to-bottom button when content is not scrollable', async () => {
-    const wrapper = buildWrapper();
-    const host = wrapper.get('.runtime-story-scroll').element as HTMLElement;
-    Object.defineProperty(host, 'scrollHeight', { configurable: true, value: 180 });
     Object.defineProperty(host, 'clientHeight', { configurable: true, value: 180 });
     host.scrollTop = 0;
     host.dispatchEvent(new Event('scroll'));
@@ -179,3 +156,4 @@ describe('StoryViewport', () => {
     expect(wrapper.text()).toContain('第 1 /');
   });
 });
+

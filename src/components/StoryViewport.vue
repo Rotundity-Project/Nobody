@@ -1,8 +1,8 @@
 <template>
-  <div class="story-viewport-frame relative flex-1 overflow-hidden rounded-[12px]">
+  <div class="story-viewport-frame relative flex-1 rounded-[12px]">
     <div
       ref="scrollElement"
-      class="runtime-story-scroll relative h-full overflow-y-auto"
+      class="runtime-story-scroll relative"
       tabindex="0"
       @keydown="handleViewportKeydown"
     >
@@ -28,6 +28,9 @@
     <div
       v-if="totalPages > 1"
       class="story-page-nav"
+      :class="{ 'story-page-nav-hidden': !isPageNavVisible }"
+      @mouseenter="handlePageNavMouseEnter"
+      @mouseleave="handlePageNavMouseLeave"
     >
       <button
         type="button"
@@ -69,13 +72,17 @@ const scrollElement = ref<HTMLElement | null>(null);
 const readingProgress = ref(0);
 const hasScrollableContent = ref(false);
 const currentPage = ref(0);
-
+const isPageNavVisible = ref(true);
+const isPageNavHovered = ref(false);
 const PAGE_TRIGGER_CHAR_COUNT = 1200;
-const PAGE_CHAR_BUDGET = 850;
+const PAGE_CHAR_BUDGET = 960;
+const PAGE_NAV_HIDE_DELAY_MS = 1200;
+
+let pageNavHideTimer: ReturnType<typeof setTimeout> | null = null;
 
 const splitLongParagraph = (text: string, budget: number): string[] => {
   const trimmed = text.trim();
-  if (trimmed.length <= budget) return [trimmed];
+  if (trimmed.length <= Math.round(budget * 1.35)) return [trimmed];
   const out: string[] = [];
   let start = 0;
   while (start < trimmed.length) {
@@ -123,15 +130,7 @@ const pagedParagraphGroups = computed(() => {
 const totalPages = computed(() => pagedParagraphGroups.value.length);
 const currentPageParagraphs = computed(() => pagedParagraphGroups.value[currentPage.value] ?? []);
 
-const showScrollToBottomButton = computed(
-  () =>
-    props.isGameInitialized
-    && props.hasScene
-    && props.paragraphs.length > 0
-    && totalPages.value <= 1
-    && hasScrollableContent.value
-    && readingProgress.value < 0.95,
-);
+const showScrollToBottomButton = computed(() => false);
 const readingFadeStyle = computed(() => ({
   background: 'linear-gradient(to top, color-mix(in srgb, var(--ink-bg-base) 86%, transparent), transparent)',
 }));
@@ -147,6 +146,7 @@ const updateReadingProgress = () => {
   const maxScrollable = Math.max(1, rawScrollable);
   const ratio = el.scrollTop / maxScrollable;
   readingProgress.value = Math.max(0, Math.min(1, Number.isFinite(ratio) ? ratio : 0));
+  revealPageNavTemporarily();
 };
 
 const resolveScrollBehavior = (): ScrollBehavior => {
@@ -182,12 +182,14 @@ const resetViewportScroll = async () => {
 const goPrevPage = () => {
   if (currentPage.value <= 0) return;
   currentPage.value -= 1;
+  revealPageNavTemporarily();
   void resetViewportScroll();
 };
 
 const goNextPage = () => {
   if (currentPage.value >= totalPages.value - 1) return;
   currentPage.value += 1;
+  revealPageNavTemporarily();
   void resetViewportScroll();
 };
 
@@ -195,22 +197,59 @@ const handleViewportKeydown = (event: KeyboardEvent) => {
   if (totalPages.value <= 1) return;
   if (event.key === 'ArrowLeft' || event.key === 'PageUp') {
     event.preventDefault();
+    revealPageNavTemporarily();
     goPrevPage();
     return;
   }
   if (event.key === 'ArrowRight' || event.key === 'PageDown') {
     event.preventDefault();
+    revealPageNavTemporarily();
     goNextPage();
   }
+};
+
+const clearPageNavHideTimer = () => {
+  if (pageNavHideTimer) {
+    clearTimeout(pageNavHideTimer);
+    pageNavHideTimer = null;
+  }
+};
+
+const revealPageNavTemporarily = () => {
+  if (totalPages.value <= 1) {
+    isPageNavVisible.value = false;
+    clearPageNavHideTimer();
+    return;
+  }
+  isPageNavVisible.value = true;
+  clearPageNavHideTimer();
+  pageNavHideTimer = setTimeout(() => {
+    if (!isPageNavHovered.value) {
+      isPageNavVisible.value = false;
+    }
+  }, PAGE_NAV_HIDE_DELAY_MS);
+};
+
+const handlePageNavMouseEnter = () => {
+  isPageNavHovered.value = true;
+  isPageNavVisible.value = true;
+  clearPageNavHideTimer();
+};
+
+const handlePageNavMouseLeave = () => {
+  isPageNavHovered.value = false;
+  revealPageNavTemporarily();
 };
 
 onMounted(() => {
   scrollElement.value?.addEventListener('scroll', updateReadingProgress, { passive: true });
   updateReadingProgress();
+  revealPageNavTemporarily();
 });
 
 onUnmounted(() => {
   scrollElement.value?.removeEventListener('scroll', updateReadingProgress);
+  clearPageNavHideTimer();
 });
 
 watch(
@@ -218,6 +257,17 @@ watch(
   () => {
     currentPage.value = Math.max(0, totalPages.value - 1);
     updateReadingProgress();
+    revealPageNavTemporarily();
+  },
+);
+
+watch(
+  () => props.paragraphs.join('\n').length,
+  (next, prev) => {
+    if (next > prev) {
+      currentPage.value = Math.max(0, totalPages.value - 1);
+      void resetViewportScroll();
+    }
   },
 );
 
@@ -225,6 +275,7 @@ watch(
   () => [props.chapterTitle, props.paragraphs[0] ?? ''],
   () => {
     currentPage.value = Math.max(0, totalPages.value - 1);
+    revealPageNavTemporarily();
     void resetViewportScroll();
   },
 );
@@ -234,6 +285,12 @@ watch(
   (next) => {
     if (currentPage.value > next - 1) {
       currentPage.value = Math.max(0, next - 1);
+    }
+    if (next > 1) {
+      revealPageNavTemporarily();
+    } else {
+      isPageNavVisible.value = false;
+      clearPageNavHideTimer();
     }
   },
 );
@@ -247,17 +304,33 @@ defineExpose({
 .story-page-nav {
   position: absolute;
   left: 50%;
-  bottom: 12px;
+  bottom: 14px;
   transform: translateX(-50%);
-  z-index: 8;
-  display: inline-flex;
+  z-index: 6;
+  display: flex;
   align-items: center;
+  justify-content: center;
   gap: 10px;
-  border: 1px solid var(--ink-border-accent, #b7a88c);
+  border: 1px solid color-mix(in srgb, var(--ink-border-accent, #b7a88c) 88%, #ffffff 12%);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--ink-card-bg, #f5f0e8) 92%, transparent);
-  padding: 6px 10px;
-  backdrop-filter: blur(2px);
+  background: color-mix(in srgb, var(--ink-paper, #faf7f2) 76%, transparent);
+  padding: 7px 11px;
+  backdrop-filter: blur(8px) saturate(1.06);
+  -webkit-backdrop-filter: blur(8px) saturate(1.06);
+  width: max-content;
+  max-width: calc(100% - 8px);
+  box-shadow:
+    0 8px 22px rgba(45, 42, 36, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.48);
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+  transition: opacity 220ms ease, transform 220ms ease;
+}
+
+.story-page-nav-hidden {
+  opacity: 0;
+  transform: translateX(-50%) translateY(8px);
+  pointer-events: none;
 }
 
 .story-page-btn {
@@ -289,5 +362,20 @@ defineExpose({
 
 .story-reading-fade {
   z-index: 2;
+}
+
+.story-viewport-frame {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.runtime-story-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: 78px;
 }
 </style>

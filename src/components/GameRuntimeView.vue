@@ -1,6 +1,6 @@
 ﻿<template>
-  <div class="game-shell min-h-screen text-[var(--ink-text-primary)]" :class="activeThemeClass">
-    <div class="mx-auto flex min-h-screen w-full max-w-[1380px] flex-col px-4 pb-4 pt-4 sm:px-7 sm:pb-6 sm:pt-5">
+  <div class="game-shell h-screen overflow-hidden text-[var(--ink-text-primary)]" :class="activeThemeClass">
+    <div class="mx-auto flex h-full w-full max-w-[1380px] flex-col px-4 pb-4 pt-4 sm:px-7 sm:pb-6 sm:pt-5">
       <header class="runtime-topbar">
         <div class="runtime-top-left">
           <button type="button" class="runtime-seal-btn" @click="handleBackToMenu">返</button>
@@ -517,7 +517,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watchEffect, watch } from 'vue';
+import { computed, nextTick, ref, watchEffect, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useGameStore } from '../stores/gameStore';
 import CharacterInfoModal from './CharacterInfoModal.vue';
@@ -593,6 +593,14 @@ const loadSavedQuickPanelTab = (): RuntimeQuickTab => {
   return 'backpack';
 };
 const activeQuickPanelTab = ref<RuntimeQuickTab>(loadSavedQuickPanelTab());
+
+const safePlayClick = () => {
+  try {
+    playClick();
+  } catch (error) {
+    console.warn('播放点击音效失败，已忽略：', error);
+  }
+};
 
 const currentChapterTitle = computed(
   () => gameStore.plotState?.current_chapter?.title || gameStore.currentScene?.name || '第一章'
@@ -707,23 +715,90 @@ const characterCreationDurationLabel = computed(() => {
   const secs = ms / 1000;
   return `${secs.toFixed(2)}s`;
 });
+const asText = (value: unknown, fallback = ''): string => {
+  if (value === null || value === undefined) return fallback;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : fallback;
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return fallback;
+  }
+};
+
+const compactRecord = (row: Record<string, unknown>, ignoreKeys: string[] = []): string => {
+  const ignored = new Set(ignoreKeys);
+  const entries = Object.entries(row)
+    .filter(([key, value]) => !ignored.has(key) && value !== null && value !== undefined && String(value).trim() !== '')
+    .slice(0, 4)
+    .map(([key, value]) => `${key}:${asText(value)}`);
+  return entries.join(' | ');
+};
+
 const backpackPanelItems = computed(() => {
+  const tableRows = gameStore.worldRegistry?.tables?.inventory_items ?? [];
+  if (tableRows.length > 0) {
+    return tableRows.map((row, index) => {
+      const name = asText(row.name, asText(row.item_id, `背包物品 #${index + 1}`));
+      const quantity = asText(row.quantity, '');
+      const owner = asText(row.owner_character_id, '');
+      const effect = asText(row.effect_desc, asText(row.item_type, ''));
+      const isSpiritStone = /灵石|spirit\s*stone/i.test(name);
+      return {
+        id: `bag-reg-${asText(row.item_id, String(index))}`,
+        title: quantity ? `${name} x${quantity}` : name,
+        description: effect || undefined,
+        meta: owner ? `持有者：${owner}` : compactRecord(row, ['name', 'item_id', 'quantity', 'owner_character_id', 'effect_desc']),
+        badge: isSpiritStone ? '灵石' : undefined,
+        featured: isSpiritStone,
+      };
+    }).sort((a, b) => Number(b.featured) - Number(a.featured));
+  }
+
   const inventory = gameStore.playerCharacter?.inventory ?? [];
-  const toItem = (item: string, index: number) => {
-    const isSpiritStone = /灵石|spirit\s*stone/i.test(item);
-    return {
-      id: `bag-${index}`,
-      title: String(item),
-      meta: isSpiritStone ? `灵石统计：${spiritStoneLabel.value}` : undefined,
-      badge: isSpiritStone ? '灵石' : undefined,
-      featured: isSpiritStone,
-    };
-  };
   return inventory
-    .map((item, index) => toItem(String(item), index))
+    .map((item, index) => {
+      const text = String(item);
+      const isSpiritStone = /灵石|spirit\s*stone/i.test(text);
+      return {
+        id: `bag-${index}`,
+        title: text,
+        meta: isSpiritStone ? `灵石统计：${spiritStoneLabel.value}` : undefined,
+        badge: isSpiritStone ? '灵石' : undefined,
+        featured: isSpiritStone,
+      };
+    })
     .sort((a, b) => Number(b.featured) - Number(a.featured));
 });
 const techniquePanelItems = computed(() => {
+  const registryTechniques = gameStore.worldRegistry?.tables?.techniques ?? [];
+  if (registryTechniques.length > 0) {
+    return registryTechniques.map((row, index) => {
+      const title = asText(row.name, asText(row.technique_id, `功法 #${index + 1}`));
+      const desc = asText(row.description, asText(row.effect_desc, '暂无描述'));
+      const owner = asText(row.owner_character_id, '');
+      const required = asText(row.required_realm_level, asText(row.required_realm, ''));
+      const metaParts = [
+        required ? `需求：${required}` : '',
+        owner ? `归属：${owner}` : '',
+      ].filter(Boolean);
+      const meta = metaParts.length > 0
+        ? metaParts.join(' | ')
+        : compactRecord(row, ['name', 'technique_id', 'description', 'owner_character_id', 'required_realm_level', 'required_realm']);
+      return {
+        id: `tech-reg-${asText(row.technique_id, String(index))}`,
+        title,
+        description: desc,
+        meta: meta || undefined,
+      };
+    });
+  }
+
   const learned = gameStore.playerCharacter?.stats?.techniques ?? [];
   const worldTechniques = gameStore.gameState?.script?.world_setting?.techniques ?? [];
   const worldMap = new Map(worldTechniques.map((tech) => [tech.name, tech]));
@@ -749,6 +824,24 @@ const techniquePanelItems = computed(() => {
   return [...fromLearned, ...fromWorld];
 });
 const factionPanelItems = computed(() => {
+  const registryFactions = gameStore.worldRegistry?.tables?.factions ?? [];
+  if (registryFactions.length > 0) {
+    return registryFactions.map((row, index) => {
+      const title = asText(row.name, asText(row.faction_id, `势力 #${index + 1}`));
+      const description = asText(row.description, '');
+      const power = asText(row.power_level, asText(row.rank, ''));
+      const meta = power
+        ? `势力等级：${power}`
+        : compactRecord(row, ['name', 'faction_id', 'description', 'power_level', 'rank']);
+      return {
+        id: `faction-reg-${asText(row.faction_id, String(index))}`,
+        title,
+        description: description || undefined,
+        meta: meta || undefined,
+      };
+    });
+  }
+
   const scriptFactions = gameStore.gameState?.script?.world_setting?.factions ?? [];
   const worldFactions = Object.values(gameStore.gameState?.world_state?.factions ?? {});
   const merged = [...scriptFactions];
@@ -764,28 +857,57 @@ const factionPanelItems = computed(() => {
     meta: `势力等级：${faction.power_level}`,
   }));
 });
-const worldPanelItems = computed(() => ([
-  {
-    id: 'world-session',
-    title: `会话：${worldRegistrySessionLabel.value}`,
-    description: `来源：${worldRegistrySourceLabel.value}`,
-  },
-  {
-    id: 'world-count-characters',
-    title: `人物：${worldRegistryCounts.value.characters}`,
-    meta: `地图点：${worldRegistryCounts.value.map_nodes}，地图边：${worldRegistryCounts.value.map_edges}`,
-  },
-  {
-    id: 'world-count-assets',
-    title: `功法：${worldRegistryCounts.value.techniques}，背包：${worldRegistryCounts.value.inventory_items}`,
-    meta: `势力：${worldRegistryCounts.value.factions}，剧情态：${worldRegistryCounts.value.story_state}`,
-  },
-  {
-    id: 'world-count-facts',
-    title: `事实：${worldRegistryCounts.value.world_facts}`,
-    meta: `当前位置：${currentLocationLabel.value}`,
-  },
-]));
+const worldPanelItems = computed(() => {
+  const summary = [
+    {
+      id: 'world-session',
+      title: `会话：${worldRegistrySessionLabel.value}`,
+      description: `来源：${worldRegistrySourceLabel.value}`,
+      featured: true,
+    },
+    {
+      id: 'world-count-characters',
+      title: `人物：${worldRegistryCounts.value.characters}`,
+      meta: `地图点：${worldRegistryCounts.value.map_nodes}，地图边：${worldRegistryCounts.value.map_edges}`,
+    },
+    {
+      id: 'world-count-assets',
+      title: `功法：${worldRegistryCounts.value.techniques}，背包：${worldRegistryCounts.value.inventory_items}`,
+      meta: `势力：${worldRegistryCounts.value.factions}，剧情态：${worldRegistryCounts.value.story_state}`,
+    },
+    {
+      id: 'world-count-facts',
+      title: `事实：${worldRegistryCounts.value.world_facts}`,
+      meta: `当前位置：${currentLocationLabel.value}`,
+    },
+  ];
+
+  const tables = gameStore.worldRegistry?.tables;
+  if (!tables) return summary;
+
+  const mappedTableItems = [
+    ...tables.map_nodes.slice(0, 8).map((row, index) => ({
+      id: `world-map-${asText(row.location_id, String(index))}`,
+      title: `地图：${asText(row.name, asText(row.location_id, `节点 #${index + 1}`))}`,
+      description: asText(row.description, ''),
+      meta: compactRecord(row, ['name', 'location_id', 'description']) || undefined,
+    })),
+    ...tables.story_state.slice(0, 6).map((row, index) => ({
+      id: `world-story-${index}`,
+      title: `剧情：第${asText(row.chapter_index, String(index + 1))}章`,
+      description: asText(row.chapter_goal, asText(row.current_arc, '')),
+      meta: compactRecord(row, ['chapter_index', 'chapter_goal', 'current_arc']) || undefined,
+    })),
+    ...tables.world_facts.slice(0, 10).map((row, index) => ({
+      id: `world-fact-${asText(row.fact_id, String(index))}`,
+      title: `事实：${asText(row.subject, 'unknown')} ${asText(row.predicate, '')}`.trim(),
+      description: asText(row.object, ''),
+      meta: compactRecord(row, ['fact_id', 'subject', 'predicate', 'object']) || undefined,
+    })),
+  ];
+
+  return [...summary, ...mappedTableItems];
+});
 const quickPanels = computed(() => ([
   {
     id: 'backpack' as const,
@@ -1226,40 +1348,46 @@ const handleBackToMenu = () => {
 const closeRuntimeQuickPanels = () => {
   showQuickPanel.value = false;
 };
-const openCharacterDialog = () => {
-  playClick();
+const openCharacterDialog = async () => {
+  safePlayClick();
   closeAllDialogs();
   closeRuntimeQuickPanels();
+  showCharacterInfo.value = false;
+  await nextTick();
   showCharacterInfo.value = true;
 };
-const openInfoDialog = () => {
-  playClick();
+const openInfoDialog = async () => {
+  safePlayClick();
   closeAllDialogs();
   closeRuntimeQuickPanels();
+  showInfoTabs.value = false;
+  await nextTick();
   showInfoTabs.value = true;
 };
 const openSaveDialog = () => {
-  playClick();
+  safePlayClick();
   closeAllDialogs();
   closeRuntimeQuickPanels();
   showSaveDialog.value = true;
 };
 const openLoadDialog = () => {
-  playClick();
+  safePlayClick();
   closeAllDialogs();
   closeRuntimeQuickPanels();
   showLoadDialog.value = true;
 };
 const openLlmDialogFromError = () => {
-  playClick();
+  safePlayClick();
   closeAllDialogs();
   closeRuntimeQuickPanels();
   showLLMDialog.value = true;
 };
-const openQuickPanel = (tab: RuntimeQuickTab) => {
-  playClick();
+const openQuickPanel = async (tab: RuntimeQuickTab) => {
+  safePlayClick();
   closeAllDialogs();
+  showQuickPanel.value = false;
   activeQuickPanelTab.value = tab;
+  await nextTick();
   showQuickPanel.value = true;
 };
 watch(activeQuickPanelTab, (tab) => {
@@ -1795,6 +1923,7 @@ useGameHotkeys(handleKeydown);
   display: grid;
   grid-template-columns: 240px minmax(0, 1fr) 280px;
   gap: 20px;
+  overflow: hidden;
 }
 
 .runtime-panel {
@@ -1823,9 +1952,21 @@ useGameHotkeys(handleKeydown);
 }
 
 .runtime-side-left {
-  display: grid;
-  align-content: start;
+  display: flex;
+  flex-direction: column;
   gap: 22px;
+  min-height: 0;
+}
+
+.runtime-side-left .runtime-card:last-child {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.runtime-side-right {
+  display: flex;
+  min-height: 0;
 }
 
 .runtime-card-title {
@@ -2016,21 +2157,29 @@ useGameHotkeys(handleKeydown);
 }
 
 .runtime-main-body {
+  display: flex;
+  flex-direction: column;
   min-height: 0;
   flex: 1;
   padding: 0;
 }
 
+.runtime-main-body :deep(.story-viewport-frame) {
+  flex: 1;
+  min-height: 0;
+}
+
 .runtime-main-body :deep(.runtime-story-scroll) {
   height: 100%;
-  min-height: 420px;
-  max-height: none;
+  min-height: 0;
+  max-height: 100%;
+  overflow-y: auto;
   overflow-x: hidden;
   border-radius: 12px;
   border: 1px solid var(--ink-border-strong);
   background: var(--ink-card-bg);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-  padding: 24px 24px 90px;
+  padding: 24px;
 }
 
 .runtime-main-body :deep(.runtime-story-scroll::-webkit-scrollbar) {
@@ -2057,7 +2206,8 @@ useGameHotkeys(handleKeydown);
 }
 
 .runtime-side-right .runtime-interaction-card {
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   overflow: auto;
   overflow-x: hidden;
   padding: 20px;
@@ -2106,6 +2256,8 @@ useGameHotkeys(handleKeydown);
 }
 
 .runtime-bottom-bar {
+  position: relative;
+  z-index: 10;
   margin-top: 18px;
   min-height: 64px;
   border-top: 1px solid #d9cbb8;
@@ -2116,6 +2268,7 @@ useGameHotkeys(handleKeydown);
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  pointer-events: auto;
 }
 
 .runtime-bottom-right {
