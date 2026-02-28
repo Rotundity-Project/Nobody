@@ -311,9 +311,9 @@ defineExpose({
   align-items: center;
   justify-content: center;
   gap: 10px;
-  border: 1px solid color-mix(in srgb, var(--ink-border-accent, #b7a88c) 88%, #ffffff 12%);
+  border: 1px solid color-mix(in srgb, var(--ink-border-accent) 88%, white 12%);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--ink-paper, #faf7f2) 76%, transparent);
+  background: color-mix(in srgb, var(--ink-paper) 76%, transparent);
   padding: 7px 11px;
   backdrop-filter: blur(8px) saturate(1.06);
   -webkit-backdrop-filter: blur(8px) saturate(1.06);
@@ -334,18 +334,18 @@ defineExpose({
 }
 
 .story-page-btn {
-  border: 1px solid var(--ink-border-strong, #d9c0b0);
+  border: 1px solid var(--ink-border-strong);
   border-radius: 999px;
-  background: var(--ink-paper, #faf7f2);
-  color: var(--ink-text-primary, #2d2a24);
+  background: var(--ink-paper);
+  color: var(--ink-text-primary);
   padding: 3px 10px;
   font-size: 12px;
   transition: border-color 180ms ease, background-color 180ms ease, opacity 180ms ease;
 }
 
 .story-page-btn:hover:not(:disabled) {
-  border-color: var(--ink-title-color, #b78c4a);
-  background: #fff;
+  border-color: var(--ink-title-color);
+  background: var(--ink-paper);
 }
 
 .story-page-btn:disabled {
@@ -354,7 +354,7 @@ defineExpose({
 }
 
 .story-page-text {
-  color: var(--ink-text-muted, #5e5a54);
+  color: var(--ink-text-muted);
   font-size: 12px;
   min-width: 90px;
   text-align: center;

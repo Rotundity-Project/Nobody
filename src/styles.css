@@ -51,6 +51,10 @@
 }
 
 .theme-scroll {
+  --paper-bg: #faf7f2;
+  --paper-cloud: rgba(25, 16, 13, 0.11);
+  --panel-bg: #f5f0e8;
+  --panel-bg-soft: #f0e9de;
   --ink-bg-base: #f4efe3;
   --ink-bg-elevated: #ede4d3;
   --ink-paper: #faf7f2;
@@ -217,6 +221,10 @@
 }
 
 .theme-night {
+  --paper-bg: #213133;
+  --paper-cloud: rgba(9, 18, 18, 0.4);
+  --panel-bg: #26393b;
+  --panel-bg-soft: #223335;
   --ink-bg-base: #0e1718;
   --ink-bg-elevated: #1c2a2d;
   --ink-paper: #213133;

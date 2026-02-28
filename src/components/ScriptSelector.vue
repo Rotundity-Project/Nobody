@@ -1,5 +1,5 @@
 ﻿<template>
-  <div class="script-shell theme-scroll min-h-screen px-4 py-8 sm:px-6 sm:py-10">
+  <div class="script-shell min-h-screen px-4 py-8 sm:px-6 sm:py-10" :class="activeThemeClass">
     <div class="script-paper mx-auto w-full max-w-[1200px] rounded-2xl p-5 sm:p-8">
       <header class="script-header">
         <div>
@@ -200,10 +200,12 @@ import StatusBanner from './StatusBanner.vue';
 import { playClick } from '../utils/audioSystem';
 import { Element } from '../types/game';
 import type { ScriptType, Script } from '../types/game';
+import { getUiTheme } from '../utils/uiTheme';
 
 const router = useRouter();
 const gameStore = useGameStore();
 const isLoading = ref(false);
+const activeThemeClass = ref(getUiTheme());
 const loadingMessage = ref('加载中');
 const loadingProgress = ref<number | null>(null);
 const loadingProgressText = ref('');

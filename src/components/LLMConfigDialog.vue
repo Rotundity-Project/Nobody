@@ -289,8 +289,8 @@ const clearConfig = async () => {
 <style scoped>
 .llm-modal,
 .llm-inline-wrap {
-  background: #f5f0e8;
-  border: 1px solid #d9d0c0;
+  background: var(--ink-card-bg, var(--panel-bg));
+  border: 1px solid var(--ink-border-soft, var(--ink-border));
 }
 
 .llm-dialog-grid {
@@ -301,65 +301,65 @@ const clearConfig = async () => {
 
 .llm-left,
 .llm-right {
-  border: 1px solid #d9d0c0;
+  border: 1px solid var(--ink-border-soft, var(--ink-border));
   border-radius: 12px;
-  background: #efe7da;
+  background: var(--ink-card-bg-soft, var(--ink-card-bg));
   padding: 12px;
 }
 
 .llm-sub-title {
   margin: 0;
-  color: #b78c4a;
+  color: var(--ink-title-color);
   font-size: 12px;
   letter-spacing: 0.06em;
 }
 
 .llm-chip {
-  border: 1px solid #b7a88c;
+  border: 1px solid var(--ink-border-accent, var(--ink-border-strong));
   border-radius: 8px;
-  background: #f5f0e8;
-  color: #2d2a24;
+  background: var(--ink-card-bg, var(--panel-bg));
+  color: var(--ink-text-primary);
   padding: 6px 10px;
   font-size: 13px;
 }
 
 .llm-chip-active {
-  border-color: #b78c4a;
+  border-color: var(--ink-title-color);
 }
 
 .llm-input {
   margin-top: 4px;
   width: 100%;
   border-radius: 8px;
-  border: 1px solid #d9d0c0;
-  background: #fbf8f3;
+  border: 1px solid var(--ink-border-soft, var(--ink-border));
+  background: var(--ink-paper, var(--ink-card-bg));
   padding: 8px 10px;
-  color: #2d2a24;
+  color: var(--ink-text-primary);
 }
 
 .llm-btn {
-  border: 1px solid #b7a88c;
+  border: 1px solid var(--ink-border-accent, var(--ink-border-strong));
   border-radius: 8px;
-  background: #f8f3ea;
-  color: #2d2a24;
+  background: var(--ink-paper-elevated, var(--ink-paper, var(--ink-card-bg)));
+  color: var(--ink-text-primary);
   padding: 7px 12px;
   font-size: 13px;
 }
 
 .llm-btn:hover {
-  border-color: #b78c4a;
-  background: #faf7f2;
+  border-color: var(--ink-title-color);
+  background: var(--ink-paper, var(--ink-card-bg));
 }
 
 .llm-btn-primary {
-  border-color: #b78c4a;
-  background: #efe4cf;
+  border-color: var(--ink-title-color);
+  background: color-mix(in srgb, var(--ink-accent-note, var(--ink-title-color)) 18%, var(--ink-paper, var(--ink-card-bg)));
 }
 
 .llm-btn-success {
-  border-color: #3b7a6b;
-  background: #edf5f2;
-  color: #2f6a5d;
+  border-color: var(--ink-text-cool);
+  background: color-mix(in srgb, var(--ink-text-cool) 18%, var(--ink-paper, var(--ink-card-bg)));
+  color: var(--ink-text-ink, var(--ink-text-cool));
 }
 
 .llm-label {

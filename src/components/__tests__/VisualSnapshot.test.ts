@@ -5,6 +5,12 @@ import ScriptSelector from '../ScriptSelector.vue';
 import GameRuntimeView from '../GameRuntimeView.vue';
 import InfoTabsDialog from '../InfoTabsDialog.vue';
 import CharacterInfoModal from '../CharacterInfoModal.vue';
+import StoryViewport from '../StoryViewport.vue';
+import GameInteractionPanel from '../GameInteractionPanel.vue';
+import InkQuickActionDock from '../InkQuickActionDock.vue';
+import RuntimeQuickPanelsDialog from '../RuntimeQuickPanelsDialog.vue';
+import GameSystemDialogs from '../GameSystemDialogs.vue';
+import { Element, Grade } from '../../types/game';
 
 const normalizeSnapshotHtml = (html: string): string =>
   html
@@ -140,13 +146,17 @@ describe('visual snapshots', () => {
     const wrapper = shallowMount(GameRuntimeView, {
       global: {
         stubs: {
-          InkTopBar: true,
-          PoemStatusSlip: true,
-          InkStoryStage: true,
-          InkQuickActionDock: true,
+          GameRuntimeTopBar: true,
+          GameRuntimeBottomBar: true,
+          GameRuntimeLeftStatusPanels: true,
+          GameRuntimeMainHeader: true,
+          GameRuntimeWorldRegistryPanel: true,
+          GameRuntimeInteractionCard: true,
+          StoryViewport: true,
           GameSystemDialogs: true,
           GameInfoCenterDialog: true,
           CharacterInfoModal: true,
+          RuntimeQuickPanelsDialog: true,
           NotificationCenter: true,
         },
       },
@@ -158,13 +168,17 @@ describe('visual snapshots', () => {
     const wrapper = mountWithTheme(GameRuntimeView, 'theme-night', {
       global: {
         stubs: {
-          InkTopBar: true,
-          PoemStatusSlip: true,
-          InkStoryStage: true,
-          InkQuickActionDock: true,
+          GameRuntimeTopBar: true,
+          GameRuntimeBottomBar: true,
+          GameRuntimeLeftStatusPanels: true,
+          GameRuntimeMainHeader: true,
+          GameRuntimeWorldRegistryPanel: true,
+          GameRuntimeInteractionCard: true,
+          StoryViewport: true,
           GameSystemDialogs: true,
           GameInfoCenterDialog: true,
           CharacterInfoModal: true,
+          RuntimeQuickPanelsDialog: true,
           NotificationCenter: true,
         },
       },
@@ -220,12 +234,12 @@ describe('visual snapshots', () => {
           id: 'player_1',
           name: '花尊',
           stats: {
-            cultivation_realm: { name: '炼气', level: 1, sub_level: 2 },
+            cultivation_realm: { name: '炼气', level: 1, sub_level: 2, power_multiplier: 1.1 },
             combat_power: 88,
             spiritual_root: {
-              element: 'Metal',
-              elements: ['Metal'],
-              grade: 'Heavenly',
+              element: Element.Metal,
+              elements: [Element.Metal],
+              grade: Grade.Heavenly,
               affinity: 0.85,
             },
             lifespan: {
@@ -243,6 +257,140 @@ describe('visual snapshots', () => {
       global: {
         stubs: {
           CharacterPanel: true,
+        },
+      },
+    });
+    expect(normalizeSnapshotHtml(wrapper.html())).toMatchSnapshot();
+  });
+
+  it('StoryViewport snapshot', () => {
+    const wrapper = shallowMount(StoryViewport, {
+      props: {
+        hasScene: true,
+        chapterTitle: '初入仙门',
+        showRecap: true,
+        recapSummary: '上一章回顾',
+        paragraphs: ['第一段', '第二段', '第三段'],
+        optionSourceLabel: '模型结构化',
+        isGameInitialized: true,
+      },
+      global: {
+        stubs: {
+          ScrollToBottomButton: true,
+          StoryScenePanel: true,
+        },
+      },
+    });
+    expect(normalizeSnapshotHtml(wrapper.html())).toMatchSnapshot();
+  });
+
+  it('GameInteractionPanel snapshot', () => {
+    const wrapper = shallowMount(GameInteractionPanel, {
+      props: {
+        shouldShowInputPanel: true,
+        error: null,
+        isNoInputAdvanceState: false,
+        availableOptions: [{ id: 1, description: '观察四周', requirements: [], action: {} }],
+        inputMode: 'options',
+        isLoading: false,
+        freeTextInput: '',
+        inputValidation: { valid: true, message: '' },
+        isGameInitialized: true,
+        isWaitingForInput: true,
+        loadingMessage: '处理中...',
+        canStopAutoAdvance: false,
+        autoAdvanceStopHint: '',
+      },
+      global: {
+        stubs: {
+          UiPanel: true,
+          InputStatusNotice: true,
+          InputModeTabs: true,
+          OptionListPanel: true,
+          FreeTextInputPanel: true,
+          ContinueActionPanel: true,
+          LoadingStatePanel: true,
+        },
+      },
+    });
+    expect(normalizeSnapshotHtml(wrapper.html())).toMatchSnapshot();
+  });
+
+  it('InkQuickActionDock snapshot', () => {
+    const wrapper = shallowMount(InkQuickActionDock, {
+      props: {
+        isGameInitialized: true,
+      },
+    });
+    expect(normalizeSnapshotHtml(wrapper.html())).toMatchSnapshot();
+  });
+
+  it('RuntimeQuickPanelsDialog snapshot', () => {
+    const wrapper = shallowMount(RuntimeQuickPanelsDialog, {
+      props: {
+        isOpen: true,
+        activeTab: 'world',
+        panels: [
+          {
+            id: 'world',
+            label: '世界',
+            title: '世界快照',
+            subtitle: '本轮世界状态索引',
+            emptyText: '暂无世界快照。',
+            items: [
+              {
+                id: 'world-1',
+                title: '地图：山门',
+                description: '云雾缭绕',
+                meta: '灵气：中',
+                badge: '当前',
+                featured: true,
+              },
+            ],
+          },
+        ],
+      },
+    });
+    expect(normalizeSnapshotHtml(wrapper.html())).toMatchSnapshot();
+  });
+
+  it('GameSystemDialogs snapshot', () => {
+    const wrapper = shallowMount(GameSystemDialogs, {
+      props: {
+        showSaveDialog: true,
+        showLoadDialog: false,
+        showShortcutsDialog: false,
+        showLLMDialog: false,
+        showStorySettings: true,
+        showConsistencySettings: false,
+        uiTheme: 'theme-scroll',
+        storySettings: {
+          recap_enabled: true,
+          novel_style: 'xianxia-third-person',
+          llm_priority_mode: true,
+          llm_strict_mode: true,
+          min_interactions_per_chapter: 2,
+          max_interactions_per_chapter: 3,
+          target_chapter_words_min: 5000,
+          target_chapter_words_max: 7000,
+        },
+        consistencyPolicy: {
+          recent_window: 3,
+          cross_chapter_window: 3,
+          duplicate_recent_threshold: 0.92,
+          duplicate_cross_chapter_threshold: 0.88,
+          weight_warning: 5,
+          weight_critical: 12,
+          code_weights: {},
+        },
+      },
+      global: {
+        stubs: {
+          SaveLoadDialog: true,
+          KeyboardShortcutsDialog: true,
+          LLMConfigDialog: true,
+          StorySettingsDialog: true,
+          ConsistencySettingsDialog: true,
         },
       },
     });

@@ -1,5 +1,5 @@
 ﻿<template>
-  <div class="main-menu-shell theme-scroll min-h-screen px-4 py-8 sm:px-6 sm:py-10">
+  <div class="main-menu-shell min-h-screen px-4 py-8 sm:px-6 sm:py-10" :class="activeThemeClass">
     <div class="main-menu-guide">
       建议流程：新游戏 -> 选择剧本 -> 进入主界面推进剧情
     </div>
@@ -335,11 +335,13 @@ import { getAudioSettings, playClick } from '../utils/audioSystem';
 import { useGameStore } from '../stores/gameStore';
 import type { SaveInfo } from '../types/game';
 import { formatLocationLabel } from '../shared/locationLabel';
+import { getUiTheme } from '../utils/uiTheme';
 
 const router = useRouter();
 const gameStore = useGameStore();
 
 const showLLMDialog = ref(false);
+const activeThemeClass = ref(getUiTheme());
 const showAudioPanel = ref(false);
 const showSavePanel = ref(true);
 const mainSealWhisper = ref('');

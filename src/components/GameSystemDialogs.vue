@@ -24,8 +24,10 @@
   <StorySettingsDialog
     :is-open="showStorySettings"
     :settings="storySettings"
+    :ui-theme="uiTheme"
     @close="$emit('close-story-settings')"
     @save="$emit('save-story-settings', $event)"
+    @update-theme="$emit('update-ui-theme', $event)"
   />
   <ConsistencySettingsDialog
     :is-open="showConsistencySettings"
@@ -39,6 +41,7 @@
 <script setup lang="ts">
 import type { ConsistencyPolicy } from '../types/game';
 import type { StorySettings } from '../utils/storySettings';
+import type { UiTheme } from '../utils/uiTheme';
 import ConsistencySettingsDialog from './ConsistencySettingsDialog.vue';
 import KeyboardShortcutsDialog from './KeyboardShortcutsDialog.vue';
 import LLMConfigDialog from './LLMConfigDialog.vue';
@@ -53,6 +56,7 @@ defineProps<{
   showStorySettings: boolean;
   showConsistencySettings: boolean;
   storySettings: StorySettings;
+  uiTheme: UiTheme;
   consistencyPolicy: ConsistencyPolicy;
 }>();
 
@@ -65,6 +69,7 @@ defineEmits<{
   (event: 'close-llm'): void;
   (event: 'close-story-settings'): void;
   (event: 'save-story-settings', settings: StorySettings): void;
+  (event: 'update-ui-theme', theme: UiTheme): void;
   (event: 'close-consistency'): void;
   (event: 'save-consistency', policy: ConsistencyPolicy): void;
   (event: 'reset-consistency'): void;

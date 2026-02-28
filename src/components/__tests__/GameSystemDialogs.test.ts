@@ -9,6 +9,7 @@ const baseProps = {
   showLLMDialog: true,
   showStorySettings: true,
   showConsistencySettings: true,
+  uiTheme: 'theme-scroll',
   storySettings: {
     recap_enabled: true,
     novel_style: 'xianxia-third-person',
@@ -79,7 +80,12 @@ describe('GameSystemDialogs', () => {
           KeyboardShortcutsDialog: true,
           LLMConfigDialog: true,
           StorySettingsDialog: {
-            template: '<button class="save-story" @click="$emit(\'save\', { recap_enabled: false })" />',
+            template: `
+              <div>
+                <button class="save-story" @click="$emit('save', { recap_enabled: false })" />
+                <button class="update-theme" @click="$emit('update-theme', 'theme-night')" />
+              </div>
+            `,
           },
           ConsistencySettingsDialog: {
             template: `
@@ -94,10 +100,12 @@ describe('GameSystemDialogs', () => {
     });
 
     await wrapper.find('.save-story').trigger('click');
+    await wrapper.find('.update-theme').trigger('click');
     await wrapper.find('.save-consistency').trigger('click');
     await wrapper.find('.reset-consistency').trigger('click');
 
     expect(wrapper.emitted('save-story-settings')).toBeTruthy();
+    expect(wrapper.emitted('update-ui-theme')?.[0]).toEqual(['theme-night']);
     expect(wrapper.emitted('save-consistency')).toBeTruthy();
     expect(wrapper.emitted('reset-consistency')).toBeTruthy();
   });
