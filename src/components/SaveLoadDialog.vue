@@ -6,15 +6,15 @@
     @click.self="handleClose"
   >
     <div
-      class="panel-surface relative max-h-[80vh] w-full max-w-2xl overflow-y-auto rounded-2xl p-8"
+      class="panel-surface save-load-panel relative max-h-[80vh] w-full max-w-2xl overflow-y-auto rounded-2xl p-8"
       style="z-index: 51;"
     >
       <div class="mb-6 flex items-center justify-between">
-        <h2 class="text-2xl font-display text-amber-100">
+        <h2 class="save-load-title text-2xl font-display">
           {{ mode === 'save' ? '保存游戏' : '加载游戏' }}
         </h2>
         <button
-          class="text-gray-400 transition-colors hover:text-white"
+          class="save-load-close-btn transition-colors"
           @click="handleClose"
         >
           <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -27,35 +27,35 @@
         <div
           v-for="slot in saveSlots"
           :key="slot.id"
-          class="cursor-pointer rounded-lg border-2 p-4 transition-all duration-200"
+          class="save-slot-item cursor-pointer rounded-lg border-2 p-4 transition-all duration-200"
           :class="[
             selectedSlot === slot.id
-              ? 'border-purple-500 bg-slate-700'
-              : 'border-slate-600 bg-slate-750 hover:border-slate-500'
+              ? 'save-slot-item-active'
+              : 'save-slot-item-idle'
           ]"
           @click="selectSlot(slot.id)"
         >
           <div class="flex items-center justify-between">
             <div class="flex-1">
-              <h3 class="mb-1 text-lg font-semibold text-slate-100">
+              <h3 class="save-slot-title mb-1 text-lg font-semibold">
                 存档槽 {{ slot.id }}
               </h3>
 
-              <div v-if="slot.data" class="space-y-1 text-sm text-slate-300">
+              <div v-if="slot.data" class="save-slot-meta space-y-1 text-sm">
                 <p>角色：{{ slot.data.characterName }}</p>
                 <p>境界：{{ slot.data.realm }}</p>
                 <p>位置：{{ slot.data.locationLabel }}</p>
-                <p class="text-xs text-slate-400">游戏时间：{{ slot.data.gameTime }}</p>
-                <p class="text-xs text-slate-400">保存时间：{{ formatDate(slot.data.timestamp) }}</p>
+                <p class="save-slot-sub-meta text-xs">游戏时间：{{ slot.data.gameTime }}</p>
+                <p class="save-slot-sub-meta text-xs">保存时间：{{ formatDate(slot.data.timestamp) }}</p>
               </div>
 
-              <div v-else class="text-sm text-slate-500">
+              <div v-else class="save-slot-empty text-sm">
                 空存档
               </div>
             </div>
 
             <div v-if="selectedSlot === slot.id" class="ml-4">
-              <svg class="h-6 w-6 text-purple-500" fill="currentColor" viewBox="0 0 20 20">
+              <svg class="save-slot-check h-6 w-6" fill="currentColor" viewBox="0 0 20 20">
                 <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
               </svg>
             </div>
@@ -63,8 +63,8 @@
         </div>
       </div>
 
-      <div v-if="error" class="mt-4 rounded-lg border border-red-500 bg-red-900 bg-opacity-50 p-3">
-        <p class="text-sm text-red-200">{{ error }}</p>
+      <div v-if="error" class="save-load-error-wrap mt-4 rounded-lg border p-3">
+        <p class="save-load-error-text text-sm">{{ error }}</p>
       </div>
 
       <div v-if="isLoading" class="mt-4">
@@ -73,11 +73,11 @@
 
       <div class="mt-6 flex gap-3">
         <button
-          class="flex-1 rounded-lg px-6 py-3 font-medium transition-colors duration-200"
+          class="save-load-confirm-btn flex-1 rounded-lg px-6 py-3 font-medium transition-colors duration-200"
           :class="[
             canConfirm && !isLoading
-              ? 'bg-amber-500 text-slate-900 hover:bg-amber-400'
-              : 'cursor-not-allowed bg-gray-600 text-gray-400'
+              ? 'save-load-confirm-btn-enabled'
+              : 'save-load-confirm-btn-disabled cursor-not-allowed'
           ]"
           :disabled="!canConfirm || isLoading"
           @click="handleConfirm"
@@ -86,7 +86,7 @@
         </button>
 
         <button
-          class="rounded-lg bg-slate-700 px-6 py-3 font-medium text-white transition-colors duration-200 hover:bg-slate-600"
+          class="save-load-cancel-btn rounded-lg px-6 py-3 font-medium transition-colors duration-200"
           :disabled="isLoading"
           @click="handleClose"
         >
@@ -256,6 +256,87 @@ const formatDate = (timestamp: number): string => {
 
 <style scoped>
 .save-load-overlay {
-  background-color: color-mix(in srgb, var(--ink-text-primary) 75%, transparent);
+  background-color: var(--save-load-overlay-bg);
+}
+
+.save-load-panel {
+  border-color: var(--save-load-panel-border);
+  background: var(--save-load-panel-bg);
+  box-shadow: var(--save-load-panel-shadow);
+}
+
+.save-load-title {
+  color: var(--save-load-title-text);
+}
+
+.save-load-close-btn {
+  color: var(--save-load-close-text);
+}
+
+.save-load-close-btn:hover {
+  color: var(--save-load-close-hover-text);
+}
+
+.save-slot-item {
+  border-color: var(--save-load-slot-border);
+  background: var(--save-load-slot-bg);
+}
+
+.save-slot-item-idle:hover {
+  border-color: var(--save-load-slot-hover-border);
+}
+
+.save-slot-item-active {
+  border-color: var(--save-load-slot-active-border);
+  background: var(--save-load-slot-active-bg);
+}
+
+.save-slot-title {
+  color: var(--save-load-slot-title-text);
+}
+
+.save-slot-meta {
+  color: var(--save-load-slot-meta-text);
+}
+
+.save-slot-sub-meta,
+.save-slot-empty {
+  color: var(--save-load-slot-muted-text);
+}
+
+.save-slot-check {
+  color: var(--save-load-slot-check);
+}
+
+.save-load-error-wrap {
+  border-color: var(--save-load-error-border);
+  background: var(--save-load-error-bg);
+}
+
+.save-load-error-text {
+  color: var(--save-load-error-text);
+}
+
+.save-load-confirm-btn-enabled {
+  background: var(--save-load-confirm-bg);
+  color: var(--save-load-confirm-text);
+}
+
+.save-load-confirm-btn-enabled:hover {
+  background: var(--save-load-confirm-hover-bg);
+}
+
+.save-load-confirm-btn-disabled {
+  background: var(--save-load-confirm-disabled-bg);
+  color: var(--save-load-confirm-disabled-text);
+}
+
+.save-load-cancel-btn {
+  background: var(--save-load-cancel-bg);
+  color: var(--save-load-cancel-text);
+}
+
+.save-load-cancel-btn:hover {
+  background: var(--save-load-cancel-hover-bg);
 }
 </style>
