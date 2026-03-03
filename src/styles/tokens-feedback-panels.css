@@ -1,0 +1,63 @@
+.theme-scroll {
+  --chapter-recap-border: color-mix(in srgb, var(--ink-border-accent) 52%, transparent);
+  --chapter-recap-bg: color-mix(in srgb, var(--ink-bg-base) 24%, var(--ink-paper));
+  --chapter-recap-title: color-mix(in srgb, var(--ink-title-color) 82%, var(--ink-text-primary));
+
+  --character-text-secondary: color-mix(in srgb, var(--ink-text-primary) 86%, var(--ink-text-muted));
+  --character-grade-heavenly-bg: color-mix(in srgb, var(--ink-accent-note) 28%, var(--ink-paper));
+  --character-grade-double-bg: color-mix(in srgb, var(--ink-text-cool) 24%, var(--ink-paper));
+  --character-grade-triple-bg: color-mix(in srgb, var(--runtime-root-water) 24%, var(--ink-paper));
+  --character-grade-pseudo-bg: color-mix(in srgb, var(--ink-text-muted) 20%, var(--ink-paper));
+  --character-tag-bg: color-mix(in srgb, var(--ink-title-color) 14%, transparent);
+  --character-tag-border: color-mix(in srgb, var(--ink-border-accent) 58%, transparent);
+  --character-tag-text: color-mix(in srgb, var(--ink-title-color) 74%, var(--ink-text-primary));
+  --character-lifespan-safe-bg: color-mix(in srgb, var(--ink-text-cool) 72%, var(--ink-paper));
+  --character-lifespan-mid-bg: color-mix(in srgb, var(--ink-accent-note) 74%, var(--ink-paper));
+  --character-lifespan-risk-bg: color-mix(in srgb, var(--ink-accent-main) 72%, var(--ink-paper));
+
+  --novel-panel-bg: color-mix(in srgb, var(--ink-card-bg) 86%, transparent);
+  --novel-input-bg: color-mix(in srgb, var(--ink-paper) 68%, var(--ink-card-bg));
+  --novel-input-focus-ring: color-mix(in srgb, var(--ink-title-color) 22%, transparent);
+  --novel-btn-primary-bg: color-mix(in srgb, var(--ink-accent-note) 24%, var(--ink-paper));
+  --novel-btn-secondary-bg: color-mix(in srgb, var(--ink-text-cool) 14%, var(--ink-paper));
+  --novel-preview-bg: color-mix(in srgb, var(--ink-bg-base) 26%, var(--ink-paper));
+  --novel-toc-border: color-mix(in srgb, var(--ink-border-accent) 58%, transparent);
+  --novel-toc-bg: color-mix(in srgb, var(--ink-paper) 78%, transparent);
+
+  --notify-toast-bg: color-mix(in srgb, var(--ink-card-bg) 92%, var(--ink-paper));
+  --notify-close-btn-bg: color-mix(in srgb, var(--ink-paper) 72%, var(--ink-card-bg));
+  --scroll-bottom-border: color-mix(in srgb, var(--ink-border-accent) 70%, transparent);
+  --scroll-bottom-bg: color-mix(in srgb, var(--ink-card-bg) 88%, var(--ink-paper));
+}
+
+.theme-night {
+  --chapter-recap-border: color-mix(in srgb, var(--ink-border-accent) 52%, transparent);
+  --chapter-recap-bg: color-mix(in srgb, var(--ink-bg-base) 24%, var(--ink-paper));
+  --chapter-recap-title: color-mix(in srgb, var(--ink-title-color) 82%, var(--ink-text-primary));
+
+  --character-text-secondary: color-mix(in srgb, var(--ink-text-primary) 86%, var(--ink-text-muted));
+  --character-grade-heavenly-bg: color-mix(in srgb, var(--ink-accent-note) 28%, var(--ink-paper));
+  --character-grade-double-bg: color-mix(in srgb, var(--ink-text-cool) 24%, var(--ink-paper));
+  --character-grade-triple-bg: color-mix(in srgb, var(--runtime-root-water) 24%, var(--ink-paper));
+  --character-grade-pseudo-bg: color-mix(in srgb, var(--ink-text-muted) 20%, var(--ink-paper));
+  --character-tag-bg: color-mix(in srgb, var(--ink-title-color) 14%, transparent);
+  --character-tag-border: color-mix(in srgb, var(--ink-border-accent) 58%, transparent);
+  --character-tag-text: color-mix(in srgb, var(--ink-title-color) 74%, var(--ink-text-primary));
+  --character-lifespan-safe-bg: color-mix(in srgb, var(--ink-text-cool) 72%, var(--ink-paper));
+  --character-lifespan-mid-bg: color-mix(in srgb, var(--ink-accent-note) 74%, var(--ink-paper));
+  --character-lifespan-risk-bg: color-mix(in srgb, var(--ink-accent-main) 72%, var(--ink-paper));
+
+  --novel-panel-bg: color-mix(in srgb, var(--ink-card-bg) 86%, transparent);
+  --novel-input-bg: color-mix(in srgb, var(--ink-paper) 68%, var(--ink-card-bg));
+  --novel-input-focus-ring: color-mix(in srgb, var(--ink-title-color) 22%, transparent);
+  --novel-btn-primary-bg: color-mix(in srgb, var(--ink-accent-note) 24%, var(--ink-paper));
+  --novel-btn-secondary-bg: color-mix(in srgb, var(--ink-text-cool) 14%, var(--ink-paper));
+  --novel-preview-bg: color-mix(in srgb, var(--ink-bg-base) 26%, var(--ink-paper));
+  --novel-toc-border: color-mix(in srgb, var(--ink-border-accent) 58%, transparent);
+  --novel-toc-bg: color-mix(in srgb, var(--ink-paper) 78%, transparent);
+
+  --notify-toast-bg: color-mix(in srgb, var(--ink-card-bg) 92%, var(--ink-paper));
+  --notify-close-btn-bg: color-mix(in srgb, var(--ink-paper) 72%, var(--ink-card-bg));
+  --scroll-bottom-border: color-mix(in srgb, var(--ink-border-accent) 70%, transparent);
+  --scroll-bottom-bg: color-mix(in srgb, var(--ink-card-bg) 88%, var(--ink-paper));
+}

@@ -1,0 +1,63 @@
+.theme-scroll {
+  --menu-audio-panel-bg: color-mix(in srgb, var(--ink-paper) 72%, transparent);
+  --ui-btn-focus-ring: color-mix(in srgb, var(--ink-title-color) 64%, transparent);
+  --ui-btn-focus-ring-offset: var(--ink-bg-base);
+  --ui-btn-primary-bg: var(--ink-accent-note);
+  --ui-btn-primary-text: var(--ink-text-primary);
+  --ui-btn-primary-border: color-mix(in srgb, var(--ink-accent-note) 70%, var(--ink-border-accent));
+  --ui-btn-primary-hover-bg: color-mix(in srgb, var(--ink-accent-note) 84%, var(--ink-accent-main));
+  --ui-btn-danger-bg: var(--ink-accent-main);
+  --ui-btn-danger-text: var(--ink-paper);
+  --ui-btn-danger-border: color-mix(in srgb, var(--ink-accent-main) 80%, var(--ink-border-accent));
+  --ui-btn-danger-hover-bg: color-mix(in srgb, var(--ink-accent-main) 82%, black);
+  --ui-btn-info-bg: var(--ink-text-cool);
+  --ui-btn-info-text: var(--ink-paper);
+  --ui-btn-info-border: color-mix(in srgb, var(--ink-text-cool) 76%, var(--ink-border-accent));
+  --ui-btn-info-hover-bg: color-mix(in srgb, var(--ink-text-cool) 84%, var(--ink-text-primary));
+
+  --settings-overlay-bg: color-mix(in srgb, var(--ink-text-primary) 65%, transparent);
+  --settings-btn-muted-bg: color-mix(in srgb, var(--ink-card-bg) 86%, var(--ink-paper));
+  --settings-input-bg: color-mix(in srgb, var(--ink-paper) 68%, var(--ink-card-bg));
+  --settings-card-bg: color-mix(in srgb, var(--ink-bg-base) 22%, var(--ink-paper));
+  --settings-preview-border: color-mix(in srgb, var(--ink-text-cool) 45%, transparent);
+  --settings-preview-bg: color-mix(in srgb, var(--ink-text-cool) 10%, var(--ink-paper));
+  --settings-preview-title: color-mix(in srgb, var(--ink-text-cool) 82%, var(--ink-text-primary));
+  --settings-chip-bg: color-mix(in srgb, var(--ink-paper) 68%, var(--ink-card-bg));
+  --settings-chip-active-border: color-mix(in srgb, var(--ink-text-cool) 60%, transparent);
+  --settings-chip-active-bg: color-mix(in srgb, var(--ink-text-cool) 28%, transparent);
+  --settings-preview-value: color-mix(in srgb, var(--ink-text-cool) 78%, var(--ink-text-primary));
+  --settings-btn-accent-bg: color-mix(in srgb, var(--ink-accent-note) 24%, var(--ink-paper));
+  --settings-btn-accent-strong-bg: color-mix(in srgb, var(--ink-accent-note) 28%, var(--ink-paper));
+}
+
+.theme-night {
+  --menu-audio-panel-bg: color-mix(in srgb, var(--ink-paper) 72%, transparent);
+  --ui-btn-focus-ring: color-mix(in srgb, var(--ink-title-color) 64%, transparent);
+  --ui-btn-focus-ring-offset: var(--ink-bg-base);
+  --ui-btn-primary-bg: var(--ink-accent-note);
+  --ui-btn-primary-text: var(--ink-text-primary);
+  --ui-btn-primary-border: color-mix(in srgb, var(--ink-accent-note) 70%, var(--ink-border-accent));
+  --ui-btn-primary-hover-bg: color-mix(in srgb, var(--ink-accent-note) 84%, var(--ink-accent-main));
+  --ui-btn-danger-bg: var(--ink-accent-main);
+  --ui-btn-danger-text: var(--ink-paper);
+  --ui-btn-danger-border: color-mix(in srgb, var(--ink-accent-main) 80%, var(--ink-border-accent));
+  --ui-btn-danger-hover-bg: color-mix(in srgb, var(--ink-accent-main) 82%, black);
+  --ui-btn-info-bg: var(--ink-text-cool);
+  --ui-btn-info-text: var(--ink-paper);
+  --ui-btn-info-border: color-mix(in srgb, var(--ink-text-cool) 76%, var(--ink-border-accent));
+  --ui-btn-info-hover-bg: color-mix(in srgb, var(--ink-text-cool) 84%, var(--ink-text-primary));
+
+  --settings-overlay-bg: color-mix(in srgb, var(--ink-text-primary) 65%, transparent);
+  --settings-btn-muted-bg: color-mix(in srgb, var(--ink-card-bg) 86%, var(--ink-paper));
+  --settings-input-bg: color-mix(in srgb, var(--ink-paper) 68%, var(--ink-card-bg));
+  --settings-card-bg: color-mix(in srgb, var(--ink-bg-base) 22%, var(--ink-paper));
+  --settings-preview-border: color-mix(in srgb, var(--ink-text-cool) 45%, transparent);
+  --settings-preview-bg: color-mix(in srgb, var(--ink-text-cool) 10%, var(--ink-paper));
+  --settings-preview-title: color-mix(in srgb, var(--ink-text-cool) 82%, var(--ink-text-primary));
+  --settings-chip-bg: color-mix(in srgb, var(--ink-paper) 68%, var(--ink-card-bg));
+  --settings-chip-active-border: color-mix(in srgb, var(--ink-text-cool) 60%, transparent);
+  --settings-chip-active-bg: color-mix(in srgb, var(--ink-text-cool) 28%, transparent);
+  --settings-preview-value: color-mix(in srgb, var(--ink-text-cool) 78%, var(--ink-text-primary));
+  --settings-btn-accent-bg: color-mix(in srgb, var(--ink-accent-note) 24%, var(--ink-paper));
+  --settings-btn-accent-strong-bg: color-mix(in srgb, var(--ink-accent-note) 28%, var(--ink-paper));
+}

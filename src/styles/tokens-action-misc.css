@@ -1,0 +1,11 @@
+.theme-scroll {
+  --runtime-seal-btn-bg: color-mix(in srgb, var(--ink-accent-main) 14%, transparent);
+  --character-modal-close-bg: color-mix(in srgb, var(--ink-accent-main) 10%, var(--ink-paper));
+  --character-modal-close-text: color-mix(in srgb, var(--ink-accent-main) 82%, var(--ink-text-primary));
+}
+
+.theme-night {
+  --runtime-seal-btn-bg: color-mix(in srgb, var(--ink-accent-main) 14%, transparent);
+  --character-modal-close-bg: color-mix(in srgb, var(--ink-accent-main) 10%, var(--ink-paper));
+  --character-modal-close-text: color-mix(in srgb, var(--ink-accent-main) 82%, var(--ink-text-primary));
+}

@@ -1,0 +1,131 @@
+.theme-scroll {
+  --save-load-overlay-bg: color-mix(in srgb, var(--ink-text-primary) 75%, transparent);
+  --save-load-panel-border: var(--ink-border-soft);
+  --save-load-panel-bg: var(--ink-surface-strong);
+  --save-load-panel-shadow: var(--ink-shadow-panel);
+  --save-load-title-text: color-mix(in srgb, var(--ink-title-color) 88%, var(--ink-paper));
+  --save-load-close-text: var(--ink-text-muted);
+  --save-load-close-hover-text: var(--ink-text-primary);
+  --save-load-slot-border: var(--ink-border-strong);
+  --save-load-slot-bg: color-mix(in srgb, var(--ink-card-bg) 82%, transparent);
+  --save-load-slot-hover-border: color-mix(in srgb, var(--ink-title-color) 52%, var(--ink-border-soft));
+  --save-load-slot-active-border: var(--ink-title-color);
+  --save-load-slot-active-bg: color-mix(in srgb, var(--ink-title-color) 14%, var(--ink-card-bg));
+  --save-load-slot-title-text: color-mix(in srgb, var(--ink-text-primary) 96%, var(--ink-paper));
+  --save-load-slot-meta-text: color-mix(in srgb, var(--ink-text-primary) 86%, var(--ink-text-muted));
+  --save-load-slot-muted-text: var(--ink-text-muted);
+  --save-load-slot-check: var(--ink-title-color);
+  --save-load-error-border: color-mix(in srgb, var(--ink-accent-main) 62%, transparent);
+  --save-load-error-bg: color-mix(in srgb, var(--ink-accent-main) 20%, transparent);
+  --save-load-error-text: color-mix(in srgb, var(--ink-accent-main) 84%, var(--ink-paper));
+  --save-load-confirm-bg: color-mix(in srgb, var(--ink-title-color) 66%, var(--ink-paper));
+  --save-load-confirm-hover-bg: color-mix(in srgb, var(--ink-title-color) 76%, var(--ink-paper));
+  --save-load-confirm-text: color-mix(in srgb, var(--ink-text-primary) 88%, #201c15);
+  --save-load-confirm-disabled-bg: color-mix(in srgb, var(--ink-text-muted) 34%, transparent);
+  --save-load-confirm-disabled-text: color-mix(in srgb, var(--ink-text-muted) 86%, transparent);
+  --save-load-cancel-bg: color-mix(in srgb, var(--ink-card-bg) 88%, var(--ink-paper));
+  --save-load-cancel-hover-bg: color-mix(in srgb, var(--ink-card-bg) 76%, var(--ink-paper));
+  --save-load-cancel-text: var(--ink-text-primary);
+
+  --info-drawer-border: var(--ink-border-soft);
+  --info-drawer-bg: color-mix(in srgb, var(--ink-paper) 96%, transparent);
+  --info-panel-bg: var(--ink-card-bg);
+  --info-panel-border: var(--ink-border-soft);
+  --info-panel-shadow:
+    var(--ink-shadow-panel),
+    inset 0 1px 0 color-mix(in srgb, var(--ink-paper) 66%, transparent);
+  --info-ui-btn-bg: color-mix(in srgb, var(--ink-paper) 94%, var(--ink-card-bg));
+  --info-ui-btn-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--ink-paper) 62%, transparent),
+    0 2px 8px color-mix(in srgb, var(--ink-text-primary) 6%, transparent);
+  --info-ui-btn-hover-bg: color-mix(in srgb, var(--ink-paper-elevated) 92%, var(--ink-card-bg));
+  --info-ui-btn-danger-bg: color-mix(in srgb, var(--ink-accent-main) 8%, var(--ink-paper));
+  --info-ui-btn-danger-text: color-mix(in srgb, var(--ink-accent-main) 86%, var(--ink-text-primary));
+  --info-text-body: color-mix(in srgb, var(--ink-text-primary) 90%, var(--ink-text-muted));
+  --info-map-card-bg: var(--ink-paper-elevated);
+  --info-map-card-surface:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--info-map-card-bg) 96%, var(--ink-paper)),
+      color-mix(in srgb, var(--info-map-card-bg) 88%, var(--ink-card-bg))
+    );
+  --info-map-card-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--ink-paper) 62%, transparent),
+    0 4px 10px color-mix(in srgb, var(--ink-text-primary) 6%, transparent);
+  --info-current-badge-bg: var(--ink-title-color);
+  --info-current-badge-text: var(--ink-paper);
+  --info-overlay-bg: color-mix(in srgb, var(--ink-text-primary) 28%, transparent);
+  --info-reach-ok-text: color-mix(in srgb, var(--ink-text-cool) 82%, var(--ink-text-primary));
+  --info-reach-blocked-text: color-mix(in srgb, var(--ink-accent-note) 82%, var(--ink-text-primary));
+
+  --modal-overlay-bg: color-mix(in srgb, var(--ink-text-primary) 25%, transparent);
+  --modal-bg: color-mix(in srgb, var(--ink-paper) 96%, transparent);
+  --modal-border: var(--ink-border-soft);
+  --modal-shadow: var(--ink-shadow-panel);
+}
+
+.theme-night {
+  --save-load-overlay-bg: color-mix(in srgb, var(--ink-text-primary) 75%, transparent);
+  --save-load-panel-border: var(--ink-runtime-border-soft);
+  --save-load-panel-bg: color-mix(in srgb, var(--ink-card-bg) 92%, rgba(10, 16, 17, 0.86));
+  --save-load-panel-shadow: var(--ink-shadow-panel);
+  --save-load-title-text: color-mix(in srgb, var(--ink-title-color) 84%, var(--ink-text-primary));
+  --save-load-close-text: var(--ink-text-muted);
+  --save-load-close-hover-text: var(--ink-text-primary);
+  --save-load-slot-border: var(--ink-border-strong);
+  --save-load-slot-bg: color-mix(in srgb, var(--ink-card-bg) 86%, rgba(10, 16, 17, 0.45));
+  --save-load-slot-hover-border: color-mix(in srgb, var(--ink-title-color) 42%, var(--ink-border-soft));
+  --save-load-slot-active-border: color-mix(in srgb, var(--ink-title-color) 76%, var(--ink-border-accent));
+  --save-load-slot-active-bg: color-mix(in srgb, var(--ink-title-color) 16%, var(--ink-card-bg));
+  --save-load-slot-title-text: color-mix(in srgb, var(--ink-text-primary) 96%, var(--ink-paper));
+  --save-load-slot-meta-text: color-mix(in srgb, var(--ink-text-primary) 84%, var(--ink-text-muted));
+  --save-load-slot-muted-text: var(--ink-text-muted);
+  --save-load-slot-check: color-mix(in srgb, var(--ink-title-color) 88%, var(--ink-text-primary));
+  --save-load-error-border: color-mix(in srgb, var(--ink-accent-main) 62%, transparent);
+  --save-load-error-bg: color-mix(in srgb, var(--ink-accent-main) 24%, transparent);
+  --save-load-error-text: color-mix(in srgb, var(--ink-accent-main) 84%, var(--ink-text-primary));
+  --save-load-confirm-bg: color-mix(in srgb, var(--ink-title-color) 58%, #3a3326);
+  --save-load-confirm-hover-bg: color-mix(in srgb, var(--ink-title-color) 68%, #3a3326);
+  --save-load-confirm-text: #122021;
+  --save-load-confirm-disabled-bg: color-mix(in srgb, var(--ink-text-muted) 28%, transparent);
+  --save-load-confirm-disabled-text: color-mix(in srgb, var(--ink-text-muted) 86%, transparent);
+  --save-load-cancel-bg: color-mix(in srgb, var(--ink-card-bg) 90%, #1a2628);
+  --save-load-cancel-hover-bg: color-mix(in srgb, var(--ink-card-bg) 80%, #1a2628);
+  --save-load-cancel-text: var(--ink-text-primary);
+
+  --info-drawer-border: var(--ink-runtime-border-soft);
+  --info-drawer-bg: color-mix(in srgb, #1f3032 96%, transparent);
+  --info-panel-bg: #26393b;
+  --info-panel-border: var(--ink-border-soft);
+  --info-panel-shadow:
+    var(--ink-shadow-panel),
+    inset 0 1px 0 color-mix(in srgb, var(--ink-paper) 66%, transparent);
+  --info-ui-btn-bg: color-mix(in srgb, var(--ink-paper) 94%, var(--ink-card-bg));
+  --info-ui-btn-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--ink-paper) 62%, transparent),
+    0 2px 8px color-mix(in srgb, var(--ink-text-primary) 6%, transparent);
+  --info-ui-btn-hover-bg: color-mix(in srgb, var(--ink-paper-elevated) 92%, var(--ink-card-bg));
+  --info-ui-btn-danger-bg: color-mix(in srgb, var(--ink-accent-main) 8%, var(--ink-paper));
+  --info-ui-btn-danger-text: color-mix(in srgb, var(--ink-accent-main) 86%, var(--ink-text-primary));
+  --info-text-body: color-mix(in srgb, var(--ink-text-primary) 90%, var(--ink-text-muted));
+  --info-map-card-bg: #2a4042;
+  --info-map-card-surface:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--info-map-card-bg) 96%, var(--ink-paper)),
+      color-mix(in srgb, var(--info-map-card-bg) 88%, var(--ink-card-bg))
+    );
+  --info-map-card-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--ink-paper) 62%, transparent),
+    0 4px 10px color-mix(in srgb, var(--ink-text-primary) 6%, transparent);
+  --info-current-badge-bg: #4f8f7d;
+  --info-current-badge-text: #e8f0ed;
+  --info-overlay-bg: color-mix(in srgb, var(--ink-text-primary) 28%, transparent);
+  --info-reach-ok-text: color-mix(in srgb, var(--ink-text-cool) 82%, var(--ink-text-primary));
+  --info-reach-blocked-text: color-mix(in srgb, var(--ink-accent-note) 82%, var(--ink-text-primary));
+
+  --modal-overlay-bg: var(--ink-modal-overlay-veil);
+  --modal-bg: color-mix(in srgb, #243638 95%, transparent);
+  --modal-border: var(--ink-runtime-border-soft);
+  --modal-shadow: var(--ink-shadow-panel);
+}

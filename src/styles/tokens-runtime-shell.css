@@ -1,0 +1,271 @@
+.theme-scroll {
+  --runtime-shell-bg:
+    radial-gradient(circle at 10% 22%, color-mix(in srgb, var(--ink-title-color) 22%, transparent), transparent 34%),
+    radial-gradient(circle at 82% 8%, var(--ink-overlay-cool-soft), transparent 28%),
+    linear-gradient(145deg, var(--ink-paper), var(--ink-paper-elevated));
+  --runtime-shell-overlay:
+    radial-gradient(circle at 12% 14%, var(--ink-overlay-strong), transparent 28%),
+    radial-gradient(circle at 85% 18%, var(--ink-overlay-seal), transparent 32%),
+    repeating-radial-gradient(circle at 18% 24%, var(--ink-pattern-ember) 0 1px, transparent 1px 18px),
+    repeating-linear-gradient(135deg, var(--ink-pattern-ink) 0 2px, transparent 2px 20px),
+    repeating-linear-gradient(45deg, var(--ink-pattern-seal-soft) 0 1px, transparent 1px 14px);
+  --runtime-shell-overlay-size-desktop: 100% 100%, 100% 100%, 260px 260px, 200px 200px, 120px 120px;
+  --runtime-shell-overlay-size-mobile: 100% 100%, 100% 100%, 180px 180px, 150px 150px, 90px 90px;
+  --runtime-shell-overlay-opacity: 0.42;
+  --runtime-card-sheen: radial-gradient(circle at 80% 14%, var(--ink-elevated-glow), transparent 30%);
+  --runtime-side-card-bg: var(--panel-bg);
+  --runtime-side-card-border: var(--ink-border-strong);
+  --runtime-side-card-shadow: var(--ink-shadow-card);
+  --runtime-side-card-filter: blur(2px);
+  --runtime-main-panel-border: #ddcfbc;
+  --runtime-main-panel-bg-base: var(--ink-paper);
+  --runtime-main-panel-inner-highlight: color-mix(in srgb, var(--ink-paper) 72%, transparent);
+  --runtime-main-panel-shadow:
+    0 14px 34px color-mix(in srgb, var(--ink-text-primary) 10%, transparent),
+    inset 0 1px 0 var(--runtime-main-panel-inner-highlight);
+  --runtime-main-panel-bg:
+    radial-gradient(circle at 10% 88%, var(--ink-overlay-seal-subtle), transparent 35%),
+    radial-gradient(circle at 88% 16%, var(--ink-elevated-glow), transparent 30%);
+  --runtime-story-bg-color: #f5eee2;
+  --runtime-story-bg-image:
+    linear-gradient(var(--ink-story-wash), var(--ink-story-wash)),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'%3E%3Cg fill='none' stroke='%234d2d24' stroke-opacity='0.18' stroke-width='1.1'%3E%3Cpath d='M8 34c10-10 28-10 38 0 8-8 20-8 28 0'/%3E%3Cpath d='M78 52c8-8 20-8 28 0 10-10 28-10 38 0'/%3E%3Cpath d='M16 104c12-9 27-9 39 0 9-8 21-8 30 0'/%3E%3Cpath d='M84 122c9-8 21-8 30 0 12-10 26-10 38 0'/%3E%3C/g%3E%3C/svg%3E");
+  --runtime-story-bg-repeat: no-repeat, repeat;
+  --runtime-story-bg-size: auto, 220px 220px;
+  --runtime-story-shadow: 0 4px 12px var(--ink-shadow-story-soft);
+  --runtime-story-nav-border: color-mix(in srgb, var(--ink-border-accent) 82%, white 18%);
+  --runtime-story-nav-bg: color-mix(in srgb, var(--ink-paper) 80%, transparent);
+  --runtime-story-nav-shadow:
+    0 10px 26px color-mix(in srgb, var(--ink-text-primary) 14%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--ink-paper) 74%, transparent);
+  --runtime-interaction-card-bg:
+    linear-gradient(180deg, color-mix(in srgb, var(--ink-paper) 72%, transparent), var(--ink-card-bg)),
+    var(--runtime-card-sheen);
+  --runtime-interaction-subtitle-border: color-mix(in srgb, var(--ink-border-accent) 62%, transparent);
+  --runtime-topbar-border-bottom: #d0c5b5;
+  --runtime-resource-pill-bg: #f8f4ec;
+  --runtime-resource-pill-shadow: inset 0 1px 0 var(--ink-highlight-inner-strong);
+  --runtime-bottom-bar-border-top: #d9cbb8;
+  --runtime-bottom-bar-bg: var(--ink-card-bg-soft);
+  --runtime-bottom-bar-shadow: 0 8px 20px color-mix(in srgb, var(--ink-text-primary) 8%, transparent);
+  --runtime-quick-overlay-bg: color-mix(in srgb, var(--ink-text-primary) 30%, transparent);
+  --runtime-quick-dialog-border: var(--ink-border-soft);
+  --runtime-quick-dialog-bg: color-mix(in srgb, var(--ink-paper) 95%, var(--ink-card-bg));
+  --runtime-quick-dialog-shadow:
+    var(--ink-shadow-panel),
+    inset 0 1px 0 color-mix(in srgb, var(--ink-paper) 66%, transparent);
+  --runtime-quick-head-border: color-mix(in srgb, var(--ink-border-accent) 52%, transparent);
+  --runtime-quick-action-border: var(--ink-border-accent);
+  --runtime-quick-action-bg: color-mix(in srgb, var(--ink-paper) 72%, var(--ink-card-bg));
+  --runtime-quick-action-text: color-mix(in srgb, var(--ink-text-primary) 80%, var(--ink-text-muted));
+  --runtime-quick-action-hover-border: color-mix(in srgb, var(--ink-title-color) 70%, var(--ink-border-accent));
+  --runtime-quick-action-hover-bg: color-mix(in srgb, var(--ink-paper) 88%, var(--ink-card-bg));
+  --runtime-quick-tab-bg: color-mix(in srgb, var(--ink-paper) 76%, var(--ink-card-bg));
+  --runtime-quick-tab-text: color-mix(in srgb, var(--ink-text-primary) 75%, var(--ink-text-muted));
+  --runtime-quick-tab-hover-border: color-mix(in srgb, var(--ink-title-color) 76%, var(--ink-border-accent));
+  --runtime-quick-tab-hover-bg: color-mix(in srgb, var(--ink-paper) 86%, var(--ink-card-bg));
+  --runtime-quick-tab-active-bg: color-mix(in srgb, var(--ink-title-color) 24%, var(--ink-paper));
+  --runtime-quick-tab-active-text: color-mix(in srgb, var(--ink-title-color) 78%, var(--ink-text-primary));
+  --runtime-quick-close-bg: color-mix(in srgb, var(--ink-paper) 72%, var(--ink-card-bg));
+  --runtime-quick-close-text: color-mix(in srgb, var(--ink-title-color) 78%, var(--ink-text-primary));
+  --runtime-quick-close-hover-bg: color-mix(in srgb, var(--ink-paper-elevated) 90%, var(--ink-card-bg));
+  --runtime-quick-search-bg: color-mix(in srgb, var(--ink-paper) 70%, transparent);
+  --runtime-quick-search-focus-ring: color-mix(in srgb, var(--ink-title-color) 30%, transparent);
+  --runtime-quick-feedback: color-mix(in srgb, var(--ink-title-color) 78%, var(--ink-text-primary));
+  --runtime-quick-item-border: var(--ink-border-soft);
+  --runtime-quick-item-bg: color-mix(in srgb, var(--ink-paper) 68%, transparent);
+  --runtime-quick-item-hover-border: color-mix(in srgb, var(--ink-title-color) 66%, var(--ink-border-accent));
+  --runtime-quick-item-hover-bg: color-mix(in srgb, var(--ink-paper) 80%, var(--ink-card-bg));
+  --runtime-quick-item-hover-shadow: 0 4px 10px color-mix(in srgb, var(--ink-text-primary) 6%, transparent);
+  --runtime-quick-item-featured-border: color-mix(in srgb, var(--ink-title-color) 58%, var(--ink-border-accent));
+  --runtime-quick-item-featured-bg: color-mix(in srgb, var(--ink-title-color) 14%, var(--ink-paper));
+  --runtime-quick-item-selected-shadow: 0 0 0 2px color-mix(in srgb, var(--ink-title-color) 34%, transparent);
+  --runtime-quick-badge-border: color-mix(in srgb, var(--ink-title-color) 62%, var(--ink-border-accent));
+  --runtime-quick-badge-bg: color-mix(in srgb, var(--ink-title-color) 22%, var(--ink-paper));
+  --runtime-quick-badge-text: color-mix(in srgb, var(--ink-title-color) 82%, var(--ink-text-primary));
+  --runtime-quick-mark-bg: color-mix(in srgb, var(--ink-title-color) 48%, transparent);
+  --runtime-quick-meta-text: color-mix(in srgb, var(--ink-title-color) 64%, var(--ink-text-primary));
+  --runtime-root-earth: #8d6a46;
+  --runtime-root-water: #3b6f9b;
+  --runtime-dev-muted: #6b655d;
+  --runtime-dev-text: #4b463f;
+  --runtime-dev-border: #d2c8b7;
+  --runtime-dev-field-bg: var(--ink-dev-field-surface);
+  --runtime-dev-preview-bg: var(--ink-dev-preview-surface);
+  --runtime-dev-error: #b14534;
+  --runtime-dock-btn-border: #a88763;
+  --runtime-dock-btn-border-top: #c0a07e;
+  --runtime-dock-btn-border-bottom: #8f6c4a;
+  --runtime-dock-btn-bg:
+    linear-gradient(180deg, var(--ink-dock-fill-top), var(--ink-dock-fill-bottom)),
+    repeating-linear-gradient(0deg, var(--ink-dock-grain) 0 1px, transparent 1px 4px);
+  --runtime-dock-btn-shadow:
+    inset 0 1px 0 var(--ink-dock-highlight-inner),
+    inset 0 -1px 0 var(--ink-dock-shadow-inner);
+  --runtime-dock-btn-hover-border: #b78c4a;
+  --runtime-dock-btn-hover-bg: linear-gradient(180deg, #fdf9f1, #f3ebdf);
+  --runtime-dock-btn-hover-shadow: 0 4px 12px var(--ink-elevation-soft);
+  --runtime-dock-btn-primary-border: #b68b46;
+  --runtime-dock-btn-primary-bg: linear-gradient(180deg, #f4ecd9, #ead7b5);
+  --runtime-dock-btn-primary-text: #6b4f2f;
+  --runtime-btn-border: #a98762;
+  --runtime-btn-border-top: #b89773;
+  --runtime-btn-border-bottom: #8a6646;
+  --runtime-btn-bg:
+    linear-gradient(180deg, var(--ink-btn-fill-top), var(--ink-btn-fill-bottom)),
+    repeating-linear-gradient(0deg, var(--ink-btn-grain) 0 1px, transparent 1px 4px);
+  --runtime-btn-shadow:
+    inset 0 1px 0 var(--ink-btn-highlight-inner),
+    inset 0 -1px 0 var(--ink-btn-shadow-inner);
+  --runtime-btn-hover-border: var(--ink-title-color);
+  --runtime-btn-hover-bg: var(--ink-paper);
+  --runtime-btn-hover-shadow: 0 3px 10px var(--ink-elevation-muted);
+  --runtime-option-btn-border: #b39577;
+  --runtime-option-btn-border-top: #c4a98d;
+  --runtime-option-btn-border-bottom: #917250;
+  --runtime-option-btn-bg:
+    linear-gradient(180deg, var(--ink-option-fill-top), var(--ink-option-fill-bottom)),
+    repeating-linear-gradient(45deg, var(--ink-option-grain) 0 1px, transparent 1px 8px);
+  --runtime-option-btn-shadow:
+    inset 0 1px 0 var(--ink-option-highlight-inner),
+    0 3px 8px var(--ink-elevation-option);
+  --runtime-option-btn-hover-border: #9a7b59;
+  --runtime-option-btn-hover-shadow:
+    inset 0 1px 0 var(--ink-option-highlight-hover),
+    0 6px 14px var(--ink-elevation-option-strong);
+}
+
+.theme-night {
+  --runtime-shell-bg:
+    radial-gradient(circle at 12% 18%, var(--ink-overlay-cool-soft), transparent 34%),
+    radial-gradient(circle at 84% 10%, var(--ink-overlay-note-soft), transparent 30%),
+    linear-gradient(145deg, #121d1f, #1a292b);
+  --runtime-shell-overlay:
+    radial-gradient(circle at 16% 14%, var(--ink-overlay-strong), transparent 36%),
+    radial-gradient(circle at 86% 18%, var(--ink-overlay-seal), transparent 34%),
+    repeating-radial-gradient(circle at 20% 24%, var(--ink-pattern-frost) 0 1px, transparent 1px 18px);
+  --runtime-shell-overlay-size-desktop: 100% 100%, 100% 100%, 240px 240px;
+  --runtime-shell-overlay-size-mobile: 100% 100%, 100% 100%, 170px 170px;
+  --runtime-shell-overlay-opacity: 0.36;
+  --runtime-card-sheen: radial-gradient(circle at 80% 14%, var(--ink-elevated-glow), transparent 32%);
+  --runtime-side-card-bg: var(--panel-bg);
+  --runtime-side-card-border: var(--ink-border-strong);
+  --runtime-side-card-shadow: var(--ink-shadow-card);
+  --runtime-side-card-filter: blur(2px);
+  --runtime-main-panel-border: var(--ink-main-panel-border-soft);
+  --runtime-main-panel-bg-base: var(--ink-paper);
+  --runtime-main-panel-inner-highlight: color-mix(in srgb, var(--ink-paper) 72%, transparent);
+  --runtime-main-panel-shadow:
+    0 14px 34px color-mix(in srgb, var(--ink-text-primary) 10%, transparent),
+    inset 0 1px 0 var(--runtime-main-panel-inner-highlight);
+  --runtime-main-panel-bg:
+    radial-gradient(circle at 12% 88%, var(--ink-overlay-seal-subtle), transparent 36%),
+    radial-gradient(circle at 88% 16%, var(--ink-elevated-glow), transparent 30%);
+  --runtime-story-bg-color: #1f2d2f;
+  --runtime-story-bg-image:
+    linear-gradient(var(--ink-story-wash), var(--ink-story-wash)),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'%3E%3Cg fill='none' stroke='%23d7bf85' stroke-opacity='0.18' stroke-width='1.1'%3E%3Cpath d='M8 34c10-10 28-10 38 0 8-8 20-8 28 0'/%3E%3Cpath d='M78 52c8-8 20-8 28 0 10-10 28-10 38 0'/%3E%3Cpath d='M16 104c12-9 27-9 39 0 9-8 21-8 30 0'/%3E%3Cpath d='M84 122c9-8 21-8 30 0 12-10 26-10 38 0'/%3E%3C/g%3E%3C/svg%3E");
+  --runtime-story-bg-repeat: no-repeat, repeat;
+  --runtime-story-bg-size: auto, 220px 220px;
+  --runtime-story-shadow: 0 6px 18px var(--ink-shadow-story-soft);
+  --runtime-story-nav-border: color-mix(in srgb, var(--ink-border-accent) 82%, white 18%);
+  --runtime-story-nav-bg: color-mix(in srgb, var(--ink-paper) 80%, transparent);
+  --runtime-story-nav-shadow:
+    0 10px 26px color-mix(in srgb, var(--ink-text-primary) 14%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--ink-paper) 74%, transparent);
+  --runtime-interaction-card-bg:
+    linear-gradient(180deg, color-mix(in srgb, var(--ink-paper) 72%, transparent), var(--ink-card-bg)),
+    var(--runtime-card-sheen);
+  --runtime-interaction-subtitle-border: color-mix(in srgb, var(--ink-border-accent) 62%, transparent);
+  --runtime-topbar-border-bottom: var(--ink-runtime-border-soft);
+  --runtime-resource-pill-bg: var(--ink-runtime-pill-bg);
+  --runtime-resource-pill-shadow: inset 0 1px 0 var(--ink-runtime-pill-highlight);
+  --runtime-bottom-bar-border-top: var(--ink-runtime-border-muted);
+  --runtime-bottom-bar-bg: var(--ink-card-bg-soft);
+  --runtime-bottom-bar-shadow: 0 8px 20px color-mix(in srgb, var(--ink-text-primary) 8%, transparent);
+  --runtime-quick-overlay-bg: color-mix(in srgb, var(--ink-text-primary) 30%, transparent);
+  --runtime-quick-dialog-border: var(--ink-border-soft);
+  --runtime-quick-dialog-bg: color-mix(in srgb, var(--ink-paper) 95%, var(--ink-card-bg));
+  --runtime-quick-dialog-shadow:
+    var(--ink-shadow-panel),
+    inset 0 1px 0 color-mix(in srgb, var(--ink-paper) 66%, transparent);
+  --runtime-quick-head-border: color-mix(in srgb, var(--ink-border-accent) 52%, transparent);
+  --runtime-quick-action-border: var(--ink-border-accent);
+  --runtime-quick-action-bg: color-mix(in srgb, var(--ink-paper) 72%, var(--ink-card-bg));
+  --runtime-quick-action-text: color-mix(in srgb, var(--ink-text-primary) 80%, var(--ink-text-muted));
+  --runtime-quick-action-hover-border: color-mix(in srgb, var(--ink-title-color) 70%, var(--ink-border-accent));
+  --runtime-quick-action-hover-bg: color-mix(in srgb, var(--ink-paper) 88%, var(--ink-card-bg));
+  --runtime-quick-tab-bg: color-mix(in srgb, var(--ink-paper) 76%, var(--ink-card-bg));
+  --runtime-quick-tab-text: color-mix(in srgb, var(--ink-text-primary) 75%, var(--ink-text-muted));
+  --runtime-quick-tab-hover-border: color-mix(in srgb, var(--ink-title-color) 76%, var(--ink-border-accent));
+  --runtime-quick-tab-hover-bg: color-mix(in srgb, var(--ink-paper) 86%, var(--ink-card-bg));
+  --runtime-quick-tab-active-bg: color-mix(in srgb, var(--ink-title-color) 24%, var(--ink-paper));
+  --runtime-quick-tab-active-text: color-mix(in srgb, var(--ink-title-color) 78%, var(--ink-text-primary));
+  --runtime-quick-close-bg: color-mix(in srgb, var(--ink-paper) 72%, var(--ink-card-bg));
+  --runtime-quick-close-text: color-mix(in srgb, var(--ink-title-color) 78%, var(--ink-text-primary));
+  --runtime-quick-close-hover-bg: color-mix(in srgb, var(--ink-paper-elevated) 90%, var(--ink-card-bg));
+  --runtime-quick-search-bg: color-mix(in srgb, var(--ink-paper) 70%, transparent);
+  --runtime-quick-search-focus-ring: color-mix(in srgb, var(--ink-title-color) 30%, transparent);
+  --runtime-quick-feedback: color-mix(in srgb, var(--ink-title-color) 78%, var(--ink-text-primary));
+  --runtime-quick-item-border: var(--ink-border-soft);
+  --runtime-quick-item-bg: color-mix(in srgb, var(--ink-paper) 68%, transparent);
+  --runtime-quick-item-hover-border: color-mix(in srgb, var(--ink-title-color) 66%, var(--ink-border-accent));
+  --runtime-quick-item-hover-bg: color-mix(in srgb, var(--ink-paper) 80%, var(--ink-card-bg));
+  --runtime-quick-item-hover-shadow: 0 4px 10px color-mix(in srgb, var(--ink-text-primary) 6%, transparent);
+  --runtime-quick-item-featured-border: color-mix(in srgb, var(--ink-title-color) 58%, var(--ink-border-accent));
+  --runtime-quick-item-featured-bg: color-mix(in srgb, var(--ink-title-color) 14%, var(--ink-paper));
+  --runtime-quick-item-selected-shadow: 0 0 0 2px color-mix(in srgb, var(--ink-title-color) 34%, transparent);
+  --runtime-quick-badge-border: color-mix(in srgb, var(--ink-title-color) 62%, var(--ink-border-accent));
+  --runtime-quick-badge-bg: color-mix(in srgb, var(--ink-title-color) 22%, var(--ink-paper));
+  --runtime-quick-badge-text: color-mix(in srgb, var(--ink-title-color) 82%, var(--ink-text-primary));
+  --runtime-quick-mark-bg: color-mix(in srgb, var(--ink-title-color) 48%, transparent);
+  --runtime-quick-meta-text: color-mix(in srgb, var(--ink-title-color) 64%, var(--ink-text-primary));
+  --runtime-root-earth: #b8976e;
+  --runtime-root-water: #79adc7;
+  --runtime-dev-muted: #b6c5c0;
+  --runtime-dev-text: #d7e3de;
+  --runtime-dev-border: #678079;
+  --runtime-dev-field-bg: var(--ink-dev-field-surface);
+  --runtime-dev-preview-bg: var(--ink-dev-preview-surface);
+  --runtime-dev-error: #e58773;
+  --runtime-dock-btn-border: #5d756e;
+  --runtime-dock-btn-border-top: #749089;
+  --runtime-dock-btn-border-bottom: #40534f;
+  --runtime-dock-btn-bg:
+    linear-gradient(180deg, var(--ink-dock-fill-top), var(--ink-dock-fill-bottom)),
+    repeating-linear-gradient(0deg, var(--ink-dock-grain) 0 1px, transparent 1px 4px);
+  --runtime-dock-btn-shadow:
+    inset 0 1px 0 var(--ink-dock-highlight-inner),
+    inset 0 -1px 0 var(--ink-dock-shadow-inner);
+  --runtime-dock-btn-hover-border: #89ab9f;
+  --runtime-dock-btn-hover-bg: linear-gradient(180deg, var(--ink-dock-hover-top), var(--ink-dock-hover-bottom));
+  --runtime-dock-btn-hover-shadow: 0 4px 14px var(--ink-elevation-soft);
+  --runtime-dock-btn-primary-border: #c39e5a;
+  --runtime-dock-btn-primary-bg: linear-gradient(180deg, var(--ink-dock-primary-top), var(--ink-dock-primary-bottom));
+  --runtime-dock-btn-primary-text: #f3dfb2;
+  --runtime-btn-border: #5d756e;
+  --runtime-btn-border-top: #729089;
+  --runtime-btn-border-bottom: #3f534f;
+  --runtime-btn-bg:
+    linear-gradient(180deg, var(--ink-btn-fill-top), var(--ink-btn-fill-bottom)),
+    repeating-linear-gradient(0deg, var(--ink-btn-grain) 0 1px, transparent 1px 4px);
+  --runtime-btn-shadow:
+    inset 0 1px 0 var(--ink-btn-highlight-inner),
+    inset 0 -1px 0 var(--ink-btn-shadow-inner);
+  --runtime-btn-hover-border: #86a89d;
+  --runtime-btn-hover-bg: linear-gradient(180deg, var(--ink-btn-hover-top), var(--ink-btn-hover-bottom));
+  --runtime-btn-hover-shadow: 0 4px 14px var(--ink-elevation-muted);
+  --runtime-option-btn-border: #6c857e;
+  --runtime-option-btn-border-top: #84a198;
+  --runtime-option-btn-border-bottom: #4d635e;
+  --runtime-option-btn-bg:
+    linear-gradient(180deg, var(--ink-option-fill-top), var(--ink-option-fill-bottom)),
+    repeating-linear-gradient(45deg, var(--ink-option-grain) 0 1px, transparent 1px 8px);
+  --runtime-option-btn-shadow:
+    inset 0 1px 0 var(--ink-option-highlight-inner),
+    0 4px 11px var(--ink-elevation-option);
+  --runtime-option-btn-hover-border: #9ebeb3;
+  --runtime-option-btn-hover-shadow:
+    inset 0 1px 0 var(--ink-option-highlight-hover),
+    0 7px 16px var(--ink-elevation-option-strong);
+}

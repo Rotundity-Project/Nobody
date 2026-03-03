@@ -1,0 +1,77 @@
+.theme-scroll {
+  --menu-shell-bg:
+    radial-gradient(circle at 12% 20%, color-mix(in srgb, var(--ink-title-color) 24%, transparent), transparent 35%),
+    radial-gradient(circle at 85% 6%, color-mix(in srgb, var(--ink-text-cool) 18%, transparent), transparent 30%),
+    linear-gradient(145deg, var(--ink-paper), var(--ink-paper-elevated));
+  --menu-guide-underline: color-mix(in srgb, var(--ink-text-cool) 45%, transparent);
+  --menu-rail-border: color-mix(in srgb, var(--ink-border-soft) 85%, transparent);
+  --menu-rail-bg: color-mix(in srgb, var(--ink-paper) 82%, transparent);
+  --menu-rail-shadow:
+    0 10px 20px color-mix(in srgb, var(--ink-text-primary) 9%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--ink-paper) 76%, transparent);
+  --menu-stage-bg: color-mix(in srgb, var(--ink-paper) 90%, transparent);
+  --menu-header-border: color-mix(in srgb, var(--ink-border-accent) 52%, transparent);
+  --menu-seal-bg: color-mix(in srgb, var(--ink-accent-seal) 8%, transparent);
+  --menu-seal-shadow: 0 3px 12px color-mix(in srgb, var(--ink-accent-seal) 30%, transparent);
+  --menu-seal-ring-border: color-mix(in srgb, var(--ink-accent-seal) 40%, transparent);
+  --menu-seal-hover-bg: color-mix(in srgb, var(--ink-accent-seal) 14%, transparent);
+  --menu-seal-hover-shadow: 0 8px 18px color-mix(in srgb, var(--ink-accent-seal) 34%, transparent);
+  --menu-seal-focus-ring: color-mix(in srgb, var(--ink-accent-seal) 36%, transparent);
+  --menu-btn-border: color-mix(in srgb, var(--ink-border-accent) 88%, transparent);
+  --menu-btn-bg: color-mix(in srgb, var(--ink-card-bg) 94%, var(--ink-paper));
+  --menu-btn-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--ink-paper) 62%, transparent),
+    0 3px 10px color-mix(in srgb, var(--ink-text-primary) 8%, transparent);
+  --menu-btn-hover-shadow: 0 7px 16px color-mix(in srgb, var(--ink-text-primary) 12%, transparent);
+  --menu-btn-primary-border: color-mix(in srgb, var(--ink-title-color) 78%, transparent);
+  --menu-btn-primary-bg:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--ink-title-color) 36%, var(--ink-paper)),
+      color-mix(in srgb, var(--ink-title-color) 24%, var(--ink-paper-elevated))
+    );
+  --menu-volume-pill-bg: color-mix(in srgb, var(--ink-card-bg) 88%, transparent);
+  --menu-chip-bg: color-mix(in srgb, var(--ink-card-bg) 94%, var(--ink-paper));
+  --menu-overlay-bg: color-mix(in srgb, var(--ink-text-primary) 30%, transparent);
+  --menu-dialog-bg: color-mix(in srgb, var(--ink-paper) 88%, var(--ink-card-bg));
+  --menu-error-text: color-mix(in srgb, var(--ink-accent-main) 86%, var(--ink-text-primary));
+}
+
+.theme-night {
+  --menu-shell-bg:
+    radial-gradient(circle at 12% 20%, color-mix(in srgb, var(--ink-title-color) 24%, transparent), transparent 35%),
+    radial-gradient(circle at 85% 6%, color-mix(in srgb, var(--ink-text-cool) 18%, transparent), transparent 30%),
+    linear-gradient(145deg, var(--ink-paper), var(--ink-paper-elevated));
+  --menu-guide-underline: color-mix(in srgb, var(--ink-text-cool) 45%, transparent);
+  --menu-rail-border: color-mix(in srgb, var(--ink-border-soft) 85%, transparent);
+  --menu-rail-bg: color-mix(in srgb, var(--ink-paper) 82%, transparent);
+  --menu-rail-shadow:
+    0 10px 20px color-mix(in srgb, var(--ink-text-primary) 9%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--ink-paper) 76%, transparent);
+  --menu-stage-bg: color-mix(in srgb, var(--ink-paper) 90%, transparent);
+  --menu-header-border: color-mix(in srgb, var(--ink-border-accent) 52%, transparent);
+  --menu-seal-bg: color-mix(in srgb, var(--ink-accent-seal) 8%, transparent);
+  --menu-seal-shadow: 0 3px 12px color-mix(in srgb, var(--ink-accent-seal) 30%, transparent);
+  --menu-seal-ring-border: color-mix(in srgb, var(--ink-accent-seal) 40%, transparent);
+  --menu-seal-hover-bg: color-mix(in srgb, var(--ink-accent-seal) 14%, transparent);
+  --menu-seal-hover-shadow: 0 8px 18px color-mix(in srgb, var(--ink-accent-seal) 34%, transparent);
+  --menu-seal-focus-ring: color-mix(in srgb, var(--ink-accent-seal) 36%, transparent);
+  --menu-btn-border: color-mix(in srgb, var(--ink-border-accent) 88%, transparent);
+  --menu-btn-bg: color-mix(in srgb, var(--ink-card-bg) 94%, var(--ink-paper));
+  --menu-btn-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--ink-paper) 62%, transparent),
+    0 3px 10px color-mix(in srgb, var(--ink-text-primary) 8%, transparent);
+  --menu-btn-hover-shadow: 0 7px 16px color-mix(in srgb, var(--ink-text-primary) 12%, transparent);
+  --menu-btn-primary-border: color-mix(in srgb, var(--ink-title-color) 78%, transparent);
+  --menu-btn-primary-bg:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--ink-title-color) 36%, var(--ink-paper)),
+      color-mix(in srgb, var(--ink-title-color) 24%, var(--ink-paper-elevated))
+    );
+  --menu-volume-pill-bg: color-mix(in srgb, var(--ink-card-bg) 88%, transparent);
+  --menu-chip-bg: color-mix(in srgb, var(--ink-card-bg) 94%, var(--ink-paper));
+  --menu-overlay-bg: color-mix(in srgb, var(--ink-text-primary) 30%, transparent);
+  --menu-dialog-bg: color-mix(in srgb, var(--ink-paper) 88%, var(--ink-card-bg));
+  --menu-error-text: color-mix(in srgb, var(--ink-accent-main) 86%, var(--ink-text-primary));
+}

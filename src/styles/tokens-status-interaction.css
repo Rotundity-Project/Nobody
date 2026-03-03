@@ -1,0 +1,119 @@
+.theme-scroll {
+  --status-loading-border: color-mix(in srgb, var(--ink-title-color) 40%, transparent);
+  --status-loading-bg: color-mix(in srgb, var(--ink-paper) 88%, transparent);
+  --status-loading-text: color-mix(in srgb, var(--ink-title-color) 72%, var(--ink-text-primary));
+  --status-success-border: color-mix(in srgb, var(--ink-text-cool) 35%, transparent);
+  --status-success-bg: color-mix(in srgb, var(--ink-text-cool) 11%, var(--ink-paper));
+  --status-success-text: var(--ink-text-cool);
+  --status-error-border: color-mix(in srgb, var(--ink-accent-main) 35%, transparent);
+  --status-error-bg: color-mix(in srgb, var(--ink-accent-main) 10%, var(--ink-paper));
+  --status-error-text: var(--ink-accent-main);
+  --status-auto-border: color-mix(in srgb, var(--ink-text-cool) 35%, transparent);
+  --status-auto-bg: color-mix(in srgb, var(--ink-text-cool) 9%, var(--ink-paper));
+  --status-auto-text: color-mix(in srgb, var(--ink-text-cool) 85%, var(--ink-text-primary));
+  --status-validation-border: color-mix(in srgb, var(--ink-accent-note) 35%, transparent);
+  --status-validation-bg: color-mix(in srgb, var(--ink-accent-note) 12%, var(--ink-paper));
+  --status-validation-text: color-mix(in srgb, var(--ink-accent-note) 76%, var(--ink-text-primary));
+  --status-default-bg: color-mix(in srgb, var(--ink-paper-elevated) 90%, transparent);
+
+  --llm-btn-primary-bg: color-mix(in srgb, var(--ink-accent-note) 18%, var(--ink-paper));
+  --llm-btn-success-bg: color-mix(in srgb, var(--ink-text-cool) 18%, var(--ink-paper));
+  --llm-note-text: color-mix(in srgb, var(--ink-text-muted) 92%, transparent);
+  --llm-provider-deepseek-text: color-mix(in srgb, var(--ink-text-cool) 90%, white);
+  --llm-provider-deepseek-border: color-mix(in srgb, var(--ink-text-cool) 45%, transparent);
+  --llm-provider-deepseek-bg: color-mix(in srgb, var(--ink-text-cool) 12%, transparent);
+  --llm-provider-kimi-text: color-mix(in srgb, var(--ink-title-color) 90%, white);
+  --llm-provider-kimi-border: color-mix(in srgb, var(--ink-title-color) 45%, transparent);
+  --llm-provider-kimi-bg: color-mix(in srgb, var(--ink-title-color) 12%, transparent);
+  --llm-provider-generic-border: color-mix(in srgb, var(--ink-text-muted) 35%, transparent);
+  --llm-provider-generic-bg: color-mix(in srgb, var(--ink-text-muted) 10%, transparent);
+
+  --option-btn-shadow: 0 2px 10px color-mix(in srgb, var(--ink-text-primary) 10%, transparent);
+  --option-tag-border: color-mix(in srgb, var(--ink-border-soft) 60%, transparent);
+  --option-tag-bg: color-mix(in srgb, var(--ink-surface) 35%, transparent);
+  --option-tag-risk-border: color-mix(in srgb, var(--ink-accent-main) 40%, transparent);
+  --option-tag-risk-bg: color-mix(in srgb, var(--ink-accent-main) 12%, transparent);
+  --option-tag-probe-border: color-mix(in srgb, var(--ink-text-cool) 40%, transparent);
+  --option-tag-probe-bg: color-mix(in srgb, var(--ink-text-cool) 12%, transparent);
+
+  --audio-toggle-on-bg: color-mix(in srgb, var(--ink-title-color) 18%, var(--ink-paper));
+  --audio-toggle-on-text: color-mix(in srgb, var(--ink-title-color) 72%, var(--ink-text-primary));
+  --audio-toggle-on-cool-bg: color-mix(in srgb, var(--ink-text-cool) 12%, var(--ink-paper));
+  --audio-chip-accent-text: color-mix(in srgb, var(--ink-title-color) 72%, var(--ink-text-primary));
+  --audio-chip-accent-bg: color-mix(in srgb, var(--ink-title-color) 18%, var(--ink-paper));
+
+  --story-reading-fade: linear-gradient(to top, color-mix(in srgb, var(--ink-bg-base) 86%, transparent), transparent);
+  --story-page-nav-border: color-mix(in srgb, var(--ink-border-accent) 88%, white 12%);
+  --story-page-nav-bg: color-mix(in srgb, var(--ink-paper) 76%, transparent);
+  --story-page-nav-shadow:
+    0 8px 22px color-mix(in srgb, var(--ink-text-primary) 22%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--ink-paper) 78%, transparent);
+
+  --free-text-placeholder: color-mix(in srgb, var(--ink-text-muted) 78%, transparent);
+  --free-text-focus-ring: color-mix(in srgb, var(--ink-title-color) 18%, transparent);
+  --free-text-disabled-text: color-mix(in srgb, var(--ink-text-muted) 80%, transparent);
+
+  --loading-spinner-ring: color-mix(in srgb, var(--ink-border) 85%, transparent);
+  --loading-track-bg: color-mix(in srgb, var(--ink-text-primary) 9%, transparent);
+  --loading-fill-bg: color-mix(in srgb, var(--loading-accent-color, var(--ink-accent-note)) 82%, transparent);
+}
+
+.theme-night {
+  --status-loading-border: color-mix(in srgb, var(--ink-title-color) 40%, transparent);
+  --status-loading-bg: color-mix(in srgb, var(--ink-paper) 88%, transparent);
+  --status-loading-text: color-mix(in srgb, var(--ink-title-color) 72%, var(--ink-text-primary));
+  --status-success-border: color-mix(in srgb, var(--ink-text-cool) 35%, transparent);
+  --status-success-bg: color-mix(in srgb, var(--ink-text-cool) 11%, var(--ink-paper));
+  --status-success-text: var(--ink-text-cool);
+  --status-error-border: color-mix(in srgb, var(--ink-accent-main) 35%, transparent);
+  --status-error-bg: color-mix(in srgb, var(--ink-accent-main) 10%, var(--ink-paper));
+  --status-error-text: var(--ink-accent-main);
+  --status-auto-border: color-mix(in srgb, var(--ink-text-cool) 35%, transparent);
+  --status-auto-bg: color-mix(in srgb, var(--ink-text-cool) 9%, var(--ink-paper));
+  --status-auto-text: color-mix(in srgb, var(--ink-text-cool) 85%, var(--ink-text-primary));
+  --status-validation-border: color-mix(in srgb, var(--ink-accent-note) 35%, transparent);
+  --status-validation-bg: color-mix(in srgb, var(--ink-accent-note) 12%, var(--ink-paper));
+  --status-validation-text: color-mix(in srgb, var(--ink-accent-note) 76%, var(--ink-text-primary));
+  --status-default-bg: color-mix(in srgb, var(--ink-paper-elevated) 90%, transparent);
+
+  --llm-btn-primary-bg: color-mix(in srgb, var(--ink-accent-note) 18%, var(--ink-paper));
+  --llm-btn-success-bg: color-mix(in srgb, var(--ink-text-cool) 18%, var(--ink-paper));
+  --llm-note-text: color-mix(in srgb, var(--ink-text-muted) 92%, transparent);
+  --llm-provider-deepseek-text: color-mix(in srgb, var(--ink-text-cool) 90%, white);
+  --llm-provider-deepseek-border: color-mix(in srgb, var(--ink-text-cool) 45%, transparent);
+  --llm-provider-deepseek-bg: color-mix(in srgb, var(--ink-text-cool) 12%, transparent);
+  --llm-provider-kimi-text: color-mix(in srgb, var(--ink-title-color) 90%, white);
+  --llm-provider-kimi-border: color-mix(in srgb, var(--ink-title-color) 45%, transparent);
+  --llm-provider-kimi-bg: color-mix(in srgb, var(--ink-title-color) 12%, transparent);
+  --llm-provider-generic-border: color-mix(in srgb, var(--ink-text-muted) 35%, transparent);
+  --llm-provider-generic-bg: color-mix(in srgb, var(--ink-text-muted) 10%, transparent);
+
+  --option-btn-shadow: 0 2px 10px color-mix(in srgb, var(--ink-text-primary) 10%, transparent);
+  --option-tag-border: color-mix(in srgb, var(--ink-border-soft) 60%, transparent);
+  --option-tag-bg: color-mix(in srgb, var(--ink-surface) 35%, transparent);
+  --option-tag-risk-border: color-mix(in srgb, var(--ink-accent-main) 40%, transparent);
+  --option-tag-risk-bg: color-mix(in srgb, var(--ink-accent-main) 12%, transparent);
+  --option-tag-probe-border: color-mix(in srgb, var(--ink-text-cool) 40%, transparent);
+  --option-tag-probe-bg: color-mix(in srgb, var(--ink-text-cool) 12%, transparent);
+
+  --audio-toggle-on-bg: color-mix(in srgb, var(--ink-title-color) 18%, var(--ink-paper));
+  --audio-toggle-on-text: color-mix(in srgb, var(--ink-title-color) 72%, var(--ink-text-primary));
+  --audio-toggle-on-cool-bg: color-mix(in srgb, var(--ink-text-cool) 12%, var(--ink-paper));
+  --audio-chip-accent-text: color-mix(in srgb, var(--ink-title-color) 72%, var(--ink-text-primary));
+  --audio-chip-accent-bg: color-mix(in srgb, var(--ink-title-color) 18%, var(--ink-paper));
+
+  --story-reading-fade: linear-gradient(to top, color-mix(in srgb, var(--ink-bg-base) 86%, transparent), transparent);
+  --story-page-nav-border: color-mix(in srgb, var(--ink-border-accent) 88%, white 12%);
+  --story-page-nav-bg: color-mix(in srgb, var(--ink-paper) 76%, transparent);
+  --story-page-nav-shadow:
+    0 8px 22px color-mix(in srgb, var(--ink-text-primary) 22%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--ink-paper) 78%, transparent);
+
+  --free-text-placeholder: color-mix(in srgb, var(--ink-text-muted) 78%, transparent);
+  --free-text-focus-ring: color-mix(in srgb, var(--ink-title-color) 18%, transparent);
+  --free-text-disabled-text: color-mix(in srgb, var(--ink-text-muted) 80%, transparent);
+
+  --loading-spinner-ring: color-mix(in srgb, var(--ink-border) 85%, transparent);
+  --loading-track-bg: color-mix(in srgb, var(--ink-text-primary) 9%, transparent);
+  --loading-fill-bg: color-mix(in srgb, var(--loading-accent-color, var(--ink-accent-note)) 82%, transparent);
+}
