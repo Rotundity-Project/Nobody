@@ -1,0 +1,164 @@
+﻿.runtime-state-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 16px;
+  border: 1px solid var(--ink-border-accent);
+  background: var(--ink-card-bg);
+  padding: 3px 10px;
+}
+
+.runtime-state-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.9;
+}
+
+.runtime-state-label {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.runtime-state-cool {
+  color: var(--ink-text-cool);
+}
+
+.runtime-state-gold {
+  color: var(--ink-title-color);
+}
+
+.runtime-state-ink {
+  color: var(--ink-text-ink);
+}
+
+.runtime-state-ember {
+  color: var(--ink-accent-main);
+}
+
+.runtime-dev-muted {
+  color: var(--runtime-dev-muted);
+}
+
+.runtime-dev-text {
+  color: var(--runtime-dev-text);
+}
+
+.runtime-dev-field {
+  border-color: var(--runtime-dev-border);
+  background: var(--runtime-dev-field-bg);
+}
+
+.runtime-dev-preview {
+  background: var(--runtime-dev-preview-bg);
+}
+
+.runtime-dev-error {
+  color: var(--runtime-dev-error);
+}
+
+.runtime-root-line {
+  margin-top: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.runtime-root-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.runtime-root-icon {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+}
+
+.runtime-root-name {
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.runtime-root-type {
+  color: var(--ink-text-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.runtime-root-earth {
+  color: var(--runtime-root-earth);
+}
+
+.runtime-root-metal {
+  color: var(--ink-title-color);
+}
+
+.runtime-root-wood {
+  color: var(--ink-text-ink);
+}
+
+.runtime-root-water {
+  color: var(--runtime-root-water);
+}
+
+.runtime-root-fire {
+  color: var(--ink-accent-main);
+}
+
+.runtime-accent-cool {
+  color: var(--ink-text-cool);
+}
+
+.runtime-rhythm-badge {
+  margin-top: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--ink-border-accent);
+  border-radius: 16px;
+  background: var(--ink-card-bg);
+  padding: 4px 12px;
+}
+
+.runtime-rhythm-badge-compact {
+  margin-top: 0;
+  padding: 3px 10px;
+}
+
+.runtime-rhythm-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.runtime-rhythm-label {
+  color: var(--ink-text-muted);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+.runtime-rhythm-value {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.runtime-rhythm-cool .runtime-rhythm-icon,
+.runtime-rhythm-cool .runtime-rhythm-value {
+  color: var(--ink-text-cool);
+}
+
+.runtime-rhythm-gold .runtime-rhythm-icon,
+.runtime-rhythm-gold .runtime-rhythm-value {
+  color: var(--ink-title-color);
+}
+
+.runtime-rhythm-ink .runtime-rhythm-icon,
+.runtime-rhythm-ink .runtime-rhythm-value {
+  color: var(--ink-text-ink);
+}

@@ -1,0 +1,164 @@
+﻿.runtime-side-right .runtime-interaction-card {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overflow-x: hidden;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--runtime-interaction-card-bg);
+}
+
+.runtime-interaction-title,
+.runtime-interaction-subtitle {
+  margin: 0;
+}
+
+.runtime-interaction-title {
+  font-size: 19px;
+  line-height: 1.35;
+}
+
+.runtime-interaction-subtitle {
+  font-size: 13px;
+  line-height: 1.55;
+  border-bottom: 1px dashed var(--runtime-interaction-subtitle-border);
+  padding-bottom: 8px;
+}
+
+.runtime-interaction-card :deep(.mx-auto.max-w-3xl) {
+  max-width: none;
+  margin: 0;
+}
+
+.runtime-interaction-card :deep(.ink-interaction-panel) {
+  padding: 0;
+}
+
+.runtime-interaction-card :deep(.free-text-input),
+.runtime-interaction-card :deep(.free-text-foot),
+.runtime-interaction-card :deep(.free-text-validation) {
+  max-width: 100%;
+}
+
+.runtime-llm-shortcut {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px dashed var(--ink-border-accent);
+  padding-top: 10px;
+}
+
+.runtime-bottom-bar {
+  position: relative;
+  z-index: 10;
+  margin-top: 18px;
+  min-height: 64px;
+  border-top: 1px solid var(--runtime-bottom-bar-border-top);
+  border-radius: 12px;
+  background: var(--runtime-bottom-bar-bg);
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  pointer-events: auto;
+  box-shadow: var(--runtime-bottom-bar-shadow);
+}
+
+.runtime-bottom-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.runtime-bottom-bar :deep(.ink-dock) {
+  gap: 8px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.runtime-bottom-bar :deep(.ink-dock-btn) {
+  min-width: 60px;
+  border-radius: 10px;
+  border: 1px solid var(--runtime-dock-btn-border);
+  border-top-color: var(--runtime-dock-btn-border-top);
+  border-bottom-color: var(--runtime-dock-btn-border-bottom);
+  background: var(--runtime-dock-btn-bg);
+  padding: 7px 14px;
+  font-size: 14px;
+  line-height: 1.1;
+  box-shadow: var(--runtime-dock-btn-shadow);
+}
+
+.runtime-bottom-bar :deep(.ink-dock-btn:hover) {
+  border-color: var(--runtime-dock-btn-hover-border);
+  background: var(--runtime-dock-btn-hover-bg);
+  box-shadow: var(--runtime-dock-btn-hover-shadow);
+}
+
+.runtime-bottom-bar :deep(.ink-dock-btn-primary) {
+  border-color: var(--runtime-dock-btn-primary-border);
+  background: var(--runtime-dock-btn-primary-bg);
+  color: var(--runtime-dock-btn-primary-text);
+}
+
+.runtime-bottom-btn {
+  border-radius: 8px;
+  border: 1px solid var(--runtime-btn-border);
+  border-top-color: var(--runtime-btn-border-top);
+  border-bottom-color: var(--runtime-btn-border-bottom);
+  background: var(--runtime-btn-bg);
+  color: var(--ink-text-primary);
+  padding: 7px 15px;
+  box-shadow: var(--runtime-btn-shadow);
+  transition: border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease, transform 120ms ease;
+}
+
+.runtime-interaction-card :deep(.option-btn) {
+  border-radius: 9px;
+  border: 1px solid var(--runtime-option-btn-border);
+  border-top-color: var(--runtime-option-btn-border-top);
+  border-bottom-color: var(--runtime-option-btn-border-bottom);
+  background: var(--runtime-option-btn-bg);
+  box-shadow: var(--runtime-option-btn-shadow);
+}
+
+.runtime-interaction-card :deep(.option-btn:hover) {
+  border-color: var(--runtime-option-btn-hover-border);
+  box-shadow: var(--runtime-option-btn-hover-shadow);
+}
+
+.runtime-bottom-btn:hover,
+.runtime-seal-btn:hover {
+  border-color: var(--runtime-btn-hover-border);
+  background: var(--runtime-btn-hover-bg);
+  box-shadow: var(--runtime-btn-hover-shadow);
+}
+
+.runtime-bottom-btn:active,
+.runtime-seal-btn:active {
+  transform: scale(0.98);
+}
+
+@media (max-width: 1180px) {
+  .runtime-side-right .runtime-interaction-card {
+    border-radius: 12px;
+    height: auto;
+    min-height: 320px;
+    padding: 14px;
+    gap: 6px;
+  }
+
+  .runtime-bottom-bar {
+    flex-direction: column;
+    align-items: stretch;
+    position: sticky;
+    bottom: 0;
+    z-index: 12;
+  }
+}
