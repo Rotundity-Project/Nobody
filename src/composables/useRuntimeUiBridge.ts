@@ -32,6 +32,8 @@ export const useRuntimeUiBridge = ({
   showQuickPanel,
   activeQuickPanelTab,
   quickPanels,
+  copyWorldDiagnostics,
+  clearWorldMetrics,
 }: {
   isGameInitialized: ComputedRef<boolean>;
   activeThemeLabel: ComputedRef<string>;
@@ -59,6 +61,8 @@ export const useRuntimeUiBridge = ({
   resetConsistencyPolicy: () => void;
   showQuickPanel: Ref<boolean>;
   activeQuickPanelTab: Ref<RuntimeQuickTab>;
+  copyWorldDiagnostics: () => void;
+  clearWorldMetrics: () => void;
   quickPanels: ComputedRef<Array<{
     id: RuntimeQuickTab;
     label: string;
@@ -142,6 +146,8 @@ export const useRuntimeUiBridge = ({
     close: () => {
       showQuickPanel.value = false;
     },
+    'copy-world-diagnostics': copyWorldDiagnostics,
+    'clear-world-metrics': clearWorldMetrics,
   };
 
   return {

@@ -37,6 +37,15 @@ const compactRecord = (row: Record<string, unknown>, ignoreKeys: string[] = []):
   return entries.join(' | ');
 };
 
+const extractTotalMs = (diag: string): number | null => {
+  const matched = diag.match(/total=(\d+)/);
+  if (!matched) {
+    return null;
+  }
+  const value = Number(matched[1]);
+  return Number.isFinite(value) ? value : null;
+};
+
 export const useRuntimeQuickPanels = ({
   gameStore,
   worldRegistrySessionLabel,
@@ -173,6 +182,7 @@ export const useRuntimeQuickPanels = ({
   });
 
   const worldPanelItems = computed(() => {
+    const generationDiagnostics = gameStore.generationDiagnostics ?? [];
     const summary = [
       {
         id: 'world-session',
@@ -196,6 +206,59 @@ export const useRuntimeQuickPanels = ({
         meta: `当前位置：${currentLocationLabel.value}`,
       },
     ];
+
+    if (gameStore.generationTimingSummary) {
+      const timing = gameStore.generationTimingSummary;
+      summary.push({
+        id: 'world-metric-latency',
+        title: `时延摘要：P50 ${timing.totalP50Ms}ms / P95 ${timing.totalP95Ms}ms`,
+        meta: `P99 ${timing.totalP99Ms}ms｜plotP95 ${timing.plotGenP95Ms}ms｜optionP95 ${timing.optionGenP95Ms}ms｜样本 ${timing.sampleCount}`,
+      });
+    }
+
+    if (generationDiagnostics.length > 0) {
+      const recentTotals = generationDiagnostics
+        .slice(-8)
+        .map((diag) => extractTotalMs(diag))
+        .filter((value): value is number => value !== null);
+      if (recentTotals.length > 0) {
+        summary.push({
+          id: 'world-metric-trend',
+          title: `最近${recentTotals.length}次时延趋势`,
+          meta: recentTotals.map((value) => `${value}ms`).join(' -> '),
+        });
+      }
+
+      const sampleCount = generationDiagnostics.length;
+      const timeoutCount = generationDiagnostics.filter((diag) => diag.includes('超时')).length;
+      const degradedCount = generationDiagnostics.filter((diag) =>
+        diag.includes('quick_mode')
+        || diag.includes('rule_only')
+        || diag.includes('快速模式')
+      ).length;
+      summary.push({
+        id: 'world-metric-rates',
+        title: `超时率 ${(timeoutCount * 100 / sampleCount).toFixed(1)}%｜降级率 ${(degradedCount * 100 / sampleCount).toFixed(1)}%`,
+        meta: `样本 ${sampleCount}｜超时 ${timeoutCount}｜降级 ${degradedCount}`,
+      });
+    }
+
+    if (gameStore.generationFailureSummary) {
+      const failures = gameStore.generationFailureSummary;
+      summary.push({
+        id: 'world-metric-fallback',
+        title: `降级统计：preset ${failures.presetFallbackCount}｜turn ${failures.turnUpdateFallbackCount}`,
+        meta: `option阻断 ${failures.optionLlmBlockedCount}｜structured ${failures.structuredOkCount}｜plain ${failures.plainOkCount}｜样本 ${failures.sampleCount}`,
+      });
+      if (failures.topReasons.length > 0) {
+        const top = failures.topReasons[0];
+        summary.push({
+          id: 'world-metric-top-reason',
+          title: `高频失败原因：${top.stage}`,
+          meta: `${top.reason}（${top.count}次）`,
+        });
+      }
+    }
 
     const tables = gameStore.worldRegistry?.tables;
     if (!tables) return summary;

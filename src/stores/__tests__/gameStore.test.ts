@@ -6,11 +6,8 @@ import { ActionType, Element, Grade, ScriptType, type PlotState, type Script } f
 const invokeMock = vi.fn();
 const invokeWithTimeoutMock = vi.fn();
 
-vi.mock('@tauri-apps/api/core', () => ({
-  invoke: (...args: unknown[]) => invokeMock(...args),
-}));
-
 vi.mock('../../utils/tauriInvoke', () => ({
+  invokeRuntime: (...args: unknown[]) => invokeMock(...args),
   invokeWithTimeout: (...args: unknown[]) => invokeWithTimeoutMock(...args),
 }));
 
@@ -168,7 +165,7 @@ describe('gameStore', () => {
     expect(invokeWithTimeoutMock).toHaveBeenCalledWith(
       'execute_player_action',
       { action: expect.any(Object) },
-      3000000,
+      60000,
       expect.any(String),
     );
     expect(store.gameState).toEqual(gameState);

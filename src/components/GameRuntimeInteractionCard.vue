@@ -11,6 +11,10 @@
       :free-text-input="freeTextInput"
       :input-validation="inputValidation"
       :loading-message="loadingMessage"
+      :loading-stage="loadingStage || undefined"
+      :loading-progress="loadingProgress"
+      :loading-progress-text="loadingProgressText"
+      :loading-elapsed-ms="loadingElapsedMs"
       :auto-advance-stop-hint="autoAdvanceStopHint"
       :is-loading="isLoading"
       :is-game-initialized="isGameInitialized"
@@ -50,6 +54,10 @@ defineProps<{
   freeTextInput: string;
   inputValidation: InputValidation;
   loadingMessage: string;
+  loadingStage?: string;
+  loadingProgress: number | null;
+  loadingProgressText: string;
+  loadingElapsedMs?: number | null;
   autoAdvanceStopHint: string;
   isLoading: boolean;
   isGameInitialized: boolean;
@@ -73,11 +81,12 @@ defineEmits<{
 .runtime-card {
   position: relative;
   border-radius: 14px;
-  border: 1px solid var(--ink-border-strong);
-  background: var(--panel-bg, var(--ink-card-bg));
-  box-shadow: var(--ink-shadow-card);
+  border: 1px solid var(--runtime-side-card-border, var(--ink-border-strong));
+  background: var(--runtime-side-card-bg, var(--panel-bg, var(--ink-card-bg)));
+  box-shadow: var(--runtime-side-card-shadow, var(--ink-shadow-card));
   padding: 20px;
   background-image: var(--runtime-card-sheen);
+  backdrop-filter: var(--runtime-side-card-filter, blur(2px));
 }
 
 .runtime-card-title {
@@ -155,7 +164,7 @@ defineEmits<{
   border-bottom-color: var(--runtime-btn-border-bottom);
   background: var(--runtime-btn-bg);
   color: var(--ink-text-primary);
-  padding: 8px 18px;
+  padding: 7px 15px;
   box-shadow: var(--runtime-btn-shadow);
   transition: border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease, transform 120ms ease;
 }
@@ -187,7 +196,7 @@ defineEmits<{
 @media (max-width: 1180px) {
   .runtime-interaction-card {
     height: auto;
-    padding: 16px;
+    padding: 14px;
     gap: 6px;
   }
 }

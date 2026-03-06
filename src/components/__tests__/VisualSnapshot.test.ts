@@ -1,4 +1,4 @@
-﻿import { shallowMount } from '@vue/test-utils';
+﻿import { mount, shallowMount } from '@vue/test-utils';
 import { describe, expect, it, vi } from 'vitest';
 import MainMenu from '../MainMenu.vue';
 import ScriptSelector from '../ScriptSelector.vue';
@@ -10,6 +10,9 @@ import GameInteractionPanel from '../GameInteractionPanel.vue';
 import InkQuickActionDock from '../InkQuickActionDock.vue';
 import RuntimeQuickPanelsDialog from '../RuntimeQuickPanelsDialog.vue';
 import GameSystemDialogs from '../GameSystemDialogs.vue';
+import GameRuntimeTopBar from '../GameRuntimeTopBar.vue';
+import GameRuntimeBottomBar from '../GameRuntimeBottomBar.vue';
+import NotificationCenter from '../NotificationCenter.vue';
 import { Element, Grade } from '../../types/game';
 
 const normalizeSnapshotHtml = (html: string): string =>
@@ -80,19 +83,42 @@ vi.mock('../../stores/gameStore', () => ({
   }),
 }));
 
+const withStoredUiTheme = (
+  theme: 'theme-scroll' | 'theme-night',
+  run: () => void,
+) => {
+  const key = 'nobody_ui_theme';
+  const previous = window.localStorage.getItem(key);
+  window.localStorage.setItem(key, theme);
+  try {
+    run();
+  } finally {
+    if (previous === null) {
+      window.localStorage.removeItem(key);
+    } else {
+      window.localStorage.setItem(key, previous);
+    }
+  }
+};
+
 describe('visual snapshots', () => {
   const mountWithTheme = (
     component: unknown,
     theme: 'theme-scroll' | 'theme-night',
     options: Record<string, unknown> = {},
-  ) =>
-    shallowMount(
+  ) => {
+    const { props, ...rest } = options;
+    return mount(
       {
         components: { TestedComponent: component },
-        template: `<div class="${theme}"><TestedComponent /></div>`,
+        data: () => ({
+          childProps: props ?? {},
+        }),
+        template: `<div class="${theme}"><TestedComponent v-bind="childProps" /></div>`,
       },
-      options as never,
+      rest as never,
     );
+  };
 
   it('MainMenu snapshot', () => {
     const wrapper = shallowMount(MainMenu, {
@@ -106,14 +132,16 @@ describe('visual snapshots', () => {
   });
 
   it('MainMenu snapshot (theme-night)', () => {
-    const wrapper = mountWithTheme(MainMenu, 'theme-night', {
-      global: {
-        stubs: {
-          LLMConfigDialog: true,
+    withStoredUiTheme('theme-night', () => {
+      const wrapper = shallowMount(MainMenu, {
+        global: {
+          stubs: {
+            LLMConfigDialog: true,
+          },
         },
-      },
+      });
+      expect(normalizeSnapshotHtml(wrapper.html())).toMatchSnapshot();
     });
-    expect(normalizeSnapshotHtml(wrapper.html())).toMatchSnapshot();
   });
 
   it('ScriptSelector snapshot', () => {
@@ -130,16 +158,18 @@ describe('visual snapshots', () => {
   });
 
   it('ScriptSelector snapshot (theme-night)', () => {
-    const wrapper = mountWithTheme(ScriptSelector, 'theme-night', {
-      global: {
-        stubs: {
-          LoadingIndicator: true,
-          StatusBanner: true,
-          UiPanel: true,
+    withStoredUiTheme('theme-night', () => {
+      const wrapper = shallowMount(ScriptSelector, {
+        global: {
+          stubs: {
+            LoadingIndicator: true,
+            StatusBanner: true,
+            UiPanel: true,
+          },
         },
-      },
+      });
+      expect(normalizeSnapshotHtml(wrapper.html())).toMatchSnapshot();
     });
-    expect(normalizeSnapshotHtml(wrapper.html())).toMatchSnapshot();
   });
 
   it('GameRuntimeView snapshot', () => {
@@ -165,25 +195,27 @@ describe('visual snapshots', () => {
   });
 
   it('GameRuntimeView snapshot (theme-night)', () => {
-    const wrapper = mountWithTheme(GameRuntimeView, 'theme-night', {
-      global: {
-        stubs: {
-          GameRuntimeTopBar: true,
-          GameRuntimeBottomBar: true,
-          GameRuntimeLeftStatusPanels: true,
-          GameRuntimeMainHeader: true,
-          GameRuntimeWorldRegistryPanel: true,
-          GameRuntimeInteractionCard: true,
-          StoryViewport: true,
-          GameSystemDialogs: true,
-          GameInfoCenterDialog: true,
-          CharacterInfoModal: true,
-          RuntimeQuickPanelsDialog: true,
-          NotificationCenter: true,
+    withStoredUiTheme('theme-night', () => {
+      const wrapper = shallowMount(GameRuntimeView, {
+        global: {
+          stubs: {
+            GameRuntimeTopBar: true,
+            GameRuntimeBottomBar: true,
+            GameRuntimeLeftStatusPanels: true,
+            GameRuntimeMainHeader: true,
+            GameRuntimeWorldRegistryPanel: true,
+            GameRuntimeInteractionCard: true,
+            StoryViewport: true,
+            GameSystemDialogs: true,
+            GameInfoCenterDialog: true,
+            CharacterInfoModal: true,
+            RuntimeQuickPanelsDialog: true,
+            NotificationCenter: true,
+          },
         },
-      },
+      });
+      expect(normalizeSnapshotHtml(wrapper.html())).toMatchSnapshot();
     });
-    expect(normalizeSnapshotHtml(wrapper.html())).toMatchSnapshot();
   });
 
   it('InfoTabsDialog drawer snapshot', () => {
@@ -298,6 +330,8 @@ describe('visual snapshots', () => {
         isGameInitialized: true,
         isWaitingForInput: true,
         loadingMessage: '处理中...',
+        loadingProgress: null,
+        loadingProgressText: '',
         canStopAutoAdvance: false,
         autoAdvanceStopHint: '',
       },
@@ -396,4 +430,100 @@ describe('visual snapshots', () => {
     });
     expect(normalizeSnapshotHtml(wrapper.html())).toMatchSnapshot();
   });
+
+  it('GameRuntimeTopBar snapshot', () => {
+    const wrapper = shallowMount(GameRuntimeTopBar, {
+      props: {
+        chapterIndexLabel: '第一章',
+        chapterNameLabel: '初入仙门',
+        interactionStateToneClass: 'runtime-state-cool',
+        interactionStateLabel: '等待输入',
+        gameTimeLabel: '第1年 · 第1月 · 第2日',
+        spiritStoneLabel: '18',
+        characterCreationDurationLabel: '12.4s',
+      },
+    });
+    expect(normalizeSnapshotHtml(wrapper.html())).toMatchSnapshot();
+  });
+
+  it('GameRuntimeTopBar snapshot (theme-night)', () => {
+    const wrapper = mountWithTheme(GameRuntimeTopBar, 'theme-night', {
+      props: {
+        chapterIndexLabel: '第一章',
+        chapterNameLabel: '初入仙门',
+        interactionStateToneClass: 'runtime-state-cool',
+        interactionStateLabel: '等待输入',
+        gameTimeLabel: '第1年 · 第1月 · 第2日',
+        spiritStoneLabel: '18',
+        characterCreationDurationLabel: '12.4s',
+      },
+    });
+    expect(normalizeSnapshotHtml(wrapper.html())).toMatchSnapshot();
+  });
+
+  it('GameRuntimeBottomBar snapshot', () => {
+    const wrapper = shallowMount(GameRuntimeBottomBar, {
+      props: {
+        isGameInitialized: true,
+        activeThemeLabel: '浅色',
+      },
+      global: {
+        stubs: {
+          InkQuickActionDock: true,
+        },
+      },
+    });
+    expect(normalizeSnapshotHtml(wrapper.html())).toMatchSnapshot();
+  });
+
+  it('GameRuntimeBottomBar snapshot (theme-night)', () => {
+    const wrapper = mountWithTheme(GameRuntimeBottomBar, 'theme-night', {
+      props: {
+        isGameInitialized: true,
+        activeThemeLabel: '深色',
+      },
+      global: {
+        stubs: {
+          InkQuickActionDock: true,
+        },
+      },
+    });
+    expect(normalizeSnapshotHtml(wrapper.html())).toMatchSnapshot();
+  });
+
+  it('NotificationCenter snapshot', () => {
+    const wrapper = shallowMount(NotificationCenter, {
+      props: {
+        notifications: [
+          { id: 'n1', kind: 'error', title: '网络异常', message: '已自动重试', priority: 'banner' },
+          { id: 'n2', kind: 'info', title: '已保存', message: '保存到槽位 1', priority: 'toast' },
+        ],
+      },
+      global: {
+        stubs: {
+          StatusBanner: true,
+        },
+      },
+    });
+    expect(normalizeSnapshotHtml(wrapper.html())).toMatchSnapshot();
+  });
+
+  it('NotificationCenter snapshot (theme-night)', () => {
+    const wrapper = mountWithTheme(NotificationCenter, 'theme-night', {
+      props: {
+        notifications: [
+          { id: 'n1', kind: 'error', title: '网络异常', message: '已自动重试', priority: 'banner' },
+          { id: 'n2', kind: 'info', title: '已保存', message: '保存到槽位 1', priority: 'toast' },
+        ],
+      },
+      global: {
+        stubs: {
+          StatusBanner: true,
+        },
+      },
+    });
+    expect(normalizeSnapshotHtml(wrapper.html())).toMatchSnapshot();
+  });
 });
+
+

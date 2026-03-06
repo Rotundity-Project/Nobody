@@ -1,12 +1,12 @@
 ﻿<template>
   <div
     v-if="visible"
-    class="mb-4 rounded-lg border border-amber-500/30 bg-slate-950/70 p-4"
+    class="chapter-recap mb-4 rounded-lg p-4"
   >
-    <p class="text-xs uppercase tracking-[0.25em] text-amber-200/70">
+    <p class="chapter-recap-title text-xs uppercase tracking-[0.25em]">
       上一章摘要
     </p>
-    <p class="mt-2 whitespace-pre-wrap font-story text-[15px] leading-7 text-slate-200">
+    <p class="chapter-recap-summary mt-2 whitespace-pre-wrap font-story text-[15px] leading-7">
       {{ summary }}
     </p>
   </div>
@@ -18,3 +18,18 @@ defineProps<{
   summary: string;
 }>();
 </script>
+
+<style scoped>
+.chapter-recap {
+  border: 1px solid var(--chapter-recap-border);
+  background: var(--chapter-recap-bg);
+}
+
+.chapter-recap-title {
+  color: var(--chapter-recap-title);
+}
+
+.chapter-recap-summary {
+  color: var(--ink-text-primary);
+}
+</style>

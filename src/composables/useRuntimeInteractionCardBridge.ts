@@ -1,6 +1,7 @@
 import { computed, type ComputedRef, type Ref } from 'vue';
 import type { PlayerOption } from '../types/game';
 import type { InputMode, InputValidation } from './useInputMode';
+import type { LlmProviderKey } from '../utils/llmProvider';
 
 export const useRuntimeInteractionCardBridge = ({
   shouldShowInputPanel,
@@ -14,9 +15,16 @@ export const useRuntimeInteractionCardBridge = ({
   isGameInitialized,
   isWaitingForInput,
   loadingMessage,
+  loadingStage,
+  loadingProgress,
+  loadingProgressText,
+  loadingElapsedMs,
   autoAdvanceRunning,
   autoAdvanceStopHint,
   shouldShowLlmSetupShortcut,
+  llmProviderKey,
+  llmProviderLabel,
+  llmModelRaw,
   setInputMode,
   handleOptionSelect,
   setFreeTextInput,
@@ -36,9 +44,16 @@ export const useRuntimeInteractionCardBridge = ({
   isGameInitialized: ComputedRef<boolean>;
   isWaitingForInput: ComputedRef<boolean>;
   loadingMessage: Ref<string>;
+  loadingStage?: Ref<string>;
+  loadingProgress: Ref<number | null>;
+  loadingProgressText: Ref<string>;
+  loadingElapsedMs: Ref<number | null>;
   autoAdvanceRunning: Ref<boolean>;
   autoAdvanceStopHint: Ref<string>;
   shouldShowLlmSetupShortcut: ComputedRef<boolean>;
+  llmProviderKey: ComputedRef<LlmProviderKey>;
+  llmProviderLabel: ComputedRef<string>;
+  llmModelRaw: ComputedRef<string>;
   setInputMode: (mode: InputMode) => void;
   handleOptionSelect: (option: PlayerOption) => void;
   setFreeTextInput: (value: string) => void;
@@ -59,9 +74,16 @@ export const useRuntimeInteractionCardBridge = ({
     isGameInitialized: isGameInitialized.value,
     isWaitingForInput: isWaitingForInput.value,
     loadingMessage: loadingMessage.value,
+    loadingStage: loadingStage?.value ?? '',
+    loadingProgress: loadingProgress.value,
+    loadingProgressText: loadingProgressText.value,
+    loadingElapsedMs: loadingElapsedMs.value,
     canStopAutoAdvance: autoAdvanceRunning.value,
     autoAdvanceStopHint: autoAdvanceStopHint.value,
     shouldShowLlmSetupShortcut: shouldShowLlmSetupShortcut.value,
+    llmProviderKey: llmProviderKey.value,
+    llmProviderLabel: llmProviderLabel.value,
+    llmModelRaw: llmModelRaw.value,
   }));
 
   const interactionCardListeners = {

@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <section class="runtime-card">
     <div class="flex items-center justify-between gap-2">
       <h3 class="runtime-card-title">世界属性表</h3>
@@ -228,9 +228,9 @@ const onKeyFieldInput = (event: Event) => {
 .runtime-card {
   position: relative;
   border-radius: 14px;
-  border: 1px solid var(--ink-border-strong);
-  background: var(--panel-bg, var(--ink-card-bg));
-  box-shadow: var(--ink-shadow-card);
+  border: 1px solid var(--runtime-side-card-border, var(--ink-border-strong));
+  background: var(--runtime-side-card-bg, var(--panel-bg, var(--ink-card-bg)));
+  box-shadow: var(--runtime-side-card-shadow, var(--ink-shadow-card));
   padding: 20px;
   background-image: var(--runtime-card-sheen);
 }
@@ -282,7 +282,7 @@ const onKeyFieldInput = (event: Event) => {
   border-bottom-color: var(--runtime-btn-border-bottom);
   background: var(--runtime-btn-bg);
   color: var(--ink-text-primary);
-  padding: 8px 18px;
+  padding: 7px 15px;
   box-shadow: var(--runtime-btn-shadow);
   transition: border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease, transform 120ms ease;
 }
@@ -297,3 +297,4 @@ const onKeyFieldInput = (event: Event) => {
   transform: scale(0.98);
 }
 </style>
+

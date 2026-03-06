@@ -264,6 +264,33 @@ export interface ActionMeta {
   action_kind?: string | null;
 }
 
+export interface GenerationTimingSummary {
+  sampleCount: number;
+  totalP50Ms: number;
+  totalP95Ms: number;
+  totalP99Ms: number;
+  plotGenP95Ms: number;
+  optionGenP95Ms: number;
+}
+
+export interface GenerationFailureReason {
+  stage: string;
+  reason: string;
+  count: number;
+}
+
+export interface GenerationFailureSummary {
+  sampleCount: number;
+  structuredOkCount: number;
+  plainOkCount: number;
+  skeletonOkCount: number;
+  microOkCount: number;
+  presetFallbackCount: number;
+  turnUpdateFallbackCount: number;
+  optionLlmBlockedCount: number;
+  topReasons: GenerationFailureReason[];
+}
+
 export interface WorldRegistry {
   session_id: string;
   seed: number;

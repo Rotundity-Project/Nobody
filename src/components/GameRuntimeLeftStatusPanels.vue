@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <section class="runtime-card">
     <h3 class="runtime-card-title">系统中枢</h3>
     <p class="runtime-chapter-title">
@@ -144,9 +144,9 @@ defineProps<{
 .runtime-card {
   position: relative;
   border-radius: 14px;
-  border: 1px solid var(--ink-border-strong);
-  background: var(--panel-bg, var(--ink-card-bg));
-  box-shadow: var(--ink-shadow-card);
+  border: 1px solid var(--runtime-side-card-border, var(--ink-border-strong));
+  background: var(--runtime-side-card-bg, var(--panel-bg, var(--ink-card-bg)));
+  box-shadow: var(--runtime-side-card-shadow, var(--ink-shadow-card));
   padding: 20px;
   background-image: var(--runtime-card-sheen);
 }
@@ -293,3 +293,4 @@ defineProps<{
   color: var(--ink-accent-main);
 }
 </style>
+

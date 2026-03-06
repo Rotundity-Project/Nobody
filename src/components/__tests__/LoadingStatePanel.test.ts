@@ -5,16 +5,20 @@ import LoadingStatePanel from '../LoadingStatePanel.vue';
 vi.mock('../LoadingIndicator.vue', () => ({
   default: {
     name: 'LoadingIndicator',
-    props: ['message', 'detail', 'size'],
-    template: '<div class="loading-indicator">{{ message }}|{{ detail }}|{{ size }}</div>',
+    props: ['message', 'detail', 'size', 'progress', 'progressText'],
+    template:
+      '<div class="loading-indicator">{{ message }}|{{ detail }}|{{ size }}|{{ progress }}|{{ progressText }}</div>',
   },
 }));
 
 describe('LoadingStatePanel', () => {
-  it('passes loading message and detail to indicator', () => {
+  it('passes loading message and progress data to indicator', () => {
     const wrapper = mount(LoadingStatePanel, {
       props: {
         message: '正在续写剧情...',
+        progress: 58,
+        progressText: '模型生成中，请稍候...',
+        elapsedMs: 1260,
       },
     });
 
@@ -23,12 +27,15 @@ describe('LoadingStatePanel', () => {
     expect(indicator.text()).toContain('正在续写剧情...');
     expect(indicator.text()).toContain('请稍候，剧情正在推进...');
     expect(indicator.text()).toContain('lg');
+    expect(indicator.text()).toContain('58');
+    expect(indicator.text()).toContain('模型生成中，请稍候...');
+    expect(wrapper.text()).toContain('已耗时 1.3 s');
   });
 
   it('shows stop button and emits when auto advance can be interrupted', async () => {
     const wrapper = mount(LoadingStatePanel, {
       props: {
-        message: '正在自动推进剧情（3）...',
+        message: '正在自动推进剧情...',
         canStopAutoAdvance: true,
       },
     });

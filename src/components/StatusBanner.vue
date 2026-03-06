@@ -1,7 +1,7 @@
 ﻿<template>
   <div :class="wrapperClass" role="status" aria-live="polite">
-    <p class="status-title text-sm font-medium">{{ title }}</p>
-    <p v-if="message" class="status-message mt-1 text-xs opacity-90">{{ message }}</p>
+    <p class="status-title">{{ title }}</p>
+    <p v-if="message" class="status-message">{{ message }}</p>
   </div>
 </template>
 
@@ -47,39 +47,55 @@ const wrapperClass = computed(() => {
   word-break: break-word;
 }
 
+.status-title {
+  margin: 0;
+  font-size: var(--ui-theme-status-title-size);
+  font-weight: var(--ui-theme-status-title-weight);
+  line-height: var(--ui-theme-status-title-line-height);
+  letter-spacing: var(--ui-theme-status-title-letter-spacing);
+}
+
+.status-message {
+  margin-top: var(--space-1);
+  margin-bottom: 0;
+  font-size: var(--ui-theme-status-message-size);
+  line-height: var(--ui-theme-status-message-line-height);
+  opacity: var(--ui-theme-status-message-opacity);
+}
+
 .status-loading {
-  border-color: color-mix(in srgb, var(--ink-title-color) 40%, transparent);
-  background: color-mix(in srgb, var(--ink-paper) 88%, transparent);
-  color: color-mix(in srgb, var(--ink-title-color) 72%, var(--ink-text-primary));
+  border-color: var(--status-loading-border);
+  background: var(--status-loading-bg);
+  color: var(--status-loading-text);
 }
 
 .status-success {
-  border-color: color-mix(in srgb, var(--ink-text-cool) 35%, transparent);
-  background: color-mix(in srgb, var(--ink-text-cool) 11%, var(--ink-paper));
-  color: var(--ink-text-cool);
+  border-color: var(--status-success-border);
+  background: var(--status-success-bg);
+  color: var(--status-success-text);
 }
 
 .status-error {
-  border-color: color-mix(in srgb, var(--ink-accent-main) 35%, transparent);
-  background: color-mix(in srgb, var(--ink-accent-main) 10%, var(--ink-paper));
-  color: var(--ink-accent-main);
+  border-color: var(--status-error-border);
+  background: var(--status-error-bg);
+  color: var(--status-error-text);
 }
 
 .status-auto-advance {
-  border-color: color-mix(in srgb, var(--ink-text-cool) 35%, transparent);
-  background: color-mix(in srgb, var(--ink-text-cool) 9%, var(--ink-paper));
-  color: color-mix(in srgb, var(--ink-text-cool) 85%, var(--ink-text-primary));
+  border-color: var(--status-auto-border);
+  background: var(--status-auto-bg);
+  color: var(--status-auto-text);
 }
 
 .status-validation {
-  border-color: color-mix(in srgb, var(--ink-accent-note) 35%, transparent);
-  background: color-mix(in srgb, var(--ink-accent-note) 12%, var(--ink-paper));
-  color: color-mix(in srgb, var(--ink-accent-note) 76%, var(--ink-text-primary));
+  border-color: var(--status-validation-border);
+  background: var(--status-validation-bg);
+  color: var(--status-validation-text);
 }
 
 .status-default {
   border-color: var(--ink-border-soft);
-  background: color-mix(in srgb, var(--ink-paper-elevated) 90%, transparent);
+  background: var(--status-default-bg);
   color: var(--ink-text-muted);
 }
 </style>

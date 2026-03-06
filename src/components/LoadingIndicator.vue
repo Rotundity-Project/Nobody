@@ -54,8 +54,8 @@ const progressPercent = computed(() => {
   return Math.max(0, Math.min(100, props.progress));
 });
 const spinnerStyle = computed(() => ({
-  borderColor: 'color-mix(in srgb, var(--ink-border) 85%, transparent)',
-  borderTopColor: 'var(--ink-accent-note)',
+  borderColor: 'var(--loading-spinner-ring)',
+  borderTopColor: 'var(--loading-accent-color, var(--ink-accent-note))',
 }));
 const messageStyle = computed(() => ({
   color: 'var(--ink-text-primary)',
@@ -64,10 +64,10 @@ const detailStyle = computed(() => ({
   color: 'var(--ink-text-muted)',
 }));
 const progressTrackStyle = computed(() => ({
-  background: 'color-mix(in srgb, var(--ink-text-primary) 9%, transparent)',
+  background: 'var(--loading-track-bg)',
 }));
 const progressFillStyle = computed(() => ({
-  background: 'color-mix(in srgb, var(--ink-accent-note) 82%, transparent)',
+  background: 'var(--loading-fill-bg)',
 }));
 </script>
 

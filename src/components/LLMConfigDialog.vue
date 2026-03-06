@@ -12,6 +12,10 @@
         </label>
       </div>
       <p class="llm-note text-xs">提示：这里填写 provider 的 modelId（如 `xopkimik25`），不是展示名称。</p>
+      <p class="llm-note text-xs">
+        识别提供商：
+        <span class="llm-provider-chip" :class="providerToneClass">{{ detectedProviderLabel }}</span>
+      </p>
 
       <label class="llm-label text-sm">
         API Key
@@ -49,7 +53,7 @@
     </div>
   </div>
 
-  <div v-else-if="isOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/25 p-4">
+  <div v-else-if="isOpen" class="llm-overlay fixed inset-0 z-50 flex items-center justify-center p-4">
     <section class="llm-modal w-full max-w-4xl rounded-2xl p-5">
       <header class="mb-3 flex items-center justify-between">
         <h3 class="llm-title text-xl font-display">LLM 模型配置</h3>
@@ -70,6 +74,10 @@
                 <label class="llm-label text-sm">模型ID（model）<input v-model="form.model" class="llm-input" /></label>
               </div>
               <p class="llm-note text-xs">提示：这里填写 provider 的 modelId（如 `xopkimik25`），不是展示名称。</p>
+              <p class="llm-note text-xs">
+                识别提供商：
+                <span class="llm-provider-chip" :class="providerToneClass">{{ detectedProviderLabel }}</span>
+              </p>
               <label class="llm-label text-sm">API Key<input v-model="form.apiKey" type="password" class="llm-input" /></label>
               <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <label class="llm-label text-sm">maxTokens<input v-model.number="form.maxTokens" type="number" min="1" class="llm-input" /></label>
@@ -99,6 +107,7 @@ import { invokeWithTimeout } from '../utils/tauriInvoke';
 import { computed, reactive, ref, watch } from 'vue';
 import LoadingIndicator from './LoadingIndicator.vue';
 import { playClick } from '../utils/audioSystem';
+import { getLlmProviderLabel, resolveLlmProviderKey } from '../utils/llmProvider';
 
 interface LLMConfigStatus {
   configured: boolean;
@@ -134,6 +143,14 @@ const statusText = computed(() => {
   if (!status.value) return '未读取';
   if (!status.value.configured) return '未配置';
   return `已配置（来源: ${status.value.source}，模型: ${status.value.model ?? '-'}）`;
+});
+
+const detectedProviderKey = computed(() => resolveLlmProviderKey(form.model));
+const detectedProviderLabel = computed(() => getLlmProviderLabel(detectedProviderKey.value));
+const providerToneClass = computed(() => {
+  if (detectedProviderKey.value === 'deepseek') return 'llm-provider-deepseek';
+  if (detectedProviderKey.value === 'kimi') return 'llm-provider-kimi';
+  return 'llm-provider-generic';
 });
 
 watch(
@@ -287,6 +304,10 @@ const clearConfig = async () => {
 </script>
 
 <style scoped>
+.llm-overlay {
+  background: var(--settings-overlay-bg);
+}
+
 .llm-modal,
 .llm-inline-wrap {
   background: var(--ink-card-bg, var(--panel-bg));
@@ -353,12 +374,12 @@ const clearConfig = async () => {
 
 .llm-btn-primary {
   border-color: var(--ink-title-color);
-  background: color-mix(in srgb, var(--ink-accent-note, var(--ink-title-color)) 18%, var(--ink-paper, var(--ink-card-bg)));
+  background: var(--llm-btn-primary-bg);
 }
 
 .llm-btn-success {
   border-color: var(--ink-text-cool);
-  background: color-mix(in srgb, var(--ink-text-cool) 18%, var(--ink-paper, var(--ink-card-bg)));
+  background: var(--llm-btn-success-bg);
   color: var(--ink-text-ink, var(--ink-text-cool));
 }
 
@@ -367,7 +388,34 @@ const clearConfig = async () => {
 }
 
 .llm-note {
-  color: color-mix(in srgb, var(--ink-text-muted) 92%, transparent);
+  color: var(--llm-note-text);
+}
+
+.llm-provider-chip {
+  margin-left: 6px;
+  display: inline-block;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  padding: 0 8px;
+  line-height: 1.45;
+}
+
+.llm-provider-deepseek {
+  color: var(--llm-provider-deepseek-text);
+  border-color: var(--llm-provider-deepseek-border);
+  background: var(--llm-provider-deepseek-bg);
+}
+
+.llm-provider-kimi {
+  color: var(--llm-provider-kimi-text);
+  border-color: var(--llm-provider-kimi-border);
+  background: var(--llm-provider-kimi-bg);
+}
+
+.llm-provider-generic {
+  color: var(--ink-text-muted);
+  border-color: var(--llm-provider-generic-border);
+  background: var(--llm-provider-generic-bg);
 }
 
 .llm-message {

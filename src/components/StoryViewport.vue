@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="story-viewport-frame relative flex-1 rounded-[12px]">
     <div
       ref="scrollElement"
@@ -38,8 +38,7 @@
         :disabled="currentPage <= 0"
         @click="goPrevPage"
       >
-        上一页
-      </button>
+        上一页</button>
       <span class="story-page-text">第 {{ currentPage + 1 }} / {{ totalPages }} 页</span>
       <button
         type="button"
@@ -47,8 +46,7 @@
         :disabled="currentPage >= totalPages - 1"
         @click="goNextPage"
       >
-        下一页
-      </button>
+        下一页</button>
     </div>
   </div>
 </template>
@@ -132,7 +130,7 @@ const currentPageParagraphs = computed(() => pagedParagraphGroups.value[currentP
 
 const showScrollToBottomButton = computed(() => false);
 const readingFadeStyle = computed(() => ({
-  background: 'linear-gradient(to top, color-mix(in srgb, var(--ink-bg-base) 86%, transparent), transparent)',
+  background: 'var(--story-reading-fade)',
 }));
 
 const updateReadingProgress = () => {
@@ -311,17 +309,15 @@ defineExpose({
   align-items: center;
   justify-content: center;
   gap: 10px;
-  border: 1px solid color-mix(in srgb, var(--ink-border-accent) 88%, white 12%);
+  border: 1px solid var(--story-page-nav-border);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--ink-paper) 76%, transparent);
+  background: var(--story-page-nav-bg);
   padding: 7px 11px;
   backdrop-filter: blur(8px) saturate(1.06);
   -webkit-backdrop-filter: blur(8px) saturate(1.06);
   width: max-content;
   max-width: calc(100% - 8px);
-  box-shadow:
-    0 8px 22px color-mix(in srgb, var(--ink-text-primary) 22%, transparent),
-    inset 0 1px 0 color-mix(in srgb, var(--ink-paper) 78%, transparent);
+  box-shadow: var(--story-page-nav-shadow);
   opacity: 1;
   transform: translateX(-50%) translateY(0);
   transition: opacity 220ms ease, transform 220ms ease;
@@ -379,3 +375,4 @@ defineExpose({
   padding-bottom: 78px;
 }
 </style>
+

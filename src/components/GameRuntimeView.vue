@@ -134,6 +134,7 @@ import { useWorldRegistryPanel } from '../composables/useWorldRegistryPanel';
 import { useWorldRegistryPanelBridge } from '../composables/useWorldRegistryPanelBridge';
 import { playClick } from '../utils/audioSystem';
 import { getStorySettings, type StorySettings } from '../utils/storySettings';
+import { getLlmProviderLabel, resolveLlmProviderKey } from '../utils/llmProvider';
 
 const router = useRouter();
 const gameStore = useGameStore();
@@ -227,6 +228,7 @@ const {
   closeAllDialogs,
   safePlayClick,
   logRuntimeAction,
+  notifyRuntimeError,
 });
 const {
   plotInteractionState, isNoInputAdvanceState, shouldShowInputPanel, shouldAutoAdvance, shouldAutoFollowNewParagraph,
@@ -248,6 +250,10 @@ const {
 const {
   isLoading,
   loadingMessage,
+  loadingStage,
+  loadingProgress,
+  loadingProgressText,
+  loadingElapsedMs,
   autoAdvanceRunning,
   autoAdvanceStopHint,
   handleOptionSelect,
@@ -264,6 +270,9 @@ const {
   createContinueAction,
   playClick,
 });
+const llmProviderKey = computed(() => resolveLlmProviderKey(gameStore.worldRegistry?.llm_model));
+const llmProviderLabel = computed(() => getLlmProviderLabel(llmProviderKey.value));
+const llmModelRaw = computed(() => gameStore.worldRegistry?.llm_model?.trim() || '未检测到模型标识');
 const chapterRhythmLabel = computed(() => {
   if (isLoading.value || plotInteractionState.value === 'resolving') {
     return '推演';
@@ -285,12 +294,30 @@ const { runtimeNotifications, dismissRuntimeNotification } = useRuntimeNotificat
   characterCreationDurationLabel,
   autoAdvanceStopHint,
   actionNotification,
+  runtimeError: userFacingError,
 });
 const { travelPending, handleSaved, handleLoaded, handleTravel } = useRuntimeSessionActions({
   gameStore,
   logRuntimeAction,
   notifyRuntimeError,
 });
+const clearWorldMetrics = () => {
+  safePlayClick();
+  gameStore.clearGenerationDiagnostics();
+  logRuntimeAction('已清空诊断统计');
+};
+const copyWorldDiagnostics = async () => {
+  safePlayClick();
+  try {
+    if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
+      throw new Error('当前环境不支持剪贴板写入');
+    }
+    await navigator.clipboard.writeText(gameStore.getGenerationDiagnosticsText());
+    logRuntimeAction('已复制诊断数据');
+  } catch (error) {
+    notifyRuntimeError('复制诊断数据', error);
+  }
+};
 const {
   applyStorySettings,
   applyConsistencyPolicy,
@@ -335,6 +362,8 @@ const {
   showQuickPanel,
   activeQuickPanelTab,
   quickPanels,
+  copyWorldDiagnostics,
+  clearWorldMetrics,
 });
 const { interactionCardProps, interactionCardListeners } = useRuntimeInteractionCardBridge({
   shouldShowInputPanel,
@@ -348,9 +377,16 @@ const { interactionCardProps, interactionCardListeners } = useRuntimeInteraction
   isGameInitialized: computed(() => gameStore.isGameInitialized),
   isWaitingForInput: computed(() => gameStore.isWaitingForInput),
   loadingMessage,
+  loadingStage,
+  loadingProgress,
+  loadingProgressText,
+  loadingElapsedMs,
   autoAdvanceRunning,
   autoAdvanceStopHint,
   shouldShowLlmSetupShortcut,
+  llmProviderKey,
+  llmProviderLabel,
+  llmModelRaw,
   setInputMode,
   handleOptionSelect,
   setFreeTextInput: (value) => {

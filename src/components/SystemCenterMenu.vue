@@ -51,7 +51,7 @@
       </button>
       <div
         v-if="showAudioPanel"
-        class="mt-1 rounded-lg border border-black/10 bg-black/5 p-3"
+        class="menu-audio-panel mt-1 rounded-lg border p-3"
       >
         <AudioControlPanel />
       </div>
@@ -96,3 +96,10 @@ onUnmounted(() => {
   window.removeEventListener('mousedown', handleDocumentClick);
 });
 </script>
+
+<style scoped>
+.menu-audio-panel {
+  border-color: var(--ink-border-soft);
+  background: var(--menu-audio-panel-bg);
+}
+</style>

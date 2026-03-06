@@ -48,6 +48,10 @@
       <LoadingStatePanel
         v-else-if="isLoading"
         :message="loadingMessage"
+        :stage="loadingStage"
+        :progress="loadingProgress"
+        :progress-text="loadingProgressText"
+        :elapsed-ms="loadingElapsedMs ?? null"
         :can-stop-auto-advance="canStopAutoAdvance"
         @stop-auto-advance="$emit('stop-auto-advance')"
       />
@@ -90,6 +94,10 @@ defineProps<{
   isGameInitialized: boolean;
   isWaitingForInput: boolean;
   loadingMessage: string;
+  loadingStage?: string;
+  loadingProgress: number | null;
+  loadingProgressText: string;
+  loadingElapsedMs?: number | null;
   canStopAutoAdvance: boolean;
   autoAdvanceStopHint: string;
 }>();

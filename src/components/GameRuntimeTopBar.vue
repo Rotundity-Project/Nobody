@@ -74,7 +74,7 @@ defineEmits<{
   height: 30px;
   border-radius: 6px;
   border: 1px solid var(--ink-accent-main);
-  background: color-mix(in srgb, var(--ink-accent-main) 14%, transparent);
+  background: var(--runtime-seal-btn-bg);
   color: var(--ink-accent-main);
   transition: border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease, transform 120ms ease;
 }

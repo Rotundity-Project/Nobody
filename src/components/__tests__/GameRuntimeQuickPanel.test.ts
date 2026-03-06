@@ -111,6 +111,9 @@ vi.mock('../../composables/useStoryFlow', () => ({
   useStoryFlow: () => ({
     isLoading: ref(false),
     loadingMessage: ref('处理中...'),
+    loadingProgress: ref(null),
+    loadingProgressText: ref(''),
+    loadingElapsedMs: ref(null),
     autoAdvanceRunning: ref(false),
     autoAdvanceStopHint: ref(''),
     handleOptionSelect: vi.fn(),

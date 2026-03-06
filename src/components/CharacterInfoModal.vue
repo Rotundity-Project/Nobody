@@ -47,8 +47,8 @@ defineEmits<{
 .ink-close-btn {
   border: 1px solid var(--ink-accent-main);
   border-radius: 8px;
-  background: color-mix(in srgb, var(--ink-accent-main) 10%, var(--ink-paper));
-  color: color-mix(in srgb, var(--ink-accent-main) 82%, var(--ink-text-primary));
+  background: var(--character-modal-close-bg);
+  color: var(--character-modal-close-text);
   padding: 7px 15px;
   font-size: 14px;
   transition: border-color 180ms ease, background-color 180ms ease, transform 120ms ease;

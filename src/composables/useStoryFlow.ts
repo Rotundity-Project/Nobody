@@ -1,5 +1,6 @@
 ﻿import { ref, type Ref } from 'vue';
 import type { PlayerAction, PlayerOption } from '../types/game';
+import { buildStoryLoadingPhases } from '../utils/loadingPhases';
 
 const MAX_AUTO_ADVANCE_STEPS = 48;
 
@@ -15,6 +16,9 @@ type PlotStateLike = {
 type StoryFlowStore = {
   executePlayerAction: (action: PlayerAction) => Promise<void>;
   plotState?: PlotStateLike | null;
+  worldRegistry?: {
+    llm_model?: string | null;
+  } | null;
   isWaitingForInput: boolean;
   availableOptions: PlayerOption[];
 };
@@ -42,9 +46,61 @@ export const useStoryFlow = ({
 }: StoryFlowDeps) => {
   const isLoading = ref(false);
   const loadingMessage = ref('处理中...');
+  const loadingProgress = ref<number | null>(null);
+  const loadingProgressText = ref('');
+  const loadingStage = ref('');
+  const loadingElapsedMs = ref<number | null>(null);
   const autoAdvanceRunning = ref(false);
   const autoAdvanceStopRequested = ref(false);
   const autoAdvanceStopHint = ref('');
+  let loadingPhaseTimer: ReturnType<typeof setInterval> | null = null;
+  let loadingElapsedTimer: ReturnType<typeof setInterval> | null = null;
+  let loadingStartedAt = 0;
+
+  const stopLoadingPhaseTicker = () => {
+    if (loadingPhaseTimer) {
+      clearInterval(loadingPhaseTimer);
+      loadingPhaseTimer = null;
+    }
+  };
+
+  const stopLoadingElapsedTicker = () => {
+    if (loadingElapsedTimer) {
+      clearInterval(loadingElapsedTimer);
+      loadingElapsedTimer = null;
+    }
+  };
+
+  const startLoadingPhaseTicker = () => {
+    stopLoadingPhaseTicker();
+    stopLoadingElapsedTicker();
+    loadingStartedAt = Date.now();
+    loadingElapsedMs.value = 0;
+    const loadingPhases = buildStoryLoadingPhases(gameStore.worldRegistry?.llm_model);
+    let phaseIndex = 0;
+    loadingStage.value = loadingPhases[phaseIndex].stage;
+    loadingProgress.value = loadingPhases[phaseIndex].progress;
+    loadingProgressText.value = loadingPhases[phaseIndex].text;
+    loadingElapsedTimer = setInterval(() => {
+      loadingElapsedMs.value = Date.now() - loadingStartedAt;
+    }, 200);
+    loadingPhaseTimer = setInterval(() => {
+      phaseIndex = Math.min(phaseIndex + 1, loadingPhases.length - 1);
+      loadingStage.value = loadingPhases[phaseIndex].stage;
+      loadingProgress.value = loadingPhases[phaseIndex].progress;
+      loadingProgressText.value = loadingPhases[phaseIndex].text;
+    }, 1300);
+  };
+
+  const resetLoadingState = () => {
+    stopLoadingPhaseTicker();
+    stopLoadingElapsedTicker();
+    loadingMessage.value = '处理中...';
+    loadingStage.value = '';
+    loadingProgress.value = null;
+    loadingProgressText.value = '';
+    loadingElapsedMs.value = null;
+  };
   const safePlayClick = () => {
     try {
       playClick();
@@ -58,13 +114,18 @@ export const useStoryFlow = ({
       autoAdvanceStopHint.value = '';
       isLoading.value = true;
       loadingMessage.value = '正在执行选项...';
+      startLoadingPhaseTicker();
       safePlayClick();
       await gameStore.executePlayerAction(createOptionAction(option));
+      loadingStage.value = '状态落盘';
+      loadingProgress.value = 100;
+      loadingProgressText.value = '已完成，正在刷新界面...';
+      loadingElapsedMs.value = Date.now() - loadingStartedAt;
     } catch (error) {
       console.error('执行行动失败：', error);
     } finally {
       isLoading.value = false;
-      loadingMessage.value = '处理中...';
+      resetLoadingState();
     }
   };
 
@@ -78,14 +139,19 @@ export const useStoryFlow = ({
       autoAdvanceStopHint.value = '';
       isLoading.value = true;
       loadingMessage.value = '正在解析输入...';
+      startLoadingPhaseTicker();
       safePlayClick();
       await gameStore.executePlayerAction(createFreeTextAction(freeTextInput.value));
       freeTextInput.value = '';
+      loadingStage.value = '状态落盘';
+      loadingProgress.value = 100;
+      loadingProgressText.value = '已完成，正在刷新界面...';
+      loadingElapsedMs.value = Date.now() - loadingStartedAt;
     } catch (error) {
       console.error('提交自由输入失败：', error);
     } finally {
       isLoading.value = false;
-      loadingMessage.value = '处理中...';
+      resetLoadingState();
     }
   };
 
@@ -117,7 +183,14 @@ export const useStoryFlow = ({
         if (step > 1) {
           loadingMessage.value = `正在自动推进剧情（${step}）...`;
         }
+        startLoadingPhaseTicker();
         await gameStore.executePlayerAction(createContinueAction());
+        loadingStage.value = '状态落盘';
+        loadingProgress.value = 100;
+        loadingProgressText.value = '单步完成，继续评估中...';
+        loadingElapsedMs.value = Date.now() - loadingStartedAt;
+        stopLoadingPhaseTicker();
+        stopLoadingElapsedTicker();
 
         const currentSignature = [
           gameStore.plotState?.current_chapter?.index ?? -1,
@@ -151,7 +224,7 @@ export const useStoryFlow = ({
     } finally {
       autoAdvanceRunning.value = false;
       isLoading.value = false;
-      loadingMessage.value = '处理中...';
+      resetLoadingState();
     }
   };
 
@@ -164,6 +237,10 @@ export const useStoryFlow = ({
   return {
     isLoading,
     loadingMessage,
+    loadingStage,
+    loadingProgress,
+    loadingProgressText,
+    loadingElapsedMs,
     autoAdvanceRunning,
     autoAdvanceStopHint,
     handleOptionSelect,

@@ -1,18 +1,18 @@
 ﻿<template>
   <section
     v-if="isGameRunning"
-    class="rounded-2xl border border-amber-500/30 bg-slate-900/70 p-5 space-y-3 shadow-xl"
+    class="novel-export-panel rounded-2xl p-5 shadow-xl space-y-3"
   >
     <header class="flex items-center justify-between">
-      <h3 class="text-lg font-display text-amber-200">经历整理与导出</h3>
-      <span class="text-xs text-slate-400">事件数：{{ eventCount }}</span>
+      <h3 class="text-lg font-display novel-title">经历整理与导出</h3>
+      <span class="text-xs novel-meta">事件数：{{ eventCount }}</span>
     </header>
 
     <div class="space-y-2">
-      <label class="text-sm text-slate-300">导出标题</label>
+      <label class="text-sm novel-meta-strong">导出标题</label>
       <input
         v-model="novelTitle"
-        class="w-full rounded border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-white outline-none focus:border-amber-400"
+        class="novel-input w-full rounded px-3 py-2 text-sm outline-none"
         placeholder="修仙旅程记录"
       />
     </div>
@@ -21,14 +21,14 @@
       <button
         @click="handleGenerate"
         :disabled="isGenerating"
-        class="rounded bg-amber-500 px-3 py-2 text-sm text-slate-900 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:bg-slate-600"
+        class="novel-btn novel-btn-primary rounded px-3 py-2 text-sm transition disabled:cursor-not-allowed"
       >
         {{ isGenerating ? '整理中...' : '整理经历' }}
       </button>
       <button
         @click="handleExport"
         :disabled="!novel || isExporting"
-        class="rounded bg-emerald-500 px-3 py-2 text-sm text-slate-900 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-slate-600"
+        class="novel-btn novel-btn-secondary rounded px-3 py-2 text-sm transition disabled:cursor-not-allowed"
       >
         {{ isExporting ? '导出中...' : '导出经历 TXT' }}
       </button>
@@ -53,15 +53,15 @@
       :message="errorMessage"
     />
 
-    <div v-if="novel" class="max-h-64 overflow-y-auto rounded border border-slate-700 bg-slate-950/60 p-3">
-      <h4 class="text-sm font-semibold text-amber-200">{{ novel.title }}</h4>
-      <p class="mt-2 text-xs text-slate-400">章节数：{{ novel.chapters.length }}</p>
-      <div v-if="tocEntries.length > 0" class="mt-3 rounded border border-slate-800 bg-slate-900/60 p-2">
-        <p class="text-xs uppercase tracking-[0.2em] text-amber-200/80">目录</p>
+    <div v-if="novel" class="novel-preview max-h-64 overflow-y-auto rounded p-3">
+      <h4 class="text-sm font-semibold novel-title">{{ novel.title }}</h4>
+      <p class="mt-2 text-xs novel-meta">章节数：{{ novel.chapters.length }}</p>
+      <div v-if="tocEntries.length > 0" class="novel-toc mt-3 rounded p-2">
+        <p class="text-xs uppercase tracking-[0.2em] novel-meta-strong">目录</p>
         <p
           v-for="entry in tocEntries"
           :key="`${entry.index}-${entry.title}`"
-          class="mt-1 text-xs text-slate-300"
+          class="mt-1 text-xs novel-meta-strong"
         >
           {{ entry.index }}. {{ entry.title }} - {{ entry.summary }}
         </p>
@@ -69,10 +69,10 @@
       <article
         v-for="chapter in novel.chapters"
         :key="chapter.index"
-        class="mt-3 border-t border-slate-700 pt-2"
+        class="novel-chapter mt-3 pt-2"
       >
-        <h5 class="text-sm font-medium text-slate-200">{{ chapter.title }}</h5>
-        <p class="mt-1 whitespace-pre-wrap text-sm text-slate-300 font-story">
+        <h5 class="text-sm font-medium novel-meta-strong">{{ chapter.title }}</h5>
+        <p class="mt-1 whitespace-pre-wrap text-sm novel-meta-strong font-story">
           {{ chapter.content }}
         </p>
       </article>
@@ -81,12 +81,13 @@
 </template>
 
 <script setup lang="ts">
-import { invoke } from '@tauri-apps/api/core';
 import { save } from '@tauri-apps/plugin-dialog';
 import { computed, ref } from 'vue';
 import LoadingIndicator from './LoadingIndicator.vue';
 import StatusBanner from './StatusBanner.vue';
 import { buildNovelExportFilename } from '../utils/novelExporter';
+import { isTauriRuntime } from '../platform/runtimeEnv';
+import { invokeRuntime } from '../utils/tauriInvoke';
 
 interface Chapter {
   index: number;
@@ -149,7 +150,7 @@ const handleGenerate = async () => {
   isGenerating.value = true;
   loadingMessage.value = '正在整理经历...';
   try {
-    const generated = await invoke<Novel>('generate_novel', {
+    const generated = await invokeRuntime<Novel>('generate_novel', {
       title: novelTitle.value.trim() || '修仙旅程记录',
     });
     novel.value = generated;
@@ -173,21 +174,24 @@ const handleExport = async () => {
   isExporting.value = true;
   loadingMessage.value = '正在导出小说...';
   try {
-    const selectedPath = await save({
-      defaultPath: buildNovelExportFilename(novel.value.title),
-      filters: [{ name: '文本文件', extensions: ['txt'] }],
-    });
-
-    if (!selectedPath) {
-      statusMessage.value = '已取消导出。';
-      return;
+    const defaultPath = buildNovelExportFilename(novel.value.title);
+    let selectedPath: string | null = defaultPath;
+    if (isTauriRuntime()) {
+      selectedPath = await save({
+        defaultPath,
+        filters: [{ name: '文本文件', extensions: ['txt'] }],
+      });
+      if (!selectedPath) {
+        statusMessage.value = '已取消导出。';
+        return;
+      }
     }
 
-    await invoke('export_novel', {
+    await invokeRuntime('export_novel', {
       novel: novel.value,
       outputPath: selectedPath,
     });
-    statusMessage.value = `已导出到：${selectedPath}`;
+    statusMessage.value = isTauriRuntime() ? `已导出到：${selectedPath}` : `已下载：${selectedPath}`;
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : String(error);
     statusMessage.value = '';
@@ -197,3 +201,69 @@ const handleExport = async () => {
   }
 };
 </script>
+
+<style scoped>
+.novel-export-panel {
+  border: 1px solid var(--ink-border-soft);
+  background: var(--novel-panel-bg);
+}
+
+.novel-title {
+  color: var(--ink-title-color);
+}
+
+.novel-meta {
+  color: var(--ink-text-muted);
+}
+
+.novel-meta-strong {
+  color: var(--ink-text-primary);
+}
+
+.novel-input {
+  border: 1px solid var(--ink-border-soft);
+  background: var(--novel-input-bg);
+  color: var(--ink-text-primary);
+}
+
+.novel-input:focus {
+  border-color: var(--ink-title-color);
+  box-shadow: 0 0 0 2px var(--novel-input-focus-ring);
+}
+
+.novel-btn {
+  border: 1px solid var(--ink-border-accent);
+  color: var(--ink-text-primary);
+}
+
+.novel-btn-primary {
+  background: var(--novel-btn-primary-bg);
+}
+
+.novel-btn-secondary {
+  background: var(--novel-btn-secondary-bg);
+}
+
+.novel-btn:hover:not(:disabled) {
+  border-color: var(--ink-title-color);
+  background: var(--ink-paper);
+}
+
+.novel-btn:disabled {
+  opacity: 0.55;
+}
+
+.novel-preview {
+  border: 1px solid var(--ink-border-soft);
+  background: var(--novel-preview-bg);
+}
+
+.novel-toc {
+  border: 1px solid var(--novel-toc-border);
+  background: var(--novel-toc-bg);
+}
+
+.novel-chapter {
+  border-top: 1px solid var(--ink-border-soft);
+}
+</style>

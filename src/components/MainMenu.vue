@@ -3,6 +3,47 @@
     <div class="main-menu-guide">
       建议流程：新游戏 -> 选择剧本 -> 进入主界面推进剧情
     </div>
+    <StatusBanner
+      v-if="themeStatusVisible"
+      data-testid="ui-theme-status"
+      class="ui-theme-status-banner mx-auto w-full max-w-[1320px]"
+      kind="info"
+      :title="themeStatusTitle"
+      :message="themeStatusMessage"
+    />
+    <section
+      v-if="showWebOnboarding"
+      data-testid="web-onboarding-banner"
+      class="web-onboarding-banner mx-auto mb-3 w-full max-w-[1320px]"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+    >
+      <div class="web-onboarding-header">
+        <h2 class="web-onboarding-title">Web 体验指引</h2>
+        <span class="web-onboarding-tag">Mock Runtime</span>
+      </div>
+      <p class="web-onboarding-text">当前是浏览器试玩模式，建议先走一轮主流程：</p>
+      <p class="web-onboarding-text">新游戏 -> 随机生成 -> 进入主界面 -> 选择任意选项继续。</p>
+      <div class="web-onboarding-actions">
+        <button
+          type="button"
+          data-testid="web-onboarding-start-btn"
+          class="menu-btn menu-btn-primary web-onboarding-btn"
+          @click="acknowledgeWebOnboarding"
+        >
+          开始体验
+        </button>
+        <button
+          type="button"
+          data-testid="web-onboarding-dismiss-btn"
+          class="menu-inline-btn"
+          @click="dismissWebOnboarding"
+        >
+          不再提示
+        </button>
+      </div>
+    </section>
 
     <div class="main-menu-frame mx-auto w-full max-w-[1320px]">
       <aside class="menu-left-rail">
@@ -331,11 +372,14 @@ import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import AudioControlPanel from './AudioControlPanel.vue';
 import LLMConfigDialog from './LLMConfigDialog.vue';
+import StatusBanner from './StatusBanner.vue';
 import { getAudioSettings, playClick } from '../utils/audioSystem';
 import { useGameStore } from '../stores/gameStore';
 import type { SaveInfo } from '../types/game';
 import { formatLocationLabel } from '../shared/locationLabel';
-import { getUiTheme } from '../utils/uiTheme';
+import { addUiThemeListener, getUiTheme } from '../utils/uiTheme';
+import { useUiThemeStatusPrompt } from '../composables/useUiThemeStatusPrompt';
+import { isTauriRuntime } from '../platform/runtimeEnv';
 
 const router = useRouter();
 const gameStore = useGameStore();
@@ -344,6 +388,7 @@ const showLLMDialog = ref(false);
 const activeThemeClass = ref(getUiTheme());
 const showAudioPanel = ref(false);
 const showSavePanel = ref(true);
+const showWebOnboarding = ref(false);
 const mainSealWhisper = ref('');
 const recentSaveLoading = ref(false);
 const quickLoadPending = ref(false);
@@ -356,13 +401,21 @@ const lastRefreshSucceeded = ref<boolean | null>(null);
 const refreshNowTick = ref(Date.now());
 let refreshTickerId: number | null = null;
 let mainSealWhisperTimer: number | null = null;
+let removeUiThemeListener: (() => void) | null = null;
 const REFRESH_SUCCESS_TOAST_MS = 8000;
+const WEB_ONBOARDING_SEEN_KEY = 'nobody_web_onboarding_seen_v1';
 const quickMasterVolume = ref(getAudioSettings().master);
 const mainSealWhispers = [
   '无名印启：先立本心，再入尘世。',
   '印文有言：不争其名，自得其道。',
   '朱印轻鸣：凡人亦可问天路。',
 ];
+const {
+  themeStatusTitle,
+  themeStatusMessage,
+  themeStatusVisible,
+  showUiThemeStatus,
+} = useUiThemeStatusPrompt();
 
 const handleMainSealClick = () => {
   playClick();
@@ -486,9 +539,9 @@ const isRefreshStatusSuccess = computed(
 );
 const refreshStatusToneClass = computed(() => {
   if (recentSaveLoading.value) {
-    return 'text-sky-300';
+    return 'menu-status-loading';
   }
-  return isRefreshStatusSuccess.value ? 'text-emerald-300' : 'text-amber-300';
+  return isRefreshStatusSuccess.value ? 'menu-status-success' : 'menu-status-failure';
 });
 const refreshStatusRole = computed(() =>
   recentSaveLoading.value || isRefreshStatusSuccess.value ? 'status' : 'alert',
@@ -668,17 +721,48 @@ const loadLatestSave = async () => {
   }
 };
 
+const markWebOnboardingSeen = () => {
+  if (typeof localStorage === 'undefined') {
+    return;
+  }
+  localStorage.setItem(WEB_ONBOARDING_SEEN_KEY, '1');
+};
+
+const dismissWebOnboarding = () => {
+  showWebOnboarding.value = false;
+  markWebOnboardingSeen();
+};
+
+const acknowledgeWebOnboarding = () => {
+  playClick();
+  dismissWebOnboarding();
+};
+
 onMounted(() => {
+  removeUiThemeListener = addUiThemeListener((theme) => {
+    const themeChanged = theme !== activeThemeClass.value;
+    activeThemeClass.value = theme;
+    if (themeChanged) {
+      showUiThemeStatus(theme, 'sync');
+    }
+  });
   syncQuickVolumeFromSettings();
   refreshNowTick.value = Date.now();
   refreshTickerId = window.setInterval(() => {
     refreshNowTick.value = Date.now();
   }, 1000);
   window.addEventListener('focus', syncQuickVolumeFromSettings);
+  if (!isTauriRuntime() && typeof localStorage !== 'undefined') {
+    showWebOnboarding.value = localStorage.getItem(WEB_ONBOARDING_SEEN_KEY) !== '1';
+  }
   void fetchLatestSave();
 });
 
 onUnmounted(() => {
+  if (removeUiThemeListener) {
+    removeUiThemeListener();
+    removeUiThemeListener = null;
+  }
   if (refreshTickerId != null) {
     window.clearInterval(refreshTickerId);
   }
@@ -693,10 +777,7 @@ onUnmounted(() => {
 .main-menu-shell {
   font-family: 'Noto Serif SC', 'STKaiti', 'KaiTi', serif;
   color: var(--ink-text-primary);
-  background:
-    radial-gradient(circle at 12% 20%, color-mix(in srgb, var(--ink-title-color) 24%, transparent), transparent 35%),
-    radial-gradient(circle at 85% 6%, color-mix(in srgb, var(--ink-text-cool) 18%, transparent), transparent 30%),
-    linear-gradient(145deg, var(--ink-paper), var(--ink-paper-elevated));
+  background: var(--menu-shell-bg);
 }
 
 .main-menu-guide {
@@ -707,13 +788,79 @@ onUnmounted(() => {
   color: var(--ink-text-cool);
   text-decoration: underline;
   text-underline-offset: 4px;
-  text-decoration-color: color-mix(in srgb, var(--ink-text-cool) 45%, transparent);
+  text-decoration-color: var(--menu-guide-underline);
+}
+
+.ui-theme-status-banner {
+  margin-bottom: var(--space-3);
+  padding: var(--ui-theme-status-padding-y) var(--ui-theme-status-padding-x);
+  box-shadow: var(--ui-theme-status-shadow);
+  animation: ui-theme-status-fade-in 180ms ease-out;
+}
+
+.ui-theme-status-banner :deep(.status-title) {
+  font-size: var(--ui-theme-status-title-size);
+}
+
+.ui-theme-status-banner :deep(.status-message) {
+  font-size: var(--ui-theme-status-message-size);
+}
+
+.web-onboarding-banner {
+  border: 1px solid var(--ink-border-accent);
+  border-radius: 12px;
+  padding: 14px;
+  background: var(--ink-card-bg);
+  box-shadow: var(--ink-shadow-card);
+}
+
+.web-onboarding-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.web-onboarding-title {
+  margin: 0;
+  color: var(--ink-title-color);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.web-onboarding-tag {
+  border: 1px solid var(--ink-border-accent);
+  border-radius: 999px;
+  padding: 2px 8px;
+  color: var(--ink-text-cool);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.web-onboarding-text {
+  margin: 6px 0 0;
+  color: var(--ink-text-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.web-onboarding-actions {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.web-onboarding-btn {
+  width: auto;
+  min-width: 110px;
+  padding: 9px 14px;
 }
 
 .main-menu-frame {
   display: grid;
   grid-template-columns: 240px 1fr;
-  gap: 24px;
+  gap: 20px;
   align-items: start;
 }
 
@@ -722,12 +869,17 @@ onUnmounted(() => {
   top: 20px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--menu-rail-border);
+  border-radius: 14px;
+  background: var(--menu-rail-bg);
+  box-shadow: var(--menu-rail-shadow);
 }
 
 .menu-main-stage {
   min-height: 72vh;
-  background: color-mix(in srgb, var(--ink-paper) 90%, transparent);
+  background: var(--menu-stage-bg);
   border: 1px solid var(--ink-border-soft);
   border-radius: 16px;
   box-shadow: var(--ink-shadow-panel);
@@ -737,7 +889,9 @@ onUnmounted(() => {
 .main-menu-header {
   position: relative;
   text-align: center;
-  padding: 18px 0 8px;
+  padding: 14px 0 4px;
+  border-bottom: 1px dashed var(--menu-header-border);
+  margin-bottom: 8px;
 }
 
 .main-menu-en-title {
@@ -768,10 +922,10 @@ onUnmounted(() => {
   border-radius: 6px;
   transform: rotate(-9deg) translateY(0);
   color: var(--ink-accent-seal);
-  background: color-mix(in srgb, var(--ink-accent-seal) 8%, transparent);
+  background: var(--menu-seal-bg);
   font-size: 14px;
   letter-spacing: 0.08em;
-  box-shadow: 0 3px 12px color-mix(in srgb, var(--ink-accent-seal) 30%, transparent);
+  box-shadow: var(--menu-seal-shadow);
   transition: transform 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
   animation: main-seal-float 2.8s ease-in-out infinite;
 }
@@ -780,7 +934,7 @@ onUnmounted(() => {
   content: '';
   position: absolute;
   inset: -5px;
-  border: 1px solid color-mix(in srgb, var(--ink-accent-seal) 40%, transparent);
+  border: 1px solid var(--menu-seal-ring-border);
   border-radius: 10px;
   opacity: 0;
   transform: scale(0.92);
@@ -789,8 +943,8 @@ onUnmounted(() => {
 
 .main-menu-seal:hover {
   transform: rotate(-9deg) translateY(-2px);
-  background: color-mix(in srgb, var(--ink-accent-seal) 14%, transparent);
-  box-shadow: 0 8px 18px color-mix(in srgb, var(--ink-accent-seal) 34%, transparent);
+  background: var(--menu-seal-hover-bg);
+  box-shadow: var(--menu-seal-hover-shadow);
 }
 
 .main-menu-seal:hover::before,
@@ -806,8 +960,8 @@ onUnmounted(() => {
 .main-menu-seal:focus-visible {
   outline: none;
   box-shadow:
-    0 0 0 2px color-mix(in srgb, var(--ink-accent-seal) 36%, transparent),
-    0 8px 18px color-mix(in srgb, var(--ink-accent-seal) 34%, transparent);
+    0 0 0 2px var(--menu-seal-focus-ring),
+    var(--menu-seal-hover-shadow);
 }
 
 .main-menu-seal-whisper {
@@ -836,17 +990,21 @@ onUnmounted(() => {
 .menu-btn {
   width: 100%;
   border-radius: 10px;
-  border: 1px solid var(--ink-title-color);
-  background: var(--ink-card-bg);
+  border: 1px solid var(--menu-btn-border);
+  background: var(--menu-btn-bg);
   color: var(--ink-text-primary);
   padding: 13px 16px;
-  font-size: 1rem;
-  transition: box-shadow 180ms ease, transform 120ms ease, background-color 180ms ease;
+  font-size: 0.96rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  transition: box-shadow 180ms ease, transform 120ms ease, background-color 180ms ease, border-color 180ms ease;
+  box-shadow: var(--menu-btn-shadow);
 }
 
 .menu-btn:hover {
+  border-color: var(--ink-title-color);
   background: var(--ink-paper);
-  box-shadow: var(--ink-shadow-card);
+  box-shadow: var(--menu-btn-hover-shadow);
 }
 
 .menu-btn:active {
@@ -854,7 +1012,8 @@ onUnmounted(() => {
 }
 
 .menu-btn-primary {
-  background: color-mix(in srgb, var(--ink-title-color) 28%, var(--ink-paper));
+  border-color: var(--menu-btn-primary-border);
+  background: var(--menu-btn-primary-bg);
 }
 
 .menu-volume-pill {
@@ -863,7 +1022,7 @@ onUnmounted(() => {
   border: 1px solid var(--ink-border-accent);
   border-radius: 999px;
   padding: 4px 8px;
-  background: color-mix(in srgb, var(--ink-card-bg) 88%, transparent);
+  background: var(--menu-volume-pill-bg);
   color: var(--ink-text-muted);
 }
 
@@ -872,7 +1031,7 @@ onUnmounted(() => {
 .menu-inline-btn {
   border: 1px solid var(--ink-border-accent);
   border-radius: 8px;
-  background: var(--ink-card-bg);
+  background: var(--menu-chip-bg);
   color: var(--ink-text-primary);
 }
 
@@ -895,7 +1054,7 @@ onUnmounted(() => {
   position: fixed;
   inset: 0;
   z-index: 60;
-  background: color-mix(in srgb, var(--ink-text-primary) 30%, transparent);
+  background: var(--menu-overlay-bg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -908,7 +1067,7 @@ onUnmounted(() => {
   overflow: auto;
   border-radius: 16px;
   border: 1px solid var(--ink-border-soft);
-  background: color-mix(in srgb, var(--ink-paper) 88%, var(--ink-card-bg));
+  background: var(--menu-dialog-bg);
   box-shadow: var(--ink-shadow-panel);
   padding: 20px;
 }
@@ -958,7 +1117,19 @@ onUnmounted(() => {
 }
 
 .menu-text-error {
-  color: color-mix(in srgb, var(--ink-accent-main) 86%, var(--ink-text-primary));
+  color: var(--menu-error-text);
+}
+
+.menu-status-loading {
+  color: var(--ink-text-cool);
+}
+
+.menu-status-success {
+  color: var(--ink-text-cool);
+}
+
+.menu-status-failure {
+  color: var(--ink-accent-main);
 }
 
 .menu-chip-btn-active {
@@ -993,6 +1164,17 @@ onUnmounted(() => {
   }
   50% {
     transform: rotate(-9deg) translateY(-2px);
+  }
+}
+
+@keyframes ui-theme-status-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--ui-theme-status-entry-offset-y) * -1));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 </style>

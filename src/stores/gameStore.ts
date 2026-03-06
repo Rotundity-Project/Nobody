@@ -1,6 +1,5 @@
 ﻿import { defineStore } from 'pinia';
-import { invoke } from '@tauri-apps/api/core';
-import { invokeWithTimeout } from '../utils/tauriInvoke';
+import { invokeRuntime, invokeWithTimeout } from '../utils/tauriInvoke';
 import type {
   Script,
   GameState,
@@ -10,6 +9,8 @@ import type {
   MapLocationOverview,
   SaveInfo,
   WorldRegistry,
+  GenerationTimingSummary,
+  GenerationFailureSummary,
 } from '../types/game';
 
 interface GameStoreState {
@@ -20,12 +21,16 @@ interface GameStoreState {
   reachableLocationIds: string[];
   mapOverview: MapLocationOverview[];
   worldRegistry: WorldRegistry | null;
+  generationDiagnostics: string[];
+  generationTimingSummary: GenerationTimingSummary | null;
+  generationFailureSummary: GenerationFailureSummary | null;
   isLoading: boolean;
   error: string | null;
 }
 
-const LLM_TIMEOUT_MS = 3000 * 1000;
+const LLM_TIMEOUT_MS = 60 * 1000;
 const OPTION_LLM_STORY_BLOCKED_MARKER = '本轮为选项续写：未获得可用 LLM 剧情文本';
+const MAX_GENERATION_DIAGNOSTICS = 40;
 
 export const useGameStore = defineStore('game', {
   state: (): GameStoreState => ({
@@ -36,6 +41,9 @@ export const useGameStore = defineStore('game', {
     reachableLocationIds: [],
     mapOverview: [],
     worldRegistry: null,
+    generationDiagnostics: [],
+    generationTimingSummary: null,
+    generationFailureSummary: null,
     isLoading: false,
     error: null,
   }),
@@ -52,7 +60,7 @@ export const useGameStore = defineStore('game', {
   actions: {
     async refreshReachableLocations() {
       try {
-        const ids = await invoke<unknown>('get_reachable_locations');
+        const ids = await invokeRuntime<unknown>('get_reachable_locations', undefined);
         this.reachableLocationIds = Array.isArray(ids)
           ? ids.filter((id): id is string => typeof id === 'string')
           : [];
@@ -63,7 +71,7 @@ export const useGameStore = defineStore('game', {
 
     async refreshMapOverview() {
       try {
-        const nodes = await invoke<MapLocationOverview[]>('get_map_overview');
+        const nodes = await invokeRuntime<MapLocationOverview[]>('get_map_overview', undefined);
         this.mapOverview = Array.isArray(nodes) ? nodes : [];
       } catch {
         this.mapOverview = [];
@@ -72,18 +80,68 @@ export const useGameStore = defineStore('game', {
 
     async refreshWorldRegistry() {
       try {
-        this.worldRegistry = await invoke<WorldRegistry>('get_world_registry');
+        this.worldRegistry = await invokeRuntime<WorldRegistry>('get_world_registry', undefined);
       } catch {
         this.worldRegistry = null;
       }
+    },
+
+    appendGenerationDiagnostics(diag: string | null | undefined) {
+      const text = String(diag ?? '').trim();
+      if (!text) {
+        return;
+      }
+      this.generationDiagnostics = [
+        ...this.generationDiagnostics.slice(-(MAX_GENERATION_DIAGNOSTICS - 1)),
+        text,
+      ];
+    },
+
+    async refreshGenerationDiagnosticsSummary() {
+      if (this.generationDiagnostics.length === 0) {
+        this.generationTimingSummary = null;
+        this.generationFailureSummary = null;
+        return;
+      }
+      try {
+        this.generationTimingSummary = await invokeRuntime<GenerationTimingSummary>(
+          'summarize_generation_diagnostics',
+          { diagnostics: this.generationDiagnostics },
+        );
+      } catch {
+        this.generationTimingSummary = null;
+      }
+      try {
+        this.generationFailureSummary = await invokeRuntime<GenerationFailureSummary>(
+          'summarize_generation_failures',
+          { diagnostics: this.generationDiagnostics },
+        );
+      } catch {
+        this.generationFailureSummary = null;
+      }
+    },
+
+    clearGenerationDiagnostics() {
+      this.generationDiagnostics = [];
+      this.generationTimingSummary = null;
+      this.generationFailureSummary = null;
+    },
+
+    getGenerationDiagnosticsText() {
+      if (this.generationDiagnostics.length === 0) {
+        return '暂无诊断数据。';
+      }
+      return this.generationDiagnostics
+        .map((line, index) => `${index + 1}. ${line}`)
+        .join('\n');
     },
 
     async applyWorldRegistryPatch(patch: unknown) {
       this.isLoading = true;
       this.error = null;
       try {
-        this.worldRegistry = await invoke<WorldRegistry>('apply_world_registry_patch', { patch });
-        const gameState = await invoke<GameState>('get_game_state');
+        this.worldRegistry = await invokeRuntime<WorldRegistry>('apply_world_registry_patch', { patch });
+        const gameState = await invokeRuntime<GameState>('get_game_state', undefined);
         this.gameState = gameState;
       } catch (error) {
         this.error = error instanceof Error ? error.message : String(error);
@@ -118,6 +176,8 @@ export const useGameStore = defineStore('game', {
           '初始化剧情超时，请检查 LLM 配置后重试',
         );
         this.plotState = plotState;
+        this.appendGenerationDiagnostics(plotState.last_generation_diagnostics);
+        await this.refreshGenerationDiagnosticsSummary();
         this.lastInitializationDurationMs = Date.now() - startedAt;
         await this.refreshWorldRegistry();
         await this.refreshReachableLocations();
@@ -157,6 +217,8 @@ export const useGameStore = defineStore('game', {
           '获取剧情状态超时，请重试',
         );
         this.plotState = plotState;
+        this.appendGenerationDiagnostics(plotState.last_generation_diagnostics);
+        await this.refreshGenerationDiagnosticsSummary();
         await this.refreshWorldRegistry();
         await this.refreshReachableLocations();
         await this.refreshMapOverview();
@@ -170,16 +232,47 @@ export const useGameStore = defineStore('game', {
 
         if (message.includes('剧情推进超时')) {
           try {
-            const latestPlotState = await invokeWithTimeout<PlotState>(
+            await invokeWithTimeout<string>(
+              'execute_player_action',
+              { action, quickMode: true },
+              15000,
+              '快速模式执行超时，请稍后重试',
+            );
+            const gameState = await invokeWithTimeout<GameState>(
+              'get_game_state',
+              undefined,
+              8000,
+              '获取游戏状态超时，请重试',
+            );
+            this.gameState = gameState;
+            const quickPlotState = await invokeWithTimeout<PlotState>(
               'get_plot_state',
               undefined,
               10000,
               '获取剧情状态超时，请重试',
             );
-            this.plotState = latestPlotState;
-            this.error = latestPlotState.last_generation_diagnostics ?? '剧情推进超时，请稍后重试';
+            this.plotState = quickPlotState;
+            this.appendGenerationDiagnostics(quickPlotState.last_generation_diagnostics);
+            await this.refreshGenerationDiagnosticsSummary();
+            await this.refreshWorldRegistry();
+            await this.refreshReachableLocations();
+            await this.refreshMapOverview();
+            this.error = `主链路超时，已切换快速模式续写。${quickPlotState.last_generation_diagnostics ?? ''}`.trim();
           } catch {
-            this.error = '剧情推进超时，请稍后重试。你可以尝试重连或调整 LLM 设置。';
+            try {
+              const latestPlotState = await invokeWithTimeout<PlotState>(
+                'get_plot_state',
+                undefined,
+                10000,
+                '获取剧情状态超时，请重试',
+              );
+              this.plotState = latestPlotState;
+              this.appendGenerationDiagnostics(latestPlotState.last_generation_diagnostics);
+              await this.refreshGenerationDiagnosticsSummary();
+              this.error = latestPlotState.last_generation_diagnostics ?? '剧情推进超时，请稍后重试';
+            } catch {
+              this.error = '剧情推进超时，请稍后重试。你可以尝试重连或调整 LLM 设置。';
+            }
           }
         } else {
           if (message.includes(OPTION_LLM_STORY_BLOCKED_MARKER)) {
@@ -198,7 +291,7 @@ export const useGameStore = defineStore('game', {
       this.error = null;
 
       try {
-        await invoke('save_game', { slotId });
+        await invokeRuntime('save_game', { slotId });
       } catch (error) {
         this.error = error instanceof Error ? error.message : String(error);
         throw error;
@@ -212,11 +305,13 @@ export const useGameStore = defineStore('game', {
       this.error = null;
 
       try {
-        const gameState = await invoke<GameState>('load_game', { slotId });
+        const gameState = await invokeRuntime<GameState>('load_game', { slotId });
         this.gameState = gameState;
 
-        const plotState = await invoke<PlotState>('get_plot_state');
+        const plotState = await invokeRuntime<PlotState>('get_plot_state', undefined);
         this.plotState = plotState;
+        this.appendGenerationDiagnostics(plotState.last_generation_diagnostics);
+        await this.refreshGenerationDiagnosticsSummary();
         await this.refreshWorldRegistry();
         await this.refreshReachableLocations();
         await this.refreshMapOverview();
@@ -232,11 +327,13 @@ export const useGameStore = defineStore('game', {
       this.isLoading = true;
       this.error = null;
       try {
-        await invoke<string>('travel_to_location', { locationId });
-        const gameState = await invoke<GameState>('get_game_state');
-        const plotState = await invoke<PlotState>('get_plot_state');
+        await invokeRuntime<string>('travel_to_location', { locationId });
+        const gameState = await invokeRuntime<GameState>('get_game_state', undefined);
+        const plotState = await invokeRuntime<PlotState>('get_plot_state', undefined);
         this.gameState = gameState;
         this.plotState = plotState;
+        this.appendGenerationDiagnostics(plotState.last_generation_diagnostics);
+        await this.refreshGenerationDiagnosticsSummary();
         await this.refreshWorldRegistry();
         await this.refreshReachableLocations();
         await this.refreshMapOverview();
@@ -250,7 +347,7 @@ export const useGameStore = defineStore('game', {
 
     async getPlayerOptions() {
       try {
-        const options = await invoke<PlayerOption[]>('get_player_options');
+        const options = await invokeRuntime<PlayerOption[]>('get_player_options', undefined);
         if (this.plotState && this.plotState.current_scene) {
           this.plotState.current_scene.available_options = options;
         }
@@ -292,6 +389,8 @@ export const useGameStore = defineStore('game', {
           '初始化剧情超时，请检查 LLM 配置后重试',
         );
         this.plotState = plotState;
+        this.appendGenerationDiagnostics(plotState.last_generation_diagnostics);
+        await this.refreshGenerationDiagnosticsSummary();
         this.lastInitializationDurationMs = Date.now() - startedAt;
         await this.refreshWorldRegistry();
         await this.refreshReachableLocations();
@@ -306,7 +405,7 @@ export const useGameStore = defineStore('game', {
 
     async listSaveSlots() {
       try {
-        return await invoke<SaveInfo[]>('list_save_slots');
+        return await invokeRuntime<SaveInfo[]>('list_save_slots', undefined);
       } catch (error) {
         this.error = error instanceof Error ? error.message : String(error);
         throw error;
@@ -325,6 +424,9 @@ export const useGameStore = defineStore('game', {
       this.reachableLocationIds = [];
       this.mapOverview = [];
       this.worldRegistry = null;
+      this.generationDiagnostics = [];
+      this.generationTimingSummary = null;
+      this.generationFailureSummary = null;
       this.error = null;
     },
   },
