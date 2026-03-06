@@ -1,9 +1,17 @@
-import { computed, nextTick, ref, watch, type Ref } from 'vue';
+import { computed, getCurrentInstance, nextTick, onBeforeUnmount, ref, watch, type Ref } from 'vue';
 import type { RuntimeQuickTab } from '../components/RuntimeQuickPanelsDialog.vue';
-import { getUiTheme, saveUiTheme, type UiTheme } from '../utils/uiTheme';
+import { addUiThemeListener, getUiTheme, saveUiTheme, type UiTheme } from '../utils/uiTheme';
+import { buildUiThemeStatusText } from '../utils/uiThemeStatus';
 
 const QUICK_PANEL_TAB_STORAGE_KEY = 'runtime.quick_panel.active_tab';
 const ALLOWED_QUICK_TABS: RuntimeQuickTab[] = ['backpack', 'techniques', 'factions', 'world'];
+
+const QUICK_PANEL_LABELS: Record<RuntimeQuickTab, string> = {
+  backpack: '背包',
+  techniques: '功法',
+  factions: '势力',
+  world: '世界',
+};
 
 const loadSavedQuickPanelTab = (): RuntimeQuickTab => {
   try {
@@ -28,6 +36,7 @@ export const useRuntimeShellUi = ({
   closeAllDialogs,
   safePlayClick,
   logRuntimeAction,
+  notifyRuntimeError,
 }: {
   showQuickPanel: Ref<boolean>;
   showCharacterInfo: Ref<boolean>;
@@ -39,72 +48,96 @@ export const useRuntimeShellUi = ({
   closeAllDialogs: () => void;
   safePlayClick: () => void;
   logRuntimeAction: (title: string, detail?: string) => void;
+  notifyRuntimeError: (scope: string, error: unknown) => void;
 }) => {
   const activeQuickPanelTab = ref<RuntimeQuickTab>(loadSavedQuickPanelTab());
   const activeTheme = ref<UiTheme>(getUiTheme());
+  let pendingThemeSync: UiTheme | null = null;
+  const removeUiThemeListener = addUiThemeListener((theme) => {
+    const isLocalUpdate = pendingThemeSync === theme;
+    pendingThemeSync = null;
+    activeTheme.value = theme;
+    if (!isLocalUpdate) {
+      const status = buildUiThemeStatusText(theme, 'sync');
+      logRuntimeAction(status.title, status.message);
+    }
+  });
+
+  const runUiAction = async (
+    scope: string,
+    action: () => void | Promise<void>,
+    detail?: string,
+  ) => {
+    try {
+      await action();
+      logRuntimeAction(scope, detail);
+    } catch (error) {
+      notifyRuntimeError(scope, error);
+    }
+  };
 
   const closeRuntimeQuickPanels = () => {
     showQuickPanel.value = false;
   };
 
   const openCharacterDialog = async () => {
-    safePlayClick();
-    closeAllDialogs();
-    closeRuntimeQuickPanels();
-    showCharacterInfo.value = false;
-    await nextTick();
-    showCharacterInfo.value = true;
-    logRuntimeAction('已打开人物面板');
+    await runUiAction('已打开人物面板', async () => {
+      safePlayClick();
+      closeAllDialogs();
+      closeRuntimeQuickPanels();
+      showCharacterInfo.value = false;
+      await nextTick();
+      showCharacterInfo.value = true;
+    });
   };
 
   const openInfoDialog = async () => {
-    safePlayClick();
-    closeAllDialogs();
-    closeRuntimeQuickPanels();
-    showInfoTabs.value = false;
-    await nextTick();
-    showInfoTabs.value = true;
-    logRuntimeAction('已打开行旅信息');
+    await runUiAction('已打开行旅信息', async () => {
+      safePlayClick();
+      closeAllDialogs();
+      closeRuntimeQuickPanels();
+      showInfoTabs.value = false;
+      await nextTick();
+      showInfoTabs.value = true;
+    });
   };
 
   const openSaveDialog = () => {
-    safePlayClick();
-    closeAllDialogs();
-    closeRuntimeQuickPanels();
-    showSaveDialog.value = true;
-    logRuntimeAction('已打开存档面板');
+    void runUiAction('已打开存档面板', () => {
+      safePlayClick();
+      closeAllDialogs();
+      closeRuntimeQuickPanels();
+      showSaveDialog.value = true;
+    });
   };
 
   const openLoadDialog = () => {
-    safePlayClick();
-    closeAllDialogs();
-    closeRuntimeQuickPanels();
-    showLoadDialog.value = true;
-    logRuntimeAction('已打开读档面板');
+    void runUiAction('已打开读档面板', () => {
+      safePlayClick();
+      closeAllDialogs();
+      closeRuntimeQuickPanels();
+      showLoadDialog.value = true;
+    });
   };
 
   const openLlmDialogFromError = () => {
-    safePlayClick();
-    closeAllDialogs();
-    closeRuntimeQuickPanels();
-    showLLMDialog.value = true;
-    logRuntimeAction('已打开 LLM 设置');
+    void runUiAction('已打开 LLM 设置', () => {
+      safePlayClick();
+      closeAllDialogs();
+      closeRuntimeQuickPanels();
+      showLLMDialog.value = true;
+    });
   };
 
   const openQuickPanel = async (tab: RuntimeQuickTab) => {
-    safePlayClick();
-    closeAllDialogs();
-    showQuickPanel.value = false;
-    activeQuickPanelTab.value = tab;
-    await nextTick();
-    showQuickPanel.value = true;
-    const panelLabels: Record<RuntimeQuickTab, string> = {
-      backpack: '背包',
-      techniques: '功法',
-      factions: '势力',
-      world: '世界',
-    };
-    logRuntimeAction(`已打开${panelLabels[tab]}面板`);
+    await runUiAction(`已打开${QUICK_PANEL_LABELS[tab]}面板`, async () => {
+      safePlayClick();
+      closeAllDialogs();
+      showQuickPanel.value = false;
+      activeQuickPanelTab.value = tab;
+      await nextTick();
+      showQuickPanel.value = true;
+    });
   };
 
   watch(activeQuickPanelTab, (tab) => {
@@ -119,30 +152,42 @@ export const useRuntimeShellUi = ({
   const activeThemeLabel = computed(() => (activeTheme.value === 'theme-night' ? '深色' : '浅色'));
 
   const applyUiTheme = (theme: UiTheme) => {
+    pendingThemeSync = theme;
     activeTheme.value = theme;
     saveUiTheme(theme);
   };
 
   const toggleTheme = () => {
-    safePlayClick();
     const nextTheme: UiTheme = activeTheme.value === 'theme-night' ? 'theme-scroll' : 'theme-night';
-    applyUiTheme(nextTheme);
-    logRuntimeAction('已切换主题', `当前为${activeThemeLabel.value}主题`);
+    const status = buildUiThemeStatusText(nextTheme);
+    void runUiAction(status.title, () => {
+      safePlayClick();
+      applyUiTheme(nextTheme);
+    }, status.message);
   };
 
   const updateUiThemeFromSettings = (theme: UiTheme) => {
     if (theme === activeTheme.value) {
       return;
     }
-    applyUiTheme(theme);
-    logRuntimeAction('已切换主题', `当前为${activeThemeLabel.value}主题`);
+    const status = buildUiThemeStatusText(theme);
+    void runUiAction(status.title, () => {
+      applyUiTheme(theme);
+    }, status.message);
   };
 
   const openStorySettingsDialog = () => {
-    safePlayClick();
-    showStorySettings.value = true;
-    logRuntimeAction('已打开系统设置');
+    void runUiAction('已打开系统设置', () => {
+      safePlayClick();
+      showStorySettings.value = true;
+    });
   };
+
+  if (getCurrentInstance()) {
+    onBeforeUnmount(() => {
+      removeUiThemeListener();
+    });
+  }
 
   return {
     activeQuickPanelTab,
