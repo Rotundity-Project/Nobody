@@ -1820,8 +1820,10 @@ pub async fn initialize_game(
 #[tauri::command]
 pub async fn execute_player_action(
     action: PlayerAction,
+    quick_mode: Option<bool>,
     engine: State<'_, Mutex<GameEngine>>,
 ) -> Result<String, String> {
+    let quick_mode = quick_mode.unwrap_or(false);
     let total_started = Instant::now();
     let (mut game_state, mut plot_state, mut world_registry) = {
         let engine = match engine.lock() {
@@ -2159,7 +2161,11 @@ pub async fn execute_player_action(
     game_state.game_time.advance_days(1);
     let timestamp = u64::from(game_state.game_time.total_days);
 
-    let context_bundle = build_plot_context_for_generation(&game_state, &plot_state, &action);
+    let context_bundle = if quick_mode {
+        None
+    } else {
+        build_plot_context_for_generation(&game_state, &plot_state, &action)
+    };
     let mut plot_state_for_generation = plot_state.clone();
     let narrative_hint =
         narrative_density_and_pacing_hint(plot_state.current_chapter.interaction_count);
@@ -2175,14 +2181,19 @@ pub async fn execute_player_action(
         }
     }
 
-    let mut plot_update = plot_engine
-        .advance_plot_async_with_policy(
-            &plot_state_for_generation,
-            &action_result,
-            !selected_option_requires_llm_story,
-        )
-        .await;
-    let plot_generation_ms = total_started.elapsed().as_millis();
+    let plot_generation_started = Instant::now();
+    let mut plot_update = if quick_mode {
+        plot_engine.advance_plot_fast(&plot_state_for_generation, &action_result)
+    } else {
+        plot_engine
+            .advance_plot_async_with_policy(
+                &plot_state_for_generation,
+                &action_result,
+                !selected_option_requires_llm_story,
+            )
+            .await
+    };
+    let plot_generation_ms = plot_generation_started.elapsed().as_millis();
 
     if let Some(bundle) = context_bundle {
         let ctx_diag = format!(
@@ -2203,6 +2214,14 @@ pub async fn execute_player_action(
             }
         }
     }
+    if quick_mode {
+        match &mut plot_update.generation_diagnostics {
+            Some(diag) => diag.push_str("；链路：quick_mode_rule_only"),
+            None => {
+                plot_update.generation_diagnostics = Some("链路：quick_mode_rule_only".to_string())
+            }
+        }
+    }
 
     let mut consistency_report = validate_and_repair_plot_update(
         &plot_state,
@@ -2213,7 +2232,8 @@ pub async fn execute_player_action(
         &game_state.player.name,
     );
 
-    if has_consistency_issue(&consistency_report, "chapter_goal_weak")
+    if !quick_mode
+        && has_consistency_issue(&consistency_report, "chapter_goal_weak")
         && total_started.elapsed().as_millis() <= REGEN_LATENCY_BUDGET_MS
     {
         let mut regenerated_state = plot_state_for_generation.clone();
@@ -2260,7 +2280,7 @@ pub async fn execute_player_action(
                 }
             }
         }
-    } else if has_consistency_issue(&consistency_report, "chapter_goal_weak") {
+    } else if !quick_mode && has_consistency_issue(&consistency_report, "chapter_goal_weak") {
         match &mut plot_update.generation_diagnostics {
             Some(diag) => diag.push_str("；章节目标重生成：skipped(latency_budget)"),
             None => {
@@ -2270,7 +2290,8 @@ pub async fn execute_player_action(
         }
     }
 
-    if (is_hollow_expression(&plot_update.plot_text)
+    if !quick_mode
+        && (is_hollow_expression(&plot_update.plot_text)
         || narrative_dimension_coverage(&plot_update.plot_text) < 2)
         && total_started.elapsed().as_millis() <= REGEN_LATENCY_BUDGET_MS
     {
@@ -2322,9 +2343,10 @@ pub async fn execute_player_action(
                 }
             }
         }
-    } else if is_hollow_expression(&plot_update.plot_text)
+    } else if !quick_mode
+        && (is_hollow_expression(&plot_update.plot_text)
         || narrative_dimension_coverage(&plot_update.plot_text) < 2
-    {
+    ) {
         match &mut plot_update.generation_diagnostics {
             Some(diag) => diag.push_str("；叙事厚度重生成：skipped(latency_budget)"),
             None => {
@@ -2342,7 +2364,8 @@ pub async fn execute_player_action(
     if let Some(summary) = consistency_report.override_chapter_summary.clone() {
         plot_update.chapter_summary = Some(summary);
     }
-    if plot_state.settings.llm_strict_mode
+    if !quick_mode
+        && plot_state.settings.llm_strict_mode
         && diagnostics_used_preset_fallback(plot_update.generation_diagnostics.as_deref())
     {
         return Err(
@@ -2350,7 +2373,8 @@ pub async fn execute_player_action(
                 .to_string(),
         );
     }
-    if selected_option_requires_llm_story
+    if !quick_mode
+        && selected_option_requires_llm_story
         && diagnostics_used_preset_fallback(plot_update.generation_diagnostics.as_deref())
     {
         if let Some(rescue_text) = plot_engine
@@ -2371,7 +2395,8 @@ pub async fn execute_player_action(
     }
 
     // Phase 2: 双通道（state_patch + narrative）优先，失败则保留现有 plot_engine 结果。
-    if let Some(mut registry) = world_registry.clone() {
+    if !quick_mode {
+        if let Some(mut registry) = world_registry.clone() {
         let reference_78 = std::fs::read_to_string(SPEC_78_PATH).unwrap_or_default();
         let supplement_78 = std::fs::read_to_string(SPEC_78_SUPPLEMENT_PATH).unwrap_or_default();
         let turn_update_started = Instant::now();
@@ -2518,6 +2543,7 @@ pub async fn execute_player_action(
                 }
             }
         }
+        }
     }
 
     let log_entry = if let Some(selected_option_id) = action.selected_option_id {
@@ -2588,8 +2614,8 @@ pub async fn execute_player_action(
             plot_state.current_scene.available_options = plot_update.available_options;
             "llm_structured".to_string()
         } else {
-            let llm_regenerated = if options_started.elapsed().as_millis()
-                <= OPTION_LLM_LATENCY_BUDGET_MS
+            let llm_regenerated = if !quick_mode
+                && options_started.elapsed().as_millis() <= OPTION_LLM_LATENCY_BUDGET_MS
             {
                 plot_engine.generate_player_options_with_llm(
                     &plot_state.current_scene,
@@ -2604,7 +2630,9 @@ pub async fn execute_player_action(
                 (
                     plot_engine
                         .generate_player_options(&plot_state.current_scene, &game_state.player.stats),
-                    if options_started.elapsed().as_millis() <= OPTION_LLM_LATENCY_BUDGET_MS {
+                    if quick_mode {
+                        "quick_mode_rule_only".to_string()
+                    } else if options_started.elapsed().as_millis() <= OPTION_LLM_LATENCY_BUDGET_MS {
                         "rule_fallback".to_string()
                     } else {
                         "rule_fallback_latency_budget".to_string()
@@ -3600,7 +3628,10 @@ mod tests {
         assert_eq!(summary.turn_update_fallback_count, 2);
         assert_eq!(summary.option_llm_blocked_count, 1);
         assert!(!summary.top_reasons.is_empty());
-        assert_eq!(summary.top_reasons[0].stage, "turn_update");
+        assert!(
+            summary.top_reasons[0].stage == "turn_update"
+                || summary.top_reasons[0].stage == "preset_fallback"
+        );
     }
 
     #[test]

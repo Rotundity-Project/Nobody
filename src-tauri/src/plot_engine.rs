@@ -181,7 +181,7 @@ pub struct OpeningPlot {
     pub from_llm: bool,
 }
 
-const LLM_GENERATION_TIMEOUT_SECS: u64 = 3000;
+const LLM_GENERATION_TIMEOUT_SECS: u64 = 60;
 
 #[derive(Debug, Clone)]
 struct ChapterSegment {
@@ -997,6 +997,50 @@ impl PlotEngine {
                 "回退：{}；纯文本续写也失败，已使用预设文本；链路：preset_fallback；阶段耗时(ms)：structured={},plain={},skeleton={},micro={}",
                 fallback_reason, structured_ms, plain_ms, skeleton_ms, micro_ms
             )),
+        }
+    }
+
+    pub fn advance_plot_fast(
+        &self,
+        current_state: &PlotState,
+        action_result: &ActionResult,
+    ) -> PlotUpdate {
+        let segment = self.apply_chapter_segment_rules(
+            current_state,
+            ChapterSegment {
+                text: self.generate_plot_text_fallback(current_state, action_result),
+                needs_player_input: true,
+                chapter_end: false,
+                chapter_title: None,
+                chapter_summary: None,
+                options: vec![],
+                generation_diagnostics: Some("快速模式：已跳过 LLM，使用规则续写".to_string()),
+            },
+        );
+
+        let triggered_events = action_result.events.clone();
+        let state_changes: Vec<String> = action_result
+            .stat_changes
+            .iter()
+            .map(|change| {
+                format!(
+                    "{}: {} -> {}",
+                    change.stat_name, change.old_value, change.new_value
+                )
+            })
+            .collect();
+
+        PlotUpdate {
+            new_scene: None,
+            plot_text: segment.text,
+            triggered_events,
+            state_changes,
+            is_waiting_for_input: segment.needs_player_input || segment.chapter_end,
+            available_options: vec![],
+            chapter_title: segment.chapter_title,
+            chapter_summary: segment.chapter_summary,
+            chapter_end: segment.chapter_end,
+            generation_diagnostics: segment.generation_diagnostics,
         }
     }
 
@@ -2013,8 +2057,8 @@ impl PlotEngine {
         spiritual_root: &str,
         location: &str,
     ) -> Option<OpeningPlot> {
-        const OPENING_PRIMARY_TIMEOUT_SECS: u64 = 3000;
-        const OPENING_RETRY_TIMEOUT_SECS: u64 = 3000;
+        const OPENING_PRIMARY_TIMEOUT_SECS: u64 = 75;
+        const OPENING_RETRY_TIMEOUT_SECS: u64 = 45;
         let llm_service = self.resolve_llm_service()?;
         let output_max = llm_service.api_config.max_tokens.clamp(900, 1500);
         let prompt_limit = output_max.saturating_mul(6);
