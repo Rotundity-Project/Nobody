@@ -50,8 +50,8 @@ defineEmits<{
   min-height: 64px;
   border-top: 1px solid var(--runtime-bottom-bar-border-top);
   border-radius: 12px;
-  background: var(--panel-bg-soft, var(--ink-card-bg-soft));
-  padding: 11px 18px;
+  background: var(--runtime-bottom-bar-bg, var(--panel-bg-soft, var(--ink-card-bg-soft)));
+  padding: 10px 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -80,10 +80,12 @@ defineEmits<{
   border-top-color: var(--runtime-dock-btn-border-top);
   border-bottom-color: var(--runtime-dock-btn-border-bottom);
   background: var(--runtime-dock-btn-bg);
+  color: var(--ink-text-primary);
   padding: 7px 14px;
   font-size: 14px;
   line-height: 1.1;
   box-shadow: var(--runtime-dock-btn-shadow);
+  transition: border-color var(--motion-enter) var(--ease-ink), background-color var(--motion-enter) var(--ease-ink), box-shadow var(--motion-enter) var(--ease-ink);
 }
 
 .runtime-bottom-bar :deep(.ink-dock-btn:hover) {
@@ -105,7 +107,7 @@ defineEmits<{
   border-bottom-color: var(--runtime-btn-border-bottom);
   background: var(--runtime-btn-bg);
   color: var(--ink-text-primary);
-  padding: 8px 18px;
+  padding: 7px 15px;
   box-shadow: var(--runtime-btn-shadow);
   transition: border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease, transform 120ms ease;
 }

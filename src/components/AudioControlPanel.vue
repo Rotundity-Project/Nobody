@@ -147,12 +147,12 @@ const toggleSfx = () => {
 }
 
 .audio-toggle-on {
-  background: color-mix(in srgb, var(--ink-title-color) 18%, var(--ink-paper));
-  color: color-mix(in srgb, var(--ink-title-color) 72%, var(--ink-text-primary));
+  background: var(--audio-toggle-on-bg);
+  color: var(--audio-toggle-on-text);
 }
 
 .audio-toggle-on-cool {
-  background: color-mix(in srgb, var(--ink-text-cool) 12%, var(--ink-paper));
+  background: var(--audio-toggle-on-cool-bg);
   color: var(--ink-text-cool);
 }
 
@@ -182,7 +182,7 @@ const toggleSfx = () => {
 
 .audio-chip-btn-accent {
   border-color: var(--ink-title-color);
-  color: color-mix(in srgb, var(--ink-title-color) 72%, var(--ink-text-primary));
-  background: color-mix(in srgb, var(--ink-title-color) 18%, var(--ink-paper));
+  color: var(--audio-chip-accent-text);
+  background: var(--audio-chip-accent-bg);
 }
 </style>

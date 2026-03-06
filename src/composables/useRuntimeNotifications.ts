@@ -1,16 +1,19 @@
 ﻿import { computed, ref, type Ref } from 'vue';
 import type { NotificationItem } from '../components/NotificationCenter.vue';
+import { buildRuntimeErrorNotification } from './useRuntimeActionFeedback';
 
 type UseRuntimeNotificationsInput = {
   characterCreationDurationLabel: Ref<string>;
   autoAdvanceStopHint: Ref<string>;
   actionNotification: Ref<NotificationItem | null>;
+  runtimeError: Ref<string | null>;
 };
 
 export const useRuntimeNotifications = ({
   characterCreationDurationLabel,
   autoAdvanceStopHint,
   actionNotification,
+  runtimeError,
 }: UseRuntimeNotificationsInput) => {
   const dismissedNotificationIds = ref<string[]>([]);
 
@@ -39,6 +42,11 @@ export const useRuntimeNotifications = ({
 
     if (actionNotification.value) {
       out.push(actionNotification.value);
+    }
+
+    if (runtimeError.value) {
+      const seed = runtimeError.value.slice(0, 80).replace(/\s+/g, '_');
+      out.push(buildRuntimeErrorNotification('剧情推进', runtimeError.value, seed));
     }
 
     return out.filter((item) => !dismissedNotificationIds.value.includes(item.id));

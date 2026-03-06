@@ -17,6 +17,8 @@ const buildProps = (overrides: Record<string, unknown> = {}) => ({
   isGameInitialized: true,
   isWaitingForInput: true,
   loadingMessage: '处理中...',
+  loadingProgress: null,
+  loadingProgressText: '',
   canStopAutoAdvance: false,
   autoAdvanceStopHint: '',
   ...overrides,

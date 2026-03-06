@@ -1,8 +1,8 @@
 ﻿<template>
   <div class="space-y-3 text-center">
-    <p v-if="message" class="text-sm text-slate-400">{{ message }}</p>
+    <p v-if="message" class="continue-message text-sm">{{ message }}</p>
     <button
-      class="rounded-lg bg-amber-500 px-4 py-2 text-slate-900 transition-colors hover:bg-amber-400"
+      class="continue-btn rounded-lg px-4 py-2"
       @click="$emit('continue')"
     >
       {{ buttonText }}
@@ -20,3 +20,22 @@ defineEmits<{
   continue: [];
 }>();
 </script>
+
+<style scoped>
+.continue-message {
+  color: var(--ink-text-muted);
+}
+
+.continue-btn {
+  background: var(--ink-accent-main);
+  color: var(--ink-text-primary);
+  transition:
+    background-color var(--ink-motion-fast, 180ms) ease,
+    box-shadow var(--ink-motion-fast, 180ms) ease;
+}
+
+.continue-btn:hover {
+  background: var(--ink-accent-seal);
+  box-shadow: var(--ink-action-shadow-hover);
+}
+</style>

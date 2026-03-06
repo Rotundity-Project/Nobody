@@ -72,12 +72,12 @@ const onInput = (event: Event) => {
 }
 
 .free-text-input::placeholder {
-  color: color-mix(in srgb, var(--ink-text-muted) 78%, transparent);
+  color: var(--free-text-placeholder);
 }
 
 .free-text-input:focus {
   border-color: var(--ink-title-color);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ink-title-color) 18%, transparent);
+  box-shadow: 0 0 0 2px var(--free-text-focus-ring);
   background: var(--ink-paper-elevated);
 }
 
@@ -129,7 +129,7 @@ const onInput = (event: Event) => {
   cursor: not-allowed;
   border-color: var(--ink-border-soft);
   background: var(--ink-card-bg-muted);
-  color: color-mix(in srgb, var(--ink-text-muted) 80%, transparent);
+  color: var(--free-text-disabled-text);
 }
 
 @media (max-width: 640px) {

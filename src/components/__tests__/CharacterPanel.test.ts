@@ -58,7 +58,7 @@ describe('CharacterPanel', () => {
     expect(wrapper.text()).toContain('单灵根');
     expect(wrapper.text()).toContain('战后状态');
     expect(wrapper.text()).toContain('关系画像');
-    expect(wrapper.find('.bg-amber-600').exists()).toBe(true);
+    expect(wrapper.find('.grade-badge-heavenly').exists()).toBe(true);
   });
 
   it('shows empty state when character is null', () => {

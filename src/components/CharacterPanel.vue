@@ -3,21 +3,21 @@
     <h3 class="mb-4 text-xl font-display text-[var(--ink-title-color)]">角色信息</h3>
 
     <div v-if="character" class="space-y-4">
-      <section class="border-b border-slate-700 pb-4">
-        <p class="text-sm text-slate-400">姓名</p>
-        <p class="text-lg font-medium text-white">{{ character.name }}</p>
+      <section class="char-divider border-b pb-4">
+        <p class="char-label text-sm">姓名</p>
+        <p class="char-value text-lg font-medium">{{ character.name }}</p>
       </section>
 
       <section>
-        <p class="text-sm text-slate-400">修为境界</p>
-        <p class="font-medium text-white">{{ realmLabel }}</p>
-        <p class="text-xs text-slate-500">
+        <p class="char-label text-sm">修为境界</p>
+        <p class="char-value font-medium">{{ realmLabel }}</p>
+        <p class="char-meta text-xs">
           等级 {{ character.stats.cultivation_realm.level }}.{{ character.stats.cultivation_realm.sub_level }}
         </p>
       </section>
 
       <section>
-        <p class="text-sm text-slate-400">灵根</p>
+        <p class="char-label text-sm">灵根</p>
         <div class="root-row mt-1">
           <div v-for="item in rootElements" :key="item.element" class="root-item">
             <span class="root-icon" :class="item.colorClass" aria-hidden="true">
@@ -77,21 +77,21 @@
             </span>
             <span class="root-name" :class="item.colorClass">{{ item.label }}</span>
           </div>
-          <span class="text-sm text-slate-200">{{ rootTypeLabel }}</span>
-          <span class="rounded px-2 py-0.5 text-xs font-medium" :class="rootGradeClass(character.stats.spiritual_root.grade)">
+          <span class="char-subtle text-sm">{{ rootTypeLabel }}</span>
+          <span class="grade-badge rounded px-2 py-0.5 text-xs font-medium" :class="rootGradeClass(character.stats.spiritual_root.grade)">
             {{ gradeLabel }}
           </span>
         </div>
-        <p class="text-xs text-slate-500">亲和度 {{ affinityLabel }}</p>
-        <p class="text-xs text-slate-500">天赋提示：{{ gradeHint }}</p>
+        <p class="char-meta text-xs">亲和度 {{ affinityLabel }}</p>
+        <p class="char-meta text-xs">天赋提示：{{ gradeHint }}</p>
       </section>
 
       <section>
-        <p class="text-sm text-slate-400">寿元</p>
-        <p class="font-medium text-white">
+        <p class="char-label text-sm">寿元</p>
+        <p class="char-value font-medium">
           {{ character.stats.lifespan.current_age }} / {{ character.stats.lifespan.max_age }}
         </p>
-        <div class="mt-1 h-2 w-full rounded-full bg-slate-700">
+        <div class="char-lifespan-track mt-1 h-2 w-full rounded-full">
           <div
             class="h-2 rounded-full transition-all duration-300"
             :class="lifespanBarClass(character.stats.lifespan)"
@@ -101,13 +101,13 @@
       </section>
 
       <section>
-        <p class="text-sm text-slate-400">战斗力</p>
-        <p class="font-medium text-white">{{ character.stats.combat_power.toLocaleString() }}</p>
+        <p class="char-label text-sm">战斗力</p>
+        <p class="char-value font-medium">{{ character.stats.combat_power.toLocaleString() }}</p>
       </section>
 
       <section v-if="character.combat_status">
-        <p class="text-sm text-slate-400">战后状态</p>
-        <p class="text-sm text-white">
+        <p class="char-label text-sm">战后状态</p>
+        <p class="char-value text-sm">
           伤势 {{ character.combat_status.injury_level }} /
           声望 {{ character.combat_status.reputation }} /
           仇恨 {{ character.combat_status.enmity }} /
@@ -116,26 +116,26 @@
       </section>
 
       <section v-if="socialProfileItems.length > 0">
-        <p class="text-sm text-slate-400">关系画像</p>
-        <div class="grid grid-cols-2 gap-2 text-xs text-slate-200">
+        <p class="char-label text-sm">关系画像</p>
+        <div class="char-subtle grid grid-cols-2 gap-2 text-xs">
           <div
             v-for="item in socialProfileItems"
             :key="item.label"
-            class="rounded border border-slate-700 bg-slate-900/40 p-2"
+            class="char-info-card rounded border p-2"
           >
-            <p class="text-slate-400">{{ item.label }}</p>
+            <p class="char-label">{{ item.label }}</p>
             <p class="mt-0.5">{{ item.value }}</p>
           </div>
         </div>
       </section>
 
       <section v-if="personalityTags.length > 0">
-        <p class="text-sm text-slate-400">人格标签</p>
+        <p class="char-label text-sm">人格标签</p>
         <div class="flex flex-wrap gap-2">
           <span
             v-for="tag in personalityTags"
             :key="tag"
-            class="rounded bg-indigo-700/40 px-2 py-0.5 text-xs text-indigo-100"
+            class="char-personality-tag rounded px-2 py-0.5 text-xs"
           >
             {{ tag }}
           </span>
@@ -143,22 +143,22 @@
       </section>
 
       <section v-if="techniqueGroups.length > 0">
-        <p class="text-sm text-slate-400">功法流派</p>
+        <p class="char-label text-sm">功法流派</p>
         <div class="space-y-2">
           <div
             v-for="group in techniqueGroups"
             :key="group.style"
-            class="rounded border border-slate-700 bg-slate-900/40 p-2"
+            class="char-info-card rounded border p-2"
           >
-            <p class="text-xs text-slate-300">{{ group.style }}（{{ group.items.length }}）</p>
-            <p class="text-xs text-slate-200">{{ group.items.join(' / ') }}</p>
+            <p class="char-meta text-xs">{{ group.style }}（{{ group.items.length }}）</p>
+            <p class="char-subtle text-xs">{{ group.items.join(' / ') }}</p>
           </div>
         </div>
       </section>
 
       <section v-if="recentGrowthLog.length > 0">
-        <p class="text-sm text-slate-400">最近成长记录</p>
-        <ul class="space-y-1 text-xs text-slate-300">
+        <p class="char-label text-sm">最近成长记录</p>
+        <ul class="char-meta space-y-1 text-xs">
           <li v-for="(entry, index) in recentGrowthLog" :key="`${index}-${entry}`">
             {{ entry }}
           </li>
@@ -166,12 +166,12 @@
       </section>
 
       <section>
-        <p class="text-sm text-slate-400">位置</p>
-        <p class="font-medium text-white">{{ locationLabel }}</p>
+        <p class="char-label text-sm">位置</p>
+        <p class="char-value font-medium">{{ locationLabel }}</p>
       </section>
     </div>
 
-    <div v-else class="text-center text-slate-400">
+    <div v-else class="char-label text-center">
       <p>暂无角色数据</p>
     </div>
   </div>
@@ -321,15 +321,15 @@ const socialProfileItems = computed(() => {
 const rootGradeClass = (grade: Grade): string => {
   switch (grade) {
     case Grade.Heavenly:
-      return 'bg-amber-600 text-white';
+      return 'grade-badge-heavenly';
     case Grade.Double:
-      return 'bg-emerald-600 text-white';
+      return 'grade-badge-double';
     case Grade.Triple:
-      return 'bg-sky-600 text-white';
+      return 'grade-badge-triple';
     case Grade.Pseudo:
-      return 'bg-slate-600 text-white';
+      return 'grade-badge-pseudo';
     default:
-      return 'bg-slate-600 text-white';
+      return 'grade-badge-pseudo';
   }
 };
 
@@ -340,9 +340,9 @@ const lifespanPercent = (lifespan: Lifespan): number => {
 
 const lifespanBarClass = (lifespan: Lifespan): string => {
   const percentage = lifespanPercent(lifespan);
-  if (percentage < 30) return 'bg-emerald-500';
-  if (percentage < 70) return 'bg-amber-500';
-  return 'bg-rose-500';
+  if (percentage < 30) return 'lifespan-bar-safe';
+  if (percentage < 70) return 'lifespan-bar-mid';
+  return 'lifespan-bar-risk';
 };
 </script>
 
@@ -353,38 +353,71 @@ const lifespanBarClass = (lifespan: Lifespan): string => {
   box-shadow: var(--ink-shadow-panel);
 }
 
-.ink-character-panel .text-white {
-  color: var(--ink-text-primary) !important;
+.char-label {
+  color: var(--ink-text-muted);
 }
 
-.ink-character-panel .text-slate-500,
-.ink-character-panel .text-slate-400 {
-  color: var(--ink-text-muted) !important;
+.char-value {
+  color: var(--ink-text-primary);
 }
 
-.ink-character-panel .text-slate-300,
-.ink-character-panel .text-slate-200 {
-  color: color-mix(in srgb, var(--ink-text-primary) 86%, var(--ink-text-muted)) !important;
+.char-meta {
+  color: var(--ink-text-muted);
 }
 
-.ink-character-panel .border-slate-700 {
-  border-color: var(--ink-border-soft) !important;
+.char-subtle {
+  color: var(--character-text-secondary);
 }
 
-.ink-character-panel .bg-slate-700 {
-  background: var(--ink-card-bg-muted) !important;
+.char-divider {
+  border-color: var(--ink-border-soft);
 }
 
-.ink-character-panel .bg-slate-900\/40 {
-  background: var(--ink-paper-elevated) !important;
+.char-lifespan-track {
+  background: var(--ink-card-bg-muted);
 }
 
-.ink-character-panel .bg-indigo-700\/40 {
-  background: color-mix(in srgb, var(--ink-title-color) 14%, transparent) !important;
+.char-info-card {
+  border-color: var(--ink-border-soft);
+  background: var(--ink-paper-elevated);
 }
 
-.ink-character-panel .text-indigo-100 {
-  color: color-mix(in srgb, var(--ink-title-color) 74%, var(--ink-text-primary)) !important;
+.grade-badge {
+  color: var(--ink-text-primary);
+}
+
+.grade-badge-heavenly {
+  background: var(--character-grade-heavenly-bg);
+}
+
+.grade-badge-double {
+  background: var(--character-grade-double-bg);
+}
+
+.grade-badge-triple {
+  background: var(--character-grade-triple-bg);
+}
+
+.grade-badge-pseudo {
+  background: var(--character-grade-pseudo-bg);
+}
+
+.char-personality-tag {
+  border: 1px solid var(--character-tag-border);
+  background: var(--character-tag-bg);
+  color: var(--character-tag-text);
+}
+
+.lifespan-bar-safe {
+  background: var(--character-lifespan-safe-bg);
+}
+
+.lifespan-bar-mid {
+  background: var(--character-lifespan-mid-bg);
+}
+
+.lifespan-bar-risk {
+  background: var(--character-lifespan-risk-bg);
 }
 
 .root-row {

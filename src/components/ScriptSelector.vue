@@ -19,6 +19,46 @@
       <p v-if="sealWhisper" class="script-seal-whisper">{{ sealWhisper }}</p>
 
       <p class="script-flow-hint">{{ flowHint }}</p>
+      <StatusBanner
+        v-if="themeStatusVisible"
+        data-testid="ui-theme-status"
+        class="ui-theme-status-banner"
+        kind="info"
+        :title="themeStatusTitle"
+        :message="themeStatusMessage"
+      />
+      <section
+        v-if="showWebOnboarding"
+        data-testid="web-onboarding-banner"
+        class="script-web-onboarding mt-4"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        <div class="script-web-onboarding-head">
+          <h2 class="script-web-onboarding-title">Web 试玩提示</h2>
+          <span class="script-web-onboarding-tag">Mock Runtime</span>
+        </div>
+        <p class="script-web-onboarding-text">推荐优先选择“随机生成”，可在当前页快速进入可玩流程。</p>
+        <div class="script-web-onboarding-actions">
+          <button
+            type="button"
+            data-testid="web-onboarding-random-btn"
+            class="script-btn script-btn-primary"
+            @click="quickSelectRandom"
+          >
+            选择随机生成
+          </button>
+          <button
+            type="button"
+            data-testid="web-onboarding-dismiss-btn"
+            class="script-btn"
+            @click="dismissWebOnboarding"
+          >
+            不再提示
+          </button>
+        </div>
+      </section>
 
       <section class="mt-4" data-testid="script-type-container">
         <div class="script-grid">
@@ -190,7 +230,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { open } from '@tauri-apps/plugin-dialog';
 import { invokeWithTimeout } from '../utils/tauriInvoke';
@@ -200,7 +240,9 @@ import StatusBanner from './StatusBanner.vue';
 import { playClick } from '../utils/audioSystem';
 import { Element } from '../types/game';
 import type { ScriptType, Script } from '../types/game';
-import { getUiTheme } from '../utils/uiTheme';
+import { addUiThemeListener, getUiTheme } from '../utils/uiTheme';
+import { useUiThemeStatusPrompt } from '../composables/useUiThemeStatusPrompt';
+import { isTauriRuntime } from '../platform/runtimeEnv';
 
 const router = useRouter();
 const gameStore = useGameStore();
@@ -213,11 +255,13 @@ const error = ref<string | null>(null);
 const selectedType = ref<ScriptType | null>(null);
 const sealWhisper = ref('');
 const showRandomProfilePanel = ref(false);
+const showWebOnboarding = ref(false);
 const randomProfile = ref({
   playerName: '',
   spiritualRoot: '',
   background: '',
 });
+const WEB_SCRIPT_ONBOARDING_SEEN_KEY = 'nobody_web_script_onboarding_seen_v1';
 
 const elementAlias: Record<string, Element> = {
   fire: Element.Fire,
@@ -256,6 +300,13 @@ const sealWhispers = [
   '天机一线：凡骨亦可登仙途。',
 ];
 let sealWhisperTimer: ReturnType<typeof setTimeout> | null = null;
+let removeUiThemeListener: (() => void) | null = null;
+const {
+  themeStatusTitle,
+  themeStatusMessage,
+  themeStatusVisible,
+  showUiThemeStatus,
+} = useUiThemeStatusPrompt();
 
 const handleSealClick = () => {
   playClick();
@@ -354,6 +405,23 @@ const selectScriptType = (type: ScriptType) => {
   error.value = null;
   resetNovelSelection();
   selectedType.value = type;
+};
+
+const markWebOnboardingSeen = () => {
+  if (typeof localStorage === 'undefined') {
+    return;
+  }
+  localStorage.setItem(WEB_SCRIPT_ONBOARDING_SEEN_KEY, '1');
+};
+
+const dismissWebOnboarding = () => {
+  showWebOnboarding.value = false;
+  markWebOnboardingSeen();
+};
+
+const quickSelectRandom = () => {
+  selectScriptType('random_generated' as ScriptType);
+  dismissWebOnboarding();
 };
 
 const loadRandomScript = async () => {
@@ -554,9 +622,26 @@ const confirmRandomProfile = async () => {
 };
 
 onBeforeUnmount(() => {
+  if (removeUiThemeListener) {
+    removeUiThemeListener();
+    removeUiThemeListener = null;
+  }
   if (sealWhisperTimer) {
     clearTimeout(sealWhisperTimer);
     sealWhisperTimer = null;
+  }
+});
+
+onMounted(() => {
+  removeUiThemeListener = addUiThemeListener((theme) => {
+    const themeChanged = theme !== activeThemeClass.value;
+    activeThemeClass.value = theme;
+    if (themeChanged) {
+      showUiThemeStatus(theme, 'sync');
+    }
+  });
+  if (!isTauriRuntime() && typeof localStorage !== 'undefined') {
+    showWebOnboarding.value = localStorage.getItem(WEB_SCRIPT_ONBOARDING_SEEN_KEY) !== '1';
   }
 });
 </script>
@@ -572,7 +657,9 @@ onBeforeUnmount(() => {
   position: relative;
   background: var(--script-paper-bg);
   border: 1px solid var(--ink-border-soft);
-  box-shadow: var(--ink-shadow-panel);
+  box-shadow:
+    var(--ink-shadow-panel),
+    inset 0 1px 0 var(--script-paper-inner-highlight);
   overflow: hidden;
   border-radius: 18px;
 }
@@ -592,7 +679,9 @@ onBeforeUnmount(() => {
   align-items: flex-start;
   justify-content: space-between;
   gap: 24px;
-  margin-top: 8px;
+  margin-top: 6px;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed var(--script-header-border);
 }
 
 .script-main-title {
@@ -628,9 +717,9 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   transform: rotate(-7deg) translate(-10px, 6px);
-  background: color-mix(in srgb, var(--ink-accent-seal) 8%, transparent);
+  background: var(--script-seal-bg);
   font-size: 15px;
-  box-shadow: 0 3px 10px color-mix(in srgb, var(--ink-accent-seal) 30%, transparent);
+  box-shadow: var(--script-seal-shadow);
   transition: transform 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
   animation: seal-float 2.8s ease-in-out infinite;
 }
@@ -639,7 +728,7 @@ onBeforeUnmount(() => {
   content: '';
   position: absolute;
   inset: -5px;
-  border: 1px solid color-mix(in srgb, var(--ink-accent-seal) 44%, transparent);
+  border: 1px solid var(--script-seal-ring-border);
   border-radius: 10px;
   opacity: 0;
   transform: scale(0.92);
@@ -648,8 +737,8 @@ onBeforeUnmount(() => {
 
 .script-seal:hover {
   transform: rotate(-7deg) translate(-10px, 4px);
-  background: color-mix(in srgb, var(--ink-accent-seal) 14%, transparent);
-  box-shadow: 0 6px 16px color-mix(in srgb, var(--ink-accent-seal) 36%, transparent);
+  background: var(--script-seal-hover-bg);
+  box-shadow: var(--script-seal-hover-shadow);
 }
 
 .script-seal:hover::before,
@@ -665,8 +754,8 @@ onBeforeUnmount(() => {
 .script-seal:focus-visible {
   outline: none;
   box-shadow:
-    0 0 0 2px color-mix(in srgb, var(--ink-accent-seal) 36%, transparent),
-    0 6px 16px color-mix(in srgb, var(--ink-accent-seal) 36%, transparent);
+    0 0 0 2px var(--script-seal-focus-ring),
+    var(--script-seal-hover-shadow);
 }
 
 .script-seal-whisper {
@@ -680,9 +769,74 @@ onBeforeUnmount(() => {
 .script-flow-hint {
   position: relative;
   z-index: 1;
-  margin: 14px 0 0;
+  margin: 12px 0 0;
   color: var(--ink-text-cool);
   font-size: 12px;
+  letter-spacing: 0.03em;
+}
+
+.ui-theme-status-banner {
+  position: relative;
+  z-index: 1;
+  margin-top: var(--space-3);
+  padding: var(--ui-theme-status-padding-y) var(--ui-theme-status-padding-x);
+  box-shadow: var(--ui-theme-status-shadow);
+  animation: ui-theme-status-fade-in 180ms ease-out;
+}
+
+.ui-theme-status-banner :deep(.status-title) {
+  font-size: var(--ui-theme-status-title-size);
+}
+
+.ui-theme-status-banner :deep(.status-message) {
+  font-size: var(--ui-theme-status-message-size);
+}
+
+.script-web-onboarding {
+  position: relative;
+  z-index: 1;
+  border: 1px solid var(--ink-border-accent);
+  border-radius: 12px;
+  background: var(--ink-card-bg);
+  box-shadow: var(--ink-shadow-card);
+  padding: 12px 14px;
+}
+
+.script-web-onboarding-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.script-web-onboarding-title {
+  margin: 0;
+  color: var(--ink-title-color);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.script-web-onboarding-tag {
+  border: 1px solid var(--ink-border-accent);
+  border-radius: 999px;
+  padding: 2px 8px;
+  color: var(--ink-text-cool);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.script-web-onboarding-text {
+  margin: 6px 0 0;
+  color: var(--ink-text-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.script-web-onboarding-actions {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .script-card {
@@ -723,22 +877,24 @@ onBeforeUnmount(() => {
   position: relative;
   z-index: 1;
   display: grid;
-  gap: 24px;
+  gap: 16px;
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .script-type-card {
   position: relative;
   text-align: left;
-  background: var(--ink-card-bg);
+  background: var(--script-type-card-bg);
   border: 1px solid var(--ink-border-soft);
   border-radius: 12px;
-  padding: 20px;
+  padding: 18px;
   min-height: 170px;
   display: flex;
   flex-direction: column;
   transition: transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease;
-  box-shadow: var(--script-card-shadow);
+  box-shadow:
+    var(--script-card-shadow),
+    inset 0 1px 0 var(--script-type-card-inner-highlight);
 }
 
 .script-type-card::before,
@@ -747,7 +903,7 @@ onBeforeUnmount(() => {
   position: absolute;
   width: 14px;
   height: 14px;
-  border: 1px solid color-mix(in srgb, var(--ink-title-color) 36%, transparent);
+  border: 1px solid var(--script-type-card-corner-border);
   pointer-events: none;
 }
 
@@ -768,10 +924,15 @@ onBeforeUnmount(() => {
 .script-type-card:hover {
   transform: translateY(-2px);
   box-shadow: var(--script-card-shadow-hover);
+  border-color: var(--script-type-card-hover-border);
 }
 
 .script-type-card-active {
   border-color: var(--ink-title-color);
+  background: var(--script-type-card-active-bg);
+  box-shadow:
+    var(--script-card-shadow-hover),
+    0 0 0 1px var(--script-type-card-active-outline);
 }
 
 .script-type-card-disabled {
@@ -782,7 +943,7 @@ onBeforeUnmount(() => {
 .script-type-title {
   margin: 0 0 0 10px;
   color: var(--ink-title-color);
-  font-size: 20px;
+  font-size: 19px;
 }
 
 .script-type-head {
@@ -794,7 +955,7 @@ onBeforeUnmount(() => {
   width: 30px;
   height: 30px;
   border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--ink-title-color) 48%, transparent);
+  border: 1px solid var(--script-type-icon-border);
   color: var(--ink-text-primary);
   display: inline-flex;
   align-items: center;
@@ -803,7 +964,7 @@ onBeforeUnmount(() => {
 }
 
 .script-type-desc {
-  margin: 8px 0 0;
+  margin: 10px 0 0;
   color: var(--ink-text-primary);
   font-size: 14px;
   line-height: 1.5;
@@ -813,6 +974,8 @@ onBeforeUnmount(() => {
   margin: auto 0 0;
   color: var(--ink-text-cool);
   font-size: 12px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--script-type-action-border);
 }
 
 .script-positive {
@@ -856,7 +1019,7 @@ onBeforeUnmount(() => {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  padding: 16px;
+  padding: 14px;
   background: var(--ink-card-bg-muted);
   border-radius: 12px;
   border: 1px solid var(--ink-border-soft);
@@ -914,10 +1077,10 @@ onBeforeUnmount(() => {
   position: absolute;
   inset: 0;
   border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--ink-title-color) 58%, transparent);
+  border: 1px solid var(--script-loader-aura-border);
   box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--ink-text-cool) 26%, transparent),
-    0 0 10px color-mix(in srgb, var(--ink-text-cool) 20%, transparent);
+    inset 0 0 0 1px var(--script-loader-aura-inner),
+    0 0 10px var(--script-loader-aura-glow);
   animation: taiji-aura 2.4s ease-in-out infinite;
 }
 
@@ -929,8 +1092,8 @@ onBeforeUnmount(() => {
   background: linear-gradient(90deg, var(--ink-text-primary) 50%, var(--ink-card-bg) 50%);
   border: 1px solid var(--ink-border-accent);
   box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--ink-text-primary) 16%, transparent),
-    0 4px 10px color-mix(in srgb, var(--ink-text-primary) 30%, transparent);
+    inset 0 0 0 1px var(--script-loader-core-shadow-inner),
+    0 4px 10px var(--script-loader-core-shadow-outer);
   animation: taiji-spin 2.1s linear infinite;
 }
 
@@ -963,7 +1126,7 @@ onBeforeUnmount(() => {
   height: 9px;
   border-radius: 999px;
   transform: translateX(-50%);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink-text-primary) 24%, transparent);
+  box-shadow: 0 0 0 1px var(--script-loader-eye-ring);
   z-index: 2;
 }
 
@@ -1006,11 +1169,12 @@ onBeforeUnmount(() => {
 
 .script-btn {
   border-radius: 8px;
-  border: 1px solid var(--ink-border-soft);
-  background: var(--ink-card-bg);
+  border: 1px solid var(--script-btn-border);
+  background: var(--script-btn-bg);
   color: var(--ink-text-primary);
-  padding: 10px 24px;
+  padding: 10px 20px;
   font-size: 14px;
+  font-weight: 600;
   transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease, transform 140ms ease;
 }
 
@@ -1021,7 +1185,7 @@ onBeforeUnmount(() => {
 
 .script-btn-primary {
   border-color: var(--ink-title-color);
-  background: color-mix(in srgb, var(--ink-title-color) 26%, var(--ink-paper));
+  background: var(--script-btn-primary-bg);
 }
 
 .script-btn-primary:hover:not(:disabled) {
@@ -1038,7 +1202,7 @@ onBeforeUnmount(() => {
 .script-btn:focus-visible {
   outline: none;
   border-color: var(--ink-title-color);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ink-title-color) 34%, transparent);
+  box-shadow: 0 0 0 2px var(--script-btn-focus-ring);
 }
 
 .script-watermark {
@@ -1047,7 +1211,7 @@ onBeforeUnmount(() => {
   bottom: 16px;
   z-index: 1;
   margin: 0;
-  color: color-mix(in srgb, var(--ink-text-muted) 46%, transparent);
+  color: var(--script-watermark-text);
   font-size: 13px;
   letter-spacing: 0.12em;
   pointer-events: none;
@@ -1079,6 +1243,20 @@ onBeforeUnmount(() => {
   .script-seal {
     animation: none !important;
     transition: none !important;
+  }
+  .ui-theme-status-banner {
+    animation: none !important;
+  }
+}
+
+@keyframes ui-theme-status-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--ui-theme-status-entry-offset-y) * -1));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 </style>

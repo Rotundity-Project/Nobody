@@ -1,7 +1,7 @@
 ﻿<template>
   <div
     v-if="isOpen"
-    class="fixed inset-0 z-50 bg-black/25"
+    class="info-overlay fixed inset-0 z-50"
     @click.self="$emit('close')"
   >
     <aside class="ink-info-drawer absolute inset-y-0 right-0 w-full sm:w-[92vw] lg:w-[68vw] xl:w-[56vw] max-w-3xl p-4 sm:p-5">
@@ -131,7 +131,7 @@
               <p class="info-text-muted text-[11px]">灵气差 {{ Number(loc.energyGap).toFixed(2) }}</p>
               <p v-if="typeof loc.estimatedSteps === 'number'" class="info-text-muted text-[11px]">预计步数 {{ loc.estimatedSteps }}</p>
               <p v-if="loc.suggestedPath.length > 1" class="info-text-muted text-[11px]">建议路径 {{ loc.suggestedPathLabels.join(' -> ') }}</p>
-              <p class="mt-1 text-[11px]" :class="loc.reachable ? 'text-emerald-300' : 'text-amber-300'">
+              <p class="mt-1 text-[11px]" :class="loc.reachable ? 'info-reach-ok' : 'info-reach-blocked'">
                 {{ loc.reachable ? '可达' : '暂不可达' }}
               </p>
               <UiButton
@@ -386,40 +386,50 @@ const reachableNodeCount = computed(
   gap: 8px;
 }
 
+.info-overlay {
+  background: var(--info-overlay-bg);
+}
+
 .ink-info-drawer {
   border-left: 1px solid var(--info-drawer-border);
   background: var(--info-drawer-bg);
-  backdrop-filter: blur(8px);
+  backdrop-filter: blur(10px) saturate(1.03);
+  transform: translateX(0);
+  animation: info-drawer-slide-in 220ms var(--ease-ink, ease) both;
+  will-change: transform, opacity;
 }
 
 .ink-info-panel {
   background: var(--info-panel-bg);
-  border: 1px solid var(--ink-border-soft);
-  box-shadow: var(--ink-shadow-panel);
+  border: 1px solid var(--info-panel-border);
+  box-shadow: var(--info-panel-shadow);
+  overscroll-behavior: contain;
 }
 
 .ink-ui-btn :deep(button),
 .ink-ui-btn {
   border: 1px solid var(--ink-border-accent) !important;
-  background: var(--ink-paper) !important;
+  background: var(--info-ui-btn-bg) !important;
   color: var(--ink-text-primary) !important;
+  box-shadow: var(--info-ui-btn-shadow);
 }
 
 .ink-ui-btn:hover :deep(button),
 .ink-ui-btn:hover {
   border-color: var(--ink-title-color) !important;
-  background: var(--ink-paper-elevated) !important;
+  background: var(--info-ui-btn-hover-bg) !important;
 }
 
 .ink-ui-btn-danger :deep(button),
 .ink-ui-btn-danger {
   border: 1px solid var(--ink-accent-main) !important;
-  background: color-mix(in srgb, var(--ink-accent-main) 8%, var(--ink-paper)) !important;
-  color: color-mix(in srgb, var(--ink-accent-main) 86%, var(--ink-text-primary)) !important;
+  background: var(--info-ui-btn-danger-bg) !important;
+  color: var(--info-ui-btn-danger-text) !important;
 }
 
 .info-title {
   color: var(--ink-title-color);
+  letter-spacing: 0.02em;
 }
 
 .info-text-strong {
@@ -427,7 +437,8 @@ const reachableNodeCount = computed(
 }
 
 .info-text-body {
-  color: color-mix(in srgb, var(--ink-text-primary) 90%, var(--ink-text-muted));
+  color: var(--info-text-body);
+  line-height: 1.62;
 }
 
 .info-text-muted {
@@ -436,12 +447,21 @@ const reachableNodeCount = computed(
 
 .info-map-card {
   border-color: var(--ink-border-soft);
-  background: var(--info-map-card-bg);
+  background: var(--info-map-card-surface);
+  box-shadow: var(--info-map-card-shadow);
 }
 
 .info-current-badge {
   background: var(--info-current-badge-bg);
   color: var(--info-current-badge-text);
+}
+
+.info-reach-ok {
+  color: var(--info-reach-ok-text);
+}
+
+.info-reach-blocked {
+  color: var(--info-reach-blocked-text);
 }
 
 .info-root-list {
@@ -488,5 +508,36 @@ const reachableNodeCount = computed(
 
 .info-root-fire {
   color: var(--ink-accent-main);
+}
+
+@keyframes info-drawer-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@media (max-width: 768px) {
+  .ink-info-drawer {
+    inset: auto 0 0 0;
+    max-width: none;
+    width: 100%;
+    padding: 10px;
+  }
+
+  .ink-info-panel {
+    border-radius: 14px;
+    max-height: min(82vh, 760px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ink-info-drawer {
+    animation: none !important;
+  }
 }
 </style>

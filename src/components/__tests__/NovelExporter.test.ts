@@ -6,12 +6,16 @@ import NovelExporter from '../NovelExporter.vue';
 const invokeMock = vi.fn();
 const saveMock = vi.fn();
 
-vi.mock('@tauri-apps/api/core', () => ({
-  invoke: (...args: unknown[]) => invokeMock(...args),
+vi.mock('../../utils/tauriInvoke', () => ({
+  invokeRuntime: (...args: unknown[]) => invokeMock(...args),
 }));
 
 vi.mock('@tauri-apps/plugin-dialog', () => ({
   save: (...args: unknown[]) => saveMock(...args),
+}));
+
+vi.mock('../../platform/runtimeEnv', () => ({
+  isTauriRuntime: () => true,
 }));
 
 vi.mock('../LoadingIndicator.vue', () => ({

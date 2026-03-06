@@ -201,7 +201,7 @@ const normalizeOptionDescription = (raw: string): string => {
 
 <style scoped>
 .option-btn {
-  box-shadow: 0 2px 10px color-mix(in srgb, var(--ink-text-primary) 10%, transparent);
+  box-shadow: var(--option-btn-shadow);
 }
 
 .option-btn-enabled {
@@ -227,19 +227,19 @@ const normalizeOptionDescription = (raw: string): string => {
 }
 
 .option-tag {
-  border-color: color-mix(in srgb, var(--ink-border-soft) 60%, transparent);
-  background: color-mix(in srgb, var(--ink-surface) 35%, transparent);
+  border-color: var(--option-tag-border);
+  background: var(--option-tag-bg);
 }
 
 .option-tag-risk {
-  border-color: color-mix(in srgb, var(--ink-accent-main) 40%, transparent);
-  background: color-mix(in srgb, var(--ink-accent-main) 12%, transparent);
+  border-color: var(--option-tag-risk-border);
+  background: var(--option-tag-risk-bg);
   color: var(--ink-accent-main);
 }
 
 .option-tag-probe {
-  border-color: color-mix(in srgb, var(--ink-text-cool) 40%, transparent);
-  background: color-mix(in srgb, var(--ink-text-cool) 12%, transparent);
+  border-color: var(--option-tag-probe-border);
+  background: var(--option-tag-probe-bg);
   color: var(--ink-text-cool);
 }
 

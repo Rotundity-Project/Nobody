@@ -36,6 +36,10 @@ vi.mock('../../stores/gameStore', () => ({
   }),
 }));
 
+vi.mock('../../platform/runtimeEnv', () => ({
+  isTauriRuntime: () => false,
+}));
+
 const AudioStub = { name: 'AudioControlPanel', template: '<div />' };
 const LlmStub = { name: 'LLMConfigDialog', props: ['isOpen', 'inline'], template: '<div />' };
 const SaveLoadStub = {
@@ -58,6 +62,25 @@ describe('MainMenu', () => {
     audioSettingsState.sfxEnabled = true;
     listSaveSlotsMock.mockResolvedValue([]);
     loadGameMock.mockResolvedValue(undefined);
+    window.localStorage.removeItem('nobody_web_onboarding_seen_v1');
+  });
+
+  it('shows web onboarding once and persists dismiss state', async () => {
+    const wrapper = mount(MainMenu, {
+      global: {
+        stubs: {
+          AudioControlPanel: AudioStub,
+          LLMConfigDialog: LlmStub,
+          SaveLoadDialog: SaveLoadStub,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+    expect(wrapper.find('[data-testid="web-onboarding-banner"]').exists()).toBe(true);
+    await wrapper.get('[data-testid="web-onboarding-dismiss-btn"]').trigger('click');
+    expect(wrapper.find('[data-testid="web-onboarding-banner"]').exists()).toBe(false);
+    expect(window.localStorage.getItem('nobody_web_onboarding_seen_v1')).toBe('1');
   });
 
   it('navigates to script select on new game', async () => {
@@ -94,6 +117,27 @@ describe('MainMenu', () => {
     const dialog = wrapper.findComponent(LlmStub);
     expect(dialog.exists()).toBe(true);
     expect(dialog.props('isOpen')).toBe(true);
+  });
+
+  it('updates theme class when ui theme event is dispatched', async () => {
+    window.localStorage.setItem('nobody_ui_theme', 'theme-scroll');
+    const wrapper = mount(MainMenu, {
+      global: {
+        stubs: {
+          AudioControlPanel: AudioStub,
+          LLMConfigDialog: LlmStub,
+          SaveLoadDialog: SaveLoadStub,
+        },
+      },
+    });
+
+    expect(wrapper.classes()).toContain('theme-scroll');
+    window.dispatchEvent(new CustomEvent('nobody:ui-theme-changed', { detail: 'theme-night' }));
+    await wrapper.vm.$nextTick();
+    expect(wrapper.classes()).toContain('theme-night');
+    expect(wrapper.find('[data-testid="ui-theme-status"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain('界面主题已切换');
+    expect(wrapper.text()).toContain('当前为深色风格（已自动同步）');
   });
 
   it('loads latest save and navigates to game', async () => {
@@ -318,7 +362,7 @@ describe('MainMenu', () => {
     expect(wrapper.get('[data-testid="refresh-save-btn"]').attributes('aria-describedby'))
       .toBe('recent-save-refresh-status');
     expect(wrapper.get('[data-testid="recent-save-refresh-status"]').text()).toContain('刷新状态：刷新中');
-    expect(wrapper.get('[data-testid="recent-save-refresh-status"]').classes()).toContain('text-sky-300');
+    expect(wrapper.get('[data-testid="recent-save-refresh-status"]').classes()).toContain('menu-status-loading');
 
     resolveSlots([]);
     await vi.waitFor(() => {

@@ -26,6 +26,9 @@
         :is-game-initialized="isGameInitialized"
         :is-waiting-for-input="isWaitingForInput"
         :loading-message="loadingMessage"
+        :loading-progress="loadingProgress"
+        :loading-progress-text="loadingProgressText"
+        :loading-elapsed-ms="loadingElapsedMs"
         :can-stop-auto-advance="canStopAutoAdvance"
         :auto-advance-stop-hint="autoAdvanceStopHint"
         @switch-mode="$emit('switch-mode', $event)"
@@ -66,6 +69,9 @@ defineProps<{
   };
   isWaitingForInput: boolean;
   loadingMessage: string;
+  loadingProgress: number | null;
+  loadingProgressText: string;
+  loadingElapsedMs?: number | null;
   canStopAutoAdvance: boolean;
   autoAdvanceStopHint: string;
 }>();

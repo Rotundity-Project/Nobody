@@ -20,7 +20,25 @@
             {{ tab.label }}
           </button>
         </div>
-        <button type="button" class="runtime-quick-close" @click="$emit('close')">关闭</button>
+        <div class="runtime-quick-actions">
+          <button
+            v-if="activeTab === 'world'"
+            type="button"
+            class="runtime-quick-action"
+            @click="$emit('copy-world-diagnostics')"
+          >
+            复制诊断
+          </button>
+          <button
+            v-if="activeTab === 'world'"
+            type="button"
+            class="runtime-quick-action"
+            @click="$emit('clear-world-metrics')"
+          >
+            清空统计
+          </button>
+          <button type="button" class="runtime-quick-close" @click="$emit('close')">关闭</button>
+        </div>
       </header>
       <section class="runtime-quick-body">
         <h3 class="runtime-quick-title">{{ activePanel?.title || '' }}</h3>
@@ -115,6 +133,8 @@ const props = defineProps<{
 defineEmits<{
   (event: 'close'): void;
   (event: 'update:active-tab', tab: RuntimeQuickTab): void;
+  (event: 'copy-world-diagnostics'): void;
+  (event: 'clear-world-metrics'): void;
 }>();
 
 const tabs = computed(() => props.panels.map((panel) => ({ id: panel.id, label: panel.label })));
@@ -280,14 +300,18 @@ const highlightParts = (value: string | undefined): HighlightPart[] => {
 
 <style scoped>
 .runtime-quick-dialog {
-  border: 1px solid var(--ink-border-soft);
-  background: color-mix(in srgb, var(--ink-paper) 95%, var(--ink-card-bg));
-  box-shadow: var(--ink-shadow-panel);
-  backdrop-filter: blur(8px);
+  border: 1px solid var(--runtime-quick-dialog-border);
+  background: var(--runtime-quick-dialog-bg);
+  box-shadow: var(--runtime-quick-dialog-shadow);
+  backdrop-filter: blur(10px) saturate(1.03);
+  transform: translateY(0) scale(1);
+  animation: runtime-quick-in 180ms var(--ease-ink, ease) both;
+  will-change: transform, opacity;
 }
 
 .runtime-quick-overlay {
-  background: color-mix(in srgb, var(--ink-text-primary) 30%, transparent);
+  background: var(--runtime-quick-overlay-bg);
+  backdrop-filter: blur(2px);
 }
 
 .runtime-quick-head {
@@ -295,6 +319,29 @@ const highlightParts = (value: string | undefined): HighlightPart[] => {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed var(--runtime-quick-head-border);
+}
+
+.runtime-quick-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.runtime-quick-action {
+  border-radius: 10px;
+  border: 1px solid var(--runtime-quick-action-border);
+  background: var(--runtime-quick-action-bg);
+  color: var(--runtime-quick-action-text);
+  padding: 6px 10px;
+  font-size: 12px;
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+
+.runtime-quick-action:hover {
+  border-color: var(--runtime-quick-action-hover-border);
+  background: var(--runtime-quick-action-hover-bg);
 }
 
 .runtime-quick-tabs {
@@ -306,32 +353,46 @@ const highlightParts = (value: string | undefined): HighlightPart[] => {
 .runtime-quick-tab {
   border-radius: 10px;
   border: 1px solid var(--ink-border-accent);
-  background: color-mix(in srgb, var(--ink-paper) 76%, var(--ink-card-bg));
-  color: color-mix(in srgb, var(--ink-text-primary) 75%, var(--ink-text-muted));
+  background: var(--runtime-quick-tab-bg);
+  color: var(--runtime-quick-tab-text);
   padding: 6px 12px;
   font-size: 13px;
+  transition: border-color 140ms ease, background-color 140ms ease, transform 120ms ease;
+}
+
+.runtime-quick-tab:hover {
+  border-color: var(--runtime-quick-tab-hover-border);
+  background: var(--runtime-quick-tab-hover-bg);
+  transform: translateY(-1px);
 }
 
 .runtime-quick-tab-active {
   border-color: var(--ink-title-color);
-  background: color-mix(in srgb, var(--ink-title-color) 24%, var(--ink-paper));
-  color: color-mix(in srgb, var(--ink-title-color) 78%, var(--ink-text-primary));
+  background: var(--runtime-quick-tab-active-bg);
+  color: var(--runtime-quick-tab-active-text);
 }
 
 .runtime-quick-close {
   border-radius: 10px;
   border: 1px solid var(--ink-border-accent);
-  background: color-mix(in srgb, var(--ink-paper) 72%, var(--ink-card-bg));
-  color: color-mix(in srgb, var(--ink-title-color) 78%, var(--ink-text-primary));
+  background: var(--runtime-quick-close-bg);
+  color: var(--runtime-quick-close-text);
   padding: 6px 14px;
   font-size: 13px;
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+
+.runtime-quick-close:hover {
+  border-color: var(--ink-title-color);
+  background: var(--runtime-quick-close-hover-bg);
 }
 
 .runtime-quick-body {
-  margin-top: 14px;
+  margin-top: 12px;
   max-height: min(62vh, 520px);
   overflow: auto;
   padding-right: 2px;
+  overscroll-behavior: contain;
 }
 
 .runtime-quick-title {
@@ -364,11 +425,18 @@ const highlightParts = (value: string | undefined): HighlightPart[] => {
 .runtime-quick-search {
   border-radius: 10px;
   border: 1px solid var(--ink-border-soft);
-  background: color-mix(in srgb, var(--ink-paper) 70%, transparent);
+  background: var(--runtime-quick-search-bg);
   color: var(--ink-text-primary);
   padding: 7px 10px;
   font-size: 13px;
   line-height: 1.35;
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.runtime-quick-search:focus-visible {
+  outline: none;
+  border-color: var(--ink-title-color);
+  box-shadow: 0 0 0 2px var(--runtime-quick-search-focus-ring);
 }
 
 .runtime-quick-empty {
@@ -379,7 +447,7 @@ const highlightParts = (value: string | undefined): HighlightPart[] => {
 
 .runtime-quick-feedback {
   margin: 8px 0 0;
-  color: color-mix(in srgb, var(--ink-title-color) 78%, var(--ink-text-primary));
+  color: var(--runtime-quick-feedback);
   font-size: 12px;
   line-height: 1.4;
 }
@@ -394,19 +462,26 @@ const highlightParts = (value: string | undefined): HighlightPart[] => {
 
 .runtime-quick-item {
   border-radius: 12px;
-  border: 1px solid var(--ink-border-soft);
-  background: color-mix(in srgb, var(--ink-paper) 68%, transparent);
+  border: 1px solid var(--runtime-quick-item-border);
+  background: var(--runtime-quick-item-bg);
   padding: 10px 12px;
+  transition: border-color 140ms ease, box-shadow 140ms ease, background-color 140ms ease;
+}
+
+.runtime-quick-item:hover {
+  border-color: var(--runtime-quick-item-hover-border);
+  background: var(--runtime-quick-item-hover-bg);
+  box-shadow: var(--runtime-quick-item-hover-shadow);
 }
 
 .runtime-quick-item-featured {
-  border-color: color-mix(in srgb, var(--ink-title-color) 58%, var(--ink-border-accent));
-  background: color-mix(in srgb, var(--ink-title-color) 14%, var(--ink-paper));
+  border-color: var(--runtime-quick-item-featured-border);
+  background: var(--runtime-quick-item-featured-bg);
 }
 
 .runtime-quick-item-selected {
   border-color: var(--ink-title-color);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ink-title-color) 34%, transparent);
+  box-shadow: var(--runtime-quick-item-selected-shadow);
 }
 
 .runtime-quick-item-title {
@@ -423,9 +498,9 @@ const highlightParts = (value: string | undefined): HighlightPart[] => {
 
 .runtime-quick-item-badge {
   border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--ink-title-color) 62%, var(--ink-border-accent));
-  background: color-mix(in srgb, var(--ink-title-color) 22%, var(--ink-paper));
-  color: color-mix(in srgb, var(--ink-title-color) 82%, var(--ink-text-primary));
+  border: 1px solid var(--runtime-quick-badge-border);
+  background: var(--runtime-quick-badge-bg);
+  color: var(--runtime-quick-badge-text);
   padding: 1px 8px;
   font-size: 11px;
   font-weight: 600;
@@ -434,7 +509,7 @@ const highlightParts = (value: string | undefined): HighlightPart[] => {
 
 .runtime-quick-mark {
   border-radius: 4px;
-  background: color-mix(in srgb, var(--ink-title-color) 48%, transparent);
+  background: var(--runtime-quick-mark-bg);
   color: inherit;
   padding: 0 1px;
 }
@@ -450,6 +525,40 @@ const highlightParts = (value: string | undefined): HighlightPart[] => {
 }
 
 .runtime-quick-item-meta {
-  color: color-mix(in srgb, var(--ink-title-color) 64%, var(--ink-text-primary));
+  color: var(--runtime-quick-meta-text);
+  font-size: 12px;
+}
+
+@keyframes runtime-quick-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (max-width: 768px) {
+  .runtime-quick-overlay {
+    padding: 10px;
+    align-items: flex-end;
+  }
+
+  .runtime-quick-dialog {
+    max-width: none;
+    border-radius: 14px;
+  }
+
+  .runtime-quick-body {
+    max-height: min(72vh, 640px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .runtime-quick-dialog {
+    animation: none !important;
+  }
 }
 </style>
