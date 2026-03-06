@@ -1,0 +1,367 @@
+﻿.game-shell {
+  position: relative;
+  isolation: isolate;
+  font-family: 'Noto Serif SC', 'Source Han Serif SC', 'STSong', 'SimSun', serif;
+  background: var(--runtime-shell-bg);
+}
+
+.game-shell::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--runtime-shell-overlay);
+  background-size: var(--runtime-shell-overlay-size-desktop);
+  opacity: var(--runtime-shell-overlay-opacity);
+}
+
+.game-shell > * {
+  position: relative;
+  z-index: 1;
+}
+
+.runtime-topbar {
+  height: 56px;
+  border-radius: 12px;
+  border: 1px solid var(--ink-border-soft);
+  border-bottom-color: var(--runtime-topbar-border-bottom);
+  background: var(--ink-card-bg);
+  padding: 0 18px;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 14px;
+}
+
+.runtime-top-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-self: start;
+}
+
+.runtime-brand {
+  margin: 0;
+  color: var(--ink-text-primary);
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.runtime-seal-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  border: 1px solid var(--ink-accent-main);
+  background: var(--runtime-seal-btn-bg);
+  color: var(--ink-accent-main);
+  transition: border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease, transform 120ms ease;
+}
+
+.runtime-top-center {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.runtime-top-main {
+  margin: 0;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+.runtime-chapter-number {
+  color: var(--ink-title-color);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.runtime-chapter-name {
+  color: var(--ink-text-primary);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.runtime-top-right {
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink-text-muted);
+  font-size: 12px;
+}
+
+.runtime-resource-pill {
+  border-radius: 999px;
+  border: 1px solid var(--ink-border-accent);
+  background: var(--runtime-resource-pill-bg);
+  color: var(--ink-title-color);
+  padding: 4px 11px;
+  font-size: 12px;
+  line-height: 1.3;
+  box-shadow: var(--runtime-resource-pill-shadow);
+}
+
+.runtime-content {
+  margin-top: 20px;
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 228px minmax(0, 1fr) 296px;
+  gap: 18px;
+  overflow: hidden;
+}
+
+.runtime-panel {
+  min-height: 0;
+  min-width: 0;
+}
+
+.runtime-card,
+.runtime-main-panel {
+  position: relative;
+  border-radius: 14px;
+  border: 1px solid var(--ink-border-strong);
+  background: var(--ink-card-bg);
+  box-shadow: var(--ink-shadow-card);
+}
+
+.runtime-card {
+  padding: 20px;
+  background-image: var(--runtime-card-sheen);
+  backdrop-filter: blur(2px);
+}
+
+.runtime-side-left .runtime-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.runtime-side-left {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  min-height: 0;
+}
+
+.runtime-side-left .runtime-card:last-child {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.runtime-side-right {
+  display: flex;
+  min-height: 0;
+}
+
+.runtime-card-title {
+  margin: 0;
+  color: var(--ink-title-color);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.35;
+  font-family: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', serif;
+  display: inline-block;
+}
+
+.runtime-chapter-title {
+  margin: 0;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.runtime-sub-text {
+  margin: 0;
+  color: var(--ink-text-muted);
+  font-size: 14px;
+  line-height: 1.6;
+  letter-spacing: 0.01em;
+}
+
+.runtime-body-text {
+  margin: 0;
+  color: var(--ink-text-primary);
+  font-size: 16px;
+  line-height: 1.65;
+  letter-spacing: 0.005em;
+}
+
+.runtime-main-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 22px;
+  border-color: var(--runtime-main-panel-border);
+  background: var(--runtime-main-panel-bg-base);
+  background-image: var(--runtime-main-panel-bg);
+  box-shadow: var(--runtime-main-panel-shadow);
+}
+
+.runtime-main-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 0 16px;
+  margin-bottom: 8px;
+}
+
+.runtime-main-scene {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.runtime-main-chapter {
+  color: var(--ink-title-color);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  font-family: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', serif;
+}
+
+.runtime-main-scene-icon {
+  color: var(--ink-title-color);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.runtime-main-scene-name {
+  color: var(--ink-text-primary);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.005em;
+  font-family: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', serif;
+}
+
+.runtime-main-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  padding: 0;
+}
+
+.runtime-main-body :deep(.story-viewport-frame) {
+  flex: 1;
+  min-height: 0;
+}
+
+.runtime-main-body :deep(.runtime-story-scroll) {
+  position: relative;
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  border-radius: 12px;
+  border: 1px solid var(--ink-border-strong);
+  background-color: var(--runtime-story-bg-color);
+  background-image: var(--runtime-story-bg-image);
+  background-repeat: var(--runtime-story-bg-repeat);
+  background-size: var(--runtime-story-bg-size);
+  box-shadow: var(--runtime-story-shadow);
+  padding: 26px 30px 24px;
+}
+
+.runtime-main-body :deep(.runtime-story-scroll::-webkit-scrollbar) {
+  width: 8px;
+}
+
+.runtime-main-body :deep(.runtime-story-scroll::-webkit-scrollbar-track) {
+  border-radius: 4px;
+  background: var(--ink-card-bg-muted);
+}
+
+.runtime-main-body :deep(.runtime-story-scroll::-webkit-scrollbar-thumb) {
+  border-radius: 4px;
+  background: var(--ink-border-accent);
+}
+
+.runtime-main-body :deep(.runtime-story-scroll) {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ink-border-accent) var(--ink-card-bg-muted);
+}
+
+.runtime-main-body :deep([data-paragraph-index]) {
+  font-family: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', serif;
+  max-width: 64ch;
+  margin-left: auto;
+  margin-right: auto;
+  font-size: 1.03rem;
+  line-height: 1.84;
+  letter-spacing: 0.01em;
+  text-wrap: pretty;
+}
+
+.runtime-main-body :deep([data-paragraph-index] + [data-paragraph-index]) {
+  margin-top: 0.95rem;
+}
+
+.runtime-main-body :deep(.story-page-nav) {
+  border-color: var(--runtime-story-nav-border);
+  background: var(--runtime-story-nav-bg);
+  box-shadow: var(--runtime-story-nav-shadow);
+}
+
+@media (max-width: 1180px) {
+  .runtime-content {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .runtime-main-body :deep(.runtime-story-scroll) {
+    padding: 20px 18px 20px;
+  }
+
+  .runtime-side-left {
+    gap: 12px;
+  }
+
+  .runtime-side-left .runtime-card {
+    border-radius: 12px;
+  }
+
+  .runtime-side-left .runtime-card:last-child {
+    max-height: 42vh;
+  }
+
+  .runtime-topbar {
+    grid-template-columns: 1fr;
+    height: auto;
+    padding: 10px 14px;
+  }
+
+  .runtime-top-right {
+    justify-self: start;
+  }
+
+  .runtime-main-header {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 0 0 12px;
+  }
+
+  .runtime-main-body {
+    padding: 0;
+  }
+
+  .runtime-main-panel {
+    padding: 18px;
+  }
+
+  .game-shell::before {
+    background-size: var(--runtime-shell-overlay-size-mobile);
+    opacity: var(--runtime-shell-overlay-opacity);
+  }
+}

@@ -15,6 +15,20 @@
   --status-validation-bg: color-mix(in srgb, var(--ink-accent-note) 12%, var(--ink-paper));
   --status-validation-text: color-mix(in srgb, var(--ink-accent-note) 76%, var(--ink-text-primary));
   --status-default-bg: color-mix(in srgb, var(--ink-paper-elevated) 90%, transparent);
+  --ui-theme-status-title-size: 0.875rem;
+  --ui-theme-status-message-size: 0.75rem;
+  --ui-theme-status-title-weight: 600;
+  --ui-theme-status-title-line-height: 1.35;
+  --ui-theme-status-title-letter-spacing: 0.01em;
+  --ui-theme-status-message-line-height: 1.45;
+  --ui-theme-status-message-opacity: 0.9;
+  --ui-theme-status-padding-y: 0.625rem;
+  --ui-theme-status-padding-x: 0.75rem;
+  --ui-theme-status-entry-offset-y: 2px;
+  --ui-theme-status-shadow: var(--ink-shadow-card);
+  --ui-theme-status-inline-offset: 1rem;
+  --ui-theme-status-block-offset: 1rem;
+  --ui-theme-status-max-width: 22rem;
 
   --llm-btn-primary-bg: color-mix(in srgb, var(--ink-accent-note) 18%, var(--ink-paper));
   --llm-btn-success-bg: color-mix(in srgb, var(--ink-text-cool) 18%, var(--ink-paper));
@@ -75,6 +89,20 @@
   --status-validation-bg: color-mix(in srgb, var(--ink-accent-note) 12%, var(--ink-paper));
   --status-validation-text: color-mix(in srgb, var(--ink-accent-note) 76%, var(--ink-text-primary));
   --status-default-bg: color-mix(in srgb, var(--ink-paper-elevated) 90%, transparent);
+  --ui-theme-status-title-size: 0.875rem;
+  --ui-theme-status-message-size: 0.75rem;
+  --ui-theme-status-title-weight: 600;
+  --ui-theme-status-title-line-height: 1.35;
+  --ui-theme-status-title-letter-spacing: 0.01em;
+  --ui-theme-status-message-line-height: 1.45;
+  --ui-theme-status-message-opacity: 0.9;
+  --ui-theme-status-padding-y: 0.625rem;
+  --ui-theme-status-padding-x: 0.75rem;
+  --ui-theme-status-entry-offset-y: 2px;
+  --ui-theme-status-shadow: var(--ink-shadow-card);
+  --ui-theme-status-inline-offset: 1rem;
+  --ui-theme-status-block-offset: 1rem;
+  --ui-theme-status-max-width: 22rem;
 
   --llm-btn-primary-bg: color-mix(in srgb, var(--ink-accent-note) 18%, var(--ink-paper));
   --llm-btn-success-bg: color-mix(in srgb, var(--ink-text-cool) 18%, var(--ink-paper));
