@@ -1,4 +1,16 @@
-import { invoke } from '@tauri-apps/api/core';
+import { isTauriRuntime } from '../platform/runtimeEnv';
+import { invokeWebRuntime } from '../platform/webRuntime';
+
+export async function invokeRuntime<T>(
+  command: string,
+  args: Record<string, unknown> | undefined,
+): Promise<T> {
+  if (isTauriRuntime()) {
+    const { invoke } = await import('@tauri-apps/api/core');
+    return invoke<T>(command, args ?? {});
+  }
+  return invokeWebRuntime<T>(command, args ?? {});
+}
 
 export async function invokeWithTimeout<T>(
   command: string,
@@ -11,7 +23,7 @@ export async function invokeWithTimeout<T>(
     const timeout = new Promise<never>((_, reject) => {
       timer = setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
     });
-    return await Promise.race([invoke<T>(command, args ?? {}), timeout]);
+    return await Promise.race([invokeRuntime<T>(command, args), timeout]);
   } finally {
     if (timer) {
       clearTimeout(timer);
