@@ -391,8 +391,9 @@ const highlightParts = (value: string | undefined): HighlightPart[] => {
   margin-top: 12px;
   max-height: min(62vh, 520px);
   overflow: auto;
-  padding-right: 2px;
   overscroll-behavior: contain;
+  scrollbar-gutter: stable both-edges;
+  padding-right: 2px;
 }
 
 .runtime-quick-title {

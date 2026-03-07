@@ -114,6 +114,7 @@
   grid-template-columns: 228px minmax(0, 1fr) 296px;
   gap: 18px;
   overflow: hidden;
+  scrollbar-gutter: stable;
 }
 
 .runtime-panel {
@@ -262,6 +263,8 @@
   max-height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable both-edges;
   border-radius: 12px;
   border: 1px solid var(--ink-border-strong);
   background-color: var(--runtime-story-bg-color);
