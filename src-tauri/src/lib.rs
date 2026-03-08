@@ -23,6 +23,7 @@ pub mod plot_engine;
 pub mod plot_consistency;
 pub mod prompt_builder;
 pub mod response_validator;
+pub mod runtime_prompt_baseline;
 pub mod save_load;
 pub mod script;
 pub mod script_manager;
@@ -62,6 +63,7 @@ pub fn run() {
             tauri_commands::get_player_options,
             tauri_commands::initialize_plot,
             tauri_commands::get_plot_state,
+            tauri_commands::rehydrate_last_quick_mode_segment,
             tauri_commands::update_plot_settings,
             tauri_commands::get_consistency_policy,
             tauri_commands::update_consistency_policy,

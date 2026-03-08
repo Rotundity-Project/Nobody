@@ -123,6 +123,7 @@ import { useUiPanels } from '../composables/useUiPanels';
 import { useRuntimeActionFeedback } from '../composables/useRuntimeActionFeedback';
 import { useRuntimeInteractionCardBridge } from '../composables/useRuntimeInteractionCardBridge';
 import { useRuntimeQuickPanels } from '../composables/useRuntimeQuickPanels';
+import { useRuntimeLifecycleRecovery } from '../composables/useRuntimeLifecycleRecovery';
 import { useRuntimeStoryContent } from '../composables/useRuntimeStoryContent';
 import { useRuntimeShellUi } from '../composables/useRuntimeShellUi';
 import { useRuntimeInteractionState } from '../composables/useRuntimeInteractionState';
@@ -295,6 +296,8 @@ const { runtimeNotifications, dismissRuntimeNotification } = useRuntimeNotificat
   autoAdvanceStopHint,
   actionNotification,
   runtimeError: userFacingError,
+  backgroundNotice: computed(() => gameStore.backgroundNotice),
+  clearBackgroundNotice: () => gameStore.clearBackgroundNotice(),
 });
 const { travelPending, handleSaved, handleLoaded, handleTravel } = useRuntimeSessionActions({
   gameStore,
@@ -422,6 +425,17 @@ useRuntimeKeyboardHotkeys({
   handleFreeTextSubmit,
   handleOptionSelect,
   showSaveDialog,
+});
+useRuntimeLifecycleRecovery({
+  gameStore,
+  inputMode,
+  freeTextInput,
+  setInputMode,
+  currentChapterTitle,
+  currentChapterIndex: computed(() => gameStore.plotState?.current_chapter.index ?? 0),
+  currentSegmentCount: computed(() => gameStore.plotState?.segment_count ?? 0),
+  logRuntimeAction,
+  notifyRuntimeError,
 });
 </script>
 

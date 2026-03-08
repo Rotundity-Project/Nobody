@@ -24,20 +24,21 @@ use crate::plot_engine::{
 };
 use crate::save_load::{MigrationBatchReport, SaveInfo};
 use crate::script::Script;
+use crate::runtime_prompt_baseline::{
+    WORLD_REGISTRY_REFERENCE, WORLD_REGISTRY_SUPPLEMENT,
+};
 use crate::world_registry::{apply_registry_to_game_state, WorldRegistry};
 use crate::app_error::AppError;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::sync::{Mutex, OnceLock};
-use std::time::Instant;
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use tauri::State;
 
 static ENTITY_STORE: OnceLock<Mutex<EntityStore>> = OnceLock::new();
 static MEMORY_LAYERS: OnceLock<Mutex<crate::memory_layers::MemoryLayers>> = OnceLock::new();
-const SPEC_78_PATH: &str = ".kiro/specs/Nobody/78";
-const SPEC_78_SUPPLEMENT_PATH: &str = ".kiro/specs/Nobody/78_补充完善_属性表注册与LLM编排.md";
 
 fn entity_store() -> &'static Mutex<EntityStore> {
     ENTITY_STORE.get_or_init(|| Mutex::new(EntityStore::new()))
@@ -151,6 +152,189 @@ fn player_options_from_choice_texts(texts: &[String]) -> Vec<PlayerOption> {
         .collect()
 }
 
+fn collect_dead_character_names(registry: Option<&WorldRegistry>) -> HashSet<String> {
+    let mut names = HashSet::new();
+    let Some(registry) = registry else {
+        return names;
+    };
+    for row in &registry.tables.characters {
+        let Some(obj) = row.as_object() else {
+            continue;
+        };
+        let name = obj
+            .get("name")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|s| !s.is_empty());
+        let Some(name) = name else {
+            continue;
+        };
+        let dead_flag = obj
+            .get("dead")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+            || obj.get("is_dead").and_then(Value::as_bool).unwrap_or(false)
+            || obj
+                .get("alive")
+                .and_then(Value::as_bool)
+                .map(|v| !v)
+                .unwrap_or(false)
+            || obj
+                .get("is_alive")
+                .and_then(Value::as_bool)
+                .map(|v| !v)
+                .unwrap_or(false)
+            || obj
+                .get("status")
+                .and_then(Value::as_str)
+                .map(|v| {
+                    let lower = v.to_lowercase();
+                    lower.contains("dead") || lower.contains("deceased") || v.contains("死亡") || v.contains("阵亡")
+                })
+                .unwrap_or(false)
+            || obj
+                .get("life_status")
+                .and_then(Value::as_str)
+                .map(|v| {
+                    let lower = v.to_lowercase();
+                    lower.contains("dead") || lower.contains("deceased") || v.contains("死亡") || v.contains("阵亡")
+                })
+                .unwrap_or(false);
+        if dead_flag {
+            names.insert(name.to_string());
+        }
+    }
+    names
+}
+
+fn sanitize_generated_options(
+    options: Vec<PlayerOption>,
+    game_state: &GameState,
+    current_scene_location: &str,
+    registry: Option<&WorldRegistry>,
+) -> (Vec<PlayerOption>, Vec<String>) {
+    let mut notes = Vec::new();
+    let mut sanitized = Vec::new();
+    let dead_names = collect_dead_character_names(registry);
+    let injured_heavy = game_state.player.combat_status.injury_level >= 7;
+    let reachable_ids = compute_reachable_location_ids(game_state);
+    let current_location_name = game_state
+        .script
+        .world_setting
+        .locations
+        .iter()
+        .find(|loc| loc.id == current_scene_location)
+        .map(|loc| loc.name.clone())
+        .unwrap_or_else(|| current_scene_location.to_string());
+
+    let mut location_name_to_id: HashMap<String, String> = HashMap::new();
+    for loc in &game_state.script.world_setting.locations {
+        location_name_to_id.insert(loc.name.clone(), loc.id.clone());
+    }
+
+    for mut option in options {
+        let text = option.description.trim().to_string();
+        if text.chars().count() < 2 {
+            notes.push("option_repair:dropped_empty_option".to_string());
+            continue;
+        }
+
+        let lower = text.to_lowercase();
+        let asks_dialogue_with_dead = dead_names.iter().any(|name| {
+            text.contains(name)
+                && (text.contains("对话")
+                    || text.contains("询问")
+                    || text.contains("请教")
+                    || text.contains("交谈")
+                    || lower.contains("talk")
+                    || lower.contains("speak"))
+        });
+        if asks_dialogue_with_dead {
+            notes.push("option_repair:dropped_dead_character_dialogue".to_string());
+            continue;
+        }
+
+        let talks_to_absent_character = registry
+            .map(|r| {
+                r.tables.characters.iter().filter_map(Value::as_object).any(|obj| {
+                    let name = obj
+                        .get("name")
+                        .and_then(Value::as_str)
+                        .map(str::trim)
+                        .unwrap_or("");
+                    if name.is_empty() || !text.contains(name) {
+                        return false;
+                    }
+                    let location_id = obj
+                        .get("location_id")
+                        .and_then(Value::as_str)
+                        .map(str::trim)
+                        .unwrap_or("");
+                    let asks_talk = text.contains("对话")
+                        || text.contains("询问")
+                        || text.contains("请教")
+                        || text.contains("交谈")
+                        || lower.contains("talk")
+                        || lower.contains("speak");
+                    asks_talk
+                        && !location_id.is_empty()
+                        && location_id != current_scene_location
+                })
+            })
+            .unwrap_or(false);
+        if talks_to_absent_character {
+            notes.push("option_repair:dropped_absent_character_dialogue".to_string());
+            continue;
+        }
+
+        if injured_heavy
+            && (text.contains("强攻") || text.contains("硬拼") || text.contains("搏命"))
+        {
+            option.description = "先稳住伤势与气机，再寻找可控破局点".to_string();
+            option.action = Action::Custom {
+                description: option.description.clone(),
+            };
+            notes.push("option_repair:rewrote_high_risk_option_due_to_injury".to_string());
+        }
+
+        let mut rewritten = false;
+        for (loc_name, loc_id) in &location_name_to_id {
+            if !text.contains(loc_name) {
+                continue;
+            }
+            if loc_id == current_scene_location {
+                continue;
+            }
+            if reachable_ids.iter().any(|id| id == loc_id) {
+                continue;
+            }
+            option.description = format!(
+                "先在{}附近探查线索，暂不贸然前往{}",
+                current_location_name, loc_name
+            );
+            option.action = Action::Custom {
+                description: option.description.clone(),
+            };
+            notes.push(format!("option_repair:rewrote_unreachable_location({})", loc_name));
+            rewritten = true;
+            break;
+        }
+
+        if !rewritten && option.description.trim().is_empty() {
+            notes.push("option_repair:dropped_empty_after_rewrite".to_string());
+            continue;
+        }
+
+        sanitized.push(option);
+    }
+
+    sanitized.truncate(4);
+    for (idx, option) in sanitized.iter_mut().enumerate() {
+        option.id = idx;
+    }
+    (sanitized, notes)
+}
+
 fn chapter_goal_regeneration_hint(interaction_count: u8) -> String {
     let goal = match interaction_count % 5 {
         0 => "冲突升级",
@@ -231,6 +415,97 @@ fn narrative_density_and_pacing_hint(interaction_count: u8) -> String {
 
 const REGEN_LATENCY_BUDGET_MS: u128 = 2500;
 const OPTION_LLM_LATENCY_BUDGET_MS: u128 = 3200;
+const ACTION_PLOT_CACHE_TTL_SECS: u64 = 300;
+const ACTION_PLOT_CACHE_MAX_ENTRIES: usize = 256;
+
+#[derive(Debug, Clone)]
+struct CachedPlotUpdate {
+    update: crate::plot_engine::PlotUpdate,
+    cached_at: u64,
+}
+
+fn action_plot_cache() -> &'static Mutex<HashMap<String, CachedPlotUpdate>> {
+    static ACTION_PLOT_CACHE: OnceLock<Mutex<HashMap<String, CachedPlotUpdate>>> = OnceLock::new();
+    ACTION_PLOT_CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn now_secs() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
+fn normalize_action_bucket(action: &PlayerAction) -> String {
+    let mut out = String::new();
+    for ch in action.content.chars() {
+        if ch.is_ascii_alphanumeric() || ch.is_alphabetic() || ch.is_numeric() {
+            out.push(ch.to_ascii_lowercase());
+        }
+    }
+    if out.is_empty() {
+        return format!(
+            "selected:{}",
+            action
+                .selected_option_id
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "none".to_string())
+        );
+    }
+    out.chars().take(36).collect::<String>()
+}
+
+fn build_action_plot_cache_key(
+    game_state: &GameState,
+    plot_state: &PlotState,
+    action: &PlayerAction,
+) -> String {
+    format!(
+        "{}|{}|{}|{}|{}|{}|{}",
+        game_state.player.location,
+        plot_state.current_chapter.index,
+        plot_state.current_chapter.interaction_count,
+        plot_state.segment_count,
+        game_state.player.stats.cultivation_realm.level,
+        action.selected_option_id.map(|v| v.to_string()).unwrap_or_else(|| "none".to_string()),
+        normalize_action_bucket(action),
+    )
+}
+
+fn get_cached_plot_update(key: &str) -> Option<crate::plot_engine::PlotUpdate> {
+    let now = now_secs();
+    let mut guard = match action_plot_cache().lock() {
+        Ok(v) => v,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    guard.retain(|_, entry| now.saturating_sub(entry.cached_at) <= ACTION_PLOT_CACHE_TTL_SECS);
+    guard.get(key).map(|entry| entry.update.clone())
+}
+
+fn put_cached_plot_update(key: String, update: crate::plot_engine::PlotUpdate) {
+    let now = now_secs();
+    let mut guard = match action_plot_cache().lock() {
+        Ok(v) => v,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    guard.retain(|_, entry| now.saturating_sub(entry.cached_at) <= ACTION_PLOT_CACHE_TTL_SECS);
+    if !guard.contains_key(&key) && guard.len() >= ACTION_PLOT_CACHE_MAX_ENTRIES {
+        if let Some(oldest_key) = guard
+            .iter()
+            .min_by_key(|(_, entry)| entry.cached_at)
+            .map(|(k, _)| k.clone())
+        {
+            guard.remove(&oldest_key);
+        }
+    }
+    guard.insert(
+        key,
+        CachedPlotUpdate {
+            update,
+            cached_at: now,
+        },
+    );
+}
 
 fn hollow_expression_regeneration_hint() -> &'static str {
     "\n\n[叙事厚度重生成约束]\n禁止空洞套话与重复句式；至少补足环境、动作、心理三类中的两类，并给出可验证的因果变化；减少抽象抒情，优先具体事实。"
@@ -1794,6 +2069,7 @@ pub async fn initialize_game(
     script: Script,
     engine: State<'_, Mutex<GameEngine>>,
 ) -> Result<GameState, String> {
+    let init_started = Instant::now();
     let mut game_state = {
         let mut engine = match engine.lock() {
             Ok(guard) => guard,
@@ -1801,13 +2077,30 @@ pub async fn initialize_game(
         };
         engine.initialize_game(script).map_err(|e| e.to_string())?
     };
-    let reference_78 = std::fs::read_to_string(SPEC_78_PATH).unwrap_or_default();
-    let supplement_78 = std::fs::read_to_string(SPEC_78_SUPPLEMENT_PATH).unwrap_or_default();
-
-    let registry = WorldRegistry::bootstrap_with_llm(&game_state, &reference_78, &supplement_78)
-        .await
-        .unwrap_or_else(|| WorldRegistry::fallback_from_game_state(&game_state, "bootstrap_fallback"));
+    let input_assembly_ms = init_started.elapsed().as_millis();
+    let bootstrap_started = Instant::now();
+    let mut registry = WorldRegistry::bootstrap_with_llm(
+        &game_state,
+        WORLD_REGISTRY_REFERENCE,
+        WORLD_REGISTRY_SUPPLEMENT,
+    )
+    .await
+    .unwrap_or_else(|| WorldRegistry::fallback_from_game_state(&game_state, "bootstrap_fallback"));
+    let model_request_parse_ms = bootstrap_started.elapsed().as_millis();
+    let apply_started = Instant::now();
     apply_registry_to_game_state(&mut game_state, &registry);
+    let parse_apply_ms = apply_started.elapsed().as_millis();
+    let total_ms = init_started.elapsed().as_millis();
+    registry.tables.world_facts.push(json!({
+        "fact_id": format!("diag-init-{}", now_secs()),
+        "subject": "runtime",
+        "predicate": "init_timing",
+        "object": format!(
+            "初始化耗时(ms)：total={},input_assembly={},model_request_parse={},parse_apply={}",
+            total_ms, input_assembly_ms, model_request_parse_ms, parse_apply_ms
+        ),
+        "confidence": 1.0
+    }));
     let engine = match engine.lock() {
         Ok(guard) => guard,
         Err(poisoned) => poisoned.into_inner(),
@@ -2181,19 +2474,50 @@ pub async fn execute_player_action(
         }
     }
 
-    let plot_generation_started = Instant::now();
-    let mut plot_update = if quick_mode {
-        plot_engine.advance_plot_fast(&plot_state_for_generation, &action_result)
+    let cache_key = if quick_mode {
+        None
     } else {
-        plot_engine
-            .advance_plot_async_with_policy(
-                &plot_state_for_generation,
-                &action_result,
-                !selected_option_requires_llm_story,
+        Some(build_action_plot_cache_key(&game_state, &plot_state, &action))
+    };
+    let plot_generation_started = Instant::now();
+    let (mut plot_update, cache_hit_semantic) = if quick_mode {
+        (
+            plot_engine.advance_plot_fast(&plot_state_for_generation, &action_result),
+            false,
+        )
+    } else if let Some(key) = cache_key.as_deref() {
+        if let Some(cached) = get_cached_plot_update(key) {
+            (cached, true)
+        } else {
+            (
+                plot_engine
+                    .advance_plot_async_with_policy(
+                        &plot_state_for_generation,
+                        &action_result,
+                        !selected_option_requires_llm_story,
+                    )
+                    .await,
+                false,
             )
-            .await
+        }
+    } else {
+        (
+            plot_engine
+                .advance_plot_async_with_policy(
+                    &plot_state_for_generation,
+                    &action_result,
+                    !selected_option_requires_llm_story,
+                )
+                .await,
+            false,
+        )
     };
     let plot_generation_ms = plot_generation_started.elapsed().as_millis();
+    if !quick_mode && !cache_hit_semantic {
+        if let Some(key) = cache_key.clone() {
+            put_cached_plot_update(key, plot_update.clone());
+        }
+    }
 
     if let Some(bundle) = context_bundle {
         let ctx_diag = format!(
@@ -2219,6 +2543,14 @@ pub async fn execute_player_action(
             Some(diag) => diag.push_str("；链路：quick_mode_rule_only"),
             None => {
                 plot_update.generation_diagnostics = Some("链路：quick_mode_rule_only".to_string())
+            }
+        }
+    }
+    if cache_hit_semantic {
+        match &mut plot_update.generation_diagnostics {
+            Some(diag) => diag.push_str("；链路：cache_hit_semantic"),
+            None => {
+                plot_update.generation_diagnostics = Some("链路：cache_hit_semantic".to_string())
             }
         }
     }
@@ -2397,16 +2729,14 @@ pub async fn execute_player_action(
     // Phase 2: 双通道（state_patch + narrative）优先，失败则保留现有 plot_engine 结果。
     if !quick_mode {
         if let Some(mut registry) = world_registry.clone() {
-        let reference_78 = std::fs::read_to_string(SPEC_78_PATH).unwrap_or_default();
-        let supplement_78 = std::fs::read_to_string(SPEC_78_SUPPLEMENT_PATH).unwrap_or_default();
         let turn_update_started = Instant::now();
         let (turn_result, turn_update_error) = registry
             .generate_turn_update_with_llm_diagnostic(
                 &game_state,
                 &plot_state,
                 &action.content,
-                &reference_78,
-                &supplement_78,
+                WORLD_REGISTRY_REFERENCE,
+                WORLD_REGISTRY_SUPPLEMENT,
             )
             .await;
         let turn_update_ms = turn_update_started.elapsed().as_millis();
@@ -2676,6 +3006,56 @@ pub async fn execute_player_action(
             }
         }
     }
+
+    if plot_update.is_waiting_for_input && !plot_update.chapter_end {
+        let (mut sanitized_options, repair_notes) = sanitize_generated_options(
+            plot_state.current_scene.available_options.clone(),
+            &game_state,
+            &plot_state.current_scene.location,
+            world_registry.as_ref(),
+        );
+
+        if sanitized_options.len() < 2 {
+            let mut fallback_options = plot_engine
+                .generate_player_options(&plot_state.current_scene, &game_state.player.stats);
+            let existing = sanitized_options
+                .iter()
+                .map(|o| o.description.trim().to_string())
+                .collect::<HashSet<_>>();
+            fallback_options.retain(|opt| !existing.contains(opt.description.trim()));
+            fallback_options.truncate(4usize.saturating_sub(sanitized_options.len()));
+            sanitized_options.extend(fallback_options);
+            if sanitized_options.len() >= 2 {
+                match &mut plot_state.last_generation_diagnostics {
+                    Some(diag) => diag.push_str("；选项一致性修正：已补足可执行保守选项"),
+                    None => {
+                        plot_state.last_generation_diagnostics =
+                            Some("选项一致性修正：已补足可执行保守选项".to_string())
+                    }
+                }
+            }
+        }
+
+        for (idx, option) in sanitized_options.iter_mut().enumerate() {
+            option.id = idx;
+        }
+        plot_state.current_scene.available_options = sanitized_options;
+
+        if !repair_notes.is_empty() {
+            let joined = repair_notes.join(",");
+            match &mut plot_state.last_generation_diagnostics {
+                Some(diag) => {
+                    diag.push_str("；选项一致性修正：");
+                    diag.push_str(&joined);
+                }
+                None => {
+                    plot_state.last_generation_diagnostics =
+                        Some(format!("选项一致性修正：{}", joined))
+                }
+            }
+        }
+    }
+
     let options_generation_ms = options_started.elapsed().as_millis();
 
     let effective_consistency_report = effective_consistency_report_after_option_resolution(
@@ -3037,6 +3417,7 @@ pub async fn get_player_options(
 pub async fn initialize_plot(
     engine: State<'_, Mutex<GameEngine>>,
 ) -> Result<PlotState, String> {
+    let total_started = Instant::now();
     let (player_name, realm_name, spiritual_root, location) = {
         let engine = match engine.lock() {
             Ok(guard) => guard,
@@ -3059,9 +3440,11 @@ pub async fn initialize_plot(
     };
 
     let plot_engine = PlotEngine::new();
+    let opening_started = Instant::now();
     let opening = plot_engine
         .generate_opening_plot_async(&player_name, &realm_name, &spiritual_root, &location)
         .await;
+    let opening_gen_ms = opening_started.elapsed().as_millis();
     if !opening.from_llm {
         return Err(
             "初始化剧情失败：未获取到 LLM 开局内容（已禁止预设文案回退）。请检查模型配置、网络与超时后重试。"
@@ -3069,6 +3452,7 @@ pub async fn initialize_plot(
         );
     }
 
+    let opening_option_started = Instant::now();
     let opening_options = if opening.options.is_empty() {
         None
     } else {
@@ -3088,14 +3472,31 @@ pub async fn initialize_plot(
                 .collect(),
         )
     };
+    let opening_option_build_ms = opening_option_started.elapsed().as_millis();
 
     let mut engine = match engine.lock() {
         Ok(guard) => guard,
         Err(poisoned) => poisoned.into_inner(),
     };
-    engine
+    let persist_started = Instant::now();
+    let mut plot_state = engine
         .initialize_plot_with_opening(opening.text, opening_options)
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    let state_persist_ms = persist_started.elapsed().as_millis();
+    let total_ms = total_started.elapsed().as_millis();
+    plot_state.last_option_generation_source = Some(if plot_state.current_scene.available_options.is_empty() {
+        "opening_default_rule".to_string()
+    } else {
+        "opening_llm_options".to_string()
+    });
+    plot_state.last_generation_diagnostics = Some(format!(
+        "初始化耗时(ms)：total={},input_assembly=0,model_request_parse={},opening_option_build={},state_persist={}",
+        total_ms, opening_gen_ms, opening_option_build_ms, state_persist_ms
+    ));
+    engine
+        .update_plot_state(plot_state.clone())
+        .map_err(|e| e.to_string())?;
+    Ok(plot_state)
 }
 
 #[tauri::command]
@@ -3107,6 +3508,67 @@ pub async fn get_plot_state(
         Err(poisoned) => poisoned.into_inner(),
     };
     engine.get_plot_state().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn rehydrate_last_quick_mode_segment(
+    engine: State<'_, Mutex<GameEngine>>,
+) -> Result<bool, String> {
+    let (mut plot_state, action_result) = {
+        let engine = match engine.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        let plot_state = engine.get_plot_state().map_err(|e| e.to_string())?;
+        let action_result = match plot_state.last_action_result.clone() {
+            Some(v) => v,
+            None => return Ok(false),
+        };
+        (plot_state, action_result)
+    };
+
+    if !plot_state
+        .last_generation_diagnostics
+        .as_deref()
+        .unwrap_or("")
+        .contains("quick_mode_rule_only")
+    {
+        return Ok(false);
+    }
+
+    let plot_engine = PlotEngine::new();
+    let Some(rehydrated_text) = plot_engine
+        .generate_option_plot_rescue_async(&plot_state, &action_result)
+        .await
+    else {
+        return Ok(false);
+    };
+    if rehydrated_text.trim().is_empty() {
+        return Ok(false);
+    }
+
+    if let Some(last) = plot_state.current_chapter.content.last_mut() {
+        *last = rehydrated_text.clone();
+    }
+    if let Some(last) = plot_state.plot_history.last_mut() {
+        *last = rehydrated_text.clone();
+    }
+    plot_state.current_scene.description = rehydrated_text;
+
+    match &mut plot_state.last_generation_diagnostics {
+        Some(diag) => diag.push_str("；快速模式后台补全：llm_plain_rehydrate"),
+        None => {
+            plot_state.last_generation_diagnostics =
+                Some("快速模式后台补全：llm_plain_rehydrate".to_string())
+        }
+    }
+
+    let engine = match engine.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    engine.update_plot_state(plot_state).map_err(|e| e.to_string())?;
+    Ok(true)
 }
 
 #[tauri::command]
@@ -4916,6 +5378,196 @@ mod tests {
         let (delta, reason) = evaluate_style_counter_modifier(&stats, "我以剑诀迎战体修强攻");
         assert!(delta > 0);
         assert!(reason.contains("克制"));
+    }
+
+    fn make_option(id: usize, description: &str) -> PlayerOption {
+        PlayerOption {
+            id,
+            description: description.to_string(),
+            requirements: vec![],
+            action: Action::Custom {
+                description: description.to_string(),
+            },
+        }
+    }
+
+    fn make_state_for_option_sanitize() -> GameState {
+        let mut world_setting = crate::script::WorldSetting::new();
+        world_setting.locations = vec![
+            crate::script::Location {
+                id: "sect".to_string(),
+                name: "青云宗".to_string(),
+                description: "宗门驻地".to_string(),
+                spiritual_energy: 0.30,
+            },
+            crate::script::Location {
+                id: "market".to_string(),
+                name: "坊市".to_string(),
+                description: "交易区".to_string(),
+                spiritual_energy: 0.32,
+            },
+            crate::script::Location {
+                id: "forest".to_string(),
+                name: "幽林".to_string(),
+                description: "外围山林".to_string(),
+                spiritual_energy: 0.36,
+            },
+            crate::script::Location {
+                id: "far_city".to_string(),
+                name: "天机城".to_string(),
+                description: "遥远城池".to_string(),
+                spiritual_energy: 2.50,
+            },
+        ];
+
+        let script = crate::script::Script::new(
+            "id".to_string(),
+            "name".to_string(),
+            crate::script::ScriptType::Custom,
+            world_setting,
+            crate::script::InitialState {
+                player_name: "p".to_string(),
+                player_spiritual_root: crate::models::SpiritualRoot {
+                    element: crate::models::Element::Fire,
+                    elements: vec![crate::models::Element::Fire],
+                    grade: crate::models::Grade::Heavenly,
+                    affinity: 0.8,
+                },
+                starting_location: "sect".to_string(),
+                starting_age: 16,
+            },
+        );
+
+        crate::game_state::GameState {
+            player: crate::game_state::Character::new(
+                "player".to_string(),
+                "Tester".to_string(),
+                crate::models::CharacterStats {
+                    spiritual_root: crate::models::SpiritualRoot {
+                        element: crate::models::Element::Fire,
+                        elements: vec![crate::models::Element::Fire],
+                        grade: crate::models::Grade::Heavenly,
+                        affinity: 0.8,
+                    },
+                    cultivation_realm: crate::models::CultivationRealm::new(
+                        "Qi".to_string(),
+                        1,
+                        0,
+                        1.0,
+                    ),
+                    techniques: vec![],
+                    lifespan: crate::models::Lifespan {
+                        current_age: 16,
+                        max_age: 100,
+                        realm_bonus: 0,
+                    },
+                    combat_power: 120,
+                },
+                "sect".to_string(),
+            ),
+            world_state: crate::game_state::WorldState::from_script(&script),
+            game_time: crate::game_state::GameTime::new(1, 1, 1),
+            event_history: vec![],
+            script,
+        }
+    }
+
+    #[test]
+    fn test_sanitize_generated_options_drops_dead_character_dialogue() {
+        let game_state = make_state_for_option_sanitize();
+        let mut registry = WorldRegistry::fallback_from_game_state(&game_state, "test");
+        registry.tables.characters.push(serde_json::json!({
+            "id": "c_dead",
+            "name": "韩长老",
+            "dead": true,
+            "location_id": "sect"
+        }));
+        let options = vec![
+            make_option(0, "向韩长老请教剑道"),
+            make_option(1, "在宗门广场观摩切磋"),
+        ];
+
+        let (sanitized, notes) =
+            sanitize_generated_options(options, &game_state, "sect", Some(&registry));
+
+        assert_eq!(sanitized.len(), 1);
+        assert!(sanitized[0].description.contains("观摩"));
+        assert!(notes
+            .iter()
+            .any(|n| n == "option_repair:dropped_dead_character_dialogue"));
+    }
+
+    #[test]
+    fn test_sanitize_generated_options_drops_absent_character_dialogue() {
+        let game_state = make_state_for_option_sanitize();
+        let mut registry = WorldRegistry::fallback_from_game_state(&game_state, "test");
+        registry.tables.characters.push(serde_json::json!({
+            "id": "c_far",
+            "name": "苏执事",
+            "location_id": "far_city",
+            "dead": false
+        }));
+        let options = vec![
+            make_option(0, "与苏执事对话打探消息"),
+            make_option(1, "先整顿行装"),
+        ];
+
+        let (sanitized, notes) =
+            sanitize_generated_options(options, &game_state, "sect", Some(&registry));
+
+        assert_eq!(sanitized.len(), 1);
+        assert!(sanitized[0].description.contains("整顿行装"));
+        assert!(notes
+            .iter()
+            .any(|n| n == "option_repair:dropped_absent_character_dialogue"));
+    }
+
+    #[test]
+    fn test_sanitize_generated_options_rewrites_unreachable_location() {
+        let game_state = make_state_for_option_sanitize();
+        let options = vec![make_option(0, "立刻前往天机城追查线索")];
+
+        let (sanitized, notes) = sanitize_generated_options(options, &game_state, "sect", None);
+
+        assert_eq!(sanitized.len(), 1);
+        assert!(sanitized[0].description.contains("暂不贸然前往天机城"));
+        assert!(notes
+            .iter()
+            .any(|n| n.starts_with("option_repair:rewrote_unreachable_location(")));
+    }
+
+    #[test]
+    fn test_sanitize_generated_options_rewrites_high_risk_when_injured() {
+        let mut game_state = make_state_for_option_sanitize();
+        game_state.player.combat_status.injury_level = 8;
+        let options = vec![make_option(0, "强攻破阵，硬拼到底")];
+
+        let (sanitized, notes) = sanitize_generated_options(options, &game_state, "sect", None);
+
+        assert_eq!(sanitized.len(), 1);
+        assert!(sanitized[0].description.contains("先稳住伤势"));
+        assert!(notes
+            .iter()
+            .any(|n| n == "option_repair:rewrote_high_risk_option_due_to_injury"));
+    }
+
+    #[test]
+    fn test_normalize_action_bucket_stable_and_fallback() {
+        let action = PlayerAction {
+            action_type: crate::plot_engine::ActionType::FreeText,
+            content: "  Talk-To Elder_01!!! ".to_string(),
+            selected_option_id: Some(3),
+            meta: None,
+        };
+        assert_eq!(normalize_action_bucket(&action), "talktoelder01");
+
+        let selected_only = PlayerAction {
+            action_type: crate::plot_engine::ActionType::SelectedOption,
+            content: "   ".to_string(),
+            selected_option_id: Some(2),
+            meta: None,
+        };
+        assert_eq!(normalize_action_bucket(&selected_only), "selected:2");
     }
 }
 

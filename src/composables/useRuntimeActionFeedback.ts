@@ -25,6 +25,11 @@ const isLlmConfigError = (text: string): boolean =>
     || text.includes('超时')
   );
 
+const isUnavailableFeatureError = (text: string): boolean =>
+  text.includes('暂不支持')
+  || text.includes('未开放')
+  || text.toLowerCase().includes('not supported');
+
 export const buildRuntimeErrorNotification = (
   label: string,
   rawError: unknown,
@@ -47,6 +52,15 @@ export const buildRuntimeErrorNotification = (
       kind: 'error',
       title: '需要检查 LLM 配置',
       message: `${label}失败。请打开 LLM 设置检查模型、密钥与网络连接。`,
+      priority: 'banner',
+    };
+  }
+  if (isUnavailableFeatureError(details)) {
+    return {
+      id: `runtime-error-unavailable-${suffix}`,
+      kind: 'validation',
+      title: '功能暂未开放',
+      message: '当前运行模式下暂不支持该功能，请切换环境或使用可用入口。',
       priority: 'banner',
     };
   }

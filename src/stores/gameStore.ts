@@ -24,6 +24,7 @@ interface GameStoreState {
   generationDiagnostics: string[];
   generationTimingSummary: GenerationTimingSummary | null;
   generationFailureSummary: GenerationFailureSummary | null;
+  backgroundNotice: { id: string; message: string } | null;
   isLoading: boolean;
   error: string | null;
 }
@@ -44,6 +45,7 @@ export const useGameStore = defineStore('game', {
     generationDiagnostics: [],
     generationTimingSummary: null,
     generationFailureSummary: null,
+    backgroundNotice: null,
     isLoading: false,
     error: null,
   }),
@@ -58,6 +60,30 @@ export const useGameStore = defineStore('game', {
   },
 
   actions: {
+    async tryRehydrateLastQuickModeSegment() {
+      try {
+        const replaced = await invokeRuntime<boolean>('rehydrate_last_quick_mode_segment', undefined);
+        if (!replaced) {
+          return;
+        }
+        const plotState = await invokeWithTimeout<PlotState>(
+          'get_plot_state',
+          undefined,
+          8000,
+          '获取剧情状态超时，请重试',
+        );
+        this.plotState = plotState;
+        this.appendGenerationDiagnostics(plotState.last_generation_diagnostics);
+        await this.refreshGenerationDiagnosticsSummary();
+        this.backgroundNotice = {
+          id: `rehydrate-${Date.now()}`,
+          message: '快速模式结果已补全为完整叙事版本',
+        };
+      } catch (error) {
+        console.warn('快速模式后台补全失败，已忽略：', error);
+      }
+    },
+
     async refreshReachableLocations() {
       try {
         const ids = await invokeRuntime<unknown>('get_reachable_locations', undefined);
@@ -258,6 +284,7 @@ export const useGameStore = defineStore('game', {
             await this.refreshReachableLocations();
             await this.refreshMapOverview();
             this.error = `主链路超时，已切换快速模式续写。${quickPlotState.last_generation_diagnostics ?? ''}`.trim();
+            void this.tryRehydrateLastQuickModeSegment();
           } catch {
             try {
               const latestPlotState = await invokeWithTimeout<PlotState>(
@@ -416,6 +443,10 @@ export const useGameStore = defineStore('game', {
       this.error = null;
     },
 
+    clearBackgroundNotice() {
+      this.backgroundNotice = null;
+    },
+
     resetGame() {
       this.currentScript = null;
       this.gameState = null;
@@ -427,6 +458,7 @@ export const useGameStore = defineStore('game', {
       this.generationDiagnostics = [];
       this.generationTimingSummary = null;
       this.generationFailureSummary = null;
+      this.backgroundNotice = null;
       this.error = null;
     },
   },

@@ -470,6 +470,8 @@ export async function invokeWebRuntime<T>(
     case 'get_plot_state':
       ensureStateReady();
       return runtimeState.plotState as T;
+    case 'rehydrate_last_quick_mode_segment':
+      return false as T;
     case 'get_player_options':
       ensureStateReady();
       return (runtimeState.plotState as PlotState).current_scene.available_options as T;

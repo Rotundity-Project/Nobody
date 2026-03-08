@@ -23,4 +23,12 @@ describe('buildRuntimeErrorNotification', () => {
     expect(item.priority).toBe('toast');
     expect(item.title).toContain('可重试');
   });
+
+  it('maps unsupported feature errors to explicit unavailable guidance', () => {
+    const item = buildRuntimeErrorNotification('导出', 'Web 模式暂不支持命令：export_novel', 'seed-d');
+    expect(item.id).toBe('runtime-error-unavailable-seed-d');
+    expect(item.kind).toBe('validation');
+    expect(item.priority).toBe('banner');
+    expect(item.title).toContain('暂未开放');
+  });
 });
