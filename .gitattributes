@@ -2,3 +2,22 @@
 
 # Keep Markdown as UTF-8 in git and normalize line endings.
 *.md text working-tree-encoding=UTF-8 eol=lf
+
+# Source files should use LF for stable cross-platform diffs.
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.jsx text eol=lf
+*.vue text eol=lf
+*.css text eol=lf
+*.scss text eol=lf
+*.html text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.rs text eol=lf
+*.toml text eol=lf
+*.sh text eol=lf
+
+# PowerShell scripts commonly use CRLF on Windows.
+*.ps1 text eol=crlf
