@@ -8,10 +8,20 @@
       <div class="ink-info-panel h-full overflow-y-auto rounded-2xl p-4 sm:p-5">
         <div class="mb-4 flex items-center justify-between">
           <div>
-            <p class="info-text-muted text-xs uppercase tracking-[0.25em]">世界层</p>
-            <h3 class="info-title text-xl font-display">信息抽屉</h3>
+            <p class="info-text-muted text-xs uppercase tracking-[0.25em]">
+              世界层
+            </p>
+            <h3 class="info-title text-xl font-display">
+              信息抽屉
+            </h3>
           </div>
-          <UiButton size="sm" class="ink-ui-btn" @click="$emit('close')">关闭</UiButton>
+          <UiButton
+            size="sm"
+            class="ink-ui-btn"
+            @click="$emit('close')"
+          >
+            关闭
+          </UiButton>
         </div>
 
         <div class="mb-4 flex flex-wrap gap-2">
@@ -27,10 +37,16 @@
           </UiButton>
         </div>
 
-        <section v-if="activeTab === 'character'" class="info-text-body space-y-2 text-sm">
+        <section
+          v-if="activeTab === 'character'"
+          class="info-text-body space-y-2 text-sm"
+        >
           <p>姓名：{{ playerName }}</p>
           <p>境界：{{ playerRealm }}</p>
-          <div v-if="playerRootElementsSafe.length > 0" class="info-root-row">
+          <div
+            v-if="playerRootElementsSafe.length > 0"
+            class="info-root-row"
+          >
             <span>灵根：</span>
             <div class="info-root-list">
               <span
@@ -38,7 +54,11 @@
                 :key="`${item.element}-${item.label}`"
                 class="info-root-item"
               >
-                <span class="info-root-icon" :class="rootElementColorClass(item.element)" aria-hidden="true">
+                <span
+                  class="info-root-icon"
+                  :class="rootElementColorClass(item.element)"
+                  aria-hidden="true"
+                >
                   <svg
                     v-if="item.element === 'Earth'"
                     viewBox="0 0 24 24"
@@ -47,7 +67,11 @@
                     stroke="currentColor"
                     stroke-width="1.8"
                   >
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 18h18L16 8h-8L3 18Z" />
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M3 18h18L16 8h-8L3 18Z"
+                    />
                   </svg>
                   <svg
                     v-else-if="item.element === 'Metal'"
@@ -57,8 +81,16 @@
                     stroke="currentColor"
                     stroke-width="1.8"
                   >
-                    <circle cx="12" cy="12" r="6.5" />
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 5.5v13M5.5 12h13" />
+                    <circle
+                      cx="12"
+                      cy="12"
+                      r="6.5"
+                    />
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M12 5.5v13M5.5 12h13"
+                    />
                   </svg>
                   <svg
                     v-else-if="item.element === 'Wood'"
@@ -68,9 +100,21 @@
                     stroke="currentColor"
                     stroke-width="1.8"
                   >
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 20V8" />
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 10c3.5 0 5-2 5-4-3 0-5 1.8-5 4Z" />
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 13c-3.5 0-5-2-5-4 3 0 5 1.8 5 4Z" />
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M12 20V8"
+                    />
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M12 10c3.5 0 5-2 5-4-3 0-5 1.8-5 4Z"
+                    />
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M12 13c-3.5 0-5-2-5-4 3 0 5 1.8 5 4Z"
+                    />
                   </svg>
                   <svg
                     v-else-if="item.element === 'Water'"
@@ -80,7 +124,11 @@
                     stroke="currentColor"
                     stroke-width="1.8"
                   >
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4c3.6 4.2 5.5 7 5.5 9.5A5.5 5.5 0 0 1 12 19a5.5 5.5 0 0 1-5.5-5.5C6.5 11 8.4 8.2 12 4Z" />
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M12 4c3.6 4.2 5.5 7 5.5 9.5A5.5 5.5 0 0 1 12 19a5.5 5.5 0 0 1-5.5-5.5C6.5 11 8.4 8.2 12 4Z"
+                    />
                   </svg>
                   <svg
                     v-else
@@ -90,10 +138,17 @@
                     stroke="currentColor"
                     stroke-width="1.8"
                   >
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4c2.5 2 4.5 4.2 4.5 6.8 0 3.4-2.5 5.8-4.5 9.2-2-3.4-4.5-5.8-4.5-9.2C7.5 8.2 9.5 6 12 4Z" />
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M12 4c2.5 2 4.5 4.2 4.5 6.8 0 3.4-2.5 5.8-4.5 9.2-2-3.4-4.5-5.8-4.5-9.2C7.5 8.2 9.5 6 12 4Z"
+                    />
                   </svg>
                 </span>
-                <span class="info-root-name" :class="rootElementColorClass(item.element)">{{ item.label }}</span>
+                <span
+                  class="info-root-name"
+                  :class="rootElementColorClass(item.element)"
+                >{{ item.label }}</span>
               </span>
             </div>
             <span class="info-text-muted">{{ playerRootLabelSafe }}</span>
@@ -101,18 +156,34 @@
           <p>位置：{{ playerLocation }}</p>
         </section>
 
-        <section v-else-if="activeTab === 'progress'" class="info-text-body space-y-2 text-sm">
+        <section
+          v-else-if="activeTab === 'progress'"
+          class="info-text-body space-y-2 text-sm"
+        >
           <p>章节：{{ chapterProgress }}</p>
           <p>章节交互：{{ chapterInteraction }}</p>
           <p>剧情段落：{{ segmentCount }}</p>
           <p>当前状态：{{ isWaitingForInput ? '等待玩家输入' : '自动推进中' }}</p>
         </section>
 
-        <section v-else-if="activeTab === 'map'" class="info-text-body space-y-3 text-sm">
+        <section
+          v-else-if="activeTab === 'map'"
+          class="info-text-body space-y-3 text-sm"
+        >
           <p>当前位置：{{ normalizedCurrentLocationLabel }}</p>
-          <p class="info-text-muted text-xs">可达节点：{{ reachableNodeCount }} / {{ resolvedMapNodes.length }}</p>
-          <div v-if="worldLocations.length === 0" class="info-text-muted">暂无地图节点</div>
-          <div v-else class="grid gap-2 sm:grid-cols-2">
+          <p class="info-text-muted text-xs">
+            可达节点：{{ reachableNodeCount }} / {{ resolvedMapNodes.length }}
+          </p>
+          <div
+            v-if="worldLocations.length === 0"
+            class="info-text-muted"
+          >
+            暂无地图节点
+          </div>
+          <div
+            v-else
+            class="grid gap-2 sm:grid-cols-2"
+          >
             <div
               v-for="loc in resolvedMapNodes"
               :key="loc.id"
@@ -127,11 +198,28 @@
                   当前
                 </span>
               </p>
-              <p class="info-text-body text-xs">灵气强度 {{ Number(loc.spiritual_energy).toFixed(2) }} / 风险 {{ loc.riskLabel }}</p>
-              <p class="info-text-muted text-[11px]">灵气差 {{ Number(loc.energyGap).toFixed(2) }}</p>
-              <p v-if="typeof loc.estimatedSteps === 'number'" class="info-text-muted text-[11px]">预计步数 {{ loc.estimatedSteps }}</p>
-              <p v-if="loc.suggestedPath.length > 1" class="info-text-muted text-[11px]">建议路径 {{ loc.suggestedPathLabels.join(' -> ') }}</p>
-              <p class="mt-1 text-[11px]" :class="loc.reachable ? 'info-reach-ok' : 'info-reach-blocked'">
+              <p class="info-text-body text-xs">
+                灵气强度 {{ Number(loc.spiritual_energy).toFixed(2) }} / 风险 {{ loc.riskLabel }}
+              </p>
+              <p class="info-text-muted text-[11px]">
+                灵气差 {{ Number(loc.energyGap).toFixed(2) }}
+              </p>
+              <p
+                v-if="typeof loc.estimatedSteps === 'number'"
+                class="info-text-muted text-[11px]"
+              >
+                预计步数 {{ loc.estimatedSteps }}
+              </p>
+              <p
+                v-if="loc.suggestedPath.length > 1"
+                class="info-text-muted text-[11px]"
+              >
+                建议路径 {{ loc.suggestedPathLabels.join(' -> ') }}
+              </p>
+              <p
+                class="mt-1 text-[11px]"
+                :class="loc.reachable ? 'info-reach-ok' : 'info-reach-blocked'"
+              >
                 {{ loc.reachable ? '可达' : '暂不可达' }}
               </p>
               <UiButton
@@ -148,10 +236,23 @@
           </div>
         </section>
 
-        <section v-else-if="activeTab === 'review'" class="info-text-body space-y-2 text-sm">
-          <p class="info-text-muted">最近战斗复盘</p>
-          <div v-if="recentCombatExplanations.length === 0" class="info-text-muted">暂无战斗复盘记录</div>
-          <ul v-else class="space-y-2">
+        <section
+          v-else-if="activeTab === 'review'"
+          class="info-text-body space-y-2 text-sm"
+        >
+          <p class="info-text-muted">
+            最近战斗复盘
+          </p>
+          <div
+            v-if="recentCombatExplanations.length === 0"
+            class="info-text-muted"
+          >
+            暂无战斗复盘记录
+          </div>
+          <ul
+            v-else
+            class="space-y-2"
+          >
             <li
               v-for="(item, idx) in recentCombatExplanations"
               :key="`review-${idx}-${item}`"
@@ -162,20 +263,38 @@
           </ul>
         </section>
 
-        <section v-else-if="activeTab === 'export'" class="space-y-2">
-          <NovelExporter :is-game-running="isGameRunning" :event-count="eventCount" />
+        <section
+          v-else-if="activeTab === 'export'"
+          class="space-y-2"
+        >
+          <NovelExporter
+            :is-game-running="isGameRunning"
+            :event-count="eventCount"
+          />
         </section>
 
-        <section v-else-if="activeTab === 'debug'" class="info-text-body space-y-2 text-xs">
-          <p v-if="!isDevMode" class="info-text-muted">当前为非开发模式，调试信息已隐藏。</p>
+        <section
+          v-else-if="activeTab === 'debug'"
+          class="info-text-body space-y-2 text-xs"
+        >
+          <p
+            v-if="!isDevMode"
+            class="info-text-muted"
+          >
+            当前为非开发模式，调试信息已隐藏。
+          </p>
           <template v-else>
             <p>章节：{{ debugChapter }}</p>
             <p>选项来源：{{ debugOptionSource || '无' }}</p>
-            <p v-if="debugOptionHint">来源说明：{{ debugOptionHint }}</p>
+            <p v-if="debugOptionHint">
+              来源说明：{{ debugOptionHint }}
+            </p>
             <p>等待输入：{{ isWaitingForInput ? '是' : '否' }}</p>
             <p>一致性风险分：{{ debugRiskScore ?? '无' }}</p>
             <div class="info-map-card rounded border p-2">
-              <p class="info-text-muted text-xs">NoName 模式</p>
+              <p class="info-text-muted text-xs">
+                NoName 模式
+              </p>
               <div class="mt-2 flex flex-wrap gap-2">
                 <UiButton
                   v-for="item in noNameModeOptions"
@@ -191,25 +310,54 @@
             </div>
             <div class="grid gap-2 sm:grid-cols-2">
               <div class="info-map-card rounded border p-2">
-                <p class="info-text-muted text-xs">最新提案</p>
-                <p class="mt-1 text-sm">{{ debugNoNameProposalTitle || '无' }}</p>
-                <p class="info-text-muted mt-1">状态：{{ debugNoNameProposalStatus || '无' }}</p>
-                <p class="info-text-muted mt-1">目标段：{{ debugNoNameTargetSegment || '无' }}</p>
-                <p class="info-text-muted mt-1 whitespace-pre-wrap">预期效果：{{ debugNoNameIntendedEffect || '无' }}</p>
-                <p class="info-text-muted mt-1">作用域：{{ debugNoNameScopes.length > 0 ? debugNoNameScopes.join(' / ') : '无' }}</p>
+                <p class="info-text-muted text-xs">
+                  最新提案
+                </p>
+                <p class="mt-1 text-sm">
+                  {{ debugNoNameProposalTitle || '无' }}
+                </p>
+                <p class="info-text-muted mt-1">
+                  状态：{{ debugNoNameProposalStatus || '无' }}
+                </p>
+                <p class="info-text-muted mt-1">
+                  目标段：{{ debugNoNameTargetSegment || '无' }}
+                </p>
+                <p class="info-text-muted mt-1 whitespace-pre-wrap">
+                  预期效果：{{ debugNoNameIntendedEffect || '无' }}
+                </p>
+                <p class="info-text-muted mt-1">
+                  作用域：{{ debugNoNameScopes.length > 0 ? debugNoNameScopes.join(' / ') : '无' }}
+                </p>
               </div>
               <div class="info-map-card rounded border p-2">
-                <p class="info-text-muted text-xs">Apply 结果</p>
-                <p class="mt-1 text-sm">{{ debugNoNameApplyOutcome || '无' }}</p>
-                <p v-if="debugNoNameApplyReason" class="info-text-muted mt-1 whitespace-pre-wrap">
+                <p class="info-text-muted text-xs">
+                  Apply 结果
+                </p>
+                <p class="mt-1 text-sm">
+                  {{ debugNoNameApplyOutcome || '无' }}
+                </p>
+                <p
+                  v-if="debugNoNameApplyReason"
+                  class="info-text-muted mt-1 whitespace-pre-wrap"
+                >
                   {{ debugNoNameApplyReason }}
                 </p>
               </div>
             </div>
             <div class="info-map-card rounded border p-2">
-              <p class="info-text-muted text-xs">状态迁移</p>
-              <p v-if="debugNoNameTransitions.length === 0" class="mt-2 text-xs info-text-muted">暂无状态迁移</p>
-              <ul v-else class="mt-2 space-y-1">
+              <p class="info-text-muted text-xs">
+                状态迁移
+              </p>
+              <p
+                v-if="debugNoNameTransitions.length === 0"
+                class="mt-2 text-xs info-text-muted"
+              >
+                暂无状态迁移
+              </p>
+              <ul
+                v-else
+                class="mt-2 space-y-1"
+              >
                 <li
                   v-for="(item, index) in debugNoNameTransitions"
                   :key="`transition-${index}-${item}`"
@@ -220,42 +368,101 @@
               </ul>
             </div>
             <div class="info-map-card rounded border p-2">
-              <p class="info-text-muted text-xs">应用计划</p>
-              <p v-if="debugNoNamePlans.length === 0" class="mt-2 text-xs info-text-muted">暂无应用计划</p>
-              <ul v-else class="mt-2 space-y-1">
+              <p class="info-text-muted text-xs">
+                应用计划
+              </p>
+              <p
+                v-if="debugNoNamePlans.length === 0"
+                class="mt-2 text-xs info-text-muted"
+              >
+                暂无应用计划
+              </p>
+              <ul
+                v-else
+                class="mt-2 space-y-1"
+              >
                 <li
                   v-for="(item, index) in debugNoNamePlans"
                   :key="`plan-${index}-${item.target}-${item.decision}`"
                   class="rounded border px-2 py-1"
                 >
-                  <p class="info-text-body">#{{ item.order }} · {{ item.target }} · {{ item.decision }} · P{{ item.priority }}</p>
-                  <p v-if="item.note" class="info-text-muted mt-1 whitespace-pre-wrap">{{ item.note }}</p>
+                  <p class="info-text-body">
+                    #{{ item.order }} · {{ item.target }} · {{ item.decision }} · P{{ item.priority }}
+                  </p>
+                  <p
+                    v-if="item.note"
+                    class="info-text-muted mt-1 whitespace-pre-wrap"
+                  >
+                    {{ item.note }}
+                  </p>
                 </li>
               </ul>
             </div>
             <div class="info-map-card rounded border p-2">
-              <p class="info-text-muted text-xs">应用执行</p>
-              <p v-if="debugNoNameExecutions.length === 0" class="mt-2 text-xs info-text-muted">暂无应用执行</p>
-              <ul v-else class="mt-2 space-y-1">
+              <p class="info-text-muted text-xs">
+                应用执行
+              </p>
+              <p
+                v-if="debugNoNameExecutions.length === 0"
+                class="mt-2 text-xs info-text-muted"
+              >
+                暂无应用执行
+              </p>
+              <ul
+                v-else
+                class="mt-2 space-y-1"
+              >
                 <li
                   v-for="(item, index) in debugNoNameExecutions"
                   :key="`execution-${index}-${item.target}-${item.outcome}`"
                   class="rounded border px-2 py-1"
                 >
-                  <p class="info-text-body">{{ item.target }} · {{ item.outcome }}</p>
-                  <p v-if="item.note" class="info-text-muted mt-1 whitespace-pre-wrap">{{ item.note }}</p>
+                  <p class="info-text-body">
+                    {{ item.target }} · {{ item.outcome }}
+                  </p>
+                  <p
+                    v-if="item.note"
+                    class="info-text-muted mt-1 whitespace-pre-wrap"
+                  >
+                    {{ item.note }}
+                  </p>
                 </li>
               </ul>
             </div>
-            <p class="info-text-muted whitespace-pre-wrap">诊断：{{ debugDiagnostics || '无' }}</p>
-            <p class="info-text-muted whitespace-pre-wrap">Agent：{{ debugNoNameTrace || '无' }}</p>
+            <p class="info-text-muted whitespace-pre-wrap">
+              诊断：{{ debugDiagnostics || '无' }}
+            </p>
+            <p class="info-text-muted whitespace-pre-wrap">
+              Agent：{{ debugNoNameTrace || '无' }}
+            </p>
           </template>
         </section>
 
-        <section v-else class="space-y-3">
-          <StatusBanner v-if="systemError" kind="error" title="系统提示" :message="systemError" />
-          <p v-else class="info-text-muted text-sm">当前无系统提示。</p>
-          <UiButton v-if="systemError" size="sm" variant="danger" class="ink-ui-btn-danger" @click="$emit('clearError')">清除提示</UiButton>
+        <section
+          v-else
+          class="space-y-3"
+        >
+          <StatusBanner
+            v-if="systemError"
+            kind="error"
+            title="系统提示"
+            :message="systemError"
+          />
+          <p
+            v-else
+            class="info-text-muted text-sm"
+          >
+            当前无系统提示。
+          </p>
+          <UiButton
+            v-if="systemError"
+            size="sm"
+            variant="danger"
+            class="ink-ui-btn-danger"
+            @click="$emit('clearError')"
+          >
+            清除提示
+          </UiButton>
         </section>
       </div>
     </aside>

@@ -6,7 +6,11 @@
   >
     <section class="runtime-quick-dialog w-full max-w-2xl rounded-2xl p-4 sm:p-5">
       <header class="runtime-quick-head">
-        <div class="runtime-quick-tabs" role="tablist" aria-label="runtime quick panels">
+        <div
+          class="runtime-quick-tabs"
+          role="tablist"
+          aria-label="runtime quick panels"
+        >
           <button
             v-for="tab in tabs"
             :key="tab.id"
@@ -37,12 +41,25 @@
           >
             清空统计
           </button>
-          <button type="button" class="runtime-quick-close" @click="$emit('close')">关闭</button>
+          <button
+            type="button"
+            class="runtime-quick-close"
+            @click="$emit('close')"
+          >
+            关闭
+          </button>
         </div>
       </header>
       <section class="runtime-quick-body">
-        <h3 class="runtime-quick-title">{{ activePanel?.title || '' }}</h3>
-        <p v-if="activePanel?.subtitle" class="runtime-quick-subtitle">{{ activePanel.subtitle }}</p>
+        <h3 class="runtime-quick-title">
+          {{ activePanel?.title || '' }}
+        </h3>
+        <p
+          v-if="activePanel?.subtitle"
+          class="runtime-quick-subtitle"
+        >
+          {{ activePanel.subtitle }}
+        </p>
         <label class="runtime-quick-search-wrap">
           <span class="runtime-quick-search-label">筛选</span>
           <input
@@ -51,13 +68,24 @@
             type="text"
             class="runtime-quick-search"
             :placeholder="`搜索${activePanel?.label || ''}`"
-          />
+          >
         </label>
-        <p v-if="copyFeedback" class="runtime-quick-feedback">{{ copyFeedback }}</p>
-        <p v-if="!activePanel || filteredItems.length === 0" class="runtime-quick-empty">
+        <p
+          v-if="copyFeedback"
+          class="runtime-quick-feedback"
+        >
+          {{ copyFeedback }}
+        </p>
+        <p
+          v-if="!activePanel || filteredItems.length === 0"
+          class="runtime-quick-empty"
+        >
           {{ activePanel?.emptyText || '暂无数据。' }}
         </p>
-        <ul v-else class="runtime-quick-list">
+        <ul
+          v-else
+          class="runtime-quick-list"
+        >
           <li
             v-for="(item, idx) in filteredItems"
             :key="item.id"
@@ -70,22 +98,49 @@
           >
             <p class="runtime-quick-item-title">
               <span>
-                <template v-for="(part, pIdx) in highlightParts(item.title)" :key="`${item.id}-title-${pIdx}`">
-                  <mark v-if="part.matched" class="runtime-quick-mark">{{ part.text }}</mark>
+                <template
+                  v-for="(part, pIdx) in highlightParts(item.title)"
+                  :key="`${item.id}-title-${pIdx}`"
+                >
+                  <mark
+                    v-if="part.matched"
+                    class="runtime-quick-mark"
+                  >{{ part.text }}</mark>
                   <span v-else>{{ part.text }}</span>
                 </template>
               </span>
-              <span v-if="item.badge" class="runtime-quick-item-badge">{{ item.badge }}</span>
+              <span
+                v-if="item.badge"
+                class="runtime-quick-item-badge"
+              >{{ item.badge }}</span>
             </p>
-            <p v-if="item.description" class="runtime-quick-item-desc">
-              <template v-for="(part, pIdx) in highlightParts(item.description)" :key="`${item.id}-desc-${pIdx}`">
-                <mark v-if="part.matched" class="runtime-quick-mark">{{ part.text }}</mark>
+            <p
+              v-if="item.description"
+              class="runtime-quick-item-desc"
+            >
+              <template
+                v-for="(part, pIdx) in highlightParts(item.description)"
+                :key="`${item.id}-desc-${pIdx}`"
+              >
+                <mark
+                  v-if="part.matched"
+                  class="runtime-quick-mark"
+                >{{ part.text }}</mark>
                 <span v-else>{{ part.text }}</span>
               </template>
             </p>
-            <p v-if="item.meta" class="runtime-quick-item-meta">
-              <template v-for="(part, pIdx) in highlightParts(item.meta)" :key="`${item.id}-meta-${pIdx}`">
-                <mark v-if="part.matched" class="runtime-quick-mark">{{ part.text }}</mark>
+            <p
+              v-if="item.meta"
+              class="runtime-quick-item-meta"
+            >
+              <template
+                v-for="(part, pIdx) in highlightParts(item.meta)"
+                :key="`${item.id}-meta-${pIdx}`"
+              >
+                <mark
+                  v-if="part.matched"
+                  class="runtime-quick-mark"
+                >{{ part.text }}</mark>
                 <span v-else>{{ part.text }}</span>
               </template>
             </p>

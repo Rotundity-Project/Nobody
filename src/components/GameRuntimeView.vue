@@ -1,5 +1,8 @@
 ﻿<template>
-  <div class="game-shell h-screen overflow-hidden text-[var(--ink-text-primary)]" :class="activeThemeClass">
+  <div
+    class="game-shell h-screen overflow-hidden text-[var(--ink-text-primary)]"
+    :class="activeThemeClass"
+  >
     <div class="mx-auto flex h-full w-full max-w-[1380px] flex-col px-4 pb-4 pt-4 sm:px-7 sm:pb-6 sm:pt-5">
       <GameRuntimeTopBar
         :chapter-index-label="chapterIndexLabel"
@@ -25,7 +28,10 @@
             :player-root-type-label="playerRootTypeLabel"
             :player-root-label="playerRootLabel"
           />
-          <GameRuntimeWorldRegistryPanel v-bind="worldRegistryPanelProps" v-on="worldRegistryPanelListeners" />
+          <GameRuntimeWorldRegistryPanel
+            v-bind="worldRegistryPanelProps"
+            v-on="worldRegistryPanelListeners"
+          />
         </aside>
 
         <section class="runtime-panel runtime-main-panel">
@@ -51,14 +57,23 @@
         </section>
 
         <aside class="runtime-panel runtime-side-right">
-          <GameRuntimeInteractionCard v-bind="interactionCardProps" v-on="interactionCardListeners" />
+          <GameRuntimeInteractionCard
+            v-bind="interactionCardProps"
+            v-on="interactionCardListeners"
+          />
         </aside>
       </div>
 
-      <GameRuntimeBottomBar v-bind="bottomBarProps" v-on="bottomBarListeners" />
+      <GameRuntimeBottomBar
+        v-bind="bottomBarProps"
+        v-on="bottomBarListeners"
+      />
     </div>
 
-    <GameSystemDialogs v-bind="systemDialogsProps" v-on="systemDialogsListeners" />
+    <GameSystemDialogs
+      v-bind="systemDialogsProps"
+      v-on="systemDialogsListeners"
+    />
     <GameInfoCenterDialog
       :is-open="showInfoTabs"
       :game-store="gameStore"
@@ -85,7 +100,10 @@
       :character="gameStore.playerCharacter"
       @close="showCharacterInfo = false"
     />
-    <RuntimeQuickPanelsDialog v-bind="quickPanelsDialogProps" v-on="quickPanelsDialogListeners" />
+    <RuntimeQuickPanelsDialog
+      v-bind="quickPanelsDialogProps"
+      v-on="quickPanelsDialogListeners"
+    />
     <NotificationCenter
       v-if="runtimeNotifications.length > 0"
       :notifications="runtimeNotifications"

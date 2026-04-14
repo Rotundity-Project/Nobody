@@ -1,6 +1,11 @@
 ﻿<template>
   <div class="space-y-3 text-center">
-    <p v-if="message" class="continue-message text-sm">{{ message }}</p>
+    <p
+      v-if="message"
+      class="continue-message text-sm"
+    >
+      {{ message }}
+    </p>
     <button
       class="continue-btn rounded-lg px-4 py-2"
       @click="$emit('continue')"

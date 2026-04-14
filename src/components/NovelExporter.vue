@@ -4,7 +4,9 @@
     class="novel-export-panel rounded-2xl p-5 shadow-xl space-y-3"
   >
     <header class="flex items-center justify-between">
-      <h3 class="text-lg font-display novel-title">经历整理与导出</h3>
+      <h3 class="text-lg font-display novel-title">
+        经历整理与导出
+      </h3>
       <span class="text-xs novel-meta">事件数：{{ eventCount }}</span>
     </header>
 
@@ -14,21 +16,21 @@
         v-model="novelTitle"
         class="novel-input w-full rounded px-3 py-2 text-sm outline-none"
         placeholder="修仙旅程记录"
-      />
+      >
     </div>
 
     <div class="flex items-center gap-2">
       <button
-        @click="handleGenerate"
         :disabled="isGenerating"
         class="novel-btn novel-btn-primary rounded px-3 py-2 text-sm transition disabled:cursor-not-allowed"
+        @click="handleGenerate"
       >
         {{ isGenerating ? '整理中...' : '整理经历' }}
       </button>
       <button
-        @click="handleExport"
         :disabled="!novel || isExporting"
         class="novel-btn novel-btn-secondary rounded px-3 py-2 text-sm transition disabled:cursor-not-allowed"
+        @click="handleExport"
       >
         {{ isExporting ? '导出中...' : '导出经历 TXT' }}
       </button>
@@ -53,11 +55,23 @@
       :message="errorMessage"
     />
 
-    <div v-if="novel" class="novel-preview max-h-64 overflow-y-auto rounded p-3">
-      <h4 class="text-sm font-semibold novel-title">{{ novel.title }}</h4>
-      <p class="mt-2 text-xs novel-meta">章节数：{{ novel.chapters.length }}</p>
-      <div v-if="tocEntries.length > 0" class="novel-toc mt-3 rounded p-2">
-        <p class="text-xs uppercase tracking-[0.2em] novel-meta-strong">目录</p>
+    <div
+      v-if="novel"
+      class="novel-preview max-h-64 overflow-y-auto rounded p-3"
+    >
+      <h4 class="text-sm font-semibold novel-title">
+        {{ novel.title }}
+      </h4>
+      <p class="mt-2 text-xs novel-meta">
+        章节数：{{ novel.chapters.length }}
+      </p>
+      <div
+        v-if="tocEntries.length > 0"
+        class="novel-toc mt-3 rounded p-2"
+      >
+        <p class="text-xs uppercase tracking-[0.2em] novel-meta-strong">
+          目录
+        </p>
         <p
           v-for="entry in tocEntries"
           :key="`${entry.index}-${entry.title}`"
@@ -71,7 +85,9 @@
         :key="chapter.index"
         class="novel-chapter mt-3 pt-2"
       >
-        <h5 class="text-sm font-medium novel-meta-strong">{{ chapter.title }}</h5>
+        <h5 class="text-sm font-medium novel-meta-strong">
+          {{ chapter.title }}
+        </h5>
         <p class="mt-1 whitespace-pre-wrap text-sm novel-meta-strong font-story">
           {{ chapter.content }}
         </p>

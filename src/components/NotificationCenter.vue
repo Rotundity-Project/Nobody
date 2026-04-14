@@ -19,7 +19,9 @@
         :class="`notify-toast-${item.kind}`"
       >
         <div class="mb-1 flex items-center justify-between gap-3">
-          <p class="notify-title">{{ item.title }}</p>
+          <p class="notify-title">
+            {{ item.title }}
+          </p>
           <button
             class="notify-close-btn rounded px-2 py-0.5 text-xs"
             @click="emit('dismiss', item.id)"

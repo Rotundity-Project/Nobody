@@ -545,6 +545,7 @@ Extra constraints:\n\
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn build_turn_repair_prompt(
     registry: &WorldRegistry,
     game_state: &GameState,
@@ -729,7 +730,7 @@ fn extract_unmarked_named_entities(text: &str) -> Vec<String> {
             }
         }
         let len = candidate.chars().count();
-        if len < 2 || len > 5 {
+        if !(2..=5).contains(&len) {
             continue;
         }
         if candidate

@@ -393,6 +393,7 @@ impl ScriptManager {
         Ok(script)
     }
 
+    #[allow(dead_code)]
     fn parse_generated_script_response(&self, raw_text: &str) -> Result<Script> {
         if let Ok(script) = serde_json::from_str::<Script>(raw_text) {
             return Ok(script);

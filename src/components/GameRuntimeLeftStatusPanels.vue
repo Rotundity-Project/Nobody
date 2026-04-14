@@ -1,13 +1,23 @@
 <template>
   <section class="runtime-card">
-    <h3 class="runtime-card-title">系统中枢</h3>
+    <h3 class="runtime-card-title">
+      系统中枢
+    </h3>
     <p class="runtime-chapter-title">
       <span class="runtime-chapter-number">{{ chapterIndexLabel }}</span>
       <span class="runtime-chapter-name">{{ chapterNameLabel }}</span>
     </p>
-    <p class="runtime-sub-text">所在：{{ currentLocationLabel }}</p>
-    <div class="runtime-rhythm-badge" :class="rhythmToneClass">
-      <span class="runtime-rhythm-icon" aria-hidden="true">
+    <p class="runtime-sub-text">
+      所在：{{ currentLocationLabel }}
+    </p>
+    <div
+      class="runtime-rhythm-badge"
+      :class="rhythmToneClass"
+    >
+      <span
+        class="runtime-rhythm-icon"
+        aria-hidden="true"
+      >
         <svg
           v-if="chapterRhythmLabel === '推演'"
           viewBox="0 0 24 24"
@@ -16,9 +26,21 @@
           stroke="currentColor"
           stroke-width="1.8"
         >
-          <path stroke-linecap="round" stroke-linejoin="round" d="M4 16c2-5 4-8 8-8s6 3 8 8" />
-          <path stroke-linecap="round" stroke-linejoin="round" d="M7 10h10" />
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12" />
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M4 16c2-5 4-8 8-8s6 3 8 8"
+          />
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M7 10h10"
+          />
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M12 6v12"
+          />
         </svg>
         <svg
           v-else-if="chapterRhythmLabel === '凝思'"
@@ -28,8 +50,16 @@
           stroke="currentColor"
           stroke-width="1.8"
         >
-          <path stroke-linecap="round" stroke-linejoin="round" d="M6 16c1.2-2.2 2.8-3.6 6-3.6 3.4 0 5 1.4 6 3.6" />
-          <path stroke-linecap="round" stroke-linejoin="round" d="M6 12c1.2-2.2 2.8-3.6 6-3.6 3.4 0 5 1.4 6 3.6" />
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M6 16c1.2-2.2 2.8-3.6 6-3.6 3.4 0 5 1.4 6 3.6"
+          />
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M6 12c1.2-2.2 2.8-3.6 6-3.6 3.4 0 5 1.4 6 3.6"
+          />
         </svg>
         <svg
           v-else
@@ -39,8 +69,16 @@
           stroke="currentColor"
           stroke-width="1.8"
         >
-          <path stroke-linecap="round" stroke-linejoin="round" d="M4 12c2.8-2.2 4.4-2.2 7.2 0 2.8 2.2 4.4 2.2 7.2 0" />
-          <path stroke-linecap="round" stroke-linejoin="round" d="M6 8c1.6-1.4 2.8-1.4 4.4 0" />
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M4 12c2.8-2.2 4.4-2.2 7.2 0 2.8 2.2 4.4 2.2 7.2 0"
+          />
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M6 8c1.6-1.4 2.8-1.4 4.4 0"
+          />
         </svg>
       </span>
       <span class="runtime-rhythm-label">节奏</span>
@@ -49,15 +87,26 @@
   </section>
 
   <section class="runtime-card">
-    <h3 class="runtime-card-title">人物</h3>
-    <p class="runtime-body-text">{{ playerRealmLabel }}</p>
-    <div v-if="playerRootElements.length > 0" class="runtime-root-line">
+    <h3 class="runtime-card-title">
+      人物
+    </h3>
+    <p class="runtime-body-text">
+      {{ playerRealmLabel }}
+    </p>
+    <div
+      v-if="playerRootElements.length > 0"
+      class="runtime-root-line"
+    >
       <div
         v-for="item in playerRootElements"
         :key="item.element"
         class="runtime-root-item"
       >
-        <span class="runtime-root-icon" :class="item.colorClass" aria-hidden="true">
+        <span
+          class="runtime-root-icon"
+          :class="item.colorClass"
+          aria-hidden="true"
+        >
           <svg
             v-if="item.element === 'Earth'"
             viewBox="0 0 24 24"
@@ -66,7 +115,11 @@
             stroke="currentColor"
             stroke-width="1.8"
           >
-            <path stroke-linecap="round" stroke-linejoin="round" d="M3 18h18L16 8h-8L3 18Z" />
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M3 18h18L16 8h-8L3 18Z"
+            />
           </svg>
           <svg
             v-else-if="item.element === 'Metal'"
@@ -76,8 +129,16 @@
             stroke="currentColor"
             stroke-width="1.8"
           >
-            <circle cx="12" cy="12" r="6.5" />
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 5.5v13M5.5 12h13" />
+            <circle
+              cx="12"
+              cy="12"
+              r="6.5"
+            />
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M12 5.5v13M5.5 12h13"
+            />
           </svg>
           <svg
             v-else-if="item.element === 'Wood'"
@@ -87,9 +148,21 @@
             stroke="currentColor"
             stroke-width="1.8"
           >
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 20V8" />
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 10c3.5 0 5-2 5-4-3 0-5 1.8-5 4Z" />
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 13c-3.5 0-5-2-5-4 3 0 5 1.8 5 4Z" />
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M12 20V8"
+            />
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M12 10c3.5 0 5-2 5-4-3 0-5 1.8-5 4Z"
+            />
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M12 13c-3.5 0-5-2-5-4 3 0 5 1.8 5 4Z"
+            />
           </svg>
           <svg
             v-else-if="item.element === 'Water'"
@@ -99,7 +172,11 @@
             stroke="currentColor"
             stroke-width="1.8"
           >
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4c3.6 4.2 5.5 7 5.5 9.5A5.5 5.5 0 0 1 12 19a5.5 5.5 0 0 1-5.5-5.5C6.5 11 8.4 8.2 12 4Z" />
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M12 4c3.6 4.2 5.5 7 5.5 9.5A5.5 5.5 0 0 1 12 19a5.5 5.5 0 0 1-5.5-5.5C6.5 11 8.4 8.2 12 4Z"
+            />
           </svg>
           <svg
             v-else
@@ -109,14 +186,26 @@
             stroke="currentColor"
             stroke-width="1.8"
           >
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4c2.5 2 4.5 4.2 4.5 6.8 0 3.4-2.5 5.8-4.5 9.2-2-3.4-4.5-5.8-4.5-9.2C7.5 8.2 9.5 6 12 4Z" />
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M12 4c2.5 2 4.5 4.2 4.5 6.8 0 3.4-2.5 5.8-4.5 9.2-2-3.4-4.5-5.8-4.5-9.2C7.5 8.2 9.5 6 12 4Z"
+            />
           </svg>
         </span>
-        <span class="runtime-root-name" :class="item.colorClass">{{ item.label }}</span>
+        <span
+          class="runtime-root-name"
+          :class="item.colorClass"
+        >{{ item.label }}</span>
       </div>
       <span class="runtime-root-type">{{ playerRootTypeLabel }}</span>
     </div>
-    <p v-else class="runtime-sub-text">{{ playerRootLabel }}</p>
+    <p
+      v-else
+      class="runtime-sub-text"
+    >
+      {{ playerRootLabel }}
+    </p>
   </section>
 </template>
 

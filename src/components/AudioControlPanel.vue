@@ -1,9 +1,16 @@
 ﻿<template>
   <div class="audio-panel space-y-4">
-    <div v-if="showSwitches" class="flex items-center justify-between">
+    <div
+      v-if="showSwitches"
+      class="flex items-center justify-between"
+    >
       <div>
-        <p class="text-sm text-[var(--ink-text-primary)]">背景音乐</p>
-        <p class="text-xs text-[var(--ink-text-muted)]">控制环境氛围与场景铺垫</p>
+        <p class="text-sm text-[var(--ink-text-primary)]">
+          背景音乐
+        </p>
+        <p class="text-xs text-[var(--ink-text-muted)]">
+          控制环境氛围与场景铺垫
+        </p>
       </div>
       <button
         data-testid="toggle-bgm-btn"
@@ -15,10 +22,17 @@
       </button>
     </div>
 
-    <div v-if="showSwitches" class="flex items-center justify-between">
+    <div
+      v-if="showSwitches"
+      class="flex items-center justify-between"
+    >
       <div>
-        <p class="text-sm text-[var(--ink-text-primary)]">界面音效</p>
-        <p class="text-xs text-[var(--ink-text-muted)]">按钮点击与交互提示音</p>
+        <p class="text-sm text-[var(--ink-text-primary)]">
+          界面音效
+        </p>
+        <p class="text-xs text-[var(--ink-text-muted)]">
+          按钮点击与交互提示音
+        </p>
       </div>
       <button
         data-testid="toggle-sfx-btn"
@@ -32,7 +46,9 @@
 
     <div>
       <div class="flex items-center justify-between">
-        <p class="text-sm text-[var(--ink-text-primary)]">总音量</p>
+        <p class="text-sm text-[var(--ink-text-primary)]">
+          总音量
+        </p>
         <span class="text-xs text-[var(--ink-text-muted)]">{{ Math.round(settings.master * 100) }}%</span>
       </div>
       <input
@@ -44,29 +60,37 @@
         step="0.01"
         class="audio-range mt-2 w-full"
         @input="updateMaster"
-      />
+      >
 
       <div class="mt-2 flex flex-wrap gap-2">
         <button
           data-testid="volume-preset-low"
           class="audio-chip-btn"
           @click="setMasterPreset(0.25)"
-        >低</button>
+        >
+          低
+        </button>
         <button
           data-testid="volume-preset-mid"
           class="audio-chip-btn"
           @click="setMasterPreset(0.55)"
-        >中</button>
+        >
+          中
+        </button>
         <button
           data-testid="volume-preset-high"
           class="audio-chip-btn"
           @click="setMasterPreset(0.8)"
-        >高</button>
+        >
+          高
+        </button>
         <button
           data-testid="volume-toggle-mute"
           class="audio-chip-btn audio-chip-btn-accent"
           @click="toggleMute"
-        >{{ isMuted ? '恢复音量' : '静音' }}</button>
+        >
+          {{ isMuted ? '恢复音量' : '静音' }}
+        </button>
       </div>
     </div>
   </div>

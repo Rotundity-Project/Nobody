@@ -1,6 +1,12 @@
 <template>
-  <div ref="containerRef" class="relative w-full">
-    <div v-if="!useVirtualization" class="space-y-4">
+  <div
+    ref="containerRef"
+    class="relative w-full"
+  >
+    <div
+      v-if="!useVirtualization"
+      class="space-y-4"
+    >
       <p
         v-for="(text, idx) in paragraphs"
         :key="idx"
@@ -10,12 +16,15 @@
         {{ text }}
       </p>
     </div>
-    <div v-else :style="{ height: `${totalHeight}px` }">
+    <div
+      v-else
+      :style="{ height: `${totalHeight}px` }"
+    >
       <div :style="{ transform: `translateY(${topPadding}px)` }">
         <p
-        v-for="(text, idx) in visibleItems"
-        :key="visibleStart + idx"
-        :data-paragraph-index="visibleStart + idx + 1"
+          v-for="(text, idx) in visibleItems"
+          :key="visibleStart + idx"
+          :data-paragraph-index="visibleStart + idx + 1"
           class="font-story text-base leading-[1.7] whitespace-pre-wrap indent-[2em] text-[var(--ink-text-primary)]"
         >
           {{ text }}

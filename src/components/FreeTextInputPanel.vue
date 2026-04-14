@@ -1,5 +1,8 @@
 ﻿<template>
-  <div v-if="visible" class="free-text-panel">
+  <div
+    v-if="visible"
+    class="free-text-panel"
+  >
     <textarea
       :value="modelValue"
       :disabled="disabled"

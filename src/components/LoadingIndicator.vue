@@ -9,21 +9,43 @@
           'h-6 w-6': size === 'md',
           'h-8 w-8': size === 'lg',
         }"
-      ></div>
+      />
       <div class="text-left">
-        <p :style="messageStyle">{{ message }}</p>
-        <p v-if="detail" class="text-xs" :style="detailStyle">{{ detail }}</p>
+        <p :style="messageStyle">
+          {{ message }}
+        </p>
+        <p
+          v-if="detail"
+          class="text-xs"
+          :style="detailStyle"
+        >
+          {{ detail }}
+        </p>
       </div>
     </div>
-    <div class="h-1.5 overflow-hidden rounded-full" :style="progressTrackStyle" aria-hidden="true">
+    <div
+      class="h-1.5 overflow-hidden rounded-full"
+      :style="progressTrackStyle"
+      aria-hidden="true"
+    >
       <div
         v-if="progressPercent !== null"
         class="h-full rounded-full transition-all duration-300"
         :style="{ ...progressFillStyle, width: `${progressPercent}%` }"
-      ></div>
-      <div v-else class="loading-bar h-full w-1/3 rounded-full" :style="progressFillStyle"></div>
+      />
+      <div
+        v-else
+        class="loading-bar h-full w-1/3 rounded-full"
+        :style="progressFillStyle"
+      />
     </div>
-    <p v-if="progressText" class="text-xs" :style="detailStyle">{{ progressText }}</p>
+    <p
+      v-if="progressText"
+      class="text-xs"
+      :style="detailStyle"
+    >
+      {{ progressText }}
+    </p>
   </div>
 </template>
 

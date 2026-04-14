@@ -1,13 +1,23 @@
 <template>
   <section class="runtime-card">
     <div class="flex items-center justify-between gap-2">
-      <h3 class="runtime-card-title">世界属性表</h3>
-      <button type="button" class="runtime-bottom-btn px-2 py-1 text-[11px]" @click="emit('refresh')">
+      <h3 class="runtime-card-title">
+        世界属性表
+      </h3>
+      <button
+        type="button"
+        class="runtime-bottom-btn px-2 py-1 text-[11px]"
+        @click="emit('refresh')"
+      >
         刷新
       </button>
     </div>
-    <p class="runtime-sub-text">会话：{{ sessionLabel }}</p>
-    <p class="runtime-sub-text">来源：{{ sourceLabel }}</p>
+    <p class="runtime-sub-text">
+      会话：{{ sessionLabel }}
+    </p>
+    <p class="runtime-sub-text">
+      来源：{{ sourceLabel }}
+    </p>
 
     <div class="runtime-dev-muted mt-2 grid grid-cols-2 gap-2 text-xs">
       <p>人物：{{ counts.characters }}</p>
@@ -21,12 +31,16 @@
     </div>
 
     <details class="mt-2">
-      <summary class="runtime-dev-muted cursor-pointer text-xs">查看 JSON 预览</summary>
+      <summary class="runtime-dev-muted cursor-pointer text-xs">
+        查看 JSON 预览
+      </summary>
       <pre class="runtime-dev-preview runtime-dev-text mt-2 max-h-40 overflow-auto rounded-lg p-2 text-[10px] leading-4">{{ preview }}</pre>
     </details>
 
     <details class="mt-2">
-      <summary class="runtime-dev-muted cursor-pointer text-xs">提交 Patch(JSON)</summary>
+      <summary class="runtime-dev-muted cursor-pointer text-xs">
+        提交 Patch(JSON)
+      </summary>
       <textarea
         :value="patchInput"
         class="runtime-dev-field runtime-dev-text mt-2 min-h-[120px] w-full rounded-lg border p-2 text-[11px] leading-4"
@@ -42,15 +56,26 @@
         >
           {{ patchSubmitting ? '提交中...' : '提交补丁' }}
         </button>
-        <button type="button" class="runtime-bottom-btn px-2 py-1 text-[11px]" @click="emit('reset-template')">
+        <button
+          type="button"
+          class="runtime-bottom-btn px-2 py-1 text-[11px]"
+          @click="emit('reset-template')"
+        >
           重置模板
         </button>
       </div>
-      <p v-if="patchError" class="runtime-dev-error mt-1 text-xs">{{ patchError }}</p>
+      <p
+        v-if="patchError"
+        class="runtime-dev-error mt-1 text-xs"
+      >
+        {{ patchError }}
+      </p>
     </details>
 
     <details class="mt-2">
-      <summary class="runtime-dev-muted cursor-pointer text-xs">按表追加一行</summary>
+      <summary class="runtime-dev-muted cursor-pointer text-xs">
+        按表追加一行
+      </summary>
       <div class="mt-2 space-y-2 text-xs">
         <label class="flex flex-col gap-1">
           <span class="runtime-dev-muted">目标表</span>
@@ -59,7 +84,11 @@
             class="runtime-dev-field runtime-dev-text rounded-lg border px-2 py-1 text-[12px]"
             @change="onSelectedTableChange"
           >
-            <option v-for="item in tableOptions" :key="item" :value="item">{{ item }}</option>
+            <option
+              v-for="item in tableOptions"
+              :key="item"
+              :value="item"
+            >{{ item }}</option>
           </select>
         </label>
 
@@ -74,13 +103,26 @@
         </label>
 
         <div class="flex items-center gap-2">
-          <button type="button" class="runtime-bottom-btn px-2 py-1 text-[11px]" :disabled="patchSubmitting" @click="emit('append-row')">
+          <button
+            type="button"
+            class="runtime-bottom-btn px-2 py-1 text-[11px]"
+            :disabled="patchSubmitting"
+            @click="emit('append-row')"
+          >
             追加一行
           </button>
-          <button type="button" class="runtime-bottom-btn px-2 py-1 text-[11px]" @click="emit('load-first-template')">
+          <button
+            type="button"
+            class="runtime-bottom-btn px-2 py-1 text-[11px]"
+            @click="emit('load-first-template')"
+          >
             从首行载入模板
           </button>
-          <button type="button" class="runtime-bottom-btn px-2 py-1 text-[11px]" @click="emit('load-minimal-template')">
+          <button
+            type="button"
+            class="runtime-bottom-btn px-2 py-1 text-[11px]"
+            @click="emit('load-minimal-template')"
+          >
             最小合法模板
           </button>
         </div>
@@ -93,13 +135,33 @@
             min="0"
             class="runtime-dev-field runtime-dev-text w-28 rounded-lg border px-2 py-1 text-[12px]"
             @input="onSelectedIndexInput"
-          />
+          >
         </label>
 
         <div class="flex items-center gap-2">
-          <button type="button" class="runtime-bottom-btn px-2 py-1 text-[11px]" @click="emit('load-row-by-index')">载入该行</button>
-          <button type="button" class="runtime-bottom-btn px-2 py-1 text-[11px]" :disabled="patchSubmitting" @click="emit('replace-row')">替换该行</button>
-          <button type="button" class="runtime-bottom-btn px-2 py-1 text-[11px]" :disabled="patchSubmitting" @click="emit('delete-row')">删除该行</button>
+          <button
+            type="button"
+            class="runtime-bottom-btn px-2 py-1 text-[11px]"
+            @click="emit('load-row-by-index')"
+          >
+            载入该行
+          </button>
+          <button
+            type="button"
+            class="runtime-bottom-btn px-2 py-1 text-[11px]"
+            :disabled="patchSubmitting"
+            @click="emit('replace-row')"
+          >
+            替换该行
+          </button>
+          <button
+            type="button"
+            class="runtime-bottom-btn px-2 py-1 text-[11px]"
+            :disabled="patchSubmitting"
+            @click="emit('delete-row')"
+          >
+            删除该行
+          </button>
         </div>
 
         <label class="flex flex-col gap-1">
@@ -109,25 +171,56 @@
             type="text"
             class="runtime-dev-field runtime-dev-text w-40 rounded-lg border px-2 py-1 text-[12px]"
             @input="onKeyFieldInput"
-          />
+          >
         </label>
 
         <div class="flex items-center gap-2">
-          <button type="button" class="runtime-bottom-btn px-2 py-1 text-[11px]" :disabled="patchSubmitting" @click="emit('upsert-by-key')">
+          <button
+            type="button"
+            class="runtime-bottom-btn px-2 py-1 text-[11px]"
+            :disabled="patchSubmitting"
+            @click="emit('upsert-by-key')"
+          >
             按主键更新/新增
           </button>
         </div>
 
-        <p v-if="rowError" class="runtime-dev-error text-xs">{{ rowError }}</p>
+        <p
+          v-if="rowError"
+          class="runtime-dev-error text-xs"
+        >
+          {{ rowError }}
+        </p>
 
         <div class="runtime-dev-preview mt-1 rounded-lg p-2">
-          <p class="runtime-dev-muted text-[11px]">当前表预览（{{ rowItems.length }} 行）</p>
+          <p class="runtime-dev-muted text-[11px]">
+            当前表预览（{{ rowItems.length }} 行）
+          </p>
           <ul class="runtime-dev-text mt-1 max-h-28 overflow-auto space-y-1 text-[11px]">
-            <li v-for="item in rowItemsPaged" :key="`${item.index}-${item.label}`">[{{ item.index }}] {{ item.label }}</li>
+            <li
+              v-for="item in rowItemsPaged"
+              :key="`${item.index}-${item.label}`"
+            >
+              [{{ item.index }}] {{ item.label }}
+            </li>
           </ul>
           <div class="mt-1 flex items-center gap-2">
-            <button type="button" class="runtime-bottom-btn px-2 py-1 text-[11px]" :disabled="!canPrevPage" @click="emit('prev-page')">上一页</button>
-            <button type="button" class="runtime-bottom-btn px-2 py-1 text-[11px]" :disabled="!canNextPage" @click="emit('next-page')">下一页</button>
+            <button
+              type="button"
+              class="runtime-bottom-btn px-2 py-1 text-[11px]"
+              :disabled="!canPrevPage"
+              @click="emit('prev-page')"
+            >
+              上一页
+            </button>
+            <button
+              type="button"
+              class="runtime-bottom-btn px-2 py-1 text-[11px]"
+              :disabled="!canNextPage"
+              @click="emit('next-page')"
+            >
+              下一页
+            </button>
           </div>
         </div>
       </div>

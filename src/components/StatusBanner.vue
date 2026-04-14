@@ -1,7 +1,18 @@
 ﻿<template>
-  <div :class="wrapperClass" role="status" aria-live="polite">
-    <p class="status-title">{{ title }}</p>
-    <p v-if="message" class="status-message">{{ message }}</p>
+  <div
+    :class="wrapperClass"
+    role="status"
+    aria-live="polite"
+  >
+    <p class="status-title">
+      {{ title }}
+    </p>
+    <p
+      v-if="message"
+      class="status-message"
+    >
+      {{ message }}
+    </p>
   </div>
 </template>
 

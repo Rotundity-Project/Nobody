@@ -1868,11 +1868,11 @@ impl PlotEngine {
         let normalize_sentence = |input: &str| -> String {
             input
                 .trim()
-                .trim_end_matches(|ch| matches!(ch, '。' | '！' | '？' | '；' | '.' | '!' | '?'))
+                .trim_end_matches(['。', '！', '？', '；', '.', '!', '?'])
                 .trim()
                 .to_string()
         };
-        let lines = vec![
+        let lines = [
             normalize_sentence(&skeleton.scene),
             normalize_sentence(&skeleton.event),
             normalize_sentence(&skeleton.conflict),
