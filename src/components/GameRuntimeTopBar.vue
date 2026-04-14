@@ -1,25 +1,44 @@
 ﻿<template>
   <header class="runtime-topbar">
     <div class="runtime-top-left">
-      <button type="button" class="runtime-seal-btn" @click="$emit('back-to-menu')">返</button>
-      <p class="runtime-brand">NOBODY</p>
+      <button
+        type="button"
+        class="runtime-seal-btn"
+        @click="$emit('back-to-menu')"
+      >
+        返
+      </button>
+      <p class="runtime-brand">
+        NOBODY
+      </p>
     </div>
     <div class="runtime-top-center">
       <p class="runtime-top-main">
         <span class="runtime-chapter-number">{{ chapterIndexLabel }}</span>
         <span class="runtime-chapter-name">{{ chapterNameLabel }}</span>
       </p>
-      <span class="runtime-state-badge" :class="interactionStateToneClass">
-        <span class="runtime-state-dot" aria-hidden="true"></span>
+      <span
+        class="runtime-state-badge"
+        :class="interactionStateToneClass"
+      >
+        <span
+          class="runtime-state-dot"
+          aria-hidden="true"
+        />
         <span class="runtime-state-label">{{ interactionStateLabel }}</span>
       </span>
     </div>
     <div class="runtime-top-right">
       <p>{{ gameTimeLabel }}</p>
-      <p class="runtime-resource-pill">灵石 · {{ spiritStoneLabel }}</p>
-      <p v-if="characterCreationDurationLabel" class="runtime-top-meta">
-        创建角色耗时 · {{ characterCreationDurationLabel }}
-      </p>
+      <p
+        class="runtime-resource-pill"
+        v-text="`灵石 · ${spiritStoneLabel}`"
+      />
+      <p
+        v-if="characterCreationDurationLabel"
+        class="runtime-top-meta"
+        v-text="`创建角色耗时 · ${characterCreationDurationLabel}`"
+      />
     </div>
   </header>
 </template>

@@ -1,5 +1,8 @@
 ﻿<template>
-  <div class="panel-surface rounded-2xl" :class="paddingClass">
+  <div
+    class="panel-surface rounded-2xl"
+    :class="paddingClass"
+  >
     <slot />
   </div>
 </template>

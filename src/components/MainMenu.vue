@@ -1,5 +1,8 @@
 ﻿<template>
-  <div class="main-menu-shell min-h-screen px-4 py-8 sm:px-6 sm:py-10" :class="activeThemeClass">
+  <div
+    class="main-menu-shell min-h-screen px-4 py-8 sm:px-6 sm:py-10"
+    :class="activeThemeClass"
+  >
     <div class="main-menu-guide">
       建议流程：新游戏 -> 选择剧本 -> 进入主界面推进剧情
     </div>
@@ -20,11 +23,17 @@
       aria-atomic="true"
     >
       <div class="web-onboarding-header">
-        <h2 class="web-onboarding-title">Web 体验指引</h2>
+        <h2 class="web-onboarding-title">
+          Web 体验指引
+        </h2>
         <span class="web-onboarding-tag">Mock Runtime</span>
       </div>
-      <p class="web-onboarding-text">当前是浏览器试玩模式，建议先走一轮主流程：</p>
-      <p class="web-onboarding-text">新游戏 -> 随机生成 -> 进入主界面 -> 选择任意选项继续。</p>
+      <p class="web-onboarding-text">
+        当前是浏览器试玩模式，建议先走一轮主流程：
+      </p>
+      <p class="web-onboarding-text">
+        新游戏 -> 随机生成 -> 进入主界面 -> 选择任意选项继续。
+      </p>
       <div class="web-onboarding-actions">
         <button
           type="button"
@@ -99,8 +108,12 @@
 
       <main class="menu-main-stage">
         <header class="main-menu-header">
-          <p class="main-menu-en-title">NOBODY</p>
-          <p class="main-menu-cn-title">小人物</p>
+          <p class="main-menu-en-title">
+            NOBODY
+          </p>
+          <p class="main-menu-cn-title">
+            小人物
+          </p>
           <button
             type="button"
             class="main-menu-seal"
@@ -110,10 +123,17 @@
             <span>无名印</span>
           </button>
         </header>
-        <p v-if="mainSealWhisper" class="main-menu-seal-whisper">{{ mainSealWhisper }}</p>
+        <p
+          v-if="mainSealWhisper"
+          class="main-menu-seal-whisper"
+        >
+          {{ mainSealWhisper }}
+        </p>
 
         <section class="menu-card mt-6">
-          <h2 class="menu-card-title">最近存档</h2>
+          <h2 class="menu-card-title">
+            最近存档
+          </h2>
           <p
             v-if="latestSave"
             id="latest-save-summary"
@@ -132,6 +152,12 @@
               </span>
               <span class="menu-chip">
                 时间：{{ latestSaveGameTimeLabel }}
+              </span>
+              <span
+                v-if="latestSaveNoNameModeLabel"
+                class="menu-chip"
+              >
+                NoName：{{ latestSaveNoNameModeLabel }}
               </span>
             </span>
             <span class="menu-text-muted mt-1 block text-xs">
@@ -215,12 +241,25 @@
         :aria-busy="recentSaveLoading ? 'true' : 'false'"
       >
         <header class="menu-dialog-header">
-          <h2 class="menu-card-title">读取存档</h2>
-          <button type="button" class="menu-inline-btn" @click="showSavePanel = false">关闭</button>
+          <h2 class="menu-card-title">
+            读取存档
+          </h2>
+          <button
+            type="button"
+            class="menu-inline-btn"
+            @click="showSavePanel = false"
+          >
+            关闭
+          </button>
         </header>
         <div class="menu-dialog-body">
           <aside class="menu-dialog-left">
-            <p id="save-actions-heading" class="menu-sub-title">存档槽位</p>
+            <p
+              id="save-actions-heading"
+              class="menu-sub-title"
+            >
+              存档槽位
+            </p>
             <div
               data-testid="save-actions-group"
               class="mt-2 grid gap-2"
@@ -237,8 +276,19 @@
                 @click="selectedSaveSlotId = slot.slot_id"
               >
                 槽位 {{ slot.slot_id }} · {{ normalizeSaveText(slot.player_name, '未命名角色') }}
+                <span
+                  v-if="formatNoNameModeLabel(slot.noname_mode)"
+                  class="menu-text-muted text-[11px]"
+                >
+                  · NoName：{{ formatNoNameModeLabel(slot.noname_mode) }}
+                </span>
               </button>
-              <p v-if="saveSlots.length === 0" class="menu-text-muted text-xs">暂无存档槽位</p>
+              <p
+                v-if="saveSlots.length === 0"
+                class="menu-text-muted text-xs"
+              >
+                暂无存档槽位
+              </p>
             </div>
             <button
               type="button"
@@ -261,8 +311,13 @@
             </button>
           </aside>
           <section class="menu-dialog-right">
-            <p class="menu-sub-title">存档信息</p>
-            <p v-if="selectedSaveSlot" class="menu-text-primary mt-2 text-sm leading-6">
+            <p class="menu-sub-title">
+              存档信息
+            </p>
+            <p
+              v-if="selectedSaveSlot"
+              class="menu-text-primary mt-2 text-sm leading-6"
+            >
               槽位 {{ selectedSaveSlot.slot_id }} · {{ normalizeSaveText(selectedSaveSlot.player_name, '未命名角色') }}
               · {{ normalizeSaveText(selectedSaveSlot.realm, '境界未知') }}
               <span class="menu-text-muted mt-1 block text-xs">
@@ -270,9 +325,17 @@
                   位置：{{ formatLocationLabel(selectedSaveSlot.location) }} ·
                 </template>
                 时间：{{ normalizeSaveText(selectedSaveSlot.game_time, '时间未知') }}
+                <template v-if="selectedSaveNoNameModeLabel">
+                  · NoName：{{ selectedSaveNoNameModeLabel }}
+                </template>
               </span>
             </p>
-            <p v-else class="menu-text-muted mt-2 text-sm">请选择左侧存档槽。</p>
+            <p
+              v-else
+              class="menu-text-muted mt-2 text-sm"
+            >
+              请选择左侧存档槽。
+            </p>
             <div class="mt-4 flex flex-wrap gap-2">
               <button
                 type="button"
@@ -310,12 +373,25 @@
     >
       <section class="menu-dialog">
         <header class="menu-dialog-header">
-          <h2 class="menu-card-title">游戏设置</h2>
-          <button type="button" class="menu-inline-btn" @click="showAudioPanel = false">关闭</button>
+          <h2 class="menu-card-title">
+            游戏设置
+          </h2>
+          <button
+            type="button"
+            class="menu-inline-btn"
+            @click="showAudioPanel = false"
+          >
+            关闭
+          </button>
         </header>
         <div class="menu-dialog-body">
           <aside class="menu-dialog-left">
-            <p id="quick-audio-heading" class="menu-sub-title">设置分组</p>
+            <p
+              id="quick-audio-heading"
+              class="menu-sub-title"
+            >
+              设置分组
+            </p>
             <div class="mt-2 grid gap-2">
               <button
                 type="button"
@@ -341,12 +417,22 @@
     >
       <section class="menu-dialog">
         <header class="menu-dialog-header">
-          <h2 class="menu-card-title">LLM 设置</h2>
-          <button type="button" class="menu-inline-btn" @click="showLLMDialog = false">关闭</button>
+          <h2 class="menu-card-title">
+            LLM 设置
+          </h2>
+          <button
+            type="button"
+            class="menu-inline-btn"
+            @click="showLLMDialog = false"
+          >
+            关闭
+          </button>
         </header>
         <div class="menu-dialog-body">
           <aside class="menu-dialog-left">
-            <p class="menu-sub-title">设置分组</p>
+            <p class="menu-sub-title">
+              设置分组
+            </p>
             <div class="mt-2 grid gap-2">
               <button
                 type="button"
@@ -358,7 +444,11 @@
           </aside>
           <section class="menu-dialog-right">
             <div class="menu-sub-card">
-              <LLMConfigDialog :is-open="showLLMDialog" inline @close="showLLMDialog = false" />
+              <LLMConfigDialog
+                :is-open="showLLMDialog"
+                inline
+                @close="showLLMDialog = false"
+              />
             </div>
           </section>
         </div>
@@ -437,6 +527,12 @@ const normalizeSaveText = (value: string | null | undefined, fallback: string): 
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : fallback;
 };
+const formatNoNameModeLabel = (mode?: SaveInfo['noname_mode'] | null): string => {
+  if (!mode) return '';
+  if (mode === 'disabled') return '关闭';
+  if (mode === 'assisted') return '辅助';
+  return '观察';
+};
 const latestSavePlayerLabel = computed(() =>
   normalizeSaveText(latestSave.value?.player_name, '未命名角色'),
 );
@@ -445,6 +541,9 @@ const latestSaveRealmLabel = computed(() =>
 );
 const latestSaveGameTimeLabel = computed(() =>
   normalizeSaveText(latestSave.value?.game_time, '时间未知'),
+);
+const latestSaveNoNameModeLabel = computed(() =>
+  formatNoNameModeLabel(latestSave.value?.noname_mode),
 );
 const latestSaveLocationLabel = computed(() => formatLocationLabel(latestSave.value?.location));
 const showLatestSaveLocationTag = computed(
@@ -456,6 +555,9 @@ const selectedSaveSlot = computed(() => {
   }
   return saveSlots.value.find((slot) => slot.slot_id === selectedSaveSlotId.value) ?? latestSave.value;
 });
+const selectedSaveNoNameModeLabel = computed(() =>
+  formatNoNameModeLabel(selectedSaveSlot.value?.noname_mode),
+);
 const latestSaveTimestampLabel = computed(() => {
   const ts = latestSave.value?.timestamp;
   if (!ts || !Number.isFinite(ts)) {

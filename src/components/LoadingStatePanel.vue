@@ -7,13 +7,25 @@
       :progress-text="progressText"
       size="lg"
     />
-    <p v-if="stage" class="loading-meta text-xs">当前阶段：{{ stage }}</p>
-    <p v-if="elapsedLabel" class="loading-meta text-[11px]">{{ elapsedLabel }}</p>
+    <p
+      v-if="stage"
+      class="loading-meta text-xs"
+    >
+      当前阶段：{{ stage }}
+    </p>
+    <p
+      v-if="elapsedLabel"
+      class="loading-meta text-[11px]"
+    >
+      {{ elapsedLabel }}
+    </p>
     <div
       v-if="canStopAutoAdvance"
       class="space-y-2"
     >
-      <p class="loading-hint text-xs">自动推进进行中，可随时中断并回到手动控制。</p>
+      <p class="loading-hint text-xs">
+        自动推进进行中，可随时中断并回到手动控制。
+      </p>
       <button
         class="loading-stop-btn rounded px-3 py-1 text-xs"
         @click="$emit('stop-auto-advance')"

@@ -1,26 +1,50 @@
-﻿pub mod game_engine;
-pub mod game_state;
-pub mod event_log;
 pub mod app_error;
 pub mod combat_style_rules;
 pub mod context_builder;
 pub mod entity_store;
 pub mod entity_types;
 pub mod entity_validator;
+pub mod event_log;
+pub mod game_engine;
+pub mod game_state;
+pub mod llm_bootstrap;
 pub mod llm_runtime_config;
 pub mod llm_service;
-pub mod llm_bootstrap;
-pub mod memory_manager;
 pub mod memory_layers;
+pub mod memory_manager;
 pub mod models;
-pub mod npc;
-pub mod npc_engine;
+pub mod noname_capability_base;
+pub mod noname_capability_registry;
+pub mod noname_config;
+pub mod noname_context_builder;
+pub mod noname_context_types;
+pub mod noname_errors;
+pub mod noname_graph;
+pub mod noname_guardrails;
+pub mod noname_memory_manager;
+pub mod noname_memory_retrieval;
+pub mod noname_memory_store;
+pub mod noname_memory_types;
+pub mod noname_note_store;
+pub mod noname_prompt_catalog;
+pub mod noname_prompts;
+pub mod noname_protocol_agent;
+pub mod noname_protocol_tool;
+pub mod noname_protocol_types;
+pub mod noname_resources;
+pub mod noname_roles;
+pub mod noname_runtime;
+pub mod noname_tools;
+pub mod noname_trace;
+pub mod noname_types;
 pub mod novel_generator;
 pub mod novel_parser;
+pub mod npc;
+pub mod npc_engine;
 pub mod numeric_guard;
 pub mod numerical_system;
-pub mod plot_engine;
 pub mod plot_consistency;
+pub mod plot_engine;
 pub mod prompt_builder;
 pub mod response_validator;
 pub mod runtime_prompt_baseline;
@@ -48,6 +72,10 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             tauri_commands::initialize_game,
             tauri_commands::execute_player_action,
+            tauri_commands::get_noname_recent_traces,
+            tauri_commands::clear_noname_recent_traces,
+            tauri_commands::get_noname_mode,
+            tauri_commands::set_noname_mode,
             tauri_commands::travel_to_location,
             tauri_commands::get_reachable_locations,
             tauri_commands::get_map_overview,

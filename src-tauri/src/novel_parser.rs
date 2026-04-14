@@ -1,4 +1,4 @@
-﻿use crate::llm_runtime_config::resolve_llm_config;
+use crate::llm_runtime_config::resolve_llm_config;
 use crate::llm_service::{LLMRequest, LLMService};
 use crate::prompt_builder::{PromptBuilder, PromptConstraints, PromptContext, PromptTemplate};
 use crate::response_validator::{ResponseValidator, ValidationConstraints};
@@ -254,4 +254,3 @@ mod tests {
         assert!(parsed.locations.iter().any(|l| l.contains("青云宗")));
     }
 }
-

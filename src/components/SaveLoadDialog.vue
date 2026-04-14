@@ -17,8 +17,18 @@
           class="save-load-close-btn transition-colors"
           @click="handleClose"
         >
-          <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          <svg
+            class="h-6 w-6"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            />
           </svg>
         </button>
       </div>
@@ -41,34 +51,67 @@
                 存档槽 {{ slot.id }}
               </h3>
 
-              <div v-if="slot.data" class="save-slot-meta space-y-1 text-sm">
+              <div
+                v-if="slot.data"
+                class="save-slot-meta space-y-1 text-sm"
+              >
                 <p>角色：{{ slot.data.characterName }}</p>
                 <p>境界：{{ slot.data.realm }}</p>
                 <p>位置：{{ slot.data.locationLabel }}</p>
-                <p class="save-slot-sub-meta text-xs">游戏时间：{{ slot.data.gameTime }}</p>
-                <p class="save-slot-sub-meta text-xs">保存时间：{{ formatDate(slot.data.timestamp) }}</p>
+                <p class="save-slot-sub-meta text-xs">
+                  游戏时间：{{ slot.data.gameTime }}
+                </p>
+                <p class="save-slot-sub-meta text-xs">
+                  保存时间：{{ formatDate(slot.data.timestamp) }}
+                </p>
               </div>
 
-              <div v-else class="save-slot-empty text-sm">
+              <div
+                v-else
+                class="save-slot-empty text-sm"
+              >
                 空存档
               </div>
             </div>
 
-            <div v-if="selectedSlot === slot.id" class="ml-4">
-              <svg class="save-slot-check h-6 w-6" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+            <div
+              v-if="selectedSlot === slot.id"
+              class="ml-4"
+            >
+              <svg
+                class="save-slot-check h-6 w-6"
+                fill="currentColor"
+                viewBox="0 0 20 20"
+              >
+                <path
+                  fill-rule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                  clip-rule="evenodd"
+                />
               </svg>
             </div>
           </div>
         </div>
       </div>
 
-      <div v-if="error" class="save-load-error-wrap mt-4 rounded-lg border p-3">
-        <p class="save-load-error-text text-sm">{{ error }}</p>
+      <div
+        v-if="error"
+        class="save-load-error-wrap mt-4 rounded-lg border p-3"
+      >
+        <p class="save-load-error-text text-sm">
+          {{ error }}
+        </p>
       </div>
 
-      <div v-if="isLoading" class="mt-4">
-        <LoadingIndicator :message="loadingMessage" detail="请保持窗口开启..." size="sm" />
+      <div
+        v-if="isLoading"
+        class="mt-4"
+      >
+        <LoadingIndicator
+          :message="loadingMessage"
+          detail="请保持窗口开启..."
+          size="sm"
+        />
       </div>
 
       <div class="mt-6 flex gap-3">

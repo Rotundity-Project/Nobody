@@ -1,4 +1,4 @@
-﻿use crate::llm_service::LLMResponse;
+use crate::llm_service::LLMResponse;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fmt;
@@ -95,8 +95,11 @@ impl ResponseValidator {
         constraints: &ValidationConstraints,
     ) -> Result<(), ValidationError> {
         if let Some(max_level) = constraints.max_realm_level {
-            let level = get_u32(response_json, &["/character_update/realm_level", "/realm_level"])
-                .ok_or_else(|| ValidationError::MissingField("realm_level".to_string()))?;
+            let level = get_u32(
+                response_json,
+                &["/character_update/realm_level", "/realm_level"],
+            )
+            .ok_or_else(|| ValidationError::MissingField("realm_level".to_string()))?;
             if level > max_level {
                 return Err(ValidationError::NumericalConstraintViolation(format!(
                     "realm_level {level} exceeds max {max_level}"
@@ -105,9 +108,11 @@ impl ResponseValidator {
         }
 
         if let Some(min_power) = constraints.min_combat_power {
-            let power =
-                get_u64(response_json, &["/character_update/combat_power", "/combat_power"])
-                    .ok_or_else(|| ValidationError::MissingField("combat_power".to_string()))?;
+            let power = get_u64(
+                response_json,
+                &["/character_update/combat_power", "/combat_power"],
+            )
+            .ok_or_else(|| ValidationError::MissingField("combat_power".to_string()))?;
             if power < min_power {
                 return Err(ValidationError::NumericalConstraintViolation(format!(
                     "combat_power {power} is below min {min_power}"
@@ -116,9 +121,11 @@ impl ResponseValidator {
         }
 
         if let Some(max_power) = constraints.max_combat_power {
-            let power =
-                get_u64(response_json, &["/character_update/combat_power", "/combat_power"])
-                    .ok_or_else(|| ValidationError::MissingField("combat_power".to_string()))?;
+            let power = get_u64(
+                response_json,
+                &["/character_update/combat_power", "/combat_power"],
+            )
+            .ok_or_else(|| ValidationError::MissingField("combat_power".to_string()))?;
             if power > max_power {
                 return Err(ValidationError::NumericalConstraintViolation(format!(
                     "combat_power {power} exceeds max {max_power}"
@@ -127,9 +134,11 @@ impl ResponseValidator {
         }
 
         if let Some(max_age) = constraints.max_current_age {
-            let age =
-                get_u32(response_json, &["/character_update/current_age", "/current_age"])
-                    .ok_or_else(|| ValidationError::MissingField("current_age".to_string()))?;
+            let age = get_u32(
+                response_json,
+                &["/character_update/current_age", "/current_age"],
+            )
+            .ok_or_else(|| ValidationError::MissingField("current_age".to_string()))?;
             if age > max_age {
                 return Err(ValidationError::NumericalConstraintViolation(format!(
                     "current_age {age} exceeds max {max_age}"
@@ -150,7 +159,10 @@ impl ResponseValidator {
     where
         F: FnMut(u32) -> Option<LLMResponse>,
     {
-        if self.validate_response(&initial_response, constraints).is_ok() {
+        if self
+            .validate_response(&initial_response, constraints)
+            .is_ok()
+        {
             return Ok(initial_response);
         }
 

@@ -1,4 +1,4 @@
-﻿use crate::entity_store::{EntityQuery, EntityStore};
+use crate::entity_store::{EntityQuery, EntityStore};
 use crate::entity_types::EntityType;
 use crate::memory_layers::MemoryLayers;
 use serde::{Deserialize, Serialize};
@@ -63,7 +63,11 @@ pub fn build_context_bundle(
         .collect::<Vec<_>>();
 
     let mut referenced_entities = Vec::new();
-    for entity_type in [EntityType::Character, EntityType::Technique, EntityType::MapNode] {
+    for entity_type in [
+        EntityType::Character,
+        EntityType::Technique,
+        EntityType::MapNode,
+    ] {
         let query = EntityQuery {
             world_id: input.world_id.clone(),
             run_id: input.run_id.clone(),
@@ -78,9 +82,21 @@ pub fn build_context_bundle(
 
     let mut used = 0usize;
     trim_to_budget(&mut hard_facts, input.token_budget, &mut used);
-    trim_to_budget(&mut recent_context, input.token_budget.saturating_sub(used), &mut used);
-    trim_to_budget(&mut chapter_summaries, input.token_budget.saturating_sub(used), &mut used);
-    trim_to_budget(&mut recent_events, input.token_budget.saturating_sub(used), &mut used);
+    trim_to_budget(
+        &mut recent_context,
+        input.token_budget.saturating_sub(used),
+        &mut used,
+    );
+    trim_to_budget(
+        &mut chapter_summaries,
+        input.token_budget.saturating_sub(used),
+        &mut used,
+    );
+    trim_to_budget(
+        &mut recent_events,
+        input.token_budget.saturating_sub(used),
+        &mut used,
+    );
 
     ContextBundle {
         hard_facts,

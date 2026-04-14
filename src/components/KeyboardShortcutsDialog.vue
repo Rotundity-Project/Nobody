@@ -6,7 +6,9 @@
   >
     <div class="w-full max-w-2xl panel-surface shortcuts-panel rounded-2xl p-6">
       <div class="mb-4 flex items-center justify-between">
-        <h3 class="text-xl font-display shortcuts-title">键盘快捷键</h3>
+        <h3 class="text-xl font-display shortcuts-title">
+          键盘快捷键
+        </h3>
         <button
           class="shortcuts-close-btn rounded px-3 py-1 text-sm"
           @click="$emit('close')"
@@ -18,7 +20,9 @@
       <div class="space-y-4">
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div class="space-y-2">
-            <h4 class="text-sm font-semibold shortcuts-subtitle">通用快捷键</h4>
+            <h4 class="text-sm font-semibold shortcuts-subtitle">
+              通用快捷键
+            </h4>
             <div class="space-y-1">
               <div class="flex justify-between text-sm">
                 <span class="shortcuts-text">关闭弹窗</span>
@@ -35,7 +39,9 @@
           </div>
 
           <div class="space-y-2">
-            <h4 class="text-sm font-semibold shortcuts-subtitle">选项模式</h4>
+            <h4 class="text-sm font-semibold shortcuts-subtitle">
+              选项模式
+            </h4>
             <div class="space-y-1">
               <div class="flex justify-between text-sm">
                 <span class="shortcuts-text">选择选项 1-5</span>
@@ -48,7 +54,9 @@
           </div>
 
           <div class="space-y-2">
-            <h4 class="text-sm font-semibold shortcuts-subtitle">自由输入模式</h4>
+            <h4 class="text-sm font-semibold shortcuts-subtitle">
+              自由输入模式
+            </h4>
             <div class="space-y-1">
               <div class="flex justify-between text-sm">
                 <span class="shortcuts-text">提交输入</span>
@@ -58,7 +66,9 @@
           </div>
 
           <div class="space-y-2">
-            <h4 class="text-sm font-semibold shortcuts-subtitle">导航</h4>
+            <h4 class="text-sm font-semibold shortcuts-subtitle">
+              导航
+            </h4>
             <div class="space-y-1">
               <div class="flex justify-between text-sm">
                 <span class="shortcuts-text">滚动到底部</span>

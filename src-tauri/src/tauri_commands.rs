@@ -1,34 +1,41 @@
-﻿use crate::game_engine::GameEngine;
-use crate::game_state::GameState;
-use crate::event_log::EventImportance;
+use crate::app_error::AppError;
 use crate::context_builder::{build_context_bundle, ContextBuildInput, ContextBundle};
 use crate::entity_store::{EntityQuery, EntityStore};
 use crate::entity_types::{
     EntityCandidateRequest, EntityType, ResolvedEntity, StoredEntity, ValidationStatus,
 };
 use crate::entity_validator::resolve_candidate;
+use crate::event_log::EventImportance;
+use crate::game_engine::GameEngine;
+use crate::game_state::GameState;
 use crate::llm_runtime_config::{
     clear_runtime_llm_config, get_llm_config_status as runtime_llm_config_status,
     resolve_llm_config, set_runtime_llm_config, LLMConfigStatus,
 };
 use crate::llm_service::{LLMConfig, LLMRequest, LLMService};
 use crate::memory_layers::{ChapterSummary, MemoryEntry, WorldFact};
+use crate::noname_config::NoNameConfig;
+use crate::noname_context_builder::build_context_packet;
+use crate::noname_context_types::NoNameContextBuildInput;
+use crate::noname_guardrails::{NoNameDirectorGuardrailInput, NoNameGuardrailResult};
+use crate::noname_memory_manager::NoNameMemoryManager;
+use crate::noname_roles::NoNameDirectorObservation;
+use crate::noname_runtime::{NoNameDirectorRunResult, NoNameRuntime, NoNameTurnInput};
+use crate::noname_trace::NoNameTrace;
+use crate::noname_types::{NoNameApplyScope, NoNameMode, NoNameRole, NoNameTargetSegment};
 use crate::novel_generator::{Novel, NovelGenerator};
 use crate::numerical_system::{Action, Context, StatChange};
 use crate::plot_consistency::{
-    get_runtime_policy, reset_runtime_policy, update_runtime_policy, validate_and_repair_plot_update,
-    ConsistencyPolicy, ConsistencyReport,
+    get_runtime_policy, reset_runtime_policy, update_runtime_policy,
+    validate_and_repair_plot_update, ConsistencyPolicy, ConsistencyReport,
 };
 use crate::plot_engine::{
     PlayerAction, PlayerOption, PlotEngine, PlotInteractionState, PlotSettings, PlotState,
 };
+use crate::runtime_prompt_baseline::{WORLD_REGISTRY_REFERENCE, WORLD_REGISTRY_SUPPLEMENT};
 use crate::save_load::{MigrationBatchReport, SaveInfo};
 use crate::script::Script;
-use crate::runtime_prompt_baseline::{
-    WORLD_REGISTRY_REFERENCE, WORLD_REGISTRY_SUPPLEMENT,
-};
 use crate::world_registry::{apply_registry_to_game_state, WorldRegistry};
-use crate::app_error::AppError;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
@@ -39,6 +46,7 @@ use tauri::State;
 
 static ENTITY_STORE: OnceLock<Mutex<EntityStore>> = OnceLock::new();
 static MEMORY_LAYERS: OnceLock<Mutex<crate::memory_layers::MemoryLayers>> = OnceLock::new();
+static NONAME_RUNTIME: OnceLock<Mutex<NoNameRuntime>> = OnceLock::new();
 
 fn entity_store() -> &'static Mutex<EntityStore> {
     ENTITY_STORE.get_or_init(|| Mutex::new(EntityStore::new()))
@@ -46,6 +54,593 @@ fn entity_store() -> &'static Mutex<EntityStore> {
 
 fn memory_layers() -> &'static Mutex<crate::memory_layers::MemoryLayers> {
     MEMORY_LAYERS.get_or_init(|| Mutex::new(crate::memory_layers::MemoryLayers::new()))
+}
+
+fn noname_runtime() -> &'static Mutex<NoNameRuntime> {
+    NONAME_RUNTIME.get_or_init(|| Mutex::new(NoNameRuntime::new(NoNameConfig::observe_only())))
+}
+
+fn noname_mode_label(mode: NoNameMode) -> &'static str {
+    match mode {
+        NoNameMode::Disabled => "disabled",
+        NoNameMode::ObserveOnly => "observe_only",
+        NoNameMode::Assisted => "assisted",
+    }
+}
+
+fn build_noname_action_summary(action: &PlayerAction, plot_state: &PlotState) -> String {
+    if let Some(selected_option_id) = action.selected_option_id {
+        if let Some(option) = plot_state
+            .current_scene
+            .available_options
+            .get(selected_option_id)
+        {
+            return format!("选择选项: {}", option.description);
+        }
+    }
+
+    if !action.content.trim().is_empty() {
+        return format!("自由输入: {}", action.content.trim());
+    }
+
+    "玩家执行了默认推进动作".to_string()
+}
+
+fn append_noname_observation_diagnostics(
+    existing: &mut Option<String>,
+    mode: NoNameMode,
+    observation: &NoNameDirectorObservation,
+    guardrail_result: Option<&NoNameGuardrailResult>,
+    trace: &NoNameTrace,
+) {
+    let mut segments = vec![
+        format!("focus={}", observation.focus),
+        format!("rationale={}", observation.rationale),
+        format!("proposal={}", observation.proposal.title),
+        format!(
+            "target_segment={}",
+            observation.proposal.target_segment.as_str()
+        ),
+        format!("intended_effect={}", observation.proposal.intended_effect),
+        format!("proposal_status={}", observation.proposal.status.as_str()),
+        format!(
+            "apply_scopes={}",
+            if observation.proposal.apply_scopes.is_empty() {
+                "none".to_string()
+            } else {
+                observation
+                    .proposal
+                    .apply_scopes
+                    .iter()
+                    .map(|scope| scope.as_str())
+                    .collect::<Vec<_>>()
+                    .join(",")
+            }
+        ),
+        format!(
+            "applyable={}",
+            if observation.proposal.applyable {
+                "yes"
+            } else {
+                "no"
+            }
+        ),
+    ];
+    if let Some(result) = guardrail_result {
+        segments.push(format!("guardrail={}", result.outcome.as_str()));
+        if let Some(reason) = &result.reason {
+            segments.push(format!("reason={}", reason));
+        }
+    }
+    if let Some(apply_result) = &trace.apply_result {
+        segments.push(format!("apply={}", apply_result.outcome));
+        if let Some(reason) = &apply_result.reason {
+            segments.push(format!("apply_reason={}", reason));
+        }
+    }
+    let note = format!(
+        "NoName.{}：{}",
+        noname_mode_label(mode),
+        segments.join("；")
+    );
+    match existing {
+        Some(diag) => {
+            diag.push('；');
+            diag.push_str(&note);
+        }
+        None => {
+            *existing = Some(note);
+        }
+    }
+}
+
+fn build_noname_summary_hint(proposal: &crate::noname_types::NoNameProposal) -> String {
+    format!("NoName提示：后续重点关注{}", proposal.focus.trim())
+}
+
+fn build_noname_option_bias_hint(proposal: &crate::noname_types::NoNameProposal) -> String {
+    format!(
+        "NoName选项偏置：下轮优先围绕{}提供行动切入点",
+        proposal.focus.trim()
+    )
+}
+
+fn build_noname_plot_text_hint(proposal: &crate::noname_types::NoNameProposal) -> String {
+    format!("【NoName】重点关注：{}", proposal.focus.trim())
+}
+
+fn proposal_allows_apply_scope(
+    proposal: &crate::noname_types::NoNameProposal,
+    scope: NoNameApplyScope,
+) -> bool {
+    proposal.apply_scopes.is_empty() || proposal.apply_scopes.contains(&scope)
+}
+
+fn target_segment_supports_apply_scope(
+    target_segment: NoNameTargetSegment,
+    scope: NoNameApplyScope,
+) -> bool {
+    match scope {
+        NoNameApplyScope::PlotTextHint => matches!(
+            target_segment,
+            NoNameTargetSegment::CurrentTurnHead | NoNameTargetSegment::CurrentTurnTail
+        ),
+        _ => true,
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum NoNameApplyTargetDecision {
+    Apply,
+    Skip {
+        outcome: &'static str,
+        note: String,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct NoNameApplyTargetPlan {
+    target: &'static str,
+    priority: u32,
+    order: u32,
+    decision: NoNameApplyTargetDecision,
+}
+
+fn priority_for_apply_scope(scope: NoNameApplyScope) -> u32 {
+    match scope {
+        NoNameApplyScope::PlotTextHint => 300,
+        NoNameApplyScope::ChapterSummaryHint => 200,
+        NoNameApplyScope::OptionBiasHint => 100,
+        NoNameApplyScope::Diagnostics => 50,
+    }
+}
+
+fn plan_noname_apply_target(
+    proposal: &crate::noname_types::NoNameProposal,
+    scope: NoNameApplyScope,
+    plot_state: Option<&PlotState>,
+    plot_text: Option<&str>,
+) -> NoNameApplyTargetPlan {
+    let target = scope.as_str();
+    let priority = priority_for_apply_scope(scope);
+    if !proposal_allows_apply_scope(proposal, scope) {
+        return NoNameApplyTargetPlan {
+            target,
+            priority,
+            order: 0,
+            decision: NoNameApplyTargetDecision::Skip {
+                outcome: "skipped_scope_forbidden",
+                note: format!("提案未声明 {} 作用域，跳过对应输出", target),
+            },
+        };
+    }
+
+    if !target_segment_supports_apply_scope(proposal.target_segment, scope) {
+        return NoNameApplyTargetPlan {
+            target,
+            priority,
+            order: 0,
+            decision: NoNameApplyTargetDecision::Skip {
+                outcome: "skipped_target_mismatch",
+                note: format!(
+                    "目标段 {} 不支持 {}，跳过对应输出",
+                    proposal.target_segment.as_str(),
+                    target
+                ),
+            },
+        };
+    }
+
+    match scope {
+        NoNameApplyScope::PlotTextHint => {
+            let current_text = plot_text.unwrap_or_default();
+            if current_text.trim().is_empty() {
+                return NoNameApplyTargetPlan {
+                    target,
+                    priority,
+                    order: 0,
+                    decision: NoNameApplyTargetDecision::Skip {
+                        outcome: "skipped_empty_plot_text",
+                        note: "当前正文为空，跳过受控正文提示".to_string(),
+                    },
+                };
+            }
+            if current_text.contains("【NoName】") || current_text.contains("NoName提示") {
+                return NoNameApplyTargetPlan {
+                    target,
+                    priority,
+                    order: 0,
+                    decision: NoNameApplyTargetDecision::Skip {
+                        outcome: "skipped_duplicate",
+                        note: "正文已包含 NoName 标记，跳过重复提示".to_string(),
+                    },
+                };
+            }
+        }
+        NoNameApplyScope::ChapterSummaryHint => {
+            if let Some(state) = plot_state {
+                let summary = state.current_chapter.summary.trim();
+                if !summary.is_empty() && summary.contains(proposal.focus.trim()) {
+                    return NoNameApplyTargetPlan {
+                        target,
+                        priority,
+                        order: 0,
+                        decision: NoNameApplyTargetDecision::Skip {
+                            outcome: "skipped_duplicate",
+                            note: format!(
+                                "章节摘要已覆盖“{}”，跳过重复提示",
+                                proposal.focus.trim()
+                            ),
+                        },
+                    };
+                }
+            }
+        }
+        NoNameApplyScope::OptionBiasHint => {
+            let Some(state) = plot_state else {
+                return NoNameApplyTargetPlan {
+                    target,
+                    priority,
+                    order: 0,
+                    decision: NoNameApplyTargetDecision::Skip {
+                        outcome: "skipped_missing_plot_state",
+                        note: "缺少 plot_state，跳过选项偏置提示".to_string(),
+                    },
+                };
+            };
+            if !state.is_waiting_for_input {
+                return NoNameApplyTargetPlan {
+                    target,
+                    priority,
+                    order: 0,
+                    decision: NoNameApplyTargetDecision::Skip {
+                        outcome: "skipped_not_waiting",
+                        note: "当前不处于等待输入状态，跳过选项偏置提示".to_string(),
+                    },
+                };
+            }
+            let option_hint = build_noname_option_bias_hint(proposal);
+            let diagnostics = state.last_generation_diagnostics.as_deref().unwrap_or_default();
+            if diagnostics.contains(option_hint.as_str()) {
+                return NoNameApplyTargetPlan {
+                    target,
+                    priority,
+                    order: 0,
+                    decision: NoNameApplyTargetDecision::Skip {
+                        outcome: "skipped_duplicate",
+                        note: format!(
+                            "诊断中已包含选项偏置提示“{}”，跳过重复写入",
+                            proposal.focus.trim()
+                        ),
+                    },
+                };
+            }
+        }
+        NoNameApplyScope::Diagnostics => {}
+    }
+
+    NoNameApplyTargetPlan {
+        target,
+        priority,
+        order: 0,
+        decision: NoNameApplyTargetDecision::Apply,
+    }
+}
+
+fn build_noname_apply_plan_set(
+    proposal: &crate::noname_types::NoNameProposal,
+    plot_state: Option<&PlotState>,
+    plot_text: Option<&str>,
+) -> Vec<NoNameApplyTargetPlan> {
+    let mut plans = vec![
+        plan_noname_apply_target(proposal, NoNameApplyScope::PlotTextHint, plot_state, plot_text),
+        plan_noname_apply_target(proposal, NoNameApplyScope::ChapterSummaryHint, plot_state, None),
+        plan_noname_apply_target(proposal, NoNameApplyScope::OptionBiasHint, plot_state, None),
+    ];
+    plans.sort_by(|left, right| {
+        right
+            .priority
+            .cmp(&left.priority)
+            .then_with(|| left.target.cmp(right.target))
+    });
+    for (index, plan) in plans.iter_mut().enumerate() {
+        plan.order = (index + 1) as u32;
+    }
+    plans
+}
+
+fn record_noname_apply_plan(
+    trace: &mut NoNameTrace,
+    plan: &NoNameApplyTargetPlan,
+) {
+    let (decision, note) = match &plan.decision {
+        NoNameApplyTargetDecision::Apply => (
+            "apply",
+            Some(format!(
+                "允许执行 {}，优先级 {}，顺位 #{}",
+                plan.target, plan.priority, plan.order
+            )),
+        ),
+        NoNameApplyTargetDecision::Skip { note, .. } => ("skip", Some(note.clone())),
+    };
+    trace.record_apply_plan(plan.order, plan.target, decision, plan.priority, note);
+}
+
+fn record_noname_apply_plan_and_skip_execution(
+    trace: &mut NoNameTrace,
+    plan: &NoNameApplyTargetPlan,
+) {
+    record_noname_apply_plan(trace, plan);
+    if let NoNameApplyTargetDecision::Skip { outcome, note } = &plan.decision {
+        trace.record_apply_execution(plan.target, *outcome, Some(note.clone()));
+    }
+}
+
+fn apply_noname_plot_text_hint(
+    plot_text: &mut String,
+    noname_result: &mut NoNameDirectorRunResult,
+) -> bool {
+    if noname_result.proposal.status != crate::noname_types::NoNameProposalStatus::Applied {
+        return false;
+    }
+
+    let plan = plan_noname_apply_target(
+        &noname_result.proposal,
+        NoNameApplyScope::PlotTextHint,
+        None,
+        Some(plot_text.as_str()),
+    );
+    if !matches!(plan.decision, NoNameApplyTargetDecision::Apply) {
+        if let NoNameApplyTargetDecision::Skip { outcome, note } = &plan.decision {
+            noname_result
+                .trace
+                .record_apply_execution(plan.target, *outcome, Some(note.clone()));
+        }
+        return false;
+    }
+
+    let hint = build_noname_plot_text_hint(&noname_result.proposal);
+    match noname_result.proposal.target_segment {
+        NoNameTargetSegment::CurrentTurnHead => {
+            let original = plot_text.trim().to_string();
+            *plot_text = format!("{}\n\n{}", hint, original);
+        }
+        _ => {
+            plot_text.push_str("\n\n");
+            plot_text.push_str(&hint);
+        }
+    }
+    noname_result.trace.record_proposal_transition(format!(
+        "{}:applied:plot_text_hint",
+        noname_result.proposal.proposal_id
+    ));
+    noname_result.trace.record_apply_execution(
+        "plot_text_hint",
+        "applied",
+        Some(format!(
+            "已将提案提示插入正文，聚焦“{}”",
+            noname_result.proposal.focus
+        )),
+    );
+    true
+}
+
+fn apply_noname_low_risk_outputs(
+    plot_state: &mut PlotState,
+    noname_result: &mut NoNameDirectorRunResult,
+    plot_text_applied: bool,
+) {
+    if noname_result.proposal.status != crate::noname_types::NoNameProposalStatus::Applied {
+        return;
+    }
+
+    let mut applied_targets: Vec<&str> = Vec::new();
+
+    let summary_plan = plan_noname_apply_target(
+        &noname_result.proposal,
+        NoNameApplyScope::ChapterSummaryHint,
+        Some(plot_state),
+        None,
+    );
+    if matches!(summary_plan.decision, NoNameApplyTargetDecision::Apply) {
+        let hint = build_noname_summary_hint(&noname_result.proposal);
+        let summary = plot_state.current_chapter.summary.trim();
+        if summary.is_empty() {
+            plot_state.current_chapter.summary = hint.clone();
+        } else {
+            plot_state.current_chapter.summary = match noname_result.proposal.target_segment {
+                NoNameTargetSegment::ChapterSummaryHead => format!("{}；{}", hint, summary),
+                _ => format!("{}；{}", summary, hint),
+            };
+        }
+        noname_result.trace.record_proposal_transition(format!(
+            "{}:applied:chapter_summary_hint",
+            noname_result.proposal.proposal_id
+        ));
+        noname_result.trace.record_apply_execution(
+            "chapter_summary_hint",
+            "applied",
+            Some(format!(
+                "已写入章节摘要提示，聚焦“{}”",
+                noname_result.proposal.focus
+            )),
+        );
+        applied_targets.push("chapter_summary_hint");
+    } else {
+        record_noname_apply_plan_and_skip_execution(&mut noname_result.trace, &summary_plan);
+    }
+
+    let option_bias_plan = plan_noname_apply_target(
+        &noname_result.proposal,
+        NoNameApplyScope::OptionBiasHint,
+        Some(plot_state),
+        None,
+    );
+    if matches!(option_bias_plan.decision, NoNameApplyTargetDecision::Apply) {
+        let option_hint = build_noname_option_bias_hint(&noname_result.proposal);
+        let diagnostics = plot_state
+            .last_generation_diagnostics
+            .clone()
+            .unwrap_or_default();
+        if diagnostics.is_empty() {
+            plot_state.last_generation_diagnostics = Some(option_hint.clone());
+        } else if !diagnostics.contains(option_hint.as_str()) {
+            plot_state.last_generation_diagnostics =
+                Some(format!("{}；{}", diagnostics, option_hint));
+        }
+        noname_result.trace.record_proposal_transition(format!(
+            "{}:applied:option_bias_hint",
+            noname_result.proposal.proposal_id
+        ));
+        noname_result.trace.record_apply_execution(
+            "option_bias_hint",
+            "applied",
+            Some(format!(
+                "已写入下轮选项偏置提示，聚焦“{}”",
+                noname_result.proposal.focus
+            )),
+        );
+        applied_targets.push("option_bias_hint");
+    } else {
+        record_noname_apply_plan_and_skip_execution(&mut noname_result.trace, &option_bias_plan);
+    }
+
+    if plot_text_applied {
+        applied_targets.push("plot_text_hint");
+    }
+    let apply_outcome = if applied_targets.is_empty() {
+        "applied_no_scoped_output"
+    } else {
+        "applied_scoped_outputs"
+    };
+    noname_result.trace.set_apply_result(
+        true,
+        apply_outcome,
+        Some(format!(
+            "已应用作用域：{}；聚焦“{}”",
+            if applied_targets.is_empty() {
+                "无".to_string()
+            } else {
+                applied_targets.join(", ")
+            },
+            noname_result.proposal.focus
+        )),
+    );
+
+    if let Ok(mut runtime) = noname_runtime().lock() {
+        let _ = runtime.replace_trace(noname_result.trace.clone());
+    }
+}
+
+fn run_noname_observe_only_for_turn(
+    action_summary: &str,
+    game_state: &GameState,
+    plot_state: &PlotState,
+    timestamp: u64,
+) -> Result<NoNameDirectorRunResult, String> {
+    let mut memory_manager = NoNameMemoryManager::new();
+    if let Ok(memory) = memory_layers().lock() {
+        memory_manager.ingest_legacy_layers(&memory);
+    }
+    memory_manager.push_working_memory(
+        crate::noname_memory_types::NoNameWorkingMemoryItem {
+            memory_id: format!("work-{}", timestamp),
+            turn_id: format!("turn-{}", timestamp),
+            source: "execute_player_action".to_string(),
+            category: "recent_turn".to_string(),
+            summary: action_summary.to_string(),
+            expires_at: None,
+            priority: 10,
+        },
+        8,
+    );
+
+    let store = entity_store()
+        .lock()
+        .map_err(|_| "NoName observe-only: entity store lock poisoned".to_string())?;
+    let context_packet = build_context_packet(
+        &store,
+        &memory_manager,
+        &NoNameContextBuildInput {
+            role: NoNameRole::Director,
+            world_id: game_state.script.id.clone(),
+            run_id: "active-run".to_string(),
+            scene_id: plot_state.current_scene.id.clone(),
+            character_ids: vec![game_state.player.id.clone()],
+            map_node_id: Some(game_state.player.location.clone()),
+            player_intent: if action_summary.trim().is_empty() {
+                None
+            } else {
+                Some(action_summary.to_string())
+            },
+            recent_context_lines: plot_state
+                .current_chapter
+                .content
+                .iter()
+                .rev()
+                .take(6)
+                .cloned()
+                .collect::<Vec<_>>()
+                .into_iter()
+                .rev()
+                .collect(),
+            token_budget: 320,
+            per_section_limit: 4,
+        },
+    );
+    drop(store);
+
+    let mut runtime = noname_runtime()
+        .lock()
+        .map_err(|_| "NoName observe-only: runtime lock poisoned".to_string())?;
+    let result = runtime
+        .run_director_observe_turn(
+            NoNameTurnInput {
+                trace_id: format!("noname-trace-{}", timestamp),
+                session_id: "active-run".to_string(),
+                turn_id: format!("turn-{}", timestamp),
+                caller_role: NoNameRole::Director,
+            },
+            action_summary,
+            &context_packet,
+            Some(&NoNameDirectorGuardrailInput {
+                plot_state: plot_state.clone(),
+                action_result: plot_state.last_action_result.clone().unwrap_or(
+                    crate::numerical_system::ActionResult {
+                        success: true,
+                        description: action_summary.to_string(),
+                        stat_changes: Vec::new(),
+                        events: Vec::new(),
+                    },
+                ),
+                player_name: game_state.player.name.clone(),
+                player_realm_level: game_state.player.stats.cultivation_realm.level,
+                player_combat_power: game_state.player.stats.combat_power,
+            }),
+        )
+        .map_err(|e| e.to_string())?;
+
+    Ok(result)
 }
 
 fn build_plot_context_for_generation(
@@ -169,10 +764,7 @@ fn collect_dead_character_names(registry: Option<&WorldRegistry>) -> HashSet<Str
         let Some(name) = name else {
             continue;
         };
-        let dead_flag = obj
-            .get("dead")
-            .and_then(Value::as_bool)
-            .unwrap_or(false)
+        let dead_flag = obj.get("dead").and_then(Value::as_bool).unwrap_or(false)
             || obj.get("is_dead").and_then(Value::as_bool).unwrap_or(false)
             || obj
                 .get("alive")
@@ -189,7 +781,10 @@ fn collect_dead_character_names(registry: Option<&WorldRegistry>) -> HashSet<Str
                 .and_then(Value::as_str)
                 .map(|v| {
                     let lower = v.to_lowercase();
-                    lower.contains("dead") || lower.contains("deceased") || v.contains("死亡") || v.contains("阵亡")
+                    lower.contains("dead")
+                        || lower.contains("deceased")
+                        || v.contains("死亡")
+                        || v.contains("阵亡")
                 })
                 .unwrap_or(false)
             || obj
@@ -197,7 +792,10 @@ fn collect_dead_character_names(registry: Option<&WorldRegistry>) -> HashSet<Str
                 .and_then(Value::as_str)
                 .map(|v| {
                     let lower = v.to_lowercase();
-                    lower.contains("dead") || lower.contains("deceased") || v.contains("死亡") || v.contains("阵亡")
+                    lower.contains("dead")
+                        || lower.contains("deceased")
+                        || v.contains("死亡")
+                        || v.contains("阵亡")
                 })
                 .unwrap_or(false);
         if dead_flag {
@@ -256,30 +854,34 @@ fn sanitize_generated_options(
 
         let talks_to_absent_character = registry
             .map(|r| {
-                r.tables.characters.iter().filter_map(Value::as_object).any(|obj| {
-                    let name = obj
-                        .get("name")
-                        .and_then(Value::as_str)
-                        .map(str::trim)
-                        .unwrap_or("");
-                    if name.is_empty() || !text.contains(name) {
-                        return false;
-                    }
-                    let location_id = obj
-                        .get("location_id")
-                        .and_then(Value::as_str)
-                        .map(str::trim)
-                        .unwrap_or("");
-                    let asks_talk = text.contains("对话")
-                        || text.contains("询问")
-                        || text.contains("请教")
-                        || text.contains("交谈")
-                        || lower.contains("talk")
-                        || lower.contains("speak");
-                    asks_talk
-                        && !location_id.is_empty()
-                        && location_id != current_scene_location
-                })
+                r.tables
+                    .characters
+                    .iter()
+                    .filter_map(Value::as_object)
+                    .any(|obj| {
+                        let name = obj
+                            .get("name")
+                            .and_then(Value::as_str)
+                            .map(str::trim)
+                            .unwrap_or("");
+                        if name.is_empty() || !text.contains(name) {
+                            return false;
+                        }
+                        let location_id = obj
+                            .get("location_id")
+                            .and_then(Value::as_str)
+                            .map(str::trim)
+                            .unwrap_or("");
+                        let asks_talk = text.contains("对话")
+                            || text.contains("询问")
+                            || text.contains("请教")
+                            || text.contains("交谈")
+                            || lower.contains("talk")
+                            || lower.contains("speak");
+                        asks_talk
+                            && !location_id.is_empty()
+                            && location_id != current_scene_location
+                    })
             })
             .unwrap_or(false);
         if talks_to_absent_character {
@@ -315,7 +917,10 @@ fn sanitize_generated_options(
             option.action = Action::Custom {
                 description: option.description.clone(),
             };
-            notes.push(format!("option_repair:rewrote_unreachable_location({})", loc_name));
+            notes.push(format!(
+                "option_repair:rewrote_unreachable_location({})",
+                loc_name
+            ));
             rewritten = true;
             break;
         }
@@ -389,8 +994,12 @@ fn narrative_dimension_coverage(text: &str) -> usize {
         return 0;
     }
     let sensory_words = ["风", "雨", "雾", "声", "光", "影", "冷", "热", "血", "震"];
-    let action_words = ["挥", "斩", "踏", "退", "冲", "挡", "运转", "催动", "闪", "击"];
-    let mental_words = ["犹豫", "执念", "惊", "怒", "惧", "定神", "思索", "决意", "迟疑", "判断"];
+    let action_words = [
+        "挥", "斩", "踏", "退", "冲", "挡", "运转", "催动", "闪", "击",
+    ];
+    let mental_words = [
+        "犹豫", "执念", "惊", "怒", "惧", "定神", "思索", "决意", "迟疑", "判断",
+    ];
     let mut covered = 0usize;
     if sensory_words.iter().any(|w| t.contains(w)) {
         covered += 1;
@@ -467,7 +1076,10 @@ fn build_action_plot_cache_key(
         plot_state.current_chapter.interaction_count,
         plot_state.segment_count,
         game_state.player.stats.cultivation_realm.level,
-        action.selected_option_id.map(|v| v.to_string()).unwrap_or_else(|| "none".to_string()),
+        action
+            .selected_option_id
+            .map(|v| v.to_string())
+            .unwrap_or_else(|| "none".to_string()),
         normalize_action_bucket(action),
     )
 }
@@ -528,10 +1140,7 @@ fn is_hollow_expression(text: &str) -> bool {
         "仿佛",
         "似乎",
     ];
-    let filler_hits = filler_patterns
-        .iter()
-        .filter(|p| t.contains(**p))
-        .count();
+    let filler_hits = filler_patterns.iter().filter(|p| t.contains(**p)).count();
 
     let clauses = t
         .split(['。', '！', '？', ';', '；', '\n'])
@@ -539,7 +1148,10 @@ fn is_hollow_expression(text: &str) -> bool {
         .filter(|s| !s.is_empty())
         .collect::<Vec<_>>();
     let repeated_clause = if clauses.len() >= 3 {
-        let unique = clauses.iter().copied().collect::<std::collections::BTreeSet<_>>();
+        let unique = clauses
+            .iter()
+            .copied()
+            .collect::<std::collections::BTreeSet<_>>();
         unique.len() * 10 <= clauses.len() * 7
     } else {
         false
@@ -785,7 +1397,9 @@ fn evaluate_combat_hard_constraints(
     }
 
     let player_styles = detect_player_styles(&game_state.player.stats);
-    let need_weapon = player_styles.iter().any(|style| *style == "sword" || *style == "blade");
+    let need_weapon = player_styles
+        .iter()
+        .any(|style| *style == "sword" || *style == "blade");
     let has_weapon = game_state.player.equipment_slots.weapon.is_some();
     if need_weapon && !has_weapon {
         power_delta_pct -= 14;
@@ -842,7 +1456,10 @@ fn evaluate_style_counter_modifier(
     if best == 0 {
         return (
             0,
-            format!("未形成明确克制（我方={:?}, 敌方={}）", player_styles, enemy_style),
+            format!(
+                "未形成明确克制（我方={:?}, 敌方={}）",
+                player_styles, enemy_style
+            ),
         );
     }
     (
@@ -917,22 +1534,28 @@ fn apply_combat_aftermath(
         status.reputation = status.reputation.saturating_add(2);
         status.enmity = status
             .enmity
-            .saturating_add(if strategy == CombatStrategy::Aggressive { 2 } else { 1 });
-        if status.injury_level > 0 && strategy != CombatStrategy::Aggressive {
-            status.injury_level = status.injury_level.saturating_sub(1);
-        }
-        game_state.player.social_profile.favor = game_state
-            .player
-            .social_profile
-            .favor
             .saturating_add(if strategy == CombatStrategy::Aggressive {
                 2
             } else {
                 1
             });
+        if status.injury_level > 0 && strategy != CombatStrategy::Aggressive {
+            status.injury_level = status.injury_level.saturating_sub(1);
+        }
+        game_state.player.social_profile.favor =
+            game_state.player.social_profile.favor.saturating_add(
+                if strategy == CombatStrategy::Aggressive {
+                    2
+                } else {
+                    1
+                },
+            );
         if strategy == CombatStrategy::Cautious {
-            game_state.player.social_profile.mentor_bond =
-                game_state.player.social_profile.mentor_bond.saturating_add(1);
+            game_state.player.social_profile.mentor_bond = game_state
+                .player
+                .social_profile
+                .mentor_bond
+                .saturating_add(1);
         }
         game_state.player.social_profile.vendetta = game_state
             .player
@@ -944,25 +1567,31 @@ fn apply_combat_aftermath(
         status.reputation = status.reputation.saturating_sub(1);
         status.enmity = status
             .enmity
-            .saturating_add(if strategy == CombatStrategy::Survival { 1 } else { 2 });
+            .saturating_add(if strategy == CombatStrategy::Survival {
+                1
+            } else {
+                2
+            });
         let injury_gain = if strategy == CombatStrategy::Survival {
             1
         } else {
             2
         };
         status.injury_level = status.injury_level.saturating_add(injury_gain).min(10);
-        game_state.player.social_profile.vendetta = game_state
-            .player
-            .social_profile
-            .vendetta
-            .saturating_add(if strategy == CombatStrategy::Survival {
-                1
-            } else {
-                2
-            });
+        game_state.player.social_profile.vendetta =
+            game_state.player.social_profile.vendetta.saturating_add(
+                if strategy == CombatStrategy::Survival {
+                    1
+                } else {
+                    2
+                },
+            );
         if strategy == CombatStrategy::Aggressive {
-            game_state.player.social_profile.sect_affinity =
-                game_state.player.social_profile.sect_affinity.saturating_sub(1);
+            game_state.player.social_profile.sect_affinity = game_state
+                .player
+                .social_profile
+                .sect_affinity
+                .saturating_sub(1);
         }
     }
     normalize_social_profile(&mut game_state.player.social_profile);
@@ -1097,7 +1726,10 @@ fn apply_travel_and_encounter(
     }
     let roll = (hash_acc % 100) as f64 / 100.0;
     let encounter_triggered = roll < weighted_prob;
-    let mut message = format!("你从{}前往{}，行程耗时{}日。", from_name, target_name, travel_days);
+    let mut message = format!(
+        "你从{}前往{}，行程耗时{}日。",
+        from_name, target_name, travel_days
+    );
     if suggested_path.len() > 2 {
         message.push_str(&format!(" 建议分段：{}。", suggested_path.join(" -> ")));
     }
@@ -1124,8 +1756,11 @@ fn apply_travel_and_encounter(
             game_state.player.social_profile.favor.saturating_add(1);
     }
     if target_location.contains("sect") || target_name.contains("宗") {
-        game_state.player.social_profile.sect_affinity =
-            game_state.player.social_profile.sect_affinity.saturating_add(1);
+        game_state.player.social_profile.sect_affinity = game_state
+            .player
+            .social_profile
+            .sect_affinity
+            .saturating_add(1);
     }
     normalize_social_profile(&mut game_state.player.social_profile);
 
@@ -1135,7 +1770,11 @@ fn apply_travel_and_encounter(
             "行程变更：{} -> {}{}",
             from_name,
             target_name,
-            if encounter_triggered { "（触发遭遇）" } else { "" }
+            if encounter_triggered {
+                "（触发遭遇）"
+            } else {
+                ""
+            }
         ),
     );
     plot_state.current_chapter.content.push(message.clone());
@@ -1169,16 +1808,17 @@ fn compute_reachable_location_ids(game_state: &GameState) -> Vec<String> {
         })
         .collect::<Vec<_>>();
     by_gap.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap_or(std::cmp::Ordering::Equal));
-    let nearest_two = if cfg.nearby_fallback_enabled && by_gap.len() >= cfg.nearby_fallback_min_location_count {
-        by_gap
-            .iter()
-            .filter(|(id, _, _)| id != &current_id)
-            .take(cfg.nearby_fallback_count)
-            .map(|(id, _, _)| id.clone())
-            .collect::<Vec<_>>()
-    } else {
-        Vec::new()
-    };
+    let nearest_two =
+        if cfg.nearby_fallback_enabled && by_gap.len() >= cfg.nearby_fallback_min_location_count {
+            by_gap
+                .iter()
+                .filter(|(id, _, _)| id != &current_id)
+                .take(cfg.nearby_fallback_count)
+                .map(|(id, _, _)| id.clone())
+                .collect::<Vec<_>>()
+        } else {
+            Vec::new()
+        };
 
     let mut reachable = by_gap
         .into_iter()
@@ -1203,8 +1843,7 @@ fn compute_travel_capabilities(
         - (status.injury_level as f32 * cfg.mobility_injury_penalty)
         - (status.qi_deviation as f32 * cfg.mobility_qi_penalty))
         .clamp(cfg.mobility_min, cfg.mobility_max);
-    let max_energy = (cfg.max_energy_base
-        + (realm.level as f32 * cfg.max_energy_per_realm)
+    let max_energy = (cfg.max_energy_base + (realm.level as f32 * cfg.max_energy_per_realm)
         - (status.injury_level as f32 * cfg.max_energy_injury_penalty))
         .clamp(cfg.max_energy_min, cfg.max_energy_max);
     (mobility, max_energy)
@@ -1220,8 +1859,16 @@ fn build_energy_path(
     if current_id == target_id {
         return Some(vec![current_id]);
     }
-    let current_energy = game_state.world_state.locations.get(&current_id)?.spiritual_energy;
-    let target_energy = game_state.world_state.locations.get(target_id)?.spiritual_energy;
+    let current_energy = game_state
+        .world_state
+        .locations
+        .get(&current_id)?
+        .spiritual_energy;
+    let target_energy = game_state
+        .world_state
+        .locations
+        .get(target_id)?
+        .spiritual_energy;
     if (current_energy - target_energy).abs() <= mobility && target_energy <= max_energy + 0.05 {
         return Some(vec![current_id, target_id.to_string()]);
     }
@@ -1293,7 +1940,11 @@ fn infer_location_ecology(
     if text.contains("秘境") || text.contains("secret") || text.contains("realm") {
         environment_tags.push("secret_realm".to_string());
     }
-    if text.contains("城") || text.contains("市") || text.contains("city") || text.contains("market") {
+    if text.contains("城")
+        || text.contains("市")
+        || text.contains("city")
+        || text.contains("market")
+    {
         environment_tags.push("town".to_string());
     }
     if text.contains("禁地") || text.contains("abyss") || text.contains("魔") {
@@ -1332,9 +1983,16 @@ fn infer_location_ecology(
 
     let event_hotspot = risk_tier == "high"
         || (risk_tier == "medium" && location.spiritual_energy >= 0.65)
-        || environment_tags.iter().any(|tag| tag == "forbidden_zone" || tag == "secret_realm");
+        || environment_tags
+            .iter()
+            .any(|tag| tag == "forbidden_zone" || tag == "secret_realm");
 
-    (environment_tags, resource_tags, control_faction, event_hotspot)
+    (
+        environment_tags,
+        resource_tags,
+        control_faction,
+        event_hotspot,
+    )
 }
 
 fn compute_map_overview(game_state: &GameState) -> Vec<MapLocationOverview> {
@@ -1386,7 +2044,11 @@ fn compute_map_overview(game_state: &GameState) -> Vec<MapLocationOverview> {
             }
         })
         .collect::<Vec<_>>();
-    nodes.sort_by(|a, b| a.energy_gap.partial_cmp(&b.energy_gap).unwrap_or(std::cmp::Ordering::Equal));
+    nodes.sort_by(|a, b| {
+        a.energy_gap
+            .partial_cmp(&b.energy_gap)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     nodes
 }
 
@@ -1470,7 +2132,8 @@ fn apply_cultivation_side_effects(
     if game_state.player.stats.techniques.is_empty() {
         return None;
     }
-    let (_, _, high_risk_technique) = evaluate_technique_semantic_modifier(&game_state.player.stats);
+    let (_, _, high_risk_technique) =
+        evaluate_technique_semantic_modifier(&game_state.player.stats);
     let seed = game_state.game_time.total_days as usize + game_state.player.stats.techniques.len();
 
     if high_risk_technique && seed.is_multiple_of(2) {
@@ -1579,11 +2242,19 @@ fn infer_technique_semantics(name: &str) -> TechniqueSemanticProfile {
         type_tags.push("body".to_string());
         counter_tags.push("sword".to_string());
     }
-    if lower.contains("符") || lower.contains("阵") || lower.contains("talisman") || lower.contains("array") {
+    if lower.contains("符")
+        || lower.contains("阵")
+        || lower.contains("talisman")
+        || lower.contains("array")
+    {
         type_tags.push("talisman".to_string());
         counter_tags.push("blade".to_string());
     }
-    if lower.contains("fire") || lower.contains("炎") || lower.contains("焰") || lower.contains("火") {
+    if lower.contains("fire")
+        || lower.contains("炎")
+        || lower.contains("焰")
+        || lower.contains("火")
+    {
         trait_tags.push("fire".to_string());
     }
     if lower.contains("ice") || lower.contains("寒") || lower.contains("冰") {
@@ -1646,7 +2317,8 @@ fn evaluate_technique_semantic_modifier(
 
     for tech in &stats.techniques {
         let semantic = infer_technique_semantics(tech);
-        if semantic.trait_tags.iter().any(|tag| tag == "fire") && roots.iter().any(|r| r == "fire") {
+        if semantic.trait_tags.iter().any(|tag| tag == "fire") && roots.iter().any(|r| r == "fire")
+        {
             percent_delta += 8;
             reasons.push(format!("功法 `{}` 与火灵根适配", semantic.technique_name));
         }
@@ -1654,9 +2326,14 @@ fn evaluate_technique_semantic_modifier(
             && (roots.iter().any(|r| r == "water") || roots.iter().any(|r| r == "ice"))
         {
             percent_delta += 6;
-            reasons.push(format!("功法 `{}` 与水/冰灵根适配", semantic.technique_name));
+            reasons.push(format!(
+                "功法 `{}` 与水/冰灵根适配",
+                semantic.technique_name
+            ));
         }
-        if semantic.trait_tags.iter().any(|tag| tag == "water") && roots.iter().any(|r| r == "water") {
+        if semantic.trait_tags.iter().any(|tag| tag == "water")
+            && roots.iter().any(|r| r == "water")
+        {
             percent_delta += 5;
             reasons.push(format!("功法 `{}` 与水灵根适配", semantic.technique_name));
         }
@@ -1670,7 +2347,10 @@ fn evaluate_technique_semantic_modifier(
         if semantic.risk_level > 0 {
             has_high_risk = true;
             percent_delta += 5;
-            reasons.push(format!("功法 `{}` 高风险强行驱动，短时增益", semantic.technique_name));
+            reasons.push(format!(
+                "功法 `{}` 高风险强行驱动，短时增益",
+                semantic.technique_name
+            ));
         }
     }
 
@@ -1865,7 +2545,11 @@ fn summarize_generation_failure_diagnostics(
 
     let mut top_reasons = reason_counter
         .into_iter()
-        .map(|((stage, reason), count)| GenerationFailureReason { stage, reason, count })
+        .map(|((stage, reason), count)| GenerationFailureReason {
+            stage,
+            reason,
+            count,
+        })
         .collect::<Vec<_>>();
     top_reasons.sort_by(|a, b| {
         b.count
@@ -1931,7 +2615,10 @@ fn validate_file_path(path: &str, allowed_exts: &[&str]) -> Result<(), AppError>
         ));
     }
     if let Some(ext) = p.extension().and_then(|e| e.to_str()) {
-        if allowed_exts.iter().any(|allowed| ext.eq_ignore_ascii_case(allowed)) {
+        if allowed_exts
+            .iter()
+            .any(|allowed| ext.eq_ignore_ascii_case(allowed))
+        {
             return Ok(());
         }
     }
@@ -1975,7 +2662,10 @@ fn validate_output_path(path: &str, allowed_exts: &[&str]) -> Result<(), AppErro
         }
     }
     if let Some(ext) = p.extension().and_then(|e| e.to_str()) {
-        if allowed_exts.iter().any(|allowed| ext.eq_ignore_ascii_case(allowed)) {
+        if allowed_exts
+            .iter()
+            .any(|allowed| ext.eq_ignore_ascii_case(allowed))
+        {
             return Ok(());
         }
     }
@@ -2105,7 +2795,9 @@ pub async fn initialize_game(
         Ok(guard) => guard,
         Err(poisoned) => poisoned.into_inner(),
     };
-    engine.update_current_state(game_state.clone()).map_err(|e| e.to_string())?;
+    engine
+        .update_current_state(game_state.clone())
+        .map_err(|e| e.to_string())?;
     engine.update_world_registry(registry);
     Ok(game_state)
 }
@@ -2129,6 +2821,7 @@ pub async fn execute_player_action(
         (game_state, plot_state, world_registry)
     };
     plot_state.interaction_state = PlotInteractionState::Resolving;
+    let noname_action_summary = build_noname_action_summary(&action, &plot_state);
 
     let plot_engine = PlotEngine::new();
     let context = Context {
@@ -2151,7 +2844,10 @@ pub async fn execute_player_action(
     let mut combat_strategy_note: Option<String> = None;
     let mut should_emit_combat_explanation = false;
     if let Some(selected_option_id) = action.selected_option_id {
-        if let Some(selected_option) = plot_state.current_scene.available_options.get(selected_option_id)
+        if let Some(selected_option) = plot_state
+            .current_scene
+            .available_options
+            .get(selected_option_id)
         {
             match &selected_option.action {
                 Action::Cultivate => {
@@ -2197,7 +2893,9 @@ pub async fn execute_player_action(
                         game_state.player.combat_status.qi_deviation,
                     ) {
                         action_result.success = false;
-                        action_result.events.push("突破被中断：气机紊乱接近失控".to_string());
+                        action_result
+                            .events
+                            .push("突破被中断：气机紊乱接近失控".to_string());
                         action_result.description = format!(
                             "{}（气机紊乱过高，强行突破失败）",
                             action_result.description
@@ -2260,10 +2958,7 @@ pub async fn execute_player_action(
                         );
                         push_growth_log(
                             &mut game_state,
-                            format!(
-                                "战斗硬约束影响：战力 {} -> {}",
-                                old_power, new_power
-                            ),
+                            format!("战斗硬约束影响：战力 {} -> {}", old_power, new_power),
                         );
                     }
                     if !hard_constraints.reasons.is_empty() {
@@ -2281,7 +2976,9 @@ pub async fn execute_player_action(
                             .cloned()
                             .unwrap_or_else(|| "硬约束未通过".to_string());
                         combat_guard_reason = Some(reason.clone());
-                        action_result.events.push(format!("战斗裁决中断：{}", reason));
+                        action_result
+                            .events
+                            .push(format!("战斗裁决中断：{}", reason));
                     }
                     let (strategy, strategy_reason) =
                         choose_combat_strategy(&game_state.player.combat_status, &option_hint);
@@ -2340,7 +3037,10 @@ pub async fn execute_player_action(
                         );
                         push_growth_log(
                             &mut game_state,
-                            format!("环境影响战斗：战力 {} -> {}（{}）", old_power, new_power, env_reason),
+                            format!(
+                                "环境影响战斗：战力 {} -> {}（{}）",
+                                old_power, new_power, env_reason
+                            ),
                         );
                     }
                     if !env_reason.is_empty() {
@@ -2367,7 +3067,10 @@ pub async fn execute_player_action(
                         );
                         push_growth_log(
                             &mut game_state,
-                            format!("流派克制影响：战力 {} -> {}（{}）", old_power, new_power, style_reason),
+                            format!(
+                                "流派克制影响：战力 {} -> {}（{}）",
+                                old_power, new_power, style_reason
+                            ),
                         );
                     }
                     action_result.description =
@@ -2434,12 +3137,17 @@ pub async fn execute_player_action(
                             check.reason.unwrap_or_else(|| "未知原因".to_string())
                         );
                     }
-                    let aftermath_summary =
-                        apply_combat_aftermath(&mut game_state, action_result.success, Some(strategy));
+                    let aftermath_summary = apply_combat_aftermath(
+                        &mut game_state,
+                        action_result.success,
+                        Some(strategy),
+                    );
                     if high_risk_technique {
                         let status = &mut game_state.player.combat_status;
                         status.injury_level = status.injury_level.saturating_add(1).min(10);
-                        action_result.events.push("高风险功法反噬：伤势+1".to_string());
+                        action_result
+                            .events
+                            .push("高风险功法反噬：伤势+1".to_string());
                     }
                     action_result.events.push(aftermath_summary.clone());
                     action_result.description =
@@ -2469,15 +3177,21 @@ pub async fn execute_player_action(
     if let Some(bundle) = &context_bundle {
         let inject = render_generation_context(bundle);
         if !inject.is_empty() {
-            plot_state_for_generation.current_scene.description =
-                format!("{}{}", plot_state_for_generation.current_scene.description, inject);
+            plot_state_for_generation.current_scene.description = format!(
+                "{}{}",
+                plot_state_for_generation.current_scene.description, inject
+            );
         }
     }
 
     let cache_key = if quick_mode {
         None
     } else {
-        Some(build_action_plot_cache_key(&game_state, &plot_state, &action))
+        Some(build_action_plot_cache_key(
+            &game_state,
+            &plot_state,
+            &action,
+        ))
     };
     let plot_generation_started = Instant::now();
     let (mut plot_update, cache_hit_semantic) = if quick_mode {
@@ -2624,7 +3338,7 @@ pub async fn execute_player_action(
 
     if !quick_mode
         && (is_hollow_expression(&plot_update.plot_text)
-        || narrative_dimension_coverage(&plot_update.plot_text) < 2)
+            || narrative_dimension_coverage(&plot_update.plot_text) < 2)
         && total_started.elapsed().as_millis() <= REGEN_LATENCY_BUDGET_MS
     {
         let mut regenerated_state = plot_state_for_generation.clone();
@@ -2635,8 +3349,7 @@ pub async fn execute_player_action(
         );
         regenerated_state.current_scene.description = format!(
             "{}{}",
-            regenerated_state.current_scene.description,
-            regen_hint
+            regenerated_state.current_scene.description, regen_hint
         );
         let mut regenerated_update = plot_engine
             .advance_plot_async_with_policy(
@@ -2677,8 +3390,8 @@ pub async fn execute_player_action(
         }
     } else if !quick_mode
         && (is_hollow_expression(&plot_update.plot_text)
-        || narrative_dimension_coverage(&plot_update.plot_text) < 2
-    ) {
+            || narrative_dimension_coverage(&plot_update.plot_text) < 2)
+    {
         match &mut plot_update.generation_diagnostics {
             Some(diag) => diag.push_str("；叙事厚度重生成：skipped(latency_budget)"),
             None => {
@@ -2701,8 +3414,7 @@ pub async fn execute_player_action(
         && diagnostics_used_preset_fallback(plot_update.generation_diagnostics.as_deref())
     {
         return Err(
-            "LLM 严格模式：本轮未获得可用 LLM 剧情文本，已中止推进（未写入预设文本）。"
-                .to_string(),
+            "LLM 严格模式：本轮未获得可用 LLM 剧情文本，已中止推进（未写入预设文本）。".to_string(),
         );
     }
     if !quick_mode
@@ -2729,155 +3441,160 @@ pub async fn execute_player_action(
     // Phase 2: 双通道（state_patch + narrative）优先，失败则保留现有 plot_engine 结果。
     if !quick_mode {
         if let Some(mut registry) = world_registry.clone() {
-        let turn_update_started = Instant::now();
-        let (turn_result, turn_update_error) = registry
-            .generate_turn_update_with_llm_diagnostic(
-                &game_state,
-                &plot_state,
-                &action.content,
-                WORLD_REGISTRY_REFERENCE,
-                WORLD_REGISTRY_SUPPLEMENT,
-            )
-            .await;
-        let turn_update_ms = turn_update_started.elapsed().as_millis();
-        if let Some(turn_result) = turn_result {
-            let previous_plot_text = plot_update.plot_text.clone();
-            let previous_options = plot_update.available_options.clone();
-            let previous_waiting = plot_update.is_waiting_for_input;
-            let registry_before_patch = registry.clone();
-            match registry.apply_state_patch_transactional(&turn_result.state_patch) {
-                Ok(patch_notes) => {
-                    let narrative = turn_result.narrative_segment.trim().to_string();
-                    let contract_ok = if let Err(contract_err) =
-                        registry.validate_turn_narrative_contract(&narrative)
-                    {
-                        if plot_state.settings.llm_strict_mode {
-                            return Err(format!("LLM 严格模式：叙事合同校验失败：{}", contract_err));
+            let turn_update_started = Instant::now();
+            let (turn_result, turn_update_error) = registry
+                .generate_turn_update_with_llm_diagnostic(
+                    &game_state,
+                    &plot_state,
+                    &action.content,
+                    WORLD_REGISTRY_REFERENCE,
+                    WORLD_REGISTRY_SUPPLEMENT,
+                )
+                .await;
+            let turn_update_ms = turn_update_started.elapsed().as_millis();
+            if let Some(turn_result) = turn_result {
+                let previous_plot_text = plot_update.plot_text.clone();
+                let previous_options = plot_update.available_options.clone();
+                let previous_waiting = plot_update.is_waiting_for_input;
+                let registry_before_patch = registry.clone();
+                match registry.apply_state_patch_transactional(&turn_result.state_patch) {
+                    Ok(patch_notes) => {
+                        let narrative = turn_result.narrative_segment.trim().to_string();
+                        let contract_ok = if let Err(contract_err) =
+                            registry.validate_turn_narrative_contract(&narrative)
+                        {
+                            if plot_state.settings.llm_strict_mode {
+                                return Err(format!(
+                                    "LLM 严格模式：叙事合同校验失败：{}",
+                                    contract_err
+                                ));
+                            }
+                            registry = registry_before_patch.clone();
+                            plot_update.plot_text = previous_plot_text.clone();
+                            plot_update.available_options = previous_options.clone();
+                            plot_update.is_waiting_for_input = previous_waiting;
+                            match &mut plot_update.generation_diagnostics {
+                                Some(diag) => {
+                                    diag.push('；');
+                                    diag.push_str(&format!("双通道叙事丢弃：{}", contract_err));
+                                }
+                                None => {
+                                    plot_update.generation_diagnostics =
+                                        Some(format!("双通道叙事丢弃：{}", contract_err))
+                                }
+                            }
+                            false
+                        } else {
+                            true
+                        };
+
+                        let entity_ref_ok = if !contract_ok {
+                            false
+                        } else if let Err(unknown_entities) =
+                            registry.validate_narrative_entity_references(&narrative)
+                        {
+                            let detail = format!(
+                                "实体引用校验失败，未入表实体: {}",
+                                unknown_entities.join(",")
+                            );
+                            if plot_state.settings.llm_strict_mode {
+                                return Err(format!("LLM 严格模式：{}", detail));
+                            }
+                            registry = registry_before_patch.clone();
+                            plot_update.plot_text = previous_plot_text.clone();
+                            plot_update.available_options = previous_options.clone();
+                            plot_update.is_waiting_for_input = previous_waiting;
+                            match &mut plot_update.generation_diagnostics {
+                                Some(diag) => {
+                                    diag.push('；');
+                                    diag.push_str(&detail);
+                                }
+                                None => plot_update.generation_diagnostics = Some(detail),
+                            }
+                            false
+                        } else {
+                            true
+                        };
+
+                        if entity_ref_ok {
+                            if !narrative.is_empty() {
+                                plot_update.plot_text = narrative;
+                            }
+                            if !turn_result.choices.is_empty() {
+                                plot_update.available_options =
+                                    player_options_from_choice_texts(&turn_result.choices);
+                                plot_update.is_waiting_for_input = true;
+                            }
                         }
-                        registry = registry_before_patch.clone();
-                        plot_update.plot_text = previous_plot_text.clone();
-                        plot_update.available_options = previous_options.clone();
-                        plot_update.is_waiting_for_input = previous_waiting;
+                        apply_registry_to_game_state(&mut game_state, &registry);
+                        world_registry = Some(registry);
+                        let note = if patch_notes.is_empty() {
+                            format!(
+                                "双通道生成：llm_turn_update(no_patch,turn_update_ms={})",
+                                turn_update_ms
+                            )
+                        } else {
+                            format!(
+                                "双通道生成：llm_turn_update({},turn_update_ms={})",
+                                patch_notes.join(","),
+                                turn_update_ms
+                            )
+                        };
                         match &mut plot_update.generation_diagnostics {
                             Some(diag) => {
                                 diag.push('；');
-                                diag.push_str(&format!("双通道叙事丢弃：{}", contract_err));
+                                diag.push_str(&note);
+                            }
+                            None => plot_update.generation_diagnostics = Some(note),
+                        }
+                    }
+                    Err(err) => {
+                        if plot_state.settings.llm_strict_mode {
+                            return Err(format!(
+                                "LLM 严格模式：state_patch 校验失败，已中止推进。原因: {}",
+                                err
+                            ));
+                        }
+                        world_registry = Some(registry);
+                        match &mut plot_update.generation_diagnostics {
+                            Some(diag) => {
+                                diag.push_str(&format!("；双通道补丁丢弃：{}", err));
                             }
                             None => {
                                 plot_update.generation_diagnostics =
-                                    Some(format!("双通道叙事丢弃：{}", contract_err))
+                                    Some(format!("双通道补丁丢弃：{}", err))
                             }
                         }
-                        false
-                    } else {
-                        true
-                    };
-
-                    let entity_ref_ok = if !contract_ok {
-                        false
-                    } else if let Err(unknown_entities) =
-                        registry.validate_narrative_entity_references(&narrative)
-                    {
-                        let detail = format!(
-                            "实体引用校验失败，未入表实体: {}",
-                            unknown_entities.join(",")
-                        );
-                        if plot_state.settings.llm_strict_mode {
-                            return Err(format!("LLM 严格模式：{}", detail));
-                        }
-                        registry = registry_before_patch.clone();
-                        plot_update.plot_text = previous_plot_text.clone();
-                        plot_update.available_options = previous_options.clone();
-                        plot_update.is_waiting_for_input = previous_waiting;
-                        match &mut plot_update.generation_diagnostics {
-                            Some(diag) => {
-                                diag.push('；');
-                                diag.push_str(&detail);
-                            }
-                            None => plot_update.generation_diagnostics = Some(detail),
-                        }
-                        false
-                    } else {
-                        true
-                    };
-
-                    if entity_ref_ok {
-                        if !narrative.is_empty() {
-                            plot_update.plot_text = narrative;
-                        }
-                        if !turn_result.choices.is_empty() {
-                            plot_update.available_options =
-                                player_options_from_choice_texts(&turn_result.choices);
-                            plot_update.is_waiting_for_input = true;
-                        }
                     }
-                    apply_registry_to_game_state(&mut game_state, &registry);
-                    world_registry = Some(registry);
-                    let note = if patch_notes.is_empty() {
-                        format!(
-                            "双通道生成：llm_turn_update(no_patch,turn_update_ms={})",
-                            turn_update_ms
-                        )
-                    } else {
-                        format!(
-                            "双通道生成：llm_turn_update({},turn_update_ms={})",
-                            patch_notes.join(","),
-                            turn_update_ms
-                        )
-                    };
-                    match &mut plot_update.generation_diagnostics {
-                        Some(diag) => {
-                            diag.push('；');
-                            diag.push_str(&note);
-                        }
-                        None => plot_update.generation_diagnostics = Some(note),
+                };
+            } else {
+                let fallback_note = match turn_update_error {
+                    Some(err) => format!(
+                        "双通道生成：fallback(plot_engine_only,turn_update_ms={},reason={})",
+                        turn_update_ms, err
+                    ),
+                    None => format!(
+                        "双通道生成：fallback(plot_engine_only,turn_update_ms={})",
+                        turn_update_ms
+                    ),
+                };
+                match &mut plot_update.generation_diagnostics {
+                    Some(diag) => {
+                        diag.push('；');
+                        diag.push_str(&fallback_note);
                     }
-                }
-                Err(err) => {
-                    if plot_state.settings.llm_strict_mode {
-                        return Err(format!(
-                            "LLM 严格模式：state_patch 校验失败，已中止推进。原因: {}",
-                            err
-                        ));
-                    }
-                    world_registry = Some(registry);
-                    match &mut plot_update.generation_diagnostics {
-                        Some(diag) => {
-                            diag.push_str(&format!("；双通道补丁丢弃：{}", err));
-                        }
-                        None => {
-                            plot_update.generation_diagnostics =
-                                Some(format!("双通道补丁丢弃：{}", err))
-                        }
-                    }
-                }
-            };
-        } else {
-            let fallback_note = match turn_update_error {
-                Some(err) => format!(
-                    "双通道生成：fallback(plot_engine_only,turn_update_ms={},reason={})",
-                    turn_update_ms, err
-                ),
-                None => format!(
-                    "双通道生成：fallback(plot_engine_only,turn_update_ms={})",
-                    turn_update_ms
-                ),
-            };
-            match &mut plot_update.generation_diagnostics {
-                Some(diag) => {
-                    diag.push('；');
-                    diag.push_str(&fallback_note);
-                }
-                None => {
-                    plot_update.generation_diagnostics = Some(fallback_note)
+                    None => plot_update.generation_diagnostics = Some(fallback_note),
                 }
             }
-        }
         }
     }
 
     let log_entry = if let Some(selected_option_id) = action.selected_option_id {
-        if let Some(selected_option) = plot_state.current_scene.available_options.get(selected_option_id) {
+        if let Some(selected_option) = plot_state
+            .current_scene
+            .available_options
+            .get(selected_option_id)
+        {
             match &selected_option.action {
                 Action::Combat { .. } => Some((
                     "combat",
@@ -2886,7 +3603,10 @@ pub async fn execute_player_action(
                 )),
                 Action::Breakthrough => Some((
                     "breakthrough_attempt",
-                    format!("Player attempted breakthrough: {}", selected_option.description),
+                    format!(
+                        "Player attempted breakthrough: {}",
+                        selected_option.description
+                    ),
                     EventImportance::Important,
                 )),
                 Action::Custom { .. } | Action::Cultivate | Action::Rest => Some((
@@ -2909,7 +3629,29 @@ pub async fn execute_player_action(
     };
 
     plot_state.last_action_result = Some(action_result.clone());
-    plot_state.append_segment(plot_update.plot_text.clone());
+    let plot_text_for_history = plot_update.plot_text.clone();
+    let mut plot_text_for_player = plot_update.plot_text.clone();
+    let mut noname_result = run_noname_observe_only_for_turn(
+        &noname_action_summary,
+        &game_state,
+        &plot_state,
+        timestamp,
+    )
+    .ok();
+    let mut noname_plot_text_applied = false;
+    if let Some(result) = noname_result.as_mut() {
+        let plans = build_noname_apply_plan_set(
+            &result.proposal,
+            Some(&plot_state),
+            Some(plot_text_for_player.as_str()),
+        );
+        for plan in &plans {
+            record_noname_apply_plan(&mut result.trace, plan);
+        }
+        noname_plot_text_applied = apply_noname_plot_text_hint(&mut plot_text_for_player, result);
+    }
+
+    plot_state.append_segment(plot_text_for_history.clone());
 
     if let Some(title) = plot_update.chapter_title.clone() {
         if !title.trim().is_empty() {
@@ -2932,8 +3674,8 @@ pub async fn execute_player_action(
     plot_state.last_generation_diagnostics = plot_update.generation_diagnostics.clone();
 
     // 用最新段落更新场景描述，避免选项生成长期绑定旧描述导致“选项不变”。
-    if !plot_update.plot_text.trim().is_empty() {
-        plot_state.current_scene.description = plot_update.plot_text.trim().to_string();
+    if !plot_text_for_history.trim().is_empty() {
+        plot_state.current_scene.description = plot_text_for_history.trim().to_string();
     }
 
     let previous_options = plot_state.current_scene.available_options.clone();
@@ -2958,11 +3700,14 @@ pub async fn execute_player_action(
                 (options, "llm_regenerated".to_string())
             } else {
                 (
-                    plot_engine
-                        .generate_player_options(&plot_state.current_scene, &game_state.player.stats),
+                    plot_engine.generate_player_options(
+                        &plot_state.current_scene,
+                        &game_state.player.stats,
+                    ),
                     if quick_mode {
                         "quick_mode_rule_only".to_string()
-                    } else if options_started.elapsed().as_millis() <= OPTION_LLM_LATENCY_BUDGET_MS {
+                    } else if options_started.elapsed().as_millis() <= OPTION_LLM_LATENCY_BUDGET_MS
+                    {
                         "rule_fallback".to_string()
                     } else {
                         "rule_fallback_latency_budget".to_string()
@@ -3179,6 +3924,22 @@ pub async fn execute_player_action(
             object: game_state.player.location.clone(),
         });
     }
+
+    if let Some(mut noname_result) = noname_result {
+        apply_noname_low_risk_outputs(
+            &mut plot_state,
+            &mut noname_result,
+            noname_plot_text_applied,
+        );
+        append_noname_observation_diagnostics(
+            &mut plot_state.last_generation_diagnostics,
+            noname_result.trace.mode,
+            &noname_result.observation,
+            noname_result.guardrail_result.as_ref(),
+            &noname_result.trace,
+        );
+    }
+
     game_state.player.refresh_profile_views();
     engine
         .update_current_state(game_state)
@@ -3190,7 +3951,49 @@ pub async fn execute_player_action(
         .update_plot_state(plot_state)
         .map_err(|e| e.to_string())?;
 
-    Ok(plot_update.plot_text)
+    Ok(plot_text_for_player)
+}
+
+#[tauri::command]
+pub async fn get_noname_recent_traces() -> Result<Vec<NoNameTrace>, String> {
+    let runtime = noname_runtime()
+        .lock()
+        .map_err(|_| "NoName runtime lock poisoned".to_string())?;
+    Ok(runtime.get_recent_traces())
+}
+
+#[tauri::command]
+pub async fn clear_noname_recent_traces() -> Result<(), String> {
+    let mut runtime = noname_runtime()
+        .lock()
+        .map_err(|_| "NoName runtime lock poisoned".to_string())?;
+    runtime.clear_traces();
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_noname_mode() -> Result<NoNameMode, String> {
+    let runtime = noname_runtime()
+        .lock()
+        .map_err(|_| "NoName runtime lock poisoned".to_string())?;
+    Ok(runtime.mode())
+}
+
+#[tauri::command]
+pub async fn set_noname_mode(
+    mode: NoNameMode,
+    engine: State<'_, Mutex<GameEngine>>,
+) -> Result<NoNameMode, String> {
+    let mut runtime = noname_runtime()
+        .lock()
+        .map_err(|_| "NoName runtime lock poisoned".to_string())?;
+    runtime.set_mode(mode);
+    let mut engine = match engine.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    engine.set_noname_mode(runtime.mode());
+    Ok(runtime.mode())
 }
 
 #[tauri::command]
@@ -3256,11 +4059,17 @@ pub async fn load_game(
         Ok(guard) => guard,
         Err(poisoned) => poisoned.into_inner(),
     };
-    engine.load_game(slot_id).map_err(|e| e.to_string())
+    let game_state = engine.load_game(slot_id).map_err(|e| e.to_string())?;
+    if let Ok(mut runtime) = noname_runtime().lock() {
+        runtime.set_mode(engine.noname_mode());
+    }
+    Ok(game_state)
 }
 
 #[tauri::command]
-pub async fn list_save_slots(engine: State<'_, Mutex<GameEngine>>) -> Result<Vec<SaveInfo>, String> {
+pub async fn list_save_slots(
+    engine: State<'_, Mutex<GameEngine>>,
+) -> Result<Vec<SaveInfo>, String> {
     let engine = match engine.lock() {
         Ok(guard) => guard,
         Err(poisoned) => poisoned.into_inner(),
@@ -3297,8 +4106,7 @@ pub async fn travel_to_location(
     location_id: String,
     engine: State<'_, Mutex<GameEngine>>,
 ) -> Result<String, String> {
-    validate_non_empty(&location_id, "目标地点")
-        .map_err(|e| map_error("移动失败", e))?;
+    validate_non_empty(&location_id, "目标地点").map_err(|e| map_error("移动失败", e))?;
     let engine = match engine.lock() {
         Ok(guard) => guard,
         Err(poisoned) => poisoned.into_inner(),
@@ -3374,7 +4182,8 @@ pub async fn generate_random_script() -> Result<Script, String> {
 pub async fn parse_novel_characters(novel_path: String) -> Result<Vec<String>, String> {
     use crate::script_manager::ScriptManager;
 
-    validate_file_path(&novel_path, &["txt", "md"]).map_err(|e| map_error("解析小说角色失败", e))?;
+    validate_file_path(&novel_path, &["txt", "md"])
+        .map_err(|e| map_error("解析小说角色失败", e))?;
     let manager = ScriptManager::new();
     manager
         .extract_novel_characters(&novel_path)
@@ -3388,11 +4197,15 @@ pub async fn load_existing_novel(
 ) -> Result<Script, String> {
     use crate::script_manager::ScriptManager;
 
-    validate_file_path(&novel_path, &["txt", "md"]).map_err(|e| map_error("导入现有小说失败", e))?;
+    validate_file_path(&novel_path, &["txt", "md"])
+        .map_err(|e| map_error("导入现有小说失败", e))?;
     if selected_character.trim().is_empty() {
         return Err(map_error(
             "导入现有小说失败",
-            AppError::new(crate::app_error::AppErrorKind::InvalidInput, "请选择有效角色"),
+            AppError::new(
+                crate::app_error::AppErrorKind::InvalidInput,
+                "请选择有效角色",
+            ),
         ));
     }
     let manager = ScriptManager::new();
@@ -3414,9 +4227,7 @@ pub async fn get_player_options(
 }
 
 #[tauri::command]
-pub async fn initialize_plot(
-    engine: State<'_, Mutex<GameEngine>>,
-) -> Result<PlotState, String> {
+pub async fn initialize_plot(engine: State<'_, Mutex<GameEngine>>) -> Result<PlotState, String> {
     let total_started = Instant::now();
     let (player_name, realm_name, spiritual_root, location) = {
         let engine = match engine.lock() {
@@ -3484,11 +4295,12 @@ pub async fn initialize_plot(
         .map_err(|e| e.to_string())?;
     let state_persist_ms = persist_started.elapsed().as_millis();
     let total_ms = total_started.elapsed().as_millis();
-    plot_state.last_option_generation_source = Some(if plot_state.current_scene.available_options.is_empty() {
-        "opening_default_rule".to_string()
-    } else {
-        "opening_llm_options".to_string()
-    });
+    plot_state.last_option_generation_source =
+        Some(if plot_state.current_scene.available_options.is_empty() {
+            "opening_default_rule".to_string()
+        } else {
+            "opening_llm_options".to_string()
+        });
     plot_state.last_generation_diagnostics = Some(format!(
         "初始化耗时(ms)：total={},input_assembly=0,model_request_parse={},opening_option_build={},state_persist={}",
         total_ms, opening_gen_ms, opening_option_build_ms, state_persist_ms
@@ -3500,9 +4312,7 @@ pub async fn initialize_plot(
 }
 
 #[tauri::command]
-pub async fn get_plot_state(
-    engine: State<'_, Mutex<GameEngine>>,
-) -> Result<PlotState, String> {
+pub async fn get_plot_state(engine: State<'_, Mutex<GameEngine>>) -> Result<PlotState, String> {
     let engine = match engine.lock() {
         Ok(guard) => guard,
         Err(poisoned) => poisoned.into_inner(),
@@ -3567,7 +4377,9 @@ pub async fn rehydrate_last_quick_mode_segment(
         Ok(guard) => guard,
         Err(poisoned) => poisoned.into_inner(),
     };
-    engine.update_plot_state(plot_state).map_err(|e| e.to_string())?;
+    engine
+        .update_plot_state(plot_state)
+        .map_err(|e| e.to_string())?;
     Ok(true)
 }
 
@@ -3603,7 +4415,10 @@ pub async fn update_plot_settings(
     if settings.novel_style.trim().is_empty() {
         return Err(map_error(
             "更新剧情设置失败",
-            AppError::new(crate::app_error::AppErrorKind::InvalidInput, "小说风格不能为空"),
+            AppError::new(
+                crate::app_error::AppErrorKind::InvalidInput,
+                "小说风格不能为空",
+            ),
         ));
     }
     let engine = match engine.lock() {
@@ -3624,10 +4439,12 @@ pub async fn get_consistency_policy() -> Result<ConsistencyPolicy, String> {
 pub async fn update_consistency_policy(
     policy: ConsistencyPolicy,
 ) -> Result<ConsistencyPolicy, String> {
-    update_runtime_policy(policy).map_err(|e| map_error("更新一致性策略失败", AppError::new(
-        crate::app_error::AppErrorKind::InvalidInput,
-        e,
-    )))
+    update_runtime_policy(policy).map_err(|e| {
+        map_error(
+            "更新一致性策略失败",
+            AppError::new(crate::app_error::AppErrorKind::InvalidInput, e),
+        )
+    })
 }
 
 #[tauri::command]
@@ -3682,7 +4499,10 @@ pub async fn summarize_generation_failures(
         .ok_or_else(|| "未提供可统计的诊断数据".to_string())
 }
 
-async fn generate_novel_from_events(title: &str, events: &[crate::event_log::GameEvent]) -> Result<Novel, String> {
+async fn generate_novel_from_events(
+    title: &str,
+    events: &[crate::event_log::GameEvent],
+) -> Result<Novel, String> {
     let generator = NovelGenerator::new();
     generator.generate_novel(title.to_string(), events).await
 }
@@ -3791,7 +4611,10 @@ pub async fn commit_entities(input: CommitEntitiesInput) -> Result<CommitEntitie
 
     for candidate in &input.candidates {
         let resolved = resolve_candidate(candidate);
-        if matches!(resolved.validation_report.status, ValidationStatus::Rejected) {
+        if matches!(
+            resolved.validation_report.status,
+            ValidationStatus::Rejected
+        ) {
             rejected.push(resolved);
             continue;
         }
@@ -3815,7 +4638,10 @@ pub async fn commit_entities(input: CommitEntitiesInput) -> Result<CommitEntitie
         });
     }
 
-    Ok(CommitEntitiesResponse { committed, rejected })
+    Ok(CommitEntitiesResponse {
+        committed,
+        rejected,
+    })
 }
 
 #[tauri::command]
@@ -3830,7 +4656,9 @@ pub async fn query_entities(query: EntityQuery) -> Result<Vec<StoredEntity>, Str
 }
 
 #[tauri::command]
-pub async fn build_context_bundle_command(input: ContextBuildInput) -> Result<ContextBundle, String> {
+pub async fn build_context_bundle_command(
+    input: ContextBuildInput,
+) -> Result<ContextBundle, String> {
     let store = entity_store()
         .lock()
         .map_err(|_| "failed to lock entity store".to_string())?;
@@ -3866,7 +4694,7 @@ mod tests {
                 element: Element::Fire,
                 grade: Grade::Heavenly,
                 affinity: 0.9,
-            elements: Vec::new(),
+                elements: Vec::new(),
             },
             starting_location: "sect".to_string(),
             starting_age: 16,
@@ -3991,7 +4819,9 @@ mod tests {
             },
         ];
 
-        let novel = generate_novel_from_events("Test Novel", &events).await.unwrap();
+        let novel = generate_novel_from_events("Test Novel", &events)
+            .await
+            .unwrap();
         assert_eq!(novel.title, "Test Novel");
         assert_eq!(novel.total_events, 2);
         assert!(!novel.chapters.is_empty());
@@ -4057,11 +4887,13 @@ mod tests {
     #[test]
     fn test_has_consistency_issue() {
         let mut report = ConsistencyReport::default();
-        report.issues.push(crate::plot_consistency::ConsistencyIssue {
-            level: crate::plot_consistency::IssueLevel::Warning,
-            code: "chapter_goal_weak",
-            message: "goal weak".to_string(),
-        });
+        report
+            .issues
+            .push(crate::plot_consistency::ConsistencyIssue {
+                level: crate::plot_consistency::IssueLevel::Warning,
+                code: "chapter_goal_weak",
+                message: "goal weak".to_string(),
+            });
         assert!(has_consistency_issue(&report, "chapter_goal_weak"));
         assert!(!has_consistency_issue(&report, "duplicate_segment"));
     }
@@ -4071,7 +4903,9 @@ mod tests {
         assert!(diagnostics_used_preset_fallback(Some(
             "回退：LLM 结构化剧情生成失败；纯文本续写也失败，已使用预设文本",
         )));
-        assert!(!diagnostics_used_preset_fallback(Some("回退：仅降级为纯文本续写")));
+        assert!(!diagnostics_used_preset_fallback(Some(
+            "回退：仅降级为纯文本续写"
+        )));
         assert!(!diagnostics_used_preset_fallback(None));
     }
 
@@ -4099,31 +4933,40 @@ mod tests {
     #[test]
     fn test_effective_consistency_report_removes_waiting_issue_when_options_recovered() {
         let mut report = ConsistencyReport::default();
-        report.issues.push(crate::plot_consistency::ConsistencyIssue {
-            level: crate::plot_consistency::IssueLevel::Warning,
-            code: "waiting_without_options",
-            message: "waiting without options".to_string(),
-        });
-        report.issues.push(crate::plot_consistency::ConsistencyIssue {
-            level: crate::plot_consistency::IssueLevel::Warning,
-            code: "chapter_goal_weak",
-            message: "goal weak".to_string(),
-        });
+        report
+            .issues
+            .push(crate::plot_consistency::ConsistencyIssue {
+                level: crate::plot_consistency::IssueLevel::Warning,
+                code: "waiting_without_options",
+                message: "waiting without options".to_string(),
+            });
+        report
+            .issues
+            .push(crate::plot_consistency::ConsistencyIssue {
+                level: crate::plot_consistency::IssueLevel::Warning,
+                code: "chapter_goal_weak",
+                message: "goal weak".to_string(),
+            });
 
         let effective =
             effective_consistency_report_after_option_resolution(report, true, false, 3);
-        assert!(!has_consistency_issue(&effective, "waiting_without_options"));
+        assert!(!has_consistency_issue(
+            &effective,
+            "waiting_without_options"
+        ));
         assert!(has_consistency_issue(&effective, "chapter_goal_weak"));
     }
 
     #[test]
     fn test_effective_consistency_report_keeps_waiting_issue_when_options_missing() {
         let mut report = ConsistencyReport::default();
-        report.issues.push(crate::plot_consistency::ConsistencyIssue {
-            level: crate::plot_consistency::IssueLevel::Warning,
-            code: "waiting_without_options",
-            message: "waiting without options".to_string(),
-        });
+        report
+            .issues
+            .push(crate::plot_consistency::ConsistencyIssue {
+                level: crate::plot_consistency::IssueLevel::Warning,
+                code: "waiting_without_options",
+                message: "waiting without options".to_string(),
+            });
 
         let effective =
             effective_consistency_report_after_option_resolution(report, true, false, 0);
@@ -4306,8 +5149,14 @@ mod tests {
             push_growth_log(&mut state, format!("entry-{}", i));
         }
         assert_eq!(state.player.growth_log.len(), 240);
-        assert_eq!(state.player.growth_log.first().map(String::as_str), Some("entry-20"));
-        assert_eq!(state.player.growth_log.last().map(String::as_str), Some("entry-259"));
+        assert_eq!(
+            state.player.growth_log.first().map(String::as_str),
+            Some("entry-20")
+        );
+        assert_eq!(
+            state.player.growth_log.last().map(String::as_str),
+            Some("entry-259")
+        );
     }
 
     #[test]
@@ -4339,7 +5188,10 @@ mod tests {
         let semantic = infer_technique_semantics("元婴禁术爆炎剑");
         assert!(semantic.type_tags.iter().any(|t| t == "sword"));
         assert!(semantic.trait_tags.iter().any(|t| t == "fire"));
-        assert!(semantic.condition_tags.iter().any(|t| t.contains("realm>=")));
+        assert!(semantic
+            .condition_tags
+            .iter()
+            .any(|t| t.contains("realm>=")));
         assert!(semantic.risk_level > 0);
         assert!(semantic.required_realm_level >= 4);
     }
@@ -4437,12 +5289,15 @@ mod tests {
     #[test]
     fn test_apply_cultivation_side_effects_triggers_backlash_for_high_risk() {
         let mut script = create_test_script();
-        script.world_setting.locations.push(crate::script::Location {
-            id: "cave".to_string(),
-            name: "灵息洞".to_string(),
-            description: "修炼洞府".to_string(),
-            spiritual_energy: 0.6,
-        });
+        script
+            .world_setting
+            .locations
+            .push(crate::script::Location {
+                id: "cave".to_string(),
+                name: "灵息洞".to_string(),
+                description: "修炼洞府".to_string(),
+                spiritual_energy: 0.6,
+            });
         let mut state = crate::game_state::GameState {
             player: crate::game_state::Character::new(
                 "player".to_string(),
@@ -5214,7 +6069,9 @@ mod tests {
         };
         let overview = compute_map_overview(&state);
         assert_eq!(overview.len(), 2);
-        assert!(overview.iter().any(|node| node.location_id == "sect" && node.reachable));
+        assert!(overview
+            .iter()
+            .any(|node| node.location_id == "sect" && node.reachable));
     }
 
     #[test]
@@ -5268,7 +6125,12 @@ mod tests {
                         grade: crate::models::Grade::Heavenly,
                         affinity: 0.8,
                     },
-                    cultivation_realm: crate::models::CultivationRealm::new("Qi".to_string(), 1, 0, 1.0),
+                    cultivation_realm: crate::models::CultivationRealm::new(
+                        "Qi".to_string(),
+                        1,
+                        0,
+                        1.0,
+                    ),
                     techniques: vec![],
                     lifespan: crate::models::Lifespan {
                         current_age: 16,
@@ -5285,7 +6147,10 @@ mod tests {
             script,
         };
         let overview = compute_map_overview(&state);
-        let sect_node = overview.iter().find(|n| n.location_id == "sect").expect("sect node");
+        let sect_node = overview
+            .iter()
+            .find(|n| n.location_id == "sect")
+            .expect("sect node");
         assert!(!sect_node.environment_tags.is_empty());
         assert!(!sect_node.resource_tags.is_empty());
         assert!(!sect_node.control_faction.is_empty());
@@ -5569,7 +6434,849 @@ mod tests {
         };
         assert_eq!(normalize_action_bucket(&selected_only), "selected:2");
     }
+
+    #[test]
+    fn test_build_noname_action_summary_prefers_selected_option_text() {
+        let action = PlayerAction {
+            action_type: crate::plot_engine::ActionType::SelectedOption,
+            content: String::new(),
+            selected_option_id: Some(0),
+            meta: None,
+        };
+        let plot_state = PlotState {
+            current_scene: crate::plot_engine::Scene {
+                id: "scene-1".to_string(),
+                name: "山门".to_string(),
+                description: "山门风声渐紧".to_string(),
+                location: "sect".to_string(),
+                available_options: vec![make_option(0, "返回山门广场")],
+            },
+            plot_history: vec![],
+            is_waiting_for_input: true,
+            interaction_state: PlotInteractionState::WaitingForChoice,
+            last_action_result: None,
+            settings: PlotSettings::default(),
+            current_chapter: crate::plot_engine::ChapterState::new(1, "第一章".to_string()),
+            chapters: vec![],
+            segment_count: 0,
+            last_generation_diagnostics: None,
+            last_option_generation_source: None,
+            last_consistency_risk_score: None,
+        };
+
+        let summary = build_noname_action_summary(&action, &plot_state);
+        assert!(summary.contains("返回山门广场"));
+    }
+
+    #[test]
+    fn test_append_noname_observation_diagnostics_appends_note() {
+        let mut diagnostics = Some("原始诊断".to_string());
+        let observation = NoNameDirectorObservation {
+            role: NoNameRole::Director,
+            action_summary: "选择返回山门".to_string(),
+            focus: "山门危机".to_string(),
+            rationale: "应优先观察山门危机".to_string(),
+            prompt_preview: "prompt".to_string(),
+            proposal: crate::noname_types::NoNameProposal {
+                proposal_id: "proposal-1".to_string(),
+                kind: crate::noname_types::NoNameProposalKind::PlotCandidate,
+                producer_role: NoNameRole::Director,
+                title: "Director提案：山门危机".to_string(),
+                summary: "建议优先观察山门危机".to_string(),
+                focus: "山门危机".to_string(),
+                target_segment: crate::noname_types::NoNameTargetSegment::CurrentTurnTail,
+                intended_effect: "维持低风险观察导向".to_string(),
+                rationale: "应优先观察山门危机".to_string(),
+                suggested_action: Some("保持 observe-only".to_string()),
+                labels: vec!["director".to_string()],
+                apply_scopes: vec![crate::noname_types::NoNameApplyScope::Diagnostics],
+                status: crate::noname_types::NoNameProposalStatus::Observed,
+                applyable: false,
+            },
+        };
+        let guardrail = NoNameGuardrailResult::accept();
+
+        append_noname_observation_diagnostics(
+            &mut diagnostics,
+            NoNameMode::ObserveOnly,
+            &observation,
+            Some(&guardrail),
+            &NoNameTrace {
+                trace_id: "trace-1".to_string(),
+                session_id: "session-1".to_string(),
+                turn_id: "turn-1".to_string(),
+                mode: NoNameMode::ObserveOnly,
+                graph_path: vec![],
+                capability_calls: vec![],
+                proposals: vec![],
+                proposal_transition_log: vec!["proposal-1:observed".to_string()],
+                apply_plan_log: vec![],
+                apply_execution_log: vec![],
+                guardrail_result: None,
+                apply_result: Some(crate::noname_trace::NoNameApplyTraceResult {
+                    attempted: false,
+                    outcome: "skipped_observe_only".to_string(),
+                    reason: Some("当前模式仅观察，不尝试 assisted apply".to_string()),
+                }),
+                fallback_used: false,
+                elapsed_ms: 0,
+            },
+        );
+
+        let text = diagnostics.expect("diagnostics should exist");
+        assert!(text.contains("原始诊断"));
+        assert!(text.contains("NoName.observe_only"));
+        assert!(text.contains("山门危机"));
+        assert!(text.contains("Director提案"));
+        assert!(text.contains("proposal_status=observed"));
+        assert!(text.contains("applyable=no"));
+        assert!(text.contains("guardrail=accept"));
+        assert!(text.contains("apply=skipped_observe_only"));
+    }
+
+    #[test]
+    fn test_apply_noname_low_risk_outputs_updates_summary_hint_for_applied_proposal() {
+        let mut plot_state = PlotState {
+            current_scene: crate::plot_engine::Scene {
+                id: "scene-1".to_string(),
+                name: "山门".to_string(),
+                description: "山门风声渐紧".to_string(),
+                location: "sect".to_string(),
+                available_options: vec![make_option(0, "返回山门广场")],
+            },
+            plot_history: vec![],
+            is_waiting_for_input: true,
+            interaction_state: PlotInteractionState::WaitingForChoice,
+            last_action_result: None,
+            settings: PlotSettings::default(),
+            current_chapter: crate::plot_engine::ChapterState::new(1, "第一章".to_string()),
+            chapters: vec![],
+            segment_count: 0,
+            last_generation_diagnostics: None,
+            last_option_generation_source: None,
+            last_consistency_risk_score: None,
+        };
+        let mut result = NoNameDirectorRunResult {
+            trace: NoNameTrace {
+                trace_id: "trace-1".to_string(),
+                session_id: "session-1".to_string(),
+                turn_id: "turn-1".to_string(),
+                mode: NoNameMode::Assisted,
+                graph_path: vec![crate::noname_types::NoNameTraceStage::ApplyProposal],
+                capability_calls: vec![],
+                proposals: vec![],
+                proposal_transition_log: vec![],
+                apply_plan_log: vec![],
+                apply_execution_log: vec![],
+                guardrail_result: None,
+                apply_result: None,
+                fallback_used: false,
+                elapsed_ms: 0,
+            },
+            observation: NoNameDirectorObservation {
+                role: NoNameRole::Director,
+                action_summary: "选择返回山门".to_string(),
+                focus: "山门危机".to_string(),
+                rationale: "应优先观察山门危机".to_string(),
+                prompt_preview: "prompt".to_string(),
+                proposal: crate::noname_types::NoNameProposal {
+                    proposal_id: "proposal-1".to_string(),
+                    kind: crate::noname_types::NoNameProposalKind::PlotCandidate,
+                    producer_role: NoNameRole::Director,
+                    title: "Director提案：山门危机".to_string(),
+                    summary: "建议优先观察山门危机".to_string(),
+                    focus: "山门危机".to_string(),
+                    target_segment: crate::noname_types::NoNameTargetSegment::CurrentTurnTail,
+                    intended_effect: "为下一轮提供冲突承接".to_string(),
+                    rationale: "应优先观察山门危机".to_string(),
+                    suggested_action: Some("进入低风险 apply".to_string()),
+                    labels: vec![
+                        "director".to_string(),
+                        "apply_scope_diagnostics".to_string(),
+                    ],
+                    apply_scopes: vec![
+                        crate::noname_types::NoNameApplyScope::Diagnostics,
+                        crate::noname_types::NoNameApplyScope::ChapterSummaryHint,
+                        crate::noname_types::NoNameApplyScope::OptionBiasHint,
+                    ],
+                    status: crate::noname_types::NoNameProposalStatus::Applied,
+                    applyable: true,
+                },
+            },
+            proposal: crate::noname_types::NoNameProposal {
+                proposal_id: "proposal-1".to_string(),
+                kind: crate::noname_types::NoNameProposalKind::PlotCandidate,
+                producer_role: NoNameRole::Director,
+                title: "Director提案：山门危机".to_string(),
+                summary: "建议优先观察山门危机".to_string(),
+                focus: "山门危机".to_string(),
+                target_segment: crate::noname_types::NoNameTargetSegment::CurrentTurnTail,
+                intended_effect: "为下一轮提供冲突承接".to_string(),
+                rationale: "应优先观察山门危机".to_string(),
+                suggested_action: Some("进入低风险 apply".to_string()),
+                labels: vec![
+                    "director".to_string(),
+                    "apply_scope_diagnostics".to_string(),
+                ],
+                apply_scopes: vec![
+                    crate::noname_types::NoNameApplyScope::Diagnostics,
+                    crate::noname_types::NoNameApplyScope::ChapterSummaryHint,
+                    crate::noname_types::NoNameApplyScope::OptionBiasHint,
+                ],
+                status: crate::noname_types::NoNameProposalStatus::Applied,
+                applyable: true,
+            },
+            guardrail_result: None,
+        };
+
+        apply_noname_low_risk_outputs(&mut plot_state, &mut result, false);
+
+        assert!(plot_state.current_chapter.summary.contains("NoName提示"));
+        assert!(plot_state.current_chapter.summary.contains("山门危机"));
+        assert!(plot_state
+            .last_generation_diagnostics
+            .as_deref()
+            .unwrap_or_default()
+            .contains("NoName选项偏置"));
+        assert!(result
+            .trace
+            .proposal_transition_log
+            .iter()
+            .any(|item| item.contains("chapter_summary_hint")));
+        assert!(result
+            .trace
+            .proposal_transition_log
+            .iter()
+            .any(|item| item.contains("option_bias_hint")));
+        assert_eq!(
+            result
+                .trace
+                .apply_result
+                .as_ref()
+                .map(|item| item.outcome.as_str()),
+            Some("applied_scoped_outputs")
+        );
+        assert!(result
+            .trace
+            .apply_result
+            .as_ref()
+            .and_then(|item| item.reason.as_ref())
+            .unwrap_or(&String::new())
+            .contains("chapter_summary_hint, option_bias_hint"));
+    }
+
+    #[test]
+    fn test_apply_noname_plot_text_hint_appends_note() {
+        let mut result = NoNameDirectorRunResult {
+            trace: NoNameTrace {
+                trace_id: "trace-plot-text".to_string(),
+                session_id: "session-1".to_string(),
+                turn_id: "turn-1".to_string(),
+                mode: NoNameMode::Assisted,
+                graph_path: vec![crate::noname_types::NoNameTraceStage::ApplyProposal],
+                capability_calls: vec![],
+                proposals: vec![],
+                proposal_transition_log: vec![],
+                apply_plan_log: vec![],
+                apply_execution_log: vec![],
+                guardrail_result: None,
+                apply_result: None,
+                fallback_used: false,
+                elapsed_ms: 0,
+            },
+            observation: NoNameDirectorObservation {
+                role: NoNameRole::Director,
+                action_summary: "选择返回山门".to_string(),
+                focus: "山门危机".to_string(),
+                rationale: "应优先观察山门危机".to_string(),
+                prompt_preview: "prompt".to_string(),
+                proposal: crate::noname_types::NoNameProposal {
+                    proposal_id: "proposal-plot-text".to_string(),
+                    kind: crate::noname_types::NoNameProposalKind::PlotCandidate,
+                    producer_role: NoNameRole::Director,
+                    title: "Director提案：山门危机".to_string(),
+                    summary: "建议优先观察山门危机".to_string(),
+                    focus: "山门危机".to_string(),
+                    target_segment: crate::noname_types::NoNameTargetSegment::CurrentTurnTail,
+                    intended_effect: "对正文尾段补充轻量导向".to_string(),
+                    rationale: "应优先观察山门危机".to_string(),
+                    suggested_action: Some("进入低风险 apply".to_string()),
+                    labels: vec!["director".to_string()],
+                    apply_scopes: vec![crate::noname_types::NoNameApplyScope::PlotTextHint],
+                    status: crate::noname_types::NoNameProposalStatus::Applied,
+                    applyable: true,
+                },
+            },
+            proposal: crate::noname_types::NoNameProposal {
+                proposal_id: "proposal-plot-text".to_string(),
+                kind: crate::noname_types::NoNameProposalKind::PlotCandidate,
+                producer_role: NoNameRole::Director,
+                title: "Director提案：山门危机".to_string(),
+                summary: "建议优先观察山门危机".to_string(),
+                focus: "山门危机".to_string(),
+                target_segment: crate::noname_types::NoNameTargetSegment::CurrentTurnTail,
+                intended_effect: "对正文尾段补充轻量导向".to_string(),
+                rationale: "应优先观察山门危机".to_string(),
+                suggested_action: Some("进入低风险 apply".to_string()),
+                labels: vec!["director".to_string()],
+                apply_scopes: vec![crate::noname_types::NoNameApplyScope::PlotTextHint],
+                status: crate::noname_types::NoNameProposalStatus::Applied,
+                applyable: true,
+            },
+            guardrail_result: None,
+        };
+        let mut plot_text = "山门风声渐紧".to_string();
+
+        let applied = apply_noname_plot_text_hint(&mut plot_text, &mut result);
+
+        assert!(applied);
+        assert!(plot_text.contains("【NoName】重点关注：山门危机"));
+        assert!(result
+            .trace
+            .proposal_transition_log
+            .iter()
+            .any(|item| item.contains("plot_text_hint")));
+        assert!(result
+            .trace
+            .apply_execution_log
+            .iter()
+            .any(|item| item.target == "plot_text_hint" && item.outcome == "applied"));
+    }
+
+    #[test]
+    fn test_apply_noname_plot_text_hint_can_prepend_to_head() {
+        let mut result = NoNameDirectorRunResult {
+            trace: NoNameTrace {
+                trace_id: "trace-plot-text-head".to_string(),
+                session_id: "session-1".to_string(),
+                turn_id: "turn-1".to_string(),
+                mode: NoNameMode::Assisted,
+                graph_path: vec![crate::noname_types::NoNameTraceStage::ApplyProposal],
+                capability_calls: vec![],
+                proposals: vec![],
+                proposal_transition_log: vec![],
+                apply_plan_log: vec![],
+                apply_execution_log: vec![],
+                guardrail_result: None,
+                apply_result: None,
+                fallback_used: false,
+                elapsed_ms: 0,
+            },
+            observation: NoNameDirectorObservation {
+                role: NoNameRole::Director,
+                action_summary: "选择返回山门".to_string(),
+                focus: "山门危机".to_string(),
+                rationale: "应优先观察山门危机".to_string(),
+                prompt_preview: "prompt".to_string(),
+                proposal: crate::noname_types::NoNameProposal {
+                    proposal_id: "proposal-plot-text-head".to_string(),
+                    kind: crate::noname_types::NoNameProposalKind::PlotCandidate,
+                    producer_role: NoNameRole::Director,
+                    title: "Director提案：山门危机".to_string(),
+                    summary: "建议优先观察山门危机".to_string(),
+                    focus: "山门危机".to_string(),
+                    target_segment: crate::noname_types::NoNameTargetSegment::CurrentTurnHead,
+                    intended_effect: "对正文首段补充轻量导向".to_string(),
+                    rationale: "应优先观察山门危机".to_string(),
+                    suggested_action: Some("进入低风险 apply".to_string()),
+                    labels: vec!["director".to_string()],
+                    apply_scopes: vec![crate::noname_types::NoNameApplyScope::PlotTextHint],
+                    status: crate::noname_types::NoNameProposalStatus::Applied,
+                    applyable: true,
+                },
+            },
+            proposal: crate::noname_types::NoNameProposal {
+                proposal_id: "proposal-plot-text-head".to_string(),
+                kind: crate::noname_types::NoNameProposalKind::PlotCandidate,
+                producer_role: NoNameRole::Director,
+                title: "Director提案：山门危机".to_string(),
+                summary: "建议优先观察山门危机".to_string(),
+                focus: "山门危机".to_string(),
+                target_segment: crate::noname_types::NoNameTargetSegment::CurrentTurnHead,
+                intended_effect: "对正文首段补充轻量导向".to_string(),
+                rationale: "应优先观察山门危机".to_string(),
+                suggested_action: Some("进入低风险 apply".to_string()),
+                labels: vec!["director".to_string()],
+                apply_scopes: vec![crate::noname_types::NoNameApplyScope::PlotTextHint],
+                status: crate::noname_types::NoNameProposalStatus::Applied,
+                applyable: true,
+            },
+            guardrail_result: None,
+        };
+        let mut plot_text = "山门风声渐紧".to_string();
+
+        let applied = apply_noname_plot_text_hint(&mut plot_text, &mut result);
+
+        assert!(applied);
+        assert!(plot_text.starts_with("【NoName】重点关注：山门危机"));
+        assert!(plot_text.ends_with("山门风声渐紧"));
+    }
+
+    #[test]
+    fn test_apply_noname_low_risk_outputs_respects_apply_scope() {
+        let mut plot_state = PlotState {
+            current_scene: crate::plot_engine::Scene {
+                id: "scene-1".to_string(),
+                name: "山门".to_string(),
+                description: "山门风声渐紧".to_string(),
+                location: "sect".to_string(),
+                available_options: vec![make_option(0, "返回山门广场")],
+            },
+            plot_history: vec![],
+            is_waiting_for_input: true,
+            interaction_state: PlotInteractionState::WaitingForChoice,
+            last_action_result: None,
+            settings: PlotSettings::default(),
+            current_chapter: crate::plot_engine::ChapterState::new(1, "第一章".to_string()),
+            chapters: vec![],
+            segment_count: 0,
+            last_generation_diagnostics: None,
+            last_option_generation_source: None,
+            last_consistency_risk_score: None,
+        };
+        let mut result = NoNameDirectorRunResult {
+            trace: NoNameTrace {
+                trace_id: "trace-scope".to_string(),
+                session_id: "session-1".to_string(),
+                turn_id: "turn-1".to_string(),
+                mode: NoNameMode::Assisted,
+                graph_path: vec![crate::noname_types::NoNameTraceStage::ApplyProposal],
+                capability_calls: vec![],
+                proposals: vec![],
+                proposal_transition_log: vec![],
+                apply_plan_log: vec![],
+                apply_execution_log: vec![],
+                guardrail_result: None,
+                apply_result: None,
+                fallback_used: false,
+                elapsed_ms: 0,
+            },
+            observation: NoNameDirectorObservation {
+                role: NoNameRole::Director,
+                action_summary: "选择返回山门".to_string(),
+                focus: "山门危机".to_string(),
+                rationale: "应优先观察山门危机".to_string(),
+                prompt_preview: "prompt".to_string(),
+                proposal: crate::noname_types::NoNameProposal {
+                    proposal_id: "proposal-scope".to_string(),
+                    kind: crate::noname_types::NoNameProposalKind::PlotCandidate,
+                    producer_role: NoNameRole::Director,
+                    title: "Director提案：山门危机".to_string(),
+                    summary: "建议优先观察山门危机".to_string(),
+                    focus: "山门危机".to_string(),
+                    target_segment: crate::noname_types::NoNameTargetSegment::CurrentTurnTail,
+                    intended_effect: "只影响下一轮选项偏置".to_string(),
+                    rationale: "应优先观察山门危机".to_string(),
+                    suggested_action: Some("进入低风险 apply".to_string()),
+                    labels: vec!["director".to_string()],
+                    apply_scopes: vec![crate::noname_types::NoNameApplyScope::OptionBiasHint],
+                    status: crate::noname_types::NoNameProposalStatus::Applied,
+                    applyable: true,
+                },
+            },
+            proposal: crate::noname_types::NoNameProposal {
+                proposal_id: "proposal-scope".to_string(),
+                kind: crate::noname_types::NoNameProposalKind::PlotCandidate,
+                producer_role: NoNameRole::Director,
+                title: "Director提案：山门危机".to_string(),
+                summary: "建议优先观察山门危机".to_string(),
+                focus: "山门危机".to_string(),
+                target_segment: crate::noname_types::NoNameTargetSegment::CurrentTurnTail,
+                intended_effect: "只影响下一轮选项偏置".to_string(),
+                rationale: "应优先观察山门危机".to_string(),
+                suggested_action: Some("进入低风险 apply".to_string()),
+                labels: vec!["director".to_string()],
+                apply_scopes: vec![crate::noname_types::NoNameApplyScope::OptionBiasHint],
+                status: crate::noname_types::NoNameProposalStatus::Applied,
+                applyable: true,
+            },
+            guardrail_result: None,
+        };
+
+        apply_noname_low_risk_outputs(&mut plot_state, &mut result, false);
+
+        assert!(!plot_state.current_chapter.summary.contains("NoName提示"));
+        assert!(plot_state
+            .last_generation_diagnostics
+            .as_deref()
+            .unwrap_or_default()
+            .contains("NoName选项偏置"));
+        assert!(result
+            .trace
+            .apply_execution_log
+            .iter()
+            .any(|item| item.target == "chapter_summary_hint"
+                && item.outcome == "skipped_scope_forbidden"));
+        assert_eq!(
+            result
+                .trace
+                .apply_result
+                .as_ref()
+                .map(|item| item.outcome.as_str()),
+            Some("applied_scoped_outputs")
+        );
+    }
+
+    #[test]
+    fn test_apply_noname_summary_hint_can_prepend_to_summary_head() {
+        let mut plot_state = PlotState {
+            current_scene: crate::plot_engine::Scene {
+                id: "scene-1".to_string(),
+                name: "山门".to_string(),
+                description: "山门风声渐紧".to_string(),
+                location: "sect".to_string(),
+                available_options: vec![make_option(0, "返回山门广场")],
+            },
+            plot_history: vec![],
+            is_waiting_for_input: true,
+            interaction_state: PlotInteractionState::WaitingForChoice,
+            last_action_result: None,
+            settings: PlotSettings::default(),
+            current_chapter: crate::plot_engine::ChapterState {
+                summary: "已有摘要".to_string(),
+                ..crate::plot_engine::ChapterState::new(1, "第一章".to_string())
+            },
+            chapters: vec![],
+            segment_count: 0,
+            last_generation_diagnostics: None,
+            last_option_generation_source: None,
+            last_consistency_risk_score: None,
+        };
+        let mut result = NoNameDirectorRunResult {
+            trace: NoNameTrace {
+                trace_id: "trace-summary-head".to_string(),
+                session_id: "session-1".to_string(),
+                turn_id: "turn-1".to_string(),
+                mode: NoNameMode::Assisted,
+                graph_path: vec![crate::noname_types::NoNameTraceStage::ApplyProposal],
+                capability_calls: vec![],
+                proposals: vec![],
+                proposal_transition_log: vec![],
+                apply_plan_log: vec![],
+                apply_execution_log: vec![],
+                guardrail_result: None,
+                apply_result: None,
+                fallback_used: false,
+                elapsed_ms: 0,
+            },
+            observation: NoNameDirectorObservation {
+                role: NoNameRole::Director,
+                action_summary: "选择返回山门".to_string(),
+                focus: "山门危机".to_string(),
+                rationale: "应优先观察山门危机".to_string(),
+                prompt_preview: "prompt".to_string(),
+                proposal: crate::noname_types::NoNameProposal {
+                    proposal_id: "proposal-summary-head".to_string(),
+                    kind: crate::noname_types::NoNameProposalKind::PlotCandidate,
+                    producer_role: NoNameRole::Director,
+                    title: "Director提案：山门危机".to_string(),
+                    summary: "建议优先观察山门危机".to_string(),
+                    focus: "山门危机".to_string(),
+                    target_segment: crate::noname_types::NoNameTargetSegment::ChapterSummaryHead,
+                    intended_effect: "将摘要提示置于已有摘要之前".to_string(),
+                    rationale: "应优先观察山门危机".to_string(),
+                    suggested_action: Some("进入低风险 apply".to_string()),
+                    labels: vec!["director".to_string()],
+                    apply_scopes: vec![crate::noname_types::NoNameApplyScope::ChapterSummaryHint],
+                    status: crate::noname_types::NoNameProposalStatus::Applied,
+                    applyable: true,
+                },
+            },
+            proposal: crate::noname_types::NoNameProposal {
+                proposal_id: "proposal-summary-head".to_string(),
+                kind: crate::noname_types::NoNameProposalKind::PlotCandidate,
+                producer_role: NoNameRole::Director,
+                title: "Director提案：山门危机".to_string(),
+                summary: "建议优先观察山门危机".to_string(),
+                focus: "山门危机".to_string(),
+                target_segment: crate::noname_types::NoNameTargetSegment::ChapterSummaryHead,
+                intended_effect: "将摘要提示置于已有摘要之前".to_string(),
+                rationale: "应优先观察山门危机".to_string(),
+                suggested_action: Some("进入低风险 apply".to_string()),
+                labels: vec!["director".to_string()],
+                apply_scopes: vec![crate::noname_types::NoNameApplyScope::ChapterSummaryHint],
+                status: crate::noname_types::NoNameProposalStatus::Applied,
+                applyable: true,
+            },
+            guardrail_result: None,
+        };
+
+        apply_noname_low_risk_outputs(&mut plot_state, &mut result, false);
+
+        assert!(plot_state
+            .current_chapter
+            .summary
+            .starts_with("NoName提示：后续重点关注山门危机；已有摘要"));
+    }
+
+    #[test]
+    fn test_apply_noname_plot_text_hint_skips_when_target_segment_is_summary_only() {
+        let mut result = NoNameDirectorRunResult {
+            trace: NoNameTrace {
+                trace_id: "trace-plot-text-mismatch".to_string(),
+                session_id: "session-1".to_string(),
+                turn_id: "turn-1".to_string(),
+                mode: NoNameMode::Assisted,
+                graph_path: vec![crate::noname_types::NoNameTraceStage::ApplyProposal],
+                capability_calls: vec![],
+                proposals: vec![],
+                proposal_transition_log: vec![],
+                apply_plan_log: vec![],
+                apply_execution_log: vec![],
+                guardrail_result: None,
+                apply_result: None,
+                fallback_used: false,
+                elapsed_ms: 0,
+            },
+            observation: NoNameDirectorObservation {
+                role: NoNameRole::Director,
+                action_summary: "选择返回山门".to_string(),
+                focus: "山门危机".to_string(),
+                rationale: "应优先观察山门危机".to_string(),
+                prompt_preview: "prompt".to_string(),
+                proposal: crate::noname_types::NoNameProposal {
+                    proposal_id: "proposal-plot-text-mismatch".to_string(),
+                    kind: crate::noname_types::NoNameProposalKind::PlotCandidate,
+                    producer_role: NoNameRole::Director,
+                    title: "Director提案：山门危机".to_string(),
+                    summary: "建议优先观察山门危机".to_string(),
+                    focus: "山门危机".to_string(),
+                    target_segment: crate::noname_types::NoNameTargetSegment::ChapterSummaryHead,
+                    intended_effect: "错误地尝试改写正文".to_string(),
+                    rationale: "应优先观察山门危机".to_string(),
+                    suggested_action: Some("进入低风险 apply".to_string()),
+                    labels: vec!["director".to_string()],
+                    apply_scopes: vec![crate::noname_types::NoNameApplyScope::PlotTextHint],
+                    status: crate::noname_types::NoNameProposalStatus::Applied,
+                    applyable: true,
+                },
+            },
+            proposal: crate::noname_types::NoNameProposal {
+                proposal_id: "proposal-plot-text-mismatch".to_string(),
+                kind: crate::noname_types::NoNameProposalKind::PlotCandidate,
+                producer_role: NoNameRole::Director,
+                title: "Director提案：山门危机".to_string(),
+                summary: "建议优先观察山门危机".to_string(),
+                focus: "山门危机".to_string(),
+                target_segment: crate::noname_types::NoNameTargetSegment::ChapterSummaryHead,
+                intended_effect: "错误地尝试改写正文".to_string(),
+                rationale: "应优先观察山门危机".to_string(),
+                suggested_action: Some("进入低风险 apply".to_string()),
+                labels: vec!["director".to_string()],
+                apply_scopes: vec![crate::noname_types::NoNameApplyScope::PlotTextHint],
+                status: crate::noname_types::NoNameProposalStatus::Applied,
+                applyable: true,
+            },
+            guardrail_result: None,
+        };
+        let mut plot_text = "山门风声渐紧".to_string();
+
+        let applied = apply_noname_plot_text_hint(&mut plot_text, &mut result);
+
+        assert!(!applied);
+        assert_eq!(plot_text, "山门风声渐紧");
+        assert!(result
+            .trace
+            .apply_execution_log
+            .iter()
+            .any(|item| item.target == "plot_text_hint"
+                && item.outcome == "skipped_target_mismatch"));
+    }
+
+    #[test]
+    fn test_apply_noname_summary_hint_skips_duplicate_focus() {
+        let mut plot_state = PlotState {
+            current_scene: crate::plot_engine::Scene {
+                id: "scene-1".to_string(),
+                name: "山门".to_string(),
+                description: "山门风声渐紧".to_string(),
+                location: "sect".to_string(),
+                available_options: vec![make_option(0, "返回山门广场")],
+            },
+            plot_history: vec![],
+            is_waiting_for_input: true,
+            interaction_state: PlotInteractionState::WaitingForChoice,
+            last_action_result: None,
+            settings: PlotSettings::default(),
+            current_chapter: crate::plot_engine::ChapterState {
+                summary: "已有摘要；NoName提示：后续重点关注山门危机".to_string(),
+                ..crate::plot_engine::ChapterState::new(1, "第一章".to_string())
+            },
+            chapters: vec![],
+            segment_count: 0,
+            last_generation_diagnostics: None,
+            last_option_generation_source: None,
+            last_consistency_risk_score: None,
+        };
+        let mut result = NoNameDirectorRunResult {
+            trace: NoNameTrace {
+                trace_id: "trace-summary-duplicate".to_string(),
+                session_id: "session-1".to_string(),
+                turn_id: "turn-1".to_string(),
+                mode: NoNameMode::Assisted,
+                graph_path: vec![crate::noname_types::NoNameTraceStage::ApplyProposal],
+                capability_calls: vec![],
+                proposals: vec![],
+                proposal_transition_log: vec![],
+                apply_plan_log: vec![],
+                apply_execution_log: vec![],
+                guardrail_result: None,
+                apply_result: None,
+                fallback_used: false,
+                elapsed_ms: 0,
+            },
+            observation: NoNameDirectorObservation {
+                role: NoNameRole::Director,
+                action_summary: "选择返回山门".to_string(),
+                focus: "山门危机".to_string(),
+                rationale: "应优先观察山门危机".to_string(),
+                prompt_preview: "prompt".to_string(),
+                proposal: crate::noname_types::NoNameProposal {
+                    proposal_id: "proposal-summary-duplicate".to_string(),
+                    kind: crate::noname_types::NoNameProposalKind::PlotCandidate,
+                    producer_role: NoNameRole::Director,
+                    title: "Director提案：山门危机".to_string(),
+                    summary: "建议优先观察山门危机".to_string(),
+                    focus: "山门危机".to_string(),
+                    target_segment: crate::noname_types::NoNameTargetSegment::ChapterSummaryTail,
+                    intended_effect: "避免重复摘要污染".to_string(),
+                    rationale: "应优先观察山门危机".to_string(),
+                    suggested_action: Some("进入低风险 apply".to_string()),
+                    labels: vec!["director".to_string()],
+                    apply_scopes: vec![crate::noname_types::NoNameApplyScope::ChapterSummaryHint],
+                    status: crate::noname_types::NoNameProposalStatus::Applied,
+                    applyable: true,
+                },
+            },
+            proposal: crate::noname_types::NoNameProposal {
+                proposal_id: "proposal-summary-duplicate".to_string(),
+                kind: crate::noname_types::NoNameProposalKind::PlotCandidate,
+                producer_role: NoNameRole::Director,
+                title: "Director提案：山门危机".to_string(),
+                summary: "建议优先观察山门危机".to_string(),
+                focus: "山门危机".to_string(),
+                target_segment: crate::noname_types::NoNameTargetSegment::ChapterSummaryTail,
+                intended_effect: "避免重复摘要污染".to_string(),
+                rationale: "应优先观察山门危机".to_string(),
+                suggested_action: Some("进入低风险 apply".to_string()),
+                labels: vec!["director".to_string()],
+                apply_scopes: vec![crate::noname_types::NoNameApplyScope::ChapterSummaryHint],
+                status: crate::noname_types::NoNameProposalStatus::Applied,
+                applyable: true,
+            },
+            guardrail_result: None,
+        };
+
+        apply_noname_low_risk_outputs(&mut plot_state, &mut result, false);
+
+        assert_eq!(
+            plot_state.current_chapter.summary,
+            "已有摘要；NoName提示：后续重点关注山门危机"
+        );
+        assert!(result
+            .trace
+            .apply_execution_log
+            .iter()
+            .any(|item| item.target == "chapter_summary_hint"
+                && item.outcome == "skipped_duplicate"));
+    }
+
+    #[test]
+    fn test_apply_noname_option_bias_hint_skips_duplicate_diagnostics() {
+        let existing_hint = "NoName选项偏置：下轮优先围绕山门危机提供行动切入点";
+        let mut plot_state = PlotState {
+            current_scene: crate::plot_engine::Scene {
+                id: "scene-1".to_string(),
+                name: "山门".to_string(),
+                description: "山门风声渐紧".to_string(),
+                location: "sect".to_string(),
+                available_options: vec![make_option(0, "返回山门广场")],
+            },
+            plot_history: vec![],
+            is_waiting_for_input: true,
+            interaction_state: PlotInteractionState::WaitingForChoice,
+            last_action_result: None,
+            settings: PlotSettings::default(),
+            current_chapter: crate::plot_engine::ChapterState::new(1, "第一章".to_string()),
+            chapters: vec![],
+            segment_count: 0,
+            last_generation_diagnostics: Some(existing_hint.to_string()),
+            last_option_generation_source: None,
+            last_consistency_risk_score: None,
+        };
+        let mut result = NoNameDirectorRunResult {
+            trace: NoNameTrace {
+                trace_id: "trace-option-duplicate".to_string(),
+                session_id: "session-1".to_string(),
+                turn_id: "turn-1".to_string(),
+                mode: NoNameMode::Assisted,
+                graph_path: vec![crate::noname_types::NoNameTraceStage::ApplyProposal],
+                capability_calls: vec![],
+                proposals: vec![],
+                proposal_transition_log: vec![],
+                apply_plan_log: vec![],
+                apply_execution_log: vec![],
+                guardrail_result: None,
+                apply_result: None,
+                fallback_used: false,
+                elapsed_ms: 0,
+            },
+            observation: NoNameDirectorObservation {
+                role: NoNameRole::Director,
+                action_summary: "选择返回山门".to_string(),
+                focus: "山门危机".to_string(),
+                rationale: "应优先观察山门危机".to_string(),
+                prompt_preview: "prompt".to_string(),
+                proposal: crate::noname_types::NoNameProposal {
+                    proposal_id: "proposal-option-duplicate".to_string(),
+                    kind: crate::noname_types::NoNameProposalKind::PlotCandidate,
+                    producer_role: NoNameRole::Director,
+                    title: "Director提案：山门危机".to_string(),
+                    summary: "建议优先观察山门危机".to_string(),
+                    focus: "山门危机".to_string(),
+                    target_segment: crate::noname_types::NoNameTargetSegment::CurrentTurnTail,
+                    intended_effect: "避免重复偏置提示".to_string(),
+                    rationale: "应优先观察山门危机".to_string(),
+                    suggested_action: Some("进入低风险 apply".to_string()),
+                    labels: vec!["director".to_string()],
+                    apply_scopes: vec![crate::noname_types::NoNameApplyScope::OptionBiasHint],
+                    status: crate::noname_types::NoNameProposalStatus::Applied,
+                    applyable: true,
+                },
+            },
+            proposal: crate::noname_types::NoNameProposal {
+                proposal_id: "proposal-option-duplicate".to_string(),
+                kind: crate::noname_types::NoNameProposalKind::PlotCandidate,
+                producer_role: NoNameRole::Director,
+                title: "Director提案：山门危机".to_string(),
+                summary: "建议优先观察山门危机".to_string(),
+                focus: "山门危机".to_string(),
+                target_segment: crate::noname_types::NoNameTargetSegment::CurrentTurnTail,
+                intended_effect: "避免重复偏置提示".to_string(),
+                rationale: "应优先观察山门危机".to_string(),
+                suggested_action: Some("进入低风险 apply".to_string()),
+                labels: vec!["director".to_string()],
+                apply_scopes: vec![crate::noname_types::NoNameApplyScope::OptionBiasHint],
+                status: crate::noname_types::NoNameProposalStatus::Applied,
+                applyable: true,
+            },
+            guardrail_result: None,
+        };
+
+        apply_noname_low_risk_outputs(&mut plot_state, &mut result, false);
+
+        assert_eq!(
+            plot_state
+                .last_generation_diagnostics
+                .as_deref()
+                .unwrap_or_default(),
+            existing_hint
+        );
+        assert!(result
+            .trace
+            .apply_execution_log
+            .iter()
+            .any(|item| item.target == "option_bias_hint"
+                && item.outcome == "skipped_duplicate"));
+    }
 }
-
-
-

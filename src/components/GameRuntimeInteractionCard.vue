@@ -1,7 +1,11 @@
 ﻿<template>
   <section class="runtime-card runtime-interaction-card">
-    <h3 class="runtime-card-title runtime-interaction-title">交互面板</h3>
-    <p class="runtime-sub-text runtime-interaction-subtitle">选项或自由输入</p>
+    <h3 class="runtime-card-title runtime-interaction-title">
+      交互面板
+    </h3>
+    <p class="runtime-sub-text runtime-interaction-subtitle">
+      选项或自由输入
+    </p>
     <GameInteractionPanel
       :should-show-input-panel="shouldShowInputPanel"
       :error="error"
@@ -27,9 +31,18 @@
       @continue="$emit('continue')"
       @stop-auto-advance="$emit('stop-auto-advance')"
     />
-    <div v-if="shouldShowLlmSetupShortcut" class="runtime-llm-shortcut">
-      <p class="runtime-sub-text">检测到本轮选项续写未命中 LLM，可直接打开设置后重试。</p>
-      <button type="button" class="runtime-bottom-btn px-3 py-1 text-xs" @click="$emit('open-llm-settings')">
+    <div
+      v-if="shouldShowLlmSetupShortcut"
+      class="runtime-llm-shortcut"
+    >
+      <p class="runtime-sub-text">
+        检测到本轮选项续写未命中 LLM，可直接打开设置后重试。
+      </p>
+      <button
+        type="button"
+        class="runtime-bottom-btn px-3 py-1 text-xs"
+        @click="$emit('open-llm-settings')"
+      >
         打开 LLM 设置
       </button>
     </div>

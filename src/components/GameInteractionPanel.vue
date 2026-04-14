@@ -1,6 +1,9 @@
 ﻿<template>
   <div class="mx-auto w-full min-w-0 max-w-3xl">
-    <UiPanel padding="md" class="ink-interaction-panel">
+    <UiPanel
+      padding="md"
+      class="ink-interaction-panel"
+    >
       <div
         v-if="shouldShowInputPanel"
         class="ink-interaction-stack"

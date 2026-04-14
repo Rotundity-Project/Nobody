@@ -1,4 +1,4 @@
-﻿use crate::npc::{MemoryEntry, NPCMemory};
+use crate::npc::{MemoryEntry, NPCMemory};
 
 #[derive(Debug, Clone)]
 pub struct MemoryManager {
@@ -28,17 +28,21 @@ impl MemoryManager {
 
     pub fn compress_memories(&self, memory: &mut NPCMemory) {
         if memory.short_term.len() > self.short_term_limit {
-            memory
-                .short_term
-                .sort_by(|a, b| b.importance.partial_cmp(&a.importance).unwrap_or(std::cmp::Ordering::Equal));
+            memory.short_term.sort_by(|a, b| {
+                b.importance
+                    .partial_cmp(&a.importance)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
             let overflow = memory.short_term.split_off(self.short_term_limit);
             memory.long_term.extend(overflow);
         }
 
         if memory.long_term.len() > self.long_term_limit {
-            memory
-                .long_term
-                .sort_by(|a, b| b.importance.partial_cmp(&a.importance).unwrap_or(std::cmp::Ordering::Equal));
+            memory.long_term.sort_by(|a, b| {
+                b.importance
+                    .partial_cmp(&a.importance)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
             memory.long_term.truncate(self.long_term_limit);
         }
 
@@ -47,16 +51,18 @@ impl MemoryManager {
                 .partial_cmp(&a.importance)
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
-        memory.long_term.dedup_by(|a, b| a.timestamp == b.timestamp && a.event == b.event);
+        memory
+            .long_term
+            .dedup_by(|a, b| a.timestamp == b.timestamp && a.event == b.event);
 
         memory.important_events.sort_by(|a, b| {
             b.importance
                 .partial_cmp(&a.importance)
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
-        memory.important_events.dedup_by(|a, b| {
-            a.timestamp == b.timestamp && a.event == b.event
-        });
+        memory
+            .important_events
+            .dedup_by(|a, b| a.timestamp == b.timestamp && a.event == b.event);
     }
 
     pub fn retrieve_relevant_memories(
@@ -77,16 +83,23 @@ impl MemoryManager {
             let a_match = a.event.to_lowercase().contains(&keyword_lower);
             let b_match = b.event.to_lowercase().contains(&keyword_lower);
 
-            let a_score = if a_match { a.importance + a.emotional_impact.abs() } else { a.importance * 0.5 };
-            let b_score = if b_match { b.importance + b.emotional_impact.abs() } else { b.importance * 0.5 };
+            let a_score = if a_match {
+                a.importance + a.emotional_impact.abs()
+            } else {
+                a.importance * 0.5
+            };
+            let b_score = if b_match {
+                b.importance + b.emotional_impact.abs()
+            } else {
+                b.importance * 0.5
+            };
 
-            b_score.partial_cmp(&a_score).unwrap_or(std::cmp::Ordering::Equal)
+            b_score
+                .partial_cmp(&a_score)
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
 
-        merged
-            .into_iter()
-            .take(max_results.max(1))
-            .collect()
+        merged.into_iter().take(max_results.max(1)).collect()
     }
 }
 

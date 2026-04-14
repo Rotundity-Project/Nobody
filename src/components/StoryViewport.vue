@@ -38,7 +38,8 @@
         :disabled="currentPage <= 0"
         @click="goPrevPage"
       >
-        上一页</button>
+        上一页
+      </button>
       <span class="story-page-text">第 {{ currentPage + 1 }} / {{ totalPages }} 页</span>
       <button
         type="button"
@@ -46,7 +47,8 @@
         :disabled="currentPage >= totalPages - 1"
         @click="goNextPage"
       >
-        下一页</button>
+        下一页
+      </button>
     </div>
   </div>
 </template>

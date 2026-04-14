@@ -291,6 +291,85 @@ export interface GenerationFailureSummary {
   topReasons: GenerationFailureReason[];
 }
 
+export type NoNameMode = 'disabled' | 'observeOnly' | 'assisted';
+
+export interface NoNameCapabilityCallRecord {
+  capabilityId: string;
+  callKind: string;
+  status: string;
+}
+
+export interface NoNameGuardrailTraceResult {
+  outcome: string;
+  reason?: string | null;
+}
+
+export interface NoNameApplyTraceResult {
+  attempted: boolean;
+  outcome: string;
+  reason?: string | null;
+}
+
+export interface NoNameApplyExecutionRecord {
+  target: string;
+  outcome: string;
+  note?: string | null;
+}
+
+export interface NoNameApplyPlanRecord {
+  order: number;
+  target: string;
+  decision: string;
+  priority: number;
+  note?: string | null;
+}
+
+export type NoNameProposalStatus = 'observed' | 'ready' | 'blocked' | 'applied' | 'fallback';
+export type NoNameApplyScope =
+  | 'diagnostics'
+  | 'chapterSummaryHint'
+  | 'optionBiasHint'
+  | 'plotTextHint';
+export type NoNameTargetSegment =
+  | 'current_turn_head'
+  | 'current_turn_tail'
+  | 'chapter_summary_head'
+  | 'chapter_summary_tail';
+
+export interface NoNameProposal {
+  proposalId: string;
+  kind: string;
+  producerRole: string;
+  title: string;
+  summary: string;
+  focus: string;
+  targetSegment: NoNameTargetSegment;
+  intendedEffect: string;
+  rationale: string;
+  suggestedAction?: string | null;
+  labels: string[];
+  applyScopes?: NoNameApplyScope[];
+  status?: NoNameProposalStatus | null;
+  applyable: boolean;
+}
+
+export interface NoNameTrace {
+  traceId: string;
+  sessionId: string;
+  turnId: string;
+  mode: NoNameMode;
+  graphPath: string[];
+  capabilityCalls: NoNameCapabilityCallRecord[];
+  proposals: NoNameProposal[];
+  proposalTransitionLog?: string[];
+  applyPlanLog?: NoNameApplyPlanRecord[];
+  applyExecutionLog?: NoNameApplyExecutionRecord[];
+  guardrailResult?: NoNameGuardrailTraceResult | null;
+  applyResult?: NoNameApplyTraceResult | null;
+  fallbackUsed: boolean;
+  elapsedMs: number;
+}
+
 export interface WorldRegistry {
   session_id: string;
   seed: number;
@@ -318,6 +397,7 @@ export interface SaveInfo {
   realm: string;
   location: string;
   game_time: string;
+  noname_mode?: NoNameMode | null;
 }
 
 export enum ActionType {

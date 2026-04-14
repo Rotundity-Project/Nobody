@@ -1,4 +1,4 @@
-﻿use crate::entity_types::{
+use crate::entity_types::{
     CharacterProfile, EntityCandidateRequest, EntityType, MapNodeDef, ResolvedEntity, TechniqueDef,
     ValidationReport, ValidationStatus,
 };
@@ -50,7 +50,10 @@ fn normalize_root_affinity(values: &[String]) -> Result<(Vec<String>, bool), Str
             return Err("rootAffinity contains blank entry".to_string());
         }
         if !allowed.contains(&trimmed) {
-            return Err(format!("rootAffinity contains unknown element: {}", trimmed));
+            return Err(format!(
+                "rootAffinity contains unknown element: {}",
+                trimmed
+            ));
         }
         let value = trimmed.to_string();
         if seen.insert(value.clone()) {
@@ -148,14 +151,20 @@ fn resolve_technique(candidate: &EntityCandidateRequest) -> ResolvedEntity {
 
     let check = numeric_guard::validate_technique_power(t.realm_requirement, t.base_power);
     let mut report = if !check.accepted {
-        reject(check.reason.unwrap_or_else(|| "technique numeric validation failed".to_string()))
+        reject(
+            check
+                .reason
+                .unwrap_or_else(|| "technique numeric validation failed".to_string()),
+        )
     } else if check.normalized {
         if let Some(value) = check.normalized_value {
             t.base_power = value;
         }
         normalized(
             json!(t),
-            check.reason.unwrap_or_else(|| "technique numeric normalized".to_string()),
+            check
+                .reason
+                .unwrap_or_else(|| "technique numeric normalized".to_string()),
         )
     } else {
         accepted(json!(t))
@@ -251,14 +260,20 @@ fn resolve_map_node(candidate: &EntityCandidateRequest) -> ResolvedEntity {
 
     let check = numeric_guard::validate_map_numbers(n.danger_tier, n.aura_density);
     let report = if !check.accepted {
-        reject(check.reason.unwrap_or_else(|| "map numeric validation failed".to_string()))
+        reject(
+            check
+                .reason
+                .unwrap_or_else(|| "map numeric validation failed".to_string()),
+        )
     } else if check.normalized {
         if let Some(v) = check.normalized_value {
             n.aura_density = v;
         }
         normalized(
             json!(n),
-            check.reason.unwrap_or_else(|| "map numeric normalized".to_string()),
+            check
+                .reason
+                .unwrap_or_else(|| "map numeric normalized".to_string()),
         )
     } else {
         accepted(json!(n))
@@ -411,10 +426,7 @@ mod tests {
             .and_then(|v| v.as_array())
             .cloned()
             .unwrap_or_default();
-        let tags = arr
-            .iter()
-            .filter_map(|v| v.as_str())
-            .collect::<Vec<_>>();
+        let tags = arr.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>();
         assert_eq!(tags, vec!["backlash", "overheat"]);
     }
 

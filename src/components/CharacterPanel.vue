@@ -1,26 +1,49 @@
 ﻿<template>
   <div class="ink-character-panel max-h-[70vh] overflow-y-auto rounded-2xl p-5">
-    <h3 class="mb-4 text-xl font-display text-[var(--ink-title-color)]">角色信息</h3>
+    <h3 class="mb-4 text-xl font-display text-[var(--ink-title-color)]">
+      角色信息
+    </h3>
 
-    <div v-if="character" class="space-y-4">
+    <div
+      v-if="character"
+      class="space-y-4"
+    >
       <section class="char-divider border-b pb-4">
-        <p class="char-label text-sm">姓名</p>
-        <p class="char-value text-lg font-medium">{{ character.name }}</p>
+        <p class="char-label text-sm">
+          姓名
+        </p>
+        <p class="char-value text-lg font-medium">
+          {{ character.name }}
+        </p>
       </section>
 
       <section>
-        <p class="char-label text-sm">修为境界</p>
-        <p class="char-value font-medium">{{ realmLabel }}</p>
+        <p class="char-label text-sm">
+          修为境界
+        </p>
+        <p class="char-value font-medium">
+          {{ realmLabel }}
+        </p>
         <p class="char-meta text-xs">
           等级 {{ character.stats.cultivation_realm.level }}.{{ character.stats.cultivation_realm.sub_level }}
         </p>
       </section>
 
       <section>
-        <p class="char-label text-sm">灵根</p>
+        <p class="char-label text-sm">
+          灵根
+        </p>
         <div class="root-row mt-1">
-          <div v-for="item in rootElements" :key="item.element" class="root-item">
-            <span class="root-icon" :class="item.colorClass" aria-hidden="true">
+          <div
+            v-for="item in rootElements"
+            :key="item.element"
+            class="root-item"
+          >
+            <span
+              class="root-icon"
+              :class="item.colorClass"
+              aria-hidden="true"
+            >
               <svg
                 v-if="item.element === Element.Earth"
                 viewBox="0 0 24 24"
@@ -29,7 +52,11 @@
                 stroke="currentColor"
                 stroke-width="1.8"
               >
-                <path stroke-linecap="round" stroke-linejoin="round" d="M3 18h18L16 8h-8L3 18Z" />
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M3 18h18L16 8h-8L3 18Z"
+                />
               </svg>
               <svg
                 v-else-if="item.element === Element.Metal"
@@ -39,8 +66,16 @@
                 stroke="currentColor"
                 stroke-width="1.8"
               >
-                <circle cx="12" cy="12" r="6.5" />
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 5.5v13M5.5 12h13" />
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="6.5"
+                />
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M12 5.5v13M5.5 12h13"
+                />
               </svg>
               <svg
                 v-else-if="item.element === Element.Wood"
@@ -50,9 +85,21 @@
                 stroke="currentColor"
                 stroke-width="1.8"
               >
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 20V8" />
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 10c3.5 0 5-2 5-4-3 0-5 1.8-5 4Z" />
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 13c-3.5 0-5-2-5-4 3 0 5 1.8 5 4Z" />
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M12 20V8"
+                />
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M12 10c3.5 0 5-2 5-4-3 0-5 1.8-5 4Z"
+                />
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M12 13c-3.5 0-5-2-5-4 3 0 5 1.8 5 4Z"
+                />
               </svg>
               <svg
                 v-else-if="item.element === Element.Water"
@@ -62,7 +109,11 @@
                 stroke="currentColor"
                 stroke-width="1.8"
               >
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4c3.6 4.2 5.5 7 5.5 9.5A5.5 5.5 0 0 1 12 19a5.5 5.5 0 0 1-5.5-5.5C6.5 11 8.4 8.2 12 4Z" />
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M12 4c3.6 4.2 5.5 7 5.5 9.5A5.5 5.5 0 0 1 12 19a5.5 5.5 0 0 1-5.5-5.5C6.5 11 8.4 8.2 12 4Z"
+                />
               </svg>
               <svg
                 v-else
@@ -72,22 +123,38 @@
                 stroke="currentColor"
                 stroke-width="1.8"
               >
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4c2.5 2 4.5 4.2 4.5 6.8 0 3.4-2.5 5.8-4.5 9.2-2-3.4-4.5-5.8-4.5-9.2C7.5 8.2 9.5 6 12 4Z" />
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M12 4c2.5 2 4.5 4.2 4.5 6.8 0 3.4-2.5 5.8-4.5 9.2-2-3.4-4.5-5.8-4.5-9.2C7.5 8.2 9.5 6 12 4Z"
+                />
               </svg>
             </span>
-            <span class="root-name" :class="item.colorClass">{{ item.label }}</span>
+            <span
+              class="root-name"
+              :class="item.colorClass"
+            >{{ item.label }}</span>
           </div>
           <span class="char-subtle text-sm">{{ rootTypeLabel }}</span>
-          <span class="grade-badge rounded px-2 py-0.5 text-xs font-medium" :class="rootGradeClass(character.stats.spiritual_root.grade)">
+          <span
+            class="grade-badge rounded px-2 py-0.5 text-xs font-medium"
+            :class="rootGradeClass(character.stats.spiritual_root.grade)"
+          >
             {{ gradeLabel }}
           </span>
         </div>
-        <p class="char-meta text-xs">亲和度 {{ affinityLabel }}</p>
-        <p class="char-meta text-xs">天赋提示：{{ gradeHint }}</p>
+        <p class="char-meta text-xs">
+          亲和度 {{ affinityLabel }}
+        </p>
+        <p class="char-meta text-xs">
+          天赋提示：{{ gradeHint }}
+        </p>
       </section>
 
       <section>
-        <p class="char-label text-sm">寿元</p>
+        <p class="char-label text-sm">
+          寿元
+        </p>
         <p class="char-value font-medium">
           {{ character.stats.lifespan.current_age }} / {{ character.stats.lifespan.max_age }}
         </p>
@@ -101,12 +168,18 @@
       </section>
 
       <section>
-        <p class="char-label text-sm">战斗力</p>
-        <p class="char-value font-medium">{{ character.stats.combat_power.toLocaleString() }}</p>
+        <p class="char-label text-sm">
+          战斗力
+        </p>
+        <p class="char-value font-medium">
+          {{ character.stats.combat_power.toLocaleString() }}
+        </p>
       </section>
 
       <section v-if="character.combat_status">
-        <p class="char-label text-sm">战后状态</p>
+        <p class="char-label text-sm">
+          战后状态
+        </p>
         <p class="char-value text-sm">
           伤势 {{ character.combat_status.injury_level }} /
           声望 {{ character.combat_status.reputation }} /
@@ -116,21 +189,29 @@
       </section>
 
       <section v-if="socialProfileItems.length > 0">
-        <p class="char-label text-sm">关系画像</p>
+        <p class="char-label text-sm">
+          关系画像
+        </p>
         <div class="char-subtle grid grid-cols-2 gap-2 text-xs">
           <div
             v-for="item in socialProfileItems"
             :key="item.label"
             class="char-info-card rounded border p-2"
           >
-            <p class="char-label">{{ item.label }}</p>
-            <p class="mt-0.5">{{ item.value }}</p>
+            <p class="char-label">
+              {{ item.label }}
+            </p>
+            <p class="mt-0.5">
+              {{ item.value }}
+            </p>
           </div>
         </div>
       </section>
 
       <section v-if="personalityTags.length > 0">
-        <p class="char-label text-sm">人格标签</p>
+        <p class="char-label text-sm">
+          人格标签
+        </p>
         <div class="flex flex-wrap gap-2">
           <span
             v-for="tag in personalityTags"
@@ -143,35 +224,53 @@
       </section>
 
       <section v-if="techniqueGroups.length > 0">
-        <p class="char-label text-sm">功法流派</p>
+        <p class="char-label text-sm">
+          功法流派
+        </p>
         <div class="space-y-2">
           <div
             v-for="group in techniqueGroups"
             :key="group.style"
             class="char-info-card rounded border p-2"
           >
-            <p class="char-meta text-xs">{{ group.style }}（{{ group.items.length }}）</p>
-            <p class="char-subtle text-xs">{{ group.items.join(' / ') }}</p>
+            <p class="char-meta text-xs">
+              {{ group.style }}（{{ group.items.length }}）
+            </p>
+            <p class="char-subtle text-xs">
+              {{ group.items.join(' / ') }}
+            </p>
           </div>
         </div>
       </section>
 
       <section v-if="recentGrowthLog.length > 0">
-        <p class="char-label text-sm">最近成长记录</p>
+        <p class="char-label text-sm">
+          最近成长记录
+        </p>
         <ul class="char-meta space-y-1 text-xs">
-          <li v-for="(entry, index) in recentGrowthLog" :key="`${index}-${entry}`">
+          <li
+            v-for="(entry, index) in recentGrowthLog"
+            :key="`${index}-${entry}`"
+          >
             {{ entry }}
           </li>
         </ul>
       </section>
 
       <section>
-        <p class="char-label text-sm">位置</p>
-        <p class="char-value font-medium">{{ locationLabel }}</p>
+        <p class="char-label text-sm">
+          位置
+        </p>
+        <p class="char-value font-medium">
+          {{ locationLabel }}
+        </p>
       </section>
     </div>
 
-    <div v-else class="char-label text-center">
+    <div
+      v-else
+      class="char-label text-center"
+    >
       <p>暂无角色数据</p>
     </div>
   </div>

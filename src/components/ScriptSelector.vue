@@ -1,11 +1,20 @@
 ﻿<template>
-  <div class="script-shell min-h-screen px-4 py-8 sm:px-6 sm:py-10" :class="activeThemeClass">
+  <div
+    class="script-shell min-h-screen px-4 py-8 sm:px-6 sm:py-10"
+    :class="activeThemeClass"
+  >
     <div class="script-paper mx-auto w-full max-w-[1200px] rounded-2xl p-5 sm:p-8">
       <header class="script-header">
         <div>
-          <h1 class="script-main-title">NOBODY</h1>
-          <p class="script-cn-subtitle">小人物</p>
-          <p class="script-sub-title">CHOOSE YOUR PATH · 选择剧本类型</p>
+          <h1 class="script-main-title">
+            NOBODY
+          </h1>
+          <p class="script-cn-subtitle">
+            小人物
+          </p>
+          <p class="script-sub-title">
+            CHOOSE YOUR PATH · 选择剧本类型
+          </p>
         </div>
         <button
           type="button"
@@ -16,9 +25,16 @@
           <span>择道</span>
         </button>
       </header>
-      <p v-if="sealWhisper" class="script-seal-whisper">{{ sealWhisper }}</p>
+      <p
+        v-if="sealWhisper"
+        class="script-seal-whisper"
+      >
+        {{ sealWhisper }}
+      </p>
 
-      <p class="script-flow-hint">{{ flowHint }}</p>
+      <p class="script-flow-hint">
+        {{ flowHint }}
+      </p>
       <StatusBanner
         v-if="themeStatusVisible"
         data-testid="ui-theme-status"
@@ -36,10 +52,14 @@
         aria-atomic="true"
       >
         <div class="script-web-onboarding-head">
-          <h2 class="script-web-onboarding-title">Web 试玩提示</h2>
+          <h2 class="script-web-onboarding-title">
+            Web 试玩提示
+          </h2>
           <span class="script-web-onboarding-tag">Mock Runtime</span>
         </div>
-        <p class="script-web-onboarding-text">推荐优先选择“随机生成”，可在当前页快速进入可玩流程。</p>
+        <p class="script-web-onboarding-text">
+          推荐优先选择“随机生成”，可在当前页快速进入可玩流程。
+        </p>
         <div class="script-web-onboarding-actions">
           <button
             type="button"
@@ -60,7 +80,10 @@
         </div>
       </section>
 
-      <section class="mt-4" data-testid="script-type-container">
+      <section
+        class="mt-4"
+        data-testid="script-type-container"
+      >
         <div class="script-grid">
           <button
             v-for="scriptType in scriptTypes"
@@ -76,22 +99,43 @@
             @click="scriptType.available && selectScriptType(scriptType.type)"
           >
             <div class="script-type-head">
-              <span class="script-type-icon" aria-hidden="true">{{ scriptType.icon }}</span>
-              <h3 class="script-type-title">{{ scriptType.title }}</h3>
+              <span
+                class="script-type-icon"
+                aria-hidden="true"
+              >{{ scriptType.icon }}</span>
+              <h3 class="script-type-title">
+                {{ scriptType.title }}
+              </h3>
             </div>
-            <p class="script-type-desc">{{ scriptType.description }}</p>
+            <p class="script-type-desc">
+              {{ scriptType.description }}
+            </p>
             <p class="script-type-action">
               <span class="script-positive">{{ scriptType.actionVerb }}</span>{{ scriptType.actionTail }}
             </p>
-            <p v-if="!scriptType.available" class="script-type-soon">即将推出</p>
+            <p
+              v-if="!scriptType.available"
+              class="script-type-soon"
+            >
+              即将推出
+            </p>
           </button>
         </div>
-        <p class="script-tip">选择一种方式开始你的修仙之旅。</p>
+        <p class="script-tip">
+          选择一种方式开始你的修仙之旅。
+        </p>
       </section>
 
-      <section v-if="showCharacterSelect" class="script-card mt-4">
-        <h3 class="script-label">选择主角</h3>
-        <p class="script-help mb-2">从小说中选择一个角色作为玩家。</p>
+      <section
+        v-if="showCharacterSelect"
+        class="script-card mt-4"
+      >
+        <h3 class="script-label">
+          选择主角
+        </h3>
+        <p class="script-help mb-2">
+          从小说中选择一个角色作为玩家。
+        </p>
         <div class="script-radio-list">
           <label
             v-for="character in novelCharacters"
@@ -99,33 +143,51 @@
             class="script-radio-item"
           >
             <input
+              v-model="selectedCharacter"
               type="radio"
               name="novel-character"
               :value="character"
-              v-model="selectedCharacter"
-            />
+            >
             <span>{{ character }}</span>
           </label>
         </div>
       </section>
 
-      <div v-if="isLoading && isRandomGenerating" class="mt-4 script-card">
+      <div
+        v-if="isLoading && isRandomGenerating"
+        class="mt-4 script-card"
+      >
         <div class="taiji-loader-wrap">
-          <div class="taiji-loader-stage" aria-hidden="true">
+          <div
+            class="taiji-loader-stage"
+            aria-hidden="true"
+          >
             <div class="taiji-loader">
-              <span class="taiji-eye taiji-eye-yang"></span>
-              <span class="taiji-eye taiji-eye-yin"></span>
+              <span class="taiji-eye taiji-eye-yang" />
+              <span class="taiji-eye taiji-eye-yin" />
             </div>
           </div>
           <div class="text-left">
-            <p class="script-label">{{ loadingMessage }}</p>
-            <p class="script-help">请稍候，阴阳轮转，正在推演修仙世界。</p>
-            <p v-if="loadingProgressText" class="script-help">{{ loadingProgressText }}</p>
+            <p class="script-label">
+              {{ loadingMessage }}
+            </p>
+            <p class="script-help">
+              请稍候，阴阳轮转，正在推演修仙世界。
+            </p>
+            <p
+              v-if="loadingProgressText"
+              class="script-help"
+            >
+              {{ loadingProgressText }}
+            </p>
           </div>
         </div>
       </div>
 
-      <div v-else-if="isLoading" class="mt-4">
+      <div
+        v-else-if="isLoading"
+        class="mt-4"
+      >
         <LoadingIndicator
           :message="loadingMessage"
           detail="请稍候，正在处理请求"
@@ -163,7 +225,12 @@
           {{ confirmButtonLabel }}
         </button>
       </footer>
-      <p class="script-watermark" aria-hidden="true">小人物</p>
+      <p
+        class="script-watermark"
+        aria-hidden="true"
+      >
+        小人物
+      </p>
     </div>
 
     <div
@@ -173,7 +240,9 @@
     >
       <section class="script-dialog">
         <header class="script-dialog-header">
-          <h3 class="script-label">随机剧本自定义</h3>
+          <h3 class="script-label">
+            随机剧本自定义
+          </h3>
           <button
             type="button"
             class="script-btn"
@@ -184,7 +253,10 @@
         </header>
         <div class="script-dialog-body">
           <div class="script-card">
-            <label class="script-label" for="profile-player-name">主角姓名</label>
+            <label
+              class="script-label"
+              for="profile-player-name"
+            >主角姓名</label>
             <input
               id="profile-player-name"
               v-model="randomProfile.playerName"
@@ -192,22 +264,32 @@
               maxlength="20"
               placeholder="默认：无名弟子"
               class="script-input"
-            />
-            <p class="script-help">用于覆盖随机剧本默认主角名。</p>
+            >
+            <p class="script-help">
+              用于覆盖随机剧本默认主角名。
+            </p>
           </div>
           <div class="script-card">
-            <label class="script-label" for="profile-root">主角灵根</label>
+            <label
+              class="script-label"
+              for="profile-root"
+            >主角灵根</label>
             <input
               id="profile-root"
               v-model="randomProfile.spiritualRoot"
               type="text"
               placeholder="可填多个：火，水，木，金，土（逗号分隔）"
               class="script-input"
-            />
-            <p class="script-help">留空则使用随机灵根；填写多个时会按顺序择其一作为主灵根。</p>
+            >
+            <p class="script-help">
+              留空则使用随机灵根；填写多个时会按顺序择其一作为主灵根。
+            </p>
           </div>
           <div class="script-card">
-            <label class="script-label" for="profile-background">主角出生背景</label>
+            <label
+              class="script-label"
+              for="profile-background"
+            >主角出生背景</label>
             <textarea
               id="profile-background"
               v-model="randomProfile.background"
@@ -215,12 +297,24 @@
               placeholder="例如：寒门药童、宗门弃徒、世家旁支"
               class="script-input"
             />
-            <p class="script-help">用于开局叙事参考（后续扩展为更多规则影响）。</p>
+            <p class="script-help">
+              用于开局叙事参考（后续扩展为更多规则影响）。
+            </p>
           </div>
         </div>
         <footer class="script-footer mt-4">
-          <button type="button" class="script-btn" @click="showRandomProfilePanel = false">返回</button>
-          <button type="button" class="script-btn script-btn-primary" @click="confirmRandomProfile">
+          <button
+            type="button"
+            class="script-btn"
+            @click="showRandomProfilePanel = false"
+          >
+            返回
+          </button>
+          <button
+            type="button"
+            class="script-btn script-btn-primary"
+            @click="confirmRandomProfile"
+          >
             确认创建
           </button>
         </footer>

@@ -1,6 +1,6 @@
-﻿use crate::models::CharacterStats;
 use crate::llm_runtime_config::resolve_llm_config;
 use crate::llm_service::{LLMRequest, LLMService, LLMServiceError};
+use crate::models::CharacterStats;
 use crate::numerical_system::{Action, ActionResult, Context, NumericalSystem};
 use crate::prompt_builder::{PromptBuilder, PromptConstraints, PromptContext, PromptTemplate};
 use crate::response_validator::{ResponseValidator, ValidationConstraints};
@@ -230,7 +230,11 @@ impl PlotEngine {
         LLMService::new(cfg).ok()
     }
 
-    fn run_llm_request(&self, llm_service: &LLMService, request: LLMRequest) -> Option<crate::llm_service::LLMResponse> {
+    fn run_llm_request(
+        &self,
+        llm_service: &LLMService,
+        request: LLMRequest,
+    ) -> Option<crate::llm_service::LLMResponse> {
         if let Ok(handle) = Handle::try_current() {
             return task::block_in_place(|| {
                 handle
@@ -333,9 +337,7 @@ impl PlotEngine {
                 Some(trimmed.to_string())
             }
         } else {
-            let end = s
-                .find([',', '\n', '}'])
-                .unwrap_or(s.len());
+            let end = s.find([',', '\n', '}']).unwrap_or(s.len());
             let value = s[..end].trim();
             if value.is_empty() {
                 None
@@ -609,7 +611,9 @@ impl PlotEngine {
             let needs_player_input = self
                 .extract_bool_field_raw(raw, "needs_player_input")
                 .unwrap_or(true);
-            let chapter_end = self.extract_bool_field_raw(raw, "chapter_end").unwrap_or(false);
+            let chapter_end = self
+                .extract_bool_field_raw(raw, "chapter_end")
+                .unwrap_or(false);
             let chapter_title = self.extract_string_field_raw(raw, "chapter_title");
             let chapter_summary = self.extract_string_field_raw(raw, "chapter_summary");
             let options = self.extract_options_field_raw(raw);
@@ -814,8 +818,13 @@ impl PlotEngine {
         }
     }
 
-    pub fn generate_plot_text(&self, current_state: &PlotState, action_result: &ActionResult) -> String {
-        self.generate_chapter_segment(current_state, action_result).text
+    pub fn generate_plot_text(
+        &self,
+        current_state: &PlotState,
+        action_result: &ActionResult,
+    ) -> String {
+        self.generate_chapter_segment(current_state, action_result)
+            .text
     }
 
     fn generate_chapter_segment(
@@ -823,7 +832,8 @@ impl PlotEngine {
         current_state: &PlotState,
         action_result: &ActionResult,
     ) -> ChapterSegment {
-        if let Some(segment) = self.generate_chapter_segment_with_llm(current_state, action_result) {
+        if let Some(segment) = self.generate_chapter_segment_with_llm(current_state, action_result)
+        {
             return self.apply_chapter_segment_rules(current_state, segment);
         }
 
@@ -835,7 +845,9 @@ impl PlotEngine {
             chapter_title: None,
             chapter_summary: None,
             options: vec![],
-            generation_diagnostics: Some("回退：同步剧情生成未命中 LLM，已使用预设文本".to_string()),
+            generation_diagnostics: Some(
+                "回退：同步剧情生成未命中 LLM，已使用预设文本".to_string(),
+            ),
         }
     }
 
@@ -919,8 +931,14 @@ impl PlotEngine {
             .await;
         let micro_ms = micro_started.elapsed().as_millis();
         if let Some(text) = micro_text {
-            let degrade_reason = match (llm_reason.clone(), skeleton_reason.clone(), plain_reason.clone()) {
-                (Some(a), Some(b), Some(c)) => format!("{a}；骨架生成失败({b})；纯文本续写失败({c})"),
+            let degrade_reason = match (
+                llm_reason.clone(),
+                skeleton_reason.clone(),
+                plain_reason.clone(),
+            ) {
+                (Some(a), Some(b), Some(c)) => {
+                    format!("{a}；骨架生成失败({b})；纯文本续写失败({c})")
+                }
                 (Some(a), Some(b), None) => format!("{a}；骨架生成失败({b})"),
                 (Some(a), None, Some(c)) => format!("{a}；纯文本续写失败({c})"),
                 (None, Some(b), Some(c)) => format!("骨架生成失败({b})；纯文本续写失败({c})"),
@@ -938,7 +956,10 @@ impl PlotEngine {
                     chapter_title: None,
                     chapter_summary: None,
                     options: vec![],
-                    generation_diagnostics: Some(format!("回退：{}；已降级为LLM轻量文本续写", degrade_reason)),
+                    generation_diagnostics: Some(format!(
+                        "回退：{}；已降级为LLM轻量文本续写",
+                        degrade_reason
+                    )),
                 },
             );
             out.generation_diagnostics = Self::merge_diag(
@@ -1051,9 +1072,14 @@ impl PlotEngine {
     ) -> ChapterSegment {
         let settings = &current_state.settings;
         let word_count = current_state.current_chapter.word_count()
-            + segment.text.split_whitespace().count().max(segment.text.chars().count() / 2);
+            + segment
+                .text
+                .split_whitespace()
+                .count()
+                .max(segment.text.chars().count() / 2);
 
-        if current_state.current_chapter.interaction_count >= settings.max_interactions_per_chapter {
+        if current_state.current_chapter.interaction_count >= settings.max_interactions_per_chapter
+        {
             segment.needs_player_input = false;
         }
 
@@ -1065,26 +1091,30 @@ impl PlotEngine {
         }
 
         if word_count >= settings.target_chapter_words_max as usize
-            && current_state.current_chapter.interaction_count >= settings.min_interactions_per_chapter
+            && current_state.current_chapter.interaction_count
+                >= settings.min_interactions_per_chapter
         {
             segment.chapter_end = true;
         }
 
         if segment.chapter_end
-            && current_state.current_chapter.interaction_count < settings.min_interactions_per_chapter
+            && current_state.current_chapter.interaction_count
+                < settings.min_interactions_per_chapter
         {
             segment.chapter_end = false;
         }
 
         if segment.needs_player_input
-            && current_state.current_chapter.interaction_count >= settings.max_interactions_per_chapter
+            && current_state.current_chapter.interaction_count
+                >= settings.max_interactions_per_chapter
         {
             segment.needs_player_input = false;
         }
 
         if segment.options.is_empty()
             && !segment.chapter_end
-            && current_state.current_chapter.interaction_count < settings.max_interactions_per_chapter
+            && current_state.current_chapter.interaction_count
+                < settings.max_interactions_per_chapter
         {
             segment.needs_player_input = true;
         }
@@ -1245,15 +1275,16 @@ impl PlotEngine {
             });
         }
 
-        self.sanitize_llm_plain_text(&response.text).map(|text| ChapterSegment {
-            text: self.normalize_story_text(&text),
-            needs_player_input: true,
-            chapter_end: false,
-            chapter_title: None,
-            chapter_summary: None,
-            options: vec![],
-            generation_diagnostics: None,
-        })
+        self.sanitize_llm_plain_text(&response.text)
+            .map(|text| ChapterSegment {
+                text: self.normalize_story_text(&text),
+                needs_player_input: true,
+                chapter_end: false,
+                chapter_title: None,
+                chapter_summary: None,
+                options: vec![],
+                generation_diagnostics: None,
+            })
     }
 
     async fn generate_chapter_segment_with_llm_async(
@@ -1580,7 +1611,10 @@ impl PlotEngine {
                         actor_realm: None,
                         actor_combat_power: None,
                         history_events: action_result.events.clone(),
-                        world_setting_summary: Some("参考设定文档 78 与补充稿，修仙叙事保持克制写实，输出连续叙事文本".to_string()),
+                        world_setting_summary: Some(
+                            "参考设定文档 78 与补充稿，修仙叙事保持克制写实，输出连续叙事文本"
+                                .to_string(),
+                        ),
                     },
                     &PromptConstraints {
                         numerical_rules: vec!["必须与行动结果保持一致".to_string()],
@@ -1623,7 +1657,10 @@ impl PlotEngine {
                     Err(_) => {
                         return (
                             None,
-                            Some(format!("{}；重试失败(请求超时)", Self::llm_error_reason(&err))),
+                            Some(format!(
+                                "{}；重试失败(请求超时)",
+                                Self::llm_error_reason(&err)
+                            )),
                         );
                     }
                 }
@@ -1665,8 +1702,7 @@ impl PlotEngine {
                 actor_combat_power: None,
                 history_events: action_result.events.clone(),
                 world_setting_summary: Some(
-                    "参考设定文档 78 与补充稿，修仙叙事保持克制写实，输出连续叙事文本"
-                        .to_string(),
+                    "参考设定文档 78 与补充稿，修仙叙事保持克制写实，输出连续叙事文本".to_string(),
                 ),
             },
             &PromptConstraints {
@@ -1832,11 +1868,11 @@ impl PlotEngine {
         let normalize_sentence = |input: &str| -> String {
             input
                 .trim()
-                .trim_end_matches(|ch| matches!(ch, '。' | '！' | '？' | '；' | '.' | '!' | '?'))
+                .trim_end_matches(['。', '！', '？', '；', '.', '!', '?'])
                 .trim()
                 .to_string()
         };
-        let lines = vec![
+        let lines = [
             normalize_sentence(&skeleton.scene),
             normalize_sentence(&skeleton.event),
             normalize_sentence(&skeleton.conflict),
@@ -1934,7 +1970,11 @@ impl PlotEngine {
         (Some(text), None)
     }
 
-    fn generate_plot_text_fallback(&self, current_state: &PlotState, action_result: &ActionResult) -> String {
+    fn generate_plot_text_fallback(
+        &self,
+        current_state: &PlotState,
+        action_result: &ActionResult,
+    ) -> String {
         let action_desc = action_result.description.trim();
         let event_line = if action_result.events.is_empty() {
             String::new()
@@ -1960,7 +2000,11 @@ impl PlotEngine {
         format!(
             "{}，你{}。{}{}{}",
             current_state.current_scene.location,
-            if action_desc.is_empty() { "暂缓动作，转而观察变化" } else { action_desc },
+            if action_desc.is_empty() {
+                "暂缓动作，转而观察变化"
+            } else {
+                action_desc
+            },
             beat,
             sense,
             if event_line.is_empty() {
@@ -2002,12 +2046,7 @@ impl PlotEngine {
         }
 
         if let Some(opening) = self
-            .generate_opening_plot_with_llm_async(
-                player_name,
-                realm_name,
-                spiritual_root,
-                location,
-            )
+            .generate_opening_plot_with_llm_async(player_name, realm_name, spiritual_root, location)
             .await
         {
             return opening;
@@ -2177,7 +2216,15 @@ impl PlotEngine {
                     .unwrap_or_default()
                     .trim();
                 if !scene.is_empty() || !status.is_empty() {
-                    text = format!("{}{}", scene, if status.is_empty() { "".to_string() } else { format!("\n\n{}", status) });
+                    text = format!(
+                        "{}{}",
+                        scene,
+                        if status.is_empty() {
+                            "".to_string()
+                        } else {
+                            format!("\n\n{}", status)
+                        }
+                    );
                 }
             }
 
@@ -2321,7 +2368,9 @@ impl PlotEngine {
                 actor_realm: None,
                 actor_combat_power: None,
                 history_events: action_result.events.clone(),
-                world_setting_summary: Some("输出连贯中文小说段落，强调具体行动与因果。".to_string()),
+                world_setting_summary: Some(
+                    "输出连贯中文小说段落，强调具体行动与因果。".to_string(),
+                ),
             },
             &PromptConstraints {
                 numerical_rules: vec!["必须与行动结果保持一致".to_string()],
@@ -2390,10 +2439,7 @@ impl PlotEngine {
         if character.cultivation_realm.sub_level < 3 {
             options.push(PlayerOption {
                 id: option_id,
-                description: format!(
-                    "尝试突破 {}",
-                    character.cultivation_realm.name
-                ),
+                description: format!("尝试突破 {}", character.cultivation_realm.name),
                 requirements: vec![format!(
                     "当前境界：{}（小层级 {}）",
                     character.cultivation_realm.name, character.cultivation_realm.sub_level
@@ -2494,9 +2540,7 @@ impl PlotEngine {
                     "每条选项不超过 24 字".to_string(),
                     "只输出中文".to_string(),
                 ],
-                output_schema_hint: Some(
-                    "{\"options\":[\"string\",\"string\"]}".to_string(),
-                ),
+                output_schema_hint: Some("{\"options\":[\"string\",\"string\"]}".to_string()),
             },
             280,
         );
@@ -2609,17 +2653,20 @@ impl PlotEngine {
                 }
             }
             ActionType::FreeText => {
-                let interpreted_action = if action.meta.as_ref().and_then(|m| m.action_kind.as_deref()) == Some("continue") {
-                    Action::Custom {
-                        description: "玩家翻页继续阅读".to_string(),
-                    }
-                } else if let Some(option) =
-                    self.find_matching_option_by_text(&action.content, available_options)
-                {
-                    option.action.clone()
-                } else {
-                    self.interpret_free_text_action(&action.content, character, context)
-                };
+                let interpreted_action =
+                    if action.meta.as_ref().and_then(|m| m.action_kind.as_deref())
+                        == Some("continue")
+                    {
+                        Action::Custom {
+                            description: "玩家翻页继续阅读".to_string(),
+                        }
+                    } else if let Some(option) =
+                        self.find_matching_option_by_text(&action.content, available_options)
+                    {
+                        option.action.clone()
+                    } else {
+                        self.interpret_free_text_action(&action.content, character, context)
+                    };
                 Ok(self.numerical_system.calculate_action_result(
                     character,
                     &interpreted_action,
@@ -2727,7 +2774,10 @@ impl PlotEngine {
 
     fn parse_action_with_rules(&self, free_text: &str) -> Action {
         let lower = free_text.to_ascii_lowercase();
-        if contains_any(&lower, &["修炼", "打坐", "cultivate", "meditate", "training"]) {
+        if contains_any(
+            &lower,
+            &["修炼", "打坐", "cultivate", "meditate", "training"],
+        ) {
             return Action::Cultivate;
         }
         if contains_any(&lower, &["突破", "breakthrough", "advance realm"]) {
@@ -2834,9 +2884,7 @@ impl PlotEngine {
                 actor_realm: None,
                 actor_combat_power: None,
                 history_events: Vec::new(),
-                world_setting_summary: Some(
-                    "请判断玩家行动在当前修仙场景下是否合理".to_string(),
-                ),
+                world_setting_summary: Some("请判断玩家行动在当前修仙场景下是否合理".to_string()),
             },
             &PromptConstraints {
                 numerical_rules: vec!["拒绝违反境界与能力约束的行动".to_string()],
@@ -2906,7 +2954,12 @@ fn action_label(action: &Action) -> &'static str {
 }
 
 fn fallback_chapter_title(index: u32, summary: &str) -> String {
-    let base = summary.chars().take(8).collect::<String>().trim().to_string();
+    let base = summary
+        .chars()
+        .take(8)
+        .collect::<String>()
+        .trim()
+        .to_string();
     if base.is_empty() {
         format!("第{}章 无题", index)
     } else {
@@ -3017,7 +3070,7 @@ mod tests {
                 element: Element::Fire,
                 grade: Grade::Heavenly,
                 affinity: 0.8,
-            elements: Vec::new(),
+                elements: Vec::new(),
             },
             cultivation_realm: CultivationRealm::new("Qi Condensation".to_string(), 1, 0, 1.0),
             techniques: Vec::new(),
@@ -3096,7 +3149,10 @@ mod tests {
             action: Action::Rest,
         }];
         state.recalculate_interaction_state();
-        assert_eq!(state.interaction_state, PlotInteractionState::WaitingForChoice);
+        assert_eq!(
+            state.interaction_state,
+            PlotInteractionState::WaitingForChoice
+        );
     }
 
     #[test]
@@ -3106,7 +3162,10 @@ mod tests {
         state.is_waiting_for_input = true;
         state.current_scene.available_options.clear();
         state.recalculate_interaction_state();
-        assert_eq!(state.interaction_state, PlotInteractionState::WaitingForFreeText);
+        assert_eq!(
+            state.interaction_state,
+            PlotInteractionState::WaitingForFreeText
+        );
     }
 
     #[test]
@@ -3187,12 +3246,8 @@ mod tests {
             meta: None,
         };
 
-        let result = engine.process_player_action(
-            &action,
-            &character,
-            &scene.available_options,
-            &context,
-        );
+        let result =
+            engine.process_player_action(&action, &character, &scene.available_options, &context);
 
         assert!(result.is_ok());
         let action_result = result.unwrap();
@@ -3207,7 +3262,9 @@ mod tests {
 
         let options = engine.generate_player_options(&scene, &character);
         assert!(options.len() >= 2 && options.len() <= 5);
-        assert!(options.iter().any(|o| matches!(o.action, Action::Cultivate)));
+        assert!(options
+            .iter()
+            .any(|o| matches!(o.action, Action::Cultivate)));
         assert!(options.iter().any(|o| matches!(o.action, Action::Rest)));
     }
 
@@ -3223,9 +3280,11 @@ mod tests {
         );
 
         let options = engine.generate_player_options(&scene, &character);
-        
+
         assert!(options.len() >= 2 && options.len() <= 5);
-        assert!(options.iter().any(|o| matches!(o.action, Action::Cultivate)));
+        assert!(options
+            .iter()
+            .any(|o| matches!(o.action, Action::Cultivate)));
         assert!(options.iter().any(|o| matches!(o.action, Action::Rest)));
     }
 
@@ -3234,7 +3293,7 @@ mod tests {
         let engine = PlotEngine::new();
         let mut character = create_test_character();
         character.cultivation_realm.sub_level = 1;
-        
+
         let scene = Scene::new(
             "test".to_string(),
             "Test".to_string(),
@@ -3243,15 +3302,17 @@ mod tests {
         );
 
         let options = engine.generate_player_options(&scene, &character);
-        
-        assert!(options.iter().any(|o| matches!(o.action, Action::Breakthrough)));
+
+        assert!(options
+            .iter()
+            .any(|o| matches!(o.action, Action::Breakthrough)));
     }
 
     #[test]
     fn test_generate_options_location_specific() {
         let engine = PlotEngine::new();
         let character = create_test_character();
-        
+
         let sect_scene = Scene::new(
             "sect_scene".to_string(),
             "Sect".to_string(),
@@ -3335,7 +3396,7 @@ mod tests {
     fn test_validate_action_with_no_option_id() {
         let engine = PlotEngine::new();
         let scene = create_test_scene();
-        
+
         let action = PlayerAction {
             action_type: ActionType::SelectedOption,
             content: "test".to_string(),
@@ -3352,7 +3413,7 @@ mod tests {
     fn test_validate_action_with_valid_free_text() {
         let engine = PlotEngine::new();
         let scene = create_test_scene();
-        
+
         let action = PlayerAction {
             action_type: ActionType::FreeText,
             content: "I want to explore the forest".to_string(),
@@ -3399,12 +3460,8 @@ mod tests {
             meta: None,
         };
 
-        let result = engine.process_player_action(
-            &action,
-            &character,
-            &scene.available_options,
-            &context,
-        );
+        let result =
+            engine.process_player_action(&action, &character, &scene.available_options, &context);
 
         assert!(result.is_ok());
         let action_result = result.unwrap();
@@ -3430,12 +3487,8 @@ mod tests {
             meta: None,
         };
 
-        let result = engine.process_player_action(
-            &action,
-            &character,
-            &scene.available_options,
-            &context,
-        );
+        let result =
+            engine.process_player_action(&action, &character, &scene.available_options, &context);
 
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("无效的选项 ID"));
@@ -3459,12 +3512,8 @@ mod tests {
             meta: None,
         };
 
-        let result = engine.process_player_action(
-            &action,
-            &character,
-            &scene.available_options,
-            &context,
-        );
+        let result =
+            engine.process_player_action(&action, &character, &scene.available_options, &context);
 
         assert!(result.is_ok());
         assert!(!result.unwrap().description.is_empty());
@@ -3574,12 +3623,8 @@ mod tests {
             meta: None,
         };
 
-        let result = engine.process_player_action(
-            &action,
-            &character,
-            &scene.available_options,
-            &context,
-        );
+        let result =
+            engine.process_player_action(&action, &character, &scene.available_options, &context);
 
         assert!(result.is_ok());
         let action_result = result.unwrap();
@@ -3597,49 +3642,47 @@ mod property_tests {
         ("[a-z_]+", "[A-Z][a-z ]+", "[A-Za-z ]+", "[a-z]+").prop_map(
             |(id, name, description, location)| {
                 let mut scene = Scene::new(id, name, description, location);
-                
+
                 scene.add_option(PlayerOption {
                     id: 0,
                     description: "Cultivate".to_string(),
                     requirements: vec![],
                     action: Action::Cultivate,
                 });
-                
+
                 scene.add_option(PlayerOption {
                     id: 1,
                     description: "Rest".to_string(),
                     requirements: vec![],
                     action: Action::Rest,
                 });
-                
+
                 scene
             },
         )
     }
 
     fn arb_character() -> impl Strategy<Value = CharacterStats> {
-        (0u32..=3, 0u32..=3).prop_map(|(level, sub_level)| {
-            CharacterStats {
-                spiritual_root: SpiritualRoot {
-                    element: Element::Fire,
-                    grade: Grade::Heavenly,
-                    affinity: 0.8,
+        (0u32..=3, 0u32..=3).prop_map(|(level, sub_level)| CharacterStats {
+            spiritual_root: SpiritualRoot {
+                element: Element::Fire,
+                grade: Grade::Heavenly,
+                affinity: 0.8,
                 elements: Vec::new(),
-                },
-                cultivation_realm: CultivationRealm::new(
-                    "Test Realm".to_string(),
-                    level,
-                    sub_level,
-                    1.0,
-                ),
-                techniques: Vec::new(),
-                lifespan: Lifespan {
-                    current_age: 16,
-                    max_age: 100,
-                    realm_bonus: 0,
-                },
-                combat_power: 100,
-            }
+            },
+            cultivation_realm: CultivationRealm::new(
+                "Test Realm".to_string(),
+                level,
+                sub_level,
+                1.0,
+            ),
+            techniques: Vec::new(),
+            lifespan: Lifespan {
+                current_age: 16,
+                max_age: 100,
+                realm_bonus: 0,
+            },
+            combat_power: 100,
         })
     }
 
@@ -3651,13 +3694,13 @@ mod property_tests {
             scene in arb_scene()
         ) {
             let plot_state = PlotState::new(scene.clone());
-            
-            prop_assert!(plot_state.is_waiting_for_input, 
+
+            prop_assert!(plot_state.is_waiting_for_input,
                 "Plot should pause at decision points waiting for input");
-            
+
             prop_assert!(!plot_state.current_scene.available_options.is_empty(),
                 "Decision points should have available options for player to choose");
-            
+
             prop_assert!(plot_state.last_action_result.is_none(),
                 "No automatic action should be executed while waiting for player input");
         }
@@ -3672,19 +3715,19 @@ mod property_tests {
         ) {
             let engine = PlotEngine::new();
             let mut plot_state = PlotState::new(scene);
-            
+
             let action_result = ActionResult {
                 success: true,
                 description: "Action completed".to_string(),
                 stat_changes: vec![],
                 events: vec![],
             };
-            
+
             let update = engine.advance_plot(&plot_state, &action_result);
-            
+
             plot_state.last_action_result = Some(action_result);
             plot_state.add_to_history(update.plot_text);
-            
+
             prop_assert!(plot_state.is_waiting_for_input,
                 "Plot should continue waiting for player input after advancing");
         }
@@ -3698,16 +3741,16 @@ mod property_tests {
             character in arb_character()
         ) {
             let engine = PlotEngine::new();
-            
+
             let scene = Scene::new(
                 "test".to_string(),
                 "Test".to_string(),
                 "Test scene".to_string(),
                 "sect".to_string(),
             );
-            
+
             let options = engine.generate_player_options(&scene, &character);
-            
+
             prop_assert!(options.len() >= 2 && options.len() <= 5,
                 "Generated options count should be between 2 and 5, got {}", options.len());
         }
@@ -3805,19 +3848,18 @@ mod property_tests {
             "Test scene".to_string(),
             "location".to_string(),
         );
-        
+
         scene.add_option(PlayerOption {
             id: 0,
             description: "Option 1".to_string(),
             requirements: vec![],
             action: Action::Cultivate,
         });
-        
+
         let plot_state = PlotState::new(scene);
-        
+
         assert!(plot_state.is_waiting_for_input);
         assert!(plot_state.last_action_result.is_none());
         assert!(plot_state.plot_history.is_empty());
     }
 }
-

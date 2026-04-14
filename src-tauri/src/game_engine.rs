@@ -1,11 +1,12 @@
-﻿use crate::event_log::{EventImportance, EventLog};
+use crate::event_log::{EventImportance, EventLog};
 use crate::game_state::{Character, GameState, GameTime, WorldState};
 use crate::models::{CharacterStats, Element, Grade, Lifespan, SpiritualRoot};
-use crate::npc::{CoreValue, Goal, NPC, NPCMemory, Personality, PersonalityTrait};
+use crate::npc::{CoreValue, Goal, NPCMemory, Personality, PersonalityTrait, NPC};
 use crate::npc_engine::{NPCDecision, NPCEngine, NPCEvent};
 use crate::numerical_system::NumericalSystem;
+use crate::noname_types::NoNameMode;
 use crate::plot_engine::{PlotEngine, PlotState, Scene};
-use crate::save_load::{MigrationBatchReport, SaveData, SaveInfo, SaveLoadSystem};
+use crate::save_load::{MigrationBatchReport, NoNameSaveSettings, SaveData, SaveInfo, SaveLoadSystem};
 use crate::script::{Script, ScriptType};
 use crate::script_manager::ScriptManager;
 use crate::world_registry::WorldRegistry;
@@ -24,6 +25,7 @@ pub struct GameEngine {
     event_log: Arc<Mutex<EventLog>>,
     save_load_system: SaveLoadSystem,
     world_registry: Arc<Mutex<Option<WorldRegistry>>>,
+    noname_mode: NoNameMode,
 }
 
 const EVENT_LOG_MAX_EVENTS: usize = 600;
@@ -51,7 +53,16 @@ impl GameEngine {
             event_log: Arc::new(Mutex::new(EventLog::new())),
             save_load_system: SaveLoadSystem::new(),
             world_registry: Arc::new(Mutex::new(None)),
+            noname_mode: NoNameMode::ObserveOnly,
         }
+    }
+
+    pub fn noname_mode(&self) -> NoNameMode {
+        self.noname_mode
+    }
+
+    pub fn set_noname_mode(&mut self, mode: NoNameMode) {
+        self.noname_mode = mode;
     }
 
     fn random_seed() -> u64 {
@@ -201,7 +212,10 @@ impl GameEngine {
         let root_count = Self::root_count_from_grade(&mut seed, &grade);
         let elements = Self::random_spiritual_root_elements(&mut seed, root_count);
         let spiritual_root = SpiritualRoot {
-            element: elements.first().copied().unwrap_or_else(|| Self::random_element(&mut seed)),
+            element: elements
+                .first()
+                .copied()
+                .unwrap_or_else(|| Self::random_element(&mut seed)),
             elements,
             grade: grade.clone(),
             affinity,
@@ -210,8 +224,11 @@ impl GameEngine {
         let starting_location = if script.world_setting.locations.is_empty() {
             script.initial_state.starting_location.clone()
         } else {
-            let idx = Self::rand_u32(&mut seed, 0, script.world_setting.locations.len() as u32 - 1)
-                as usize;
+            let idx = Self::rand_u32(
+                &mut seed,
+                0,
+                script.world_setting.locations.len() as u32 - 1,
+            ) as usize;
             script.world_setting.locations[idx].id.clone()
         };
 
@@ -280,10 +297,9 @@ impl GameEngine {
                 max_age,
                 realm_bonus: 0,
             },
-            combat_power: self.numerical_system.calculate_initial_combat_power(
-                &player_spiritual_root,
-                &starting_realm,
-            ),
+            combat_power: self
+                .numerical_system
+                .calculate_initial_combat_power(&player_spiritual_root, &starting_realm),
         };
 
         let player = Character::new(
@@ -335,9 +351,7 @@ impl GameEngine {
     /// 获取当前游戏状态
     pub fn get_current_state(&self) -> Result<GameState> {
         let state_lock = self.state.lock().unwrap();
-        state_lock
-            .clone()
-            .ok_or_else(|| anyhow!("游戏未初始化"))
+        state_lock.clone().ok_or_else(|| anyhow!("游戏未初始化"))
     }
 
     /// 更新当前游戏状态
@@ -376,8 +390,12 @@ impl GameEngine {
             let registry_lock = self.world_registry.lock().unwrap();
             registry_lock.clone()
         };
-        let save_data =
-            SaveData::from_game_state_with_plot(save_state, plot_snapshot, registry_snapshot);
+        let save_data = SaveData::from_game_state_with_plot(
+            save_state,
+            plot_snapshot,
+            registry_snapshot,
+        )
+        .with_noname_settings(NoNameSaveSettings { mode: self.noname_mode() });
         self.save_load_system.save_game(slot_id, &save_data)?;
 
         Ok(())
@@ -407,8 +425,10 @@ impl GameEngine {
             let mut registry_lock = self.world_registry.lock().unwrap();
             *registry_lock = save_data.world_registry.clone();
             if registry_lock.is_none() {
-                *registry_lock =
-                    Some(WorldRegistry::fallback_from_game_state(&game_state, "load_legacy_fallback"));
+                *registry_lock = Some(WorldRegistry::fallback_from_game_state(
+                    &game_state,
+                    "load_legacy_fallback",
+                ));
             }
         }
 
@@ -423,6 +443,10 @@ impl GameEngine {
         } else {
             // 兼容旧存档：若无剧情状态，则重建默认开篇。
             self.initialize_plot()?;
+        }
+
+        if let Some(settings) = save_data.noname_settings {
+            self.noname_mode = settings.mode;
         }
 
         Ok(game_state)
@@ -503,9 +527,7 @@ impl GameEngine {
     /// 获取当前剧情状态
     pub fn get_plot_state(&self) -> Result<PlotState> {
         let plot_lock = self.plot_state.lock().unwrap();
-        plot_lock
-            .clone()
-            .ok_or_else(|| anyhow!("剧情未初始化"))
+        plot_lock.clone().ok_or_else(|| anyhow!("剧情未初始化"))
     }
 
     /// 更新剧情状态
@@ -515,15 +537,15 @@ impl GameEngine {
         Ok(())
     }
 
-    pub fn update_plot_settings(&self, settings: crate::plot_engine::PlotSettings) -> Result<PlotState> {
+    pub fn update_plot_settings(
+        &self,
+        settings: crate::plot_engine::PlotSettings,
+    ) -> Result<PlotState> {
         let mut plot_lock = self.plot_state.lock().unwrap();
-        let state = plot_lock
-            .as_mut()
-            .ok_or_else(|| anyhow!("剧情未初始化"))?;
+        let state = plot_lock.as_mut().ok_or_else(|| anyhow!("剧情未初始化"))?;
         state.settings = settings;
         Ok(state.clone())
     }
-
 
     pub fn process_npc_reactions_for_events(
         &mut self,
@@ -578,14 +600,22 @@ impl GameEngine {
         let mut affinity = 1 + player.combat_status.reputation.clamp(-20, 20) / 10;
         let mut trust = 1 + player.social_profile.mentor_bond.clamp(-20, 20) / 10;
 
-        let conflict_hit =
-            lower.contains("betray") || lower.contains("attack") || lower.contains("背叛") || lower.contains("袭击");
-        let aid_hit =
-            lower.contains("rescue") || lower.contains("help") || lower.contains("援助") || lower.contains("救援");
-        let justice_hit =
-            lower.contains("justice") || lower.contains("righteous") || lower.contains("正道") || lower.contains("守护");
-        let enemy_hit =
-            lower.contains("enemy") || lower.contains("仇") || lower.contains("宿敌") || lower.contains("复仇");
+        let conflict_hit = lower.contains("betray")
+            || lower.contains("attack")
+            || lower.contains("背叛")
+            || lower.contains("袭击");
+        let aid_hit = lower.contains("rescue")
+            || lower.contains("help")
+            || lower.contains("援助")
+            || lower.contains("救援");
+        let justice_hit = lower.contains("justice")
+            || lower.contains("righteous")
+            || lower.contains("正道")
+            || lower.contains("守护");
+        let enemy_hit = lower.contains("enemy")
+            || lower.contains("仇")
+            || lower.contains("宿敌")
+            || lower.contains("复仇");
 
         if conflict_hit {
             affinity -= 1 + player.social_profile.sect_affinity.clamp(-30, 30) / 15;
@@ -743,7 +773,7 @@ mod tests {
                 element: Element::Fire,
                 grade: Grade::Heavenly,
                 affinity: 0.9,
-            elements: Vec::new(),
+                elements: Vec::new(),
             },
             starting_location: "sect".to_string(),
             starting_age: 16,
@@ -824,8 +854,14 @@ mod tests {
             game_state.player.stats.spiritual_root.element,
             Element::Fire
         );
-        assert_eq!(game_state.player.stats.spiritual_root.grade, Grade::Heavenly);
-        assert_eq!(game_state.player.stats.cultivation_realm.name, "Qi Condensation");
+        assert_eq!(
+            game_state.player.stats.spiritual_root.grade,
+            Grade::Heavenly
+        );
+        assert_eq!(
+            game_state.player.stats.cultivation_realm.name,
+            "Qi Condensation"
+        );
         assert!(game_state.player.stats.combat_power > 0);
         assert!(game_state.player.inventory.is_empty());
     }
@@ -888,7 +924,8 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let _engine = GameEngine::new();
         let mut engine_with_dir = GameEngine::new();
-        engine_with_dir.save_load_system = SaveLoadSystem::with_directory(temp_dir.path().to_path_buf());
+        engine_with_dir.save_load_system =
+            SaveLoadSystem::with_directory(temp_dir.path().to_path_buf());
 
         // 尝试在未初始化时保存
         let result = engine_with_dir.save_game(1);
@@ -1021,7 +1058,10 @@ mod tests {
 
         assert_eq!(plot_state.current_scene.description, "自定义开场");
         assert_eq!(plot_state.current_scene.available_options.len(), 1);
-        assert_eq!(plot_state.current_scene.available_options[0].description, "自定义开局选项");
+        assert_eq!(
+            plot_state.current_scene.available_options[0].description,
+            "自定义开局选项"
+        );
     }
 
     #[test]
@@ -1093,13 +1133,11 @@ mod tests {
         player.social_profile.sect_affinity = 20;
         player.social_profile.mentor_bond = 20;
         player.social_profile.camp_stance = "righteous".to_string();
-        let positive =
-            GameEngine::derive_relation_impacts(&player, "援助宗门守护正道");
+        let positive = GameEngine::derive_relation_impacts(&player, "援助宗门守护正道");
 
         player.social_profile.vendetta = 25;
         player.social_profile.camp_stance = "demonic".to_string();
-        let negative =
-            GameEngine::derive_relation_impacts(&player, "背叛后袭击宿敌");
+        let negative = GameEngine::derive_relation_impacts(&player, "背叛后袭击宿敌");
 
         assert!(positive.0 >= negative.0);
         assert!(positive.1 >= negative.1);
@@ -1143,7 +1181,7 @@ mod integration_tests {
                 element: Element::Fire,
                 grade: Grade::Heavenly,
                 affinity: 0.9,
-            elements: Vec::new(),
+                elements: Vec::new(),
             },
             starting_location: "sect".to_string(),
             starting_age: 16,
@@ -1170,7 +1208,7 @@ mod integration_tests {
         // 1. 初始化游戏
         let script = create_test_script();
         let initial_state = engine.initialize_game(script).unwrap();
-        
+
         assert_eq!(initial_state.player.name, "测试玩家");
         assert_eq!(initial_state.player.stats.lifespan.current_age, 16);
         assert_eq!(initial_state.game_time.year, 1);
@@ -1356,13 +1394,13 @@ mod integration_tests {
         // 验证需求: 9.2, 9.4
 
         let temp_dir = TempDir::new().unwrap();
-        
+
         // 第一个引擎：初始化并保存
         let mut engine1 = GameEngine::new();
         engine1.save_load_system = SaveLoadSystem::with_directory(temp_dir.path().to_path_buf());
         let script = create_test_script();
         engine1.initialize_game(script).unwrap();
-        
+
         {
             let mut state_lock = engine1.state.lock().unwrap();
             if let Some(ref mut state) = *state_lock {
@@ -1374,16 +1412,16 @@ mod integration_tests {
         // 第二个引擎：加载
         let mut engine2 = GameEngine::new();
         engine2.save_load_system = SaveLoadSystem::with_directory(temp_dir.path().to_path_buf());
-        
+
         // 加载前未初始化
         assert!(!engine2.is_initialized());
-        
+
         // 加载
         engine2.load_game(1).unwrap();
-        
+
         // 加载后已初始化
         assert!(engine2.is_initialized());
-        
+
         // 状态正确
         let state = engine2.get_current_state().unwrap();
         assert_eq!(state.player.stats.lifespan.current_age, 30);
@@ -1437,9 +1475,3 @@ mod integration_tests {
         }
     }
 }
-
-
-
-
-
-

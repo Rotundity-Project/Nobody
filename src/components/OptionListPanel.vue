@@ -1,5 +1,8 @@
 ﻿<template>
-  <div v-if="visible" class="space-y-2">
+  <div
+    v-if="visible"
+    class="space-y-2"
+  >
     <button
       v-for="(option, index) in options"
       :key="index"
@@ -12,23 +15,23 @@
       ]"
       @click="$emit('select', option)"
     >
-        <div class="flex items-start justify-between gap-2">
-          <div class="min-w-0">
-            <div class="mb-2 flex items-center gap-2">
-              <span class="option-meta text-sm">选项{{ toCnNumber(index + 1) }}</span>
-              <span
-                v-if="optionTag(option) === 'risk'"
-                class="option-tag option-tag-risk inline-flex items-center rounded-full border px-2 py-0.5 text-[11px]"
-              >
-                风险
-              </span>
-              <span
-                v-else-if="optionTag(option) === 'probe'"
-                class="option-tag option-tag-probe inline-flex items-center rounded-full border px-2 py-0.5 text-[11px]"
-              >
-                探查
-              </span>
-            </div>
+      <div class="flex items-start justify-between gap-2">
+        <div class="min-w-0">
+          <div class="mb-2 flex items-center gap-2">
+            <span class="option-meta text-sm">选项{{ toCnNumber(index + 1) }}</span>
+            <span
+              v-if="optionTag(option) === 'risk'"
+              class="option-tag option-tag-risk inline-flex items-center rounded-full border px-2 py-0.5 text-[11px]"
+            >
+              风险
+            </span>
+            <span
+              v-else-if="optionTag(option) === 'probe'"
+              class="option-tag option-tag-probe inline-flex items-center rounded-full border px-2 py-0.5 text-[11px]"
+            >
+              探查
+            </span>
+          </div>
           <p class="option-text text-[15px] leading-[1.65]">
             {{ `选项${toCnNumber(index + 1)} · ${normalizeOptionDescription(option.description)}` }}
           </p>
@@ -39,7 +42,10 @@
             条件：{{ option.requirements.join('，') }}
           </p>
         </div>
-        <span class="option-arrow mt-0.5" aria-hidden="true">
+        <span
+          class="option-arrow mt-0.5"
+          aria-hidden="true"
+        >
           <svg
             v-if="optionIcon(option, index) === 'eye'"
             viewBox="0 0 24 24"
@@ -48,8 +54,16 @@
             stroke="currentColor"
             stroke-width="1.8"
           >
-            <path stroke-linecap="round" stroke-linejoin="round" d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" />
-            <circle cx="12" cy="12" r="2.5" />
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"
+            />
+            <circle
+              cx="12"
+              cy="12"
+              r="2.5"
+            />
           </svg>
           <svg
             v-else-if="optionIcon(option, index) === 'leaf'"
@@ -59,8 +73,16 @@
             stroke="currentColor"
             stroke-width="1.8"
           >
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3c5 0 8 4 8 8 0 5-4 10-8 10S4 16 4 11c0-4 3-8 8-8Z" />
-            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12c2 0 4-2 6-6" />
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M12 3c5 0 8 4 8 8 0 5-4 10-8 10S4 16 4 11c0-4 3-8 8-8Z"
+            />
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M9 12c2 0 4-2 6-6"
+            />
           </svg>
           <svg
             v-else
@@ -70,7 +92,11 @@
             stroke="currentColor"
             stroke-width="1.8"
           >
-            <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M13 6l6 6-6 6" />
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M5 12h14M13 6l6 6-6 6"
+            />
           </svg>
         </span>
       </div>
@@ -192,7 +218,7 @@ const normalizeOptionDescription = (raw: string): string => {
   const text = String(raw ?? '').trim();
   if (!text) return '';
   const stripped = text
-    .replace(/^选项\s*[一二三四五六七八九十百千万\d]+\s*[：:、.\-]\s*/u, '')
+    .replace(/^选项\s*[一二三四五六七八九十百千万\d]+\s*[：:、.-]\s*/u, '')
     .replace(/^选项\s*[一二三四五六七八九十百千万\d]+\s*/u, '')
     .trim();
   return stripped || text;

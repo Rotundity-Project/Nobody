@@ -1,9 +1,17 @@
 ﻿<template>
-  <div v-if="isOpen" class="settings-overlay fixed inset-0 z-50 flex items-center justify-center p-4">
+  <div
+    v-if="isOpen"
+    class="settings-overlay fixed inset-0 z-50 flex items-center justify-center p-4"
+  >
     <div class="panel-surface settings-panel w-full max-w-lg rounded-2xl p-6">
       <div class="mb-4 flex items-center justify-between">
-        <h3 class="text-xl font-display settings-title">系统设置</h3>
-        <button class="settings-close-btn rounded px-3 py-1 text-sm" @click="$emit('close')">
+        <h3 class="text-xl font-display settings-title">
+          系统设置
+        </h3>
+        <button
+          class="settings-close-btn rounded px-3 py-1 text-sm"
+          @click="$emit('close')"
+        >
           关闭
         </button>
       </div>
@@ -22,7 +30,11 @@
 
         <label class="settings-label flex items-center justify-between gap-4 text-sm">
           <span>显示上一章回顾</span>
-          <input v-model="localSettings.recap_enabled" type="checkbox" class="h-4 w-4 settings-checkbox" />
+          <input
+            v-model="localSettings.recap_enabled"
+            type="checkbox"
+            class="h-4 w-4 settings-checkbox"
+          >
         </label>
 
         <label class="text-sm settings-label">
@@ -40,12 +52,20 @@
 
         <label class="settings-label flex items-center justify-between gap-4 text-sm">
           <span>LLM 优先剧情生成</span>
-          <input v-model="localSettings.llm_priority_mode" type="checkbox" class="h-4 w-4 settings-checkbox" />
+          <input
+            v-model="localSettings.llm_priority_mode"
+            type="checkbox"
+            class="h-4 w-4 settings-checkbox"
+          >
         </label>
 
         <label class="settings-label flex items-center justify-between gap-4 text-sm">
           <span>强制 LLM（失败不推进）</span>
-          <input v-model="localSettings.llm_strict_mode" type="checkbox" class="h-4 w-4 settings-checkbox" />
+          <input
+            v-model="localSettings.llm_strict_mode"
+            type="checkbox"
+            class="h-4 w-4 settings-checkbox"
+          >
         </label>
 
         <button

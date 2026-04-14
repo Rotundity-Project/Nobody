@@ -69,14 +69,20 @@ fn require_non_empty_str(row: &Map<String, Value>, key: &str, table: &str) -> Re
         .map(str::trim)
         .unwrap_or_default();
     if value.is_empty() {
-        return Err(format!("table {} missing required string field {}", table, key));
+        return Err(format!(
+            "table {} missing required string field {}",
+            table, key
+        ));
     }
     Ok(())
 }
 
 fn require_u64_like(row: &Map<String, Value>, key: &str, table: &str) -> Result<(), String> {
     if row.get(key).and_then(Value::as_u64).is_none() {
-        return Err(format!("table {} missing required number field {}", table, key));
+        return Err(format!(
+            "table {} missing required number field {}",
+            table, key
+        ));
     }
     Ok(())
 }

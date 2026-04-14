@@ -1,4 +1,4 @@
-﻿use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -58,7 +58,11 @@ impl MemoryLayers {
     }
 
     pub fn upsert_world_fact(&mut self, fact: WorldFact) {
-        if let Some(existing) = self.world_facts.iter_mut().find(|f| f.fact_id == fact.fact_id) {
+        if let Some(existing) = self
+            .world_facts
+            .iter_mut()
+            .find(|f| f.fact_id == fact.fact_id)
+        {
             *existing = fact;
             return;
         }

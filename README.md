@@ -1,4 +1,4 @@
-﻿# Nobody - 修仙文字模拟器
+# Nobody - 修仙文字模拟器
 
 Nobody 是一个 AI 驱动的修仙题材文字模拟器，技术栈为 `Tauri 2 + Vue 3 + TypeScript + Tailwind CSS`。
 
@@ -46,17 +46,25 @@ src/composables/        # 视图编排逻辑
 src/shared/ui/          # 共享 UI 基础组件
 src/stores/             # Pinia 状态管理
 src-tauri/src/          # Rust 后端核心逻辑
-docs/                   # 架构、UI、测试与发布文档
+docs/                   # 正式文档：架构、UI、测试与发布
+.kiro/                  # 本地工作文档：规格、交接、草稿、参考资料
 release/screenshots/    # 界面截图清单与产物目录
 ```
 
 ## 文档索引
 
+### 正式文档
+
+- 总入口：`docs/README.md`
 - 架构：`docs/ARCHITECTURE.md`
-- UI 重构指南：`UI_REDESIGN_GUIDE.md`
 - 用户手册：`docs/USER_MANUAL.md`
-- 测试指南：`测试指南.md`
-- 运行说明：`RUNNING.md`
+- API：`docs/API.md`
+- NoName Agent 设计：`docs/architecture/README.md`
+
+### 本地工作文档
+
+- `.kiro/README.md`
+- `.kiro/specs/Nobody/README.md`
 
 ## 界面截图
 

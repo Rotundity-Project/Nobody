@@ -12,10 +12,20 @@
       @open-load="$emit('open-load')"
     />
     <div class="runtime-bottom-right">
-      <button type="button" class="runtime-bottom-btn" @click="$emit('toggle-theme')">
+      <button
+        type="button"
+        class="runtime-bottom-btn"
+        @click="$emit('toggle-theme')"
+      >
         主题：{{ activeThemeLabel }}
       </button>
-      <button type="button" class="runtime-bottom-btn" @click="$emit('open-settings')">系统设置</button>
+      <button
+        type="button"
+        class="runtime-bottom-btn"
+        @click="$emit('open-settings')"
+      >
+        系统设置
+      </button>
     </div>
   </div>
 </template>

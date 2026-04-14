@@ -78,8 +78,8 @@ mod tests {
 
     #[test]
     fn test_with_context() {
-        let err = AppError::new(AppErrorKind::InvalidInput, "missing field")
-            .with_context("load script");
+        let err =
+            AppError::new(AppErrorKind::InvalidInput, "missing field").with_context("load script");
         assert!(err.to_string().contains("load script"));
         assert!(err.to_string().contains("missing field"));
     }

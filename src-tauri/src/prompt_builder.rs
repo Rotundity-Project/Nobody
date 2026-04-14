@@ -1,4 +1,4 @@
-﻿use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 
 pub const DEFAULT_MAX_HISTORY_ITEMS: usize = 12;
 
@@ -16,15 +16,9 @@ impl PromptTemplate {
             PromptTemplate::ScriptGeneration => {
                 "生成一个完整且可游玩的修仙世界剧本，设定必须自洽。"
             }
-            PromptTemplate::OptionGeneration => {
-                "基于当前场景生成 2 到 5 个可执行的玩家行动选项。"
-            }
-            PromptTemplate::NpcDecision => {
-                "生成符合 NPC 性格与记忆的决策。"
-            }
-            PromptTemplate::PlotGeneration => {
-                "生成承接最新事件的小说化剧情文本。"
-            }
+            PromptTemplate::OptionGeneration => "基于当前场景生成 2 到 5 个可执行的玩家行动选项。",
+            PromptTemplate::NpcDecision => "生成符合 NPC 性格与记忆的决策。",
+            PromptTemplate::PlotGeneration => "生成承接最新事件的小说化剧情文本。",
         }
     }
 }
@@ -80,7 +74,13 @@ impl PromptBuilder {
         let mut text_limit = usize::MAX;
 
         loop {
-            let prompt = self.render_prompt(template.clone(), context, constraints, history_count, text_limit);
+            let prompt = self.render_prompt(
+                template.clone(),
+                context,
+                constraints,
+                history_count,
+                text_limit,
+            );
             if self.estimate_prompt_tokens(&prompt) <= token_limit {
                 return prompt;
             }
@@ -131,13 +131,22 @@ impl PromptBuilder {
             prompt.push_str(&format!("Scene: {}\n", truncate_text(scene, text_limit)));
         }
         if let Some(location) = &context.location {
-            prompt.push_str(&format!("Location: {}\n", truncate_text(location, text_limit)));
+            prompt.push_str(&format!(
+                "Location: {}\n",
+                truncate_text(location, text_limit)
+            ));
         }
         if let Some(actor_name) = &context.actor_name {
-            prompt.push_str(&format!("Actor: {}\n", truncate_text(actor_name, text_limit)));
+            prompt.push_str(&format!(
+                "Actor: {}\n",
+                truncate_text(actor_name, text_limit)
+            ));
         }
         if let Some(actor_realm) = &context.actor_realm {
-            prompt.push_str(&format!("Realm: {}\n", truncate_text(actor_realm, text_limit)));
+            prompt.push_str(&format!(
+                "Realm: {}\n",
+                truncate_text(actor_realm, text_limit)
+            ));
         }
         if let Some(power) = context.actor_combat_power {
             prompt.push_str(&format!("CombatPower: {power}\n"));
@@ -241,7 +250,9 @@ mod tests {
                 "Defeated a rogue cultivator".to_string(),
                 "Consumed a spirit pill".to_string(),
             ],
-            world_setting_summary: Some("Five-element cultivation world with strict sect laws".to_string()),
+            world_setting_summary: Some(
+                "Five-element cultivation world with strict sect laws".to_string(),
+            ),
         }
     }
 
@@ -251,10 +262,10 @@ mod tests {
                 "No realm jump larger than one major realm per event".to_string(),
                 "Combat outcomes must respect combat power delta".to_string(),
             ],
-            world_rules: vec![
-                "The sect forbids lethal combat inside the mountain gate".to_string(),
-            ],
-            output_schema_hint: Some("Return JSON: {\"text\": string, \"events\": string[]}".to_string()),
+            world_rules: vec!["The sect forbids lethal combat inside the mountain gate".to_string()],
+            output_schema_hint: Some(
+                "Return JSON: {\"text\": string, \"events\": string[]}".to_string(),
+            ),
         }
     }
 

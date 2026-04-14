@@ -5,11 +5,15 @@ fn test_module_smoke() {
 
 #[cfg(test)]
 mod perf_benchmarks {
-    use crate::models::{CharacterStats, CultivationRealm, Element, Grade, Lifespan, SpiritualRoot};
+    use crate::models::{
+        CharacterStats, CultivationRealm, Element, Grade, Lifespan, SpiritualRoot,
+    };
     use crate::numerical_system::{Action, ActionResult, Context};
-    use crate::plot_engine::{ActionType, PlayerAction, PlayerOption, PlotEngine, PlotState, Scene};
-    use std::time::Instant;
+    use crate::plot_engine::{
+        ActionType, PlayerAction, PlayerOption, PlotEngine, PlotState, Scene,
+    };
     use std::hint::black_box;
+    use std::time::Instant;
 
     fn sample_character() -> CharacterStats {
         CharacterStats {
@@ -92,7 +96,11 @@ mod perf_benchmarks {
             "PERF plot_advance per_op_ms p50={:.3} p95={:.3} p99={:.3}",
             p50, p95, p99
         );
-        assert!(p95 < 2500.0, "plot advance p95 exceeds target: {:.3}ms", p95);
+        assert!(
+            p95 < 2500.0,
+            "plot advance p95 exceeds target: {:.3}ms",
+            p95
+        );
     }
 
     #[test]
@@ -134,6 +142,10 @@ mod perf_benchmarks {
             "PERF combat_parse per_op_ms p50={:.3} p95={:.3} p99={:.3}",
             p50, p95, p99
         );
-        assert!(p95 < 1000.0, "combat parse p95 exceeds target: {:.3}ms", p95);
+        assert!(
+            p95 < 1000.0,
+            "combat parse p95 exceeds target: {:.3}ms",
+            p95
+        );
     }
 }

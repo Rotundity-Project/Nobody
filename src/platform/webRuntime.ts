@@ -1,4 +1,4 @@
-﻿import {
+import {
   ActionType,
   Element,
   EventImportance,
@@ -8,6 +8,10 @@
   type ConsistencyPolicy,
   type GameState,
   type MapLocationOverview,
+  type NoNameApplyScope,
+  type NoNameMode,
+  type NoNameTargetSegment,
+  type NoNameTrace,
   type PlayerAction,
   type PlayerOption,
   type PlotSettings,
@@ -17,11 +21,14 @@
   type WorldRegistry,
 } from '../types/game';
 
+type WebNoNameMode = NoNameMode;
+
 type SaveSnapshot = {
   script: Script;
   gameState: GameState;
   plotState: PlotState;
   timestamp: number;
+  noNameMode: WebNoNameMode;
 };
 
 type WebRuntimeState = {
@@ -31,6 +38,8 @@ type WebRuntimeState = {
   saves: Record<string, SaveSnapshot>;
   worldRegistry: WorldRegistry | null;
   consistencyPolicy: ConsistencyPolicy;
+  noNameTraces: NoNameTrace[];
+  noNameMode: WebNoNameMode;
 };
 
 const STORAGE_KEY = 'nobody_web_runtime_v1';
@@ -67,6 +76,8 @@ const initialState = (): WebRuntimeState => ({
   saves: {},
   worldRegistry: null,
   consistencyPolicy: defaultConsistencyPolicy(),
+  noNameTraces: [],
+  noNameMode: 'observeOnly',
 });
 
 let runtimeState: WebRuntimeState = loadState();
@@ -86,6 +97,8 @@ function loadState(): WebRuntimeState {
       saves: parsed.saves ?? {},
       worldRegistry: parsed.worldRegistry ?? null,
       consistencyPolicy: parsed.consistencyPolicy ?? defaultConsistencyPolicy(),
+      noNameTraces: parsed.noNameTraces ?? [],
+      noNameMode: parsed.noNameMode ?? 'observeOnly',
     };
   } catch {
     return initialState();
@@ -294,6 +307,180 @@ function createActionResult(description: string): ActionResult {
   };
 }
 
+function pickWebNoNameTargetSegment(action: PlayerAction): NoNameTargetSegment {
+  if (action.action_type === ActionType.FreeText) {
+    return 'current_turn_head';
+  }
+  if (typeof action.selected_option_id === 'number' && action.selected_option_id % 2 === 0) {
+    return 'chapter_summary_head';
+  }
+  return 'current_turn_tail';
+}
+
+function deriveWebNoNameApplyScopes(targetSegment: NoNameTargetSegment): NoNameApplyScope[] {
+  const baseScopes: NoNameApplyScope[] = ['diagnostics', 'chapterSummaryHint', 'optionBiasHint'];
+  if (
+    targetSegment === 'current_turn_head' ||
+    targetSegment === 'current_turn_tail'
+  ) {
+    return [...baseScopes, 'plotTextHint'];
+  }
+  return baseScopes;
+}
+
+function applyWebNoNamePlotHint(paragraph: string, focus: string, targetSegment: NoNameTargetSegment): string {
+  const hint = `【NoName】重点关注：${focus}`;
+  if (targetSegment === 'current_turn_head') {
+    return `${hint}\n\n${paragraph}`;
+  }
+  return `${paragraph}\n\n${hint}`;
+}
+
+function applyWebNoNameSummaryHint(summary: string, focus: string, targetSegment: NoNameTargetSegment): string {
+  const hint = `NoName提示：后续重点关注${focus}`;
+  if (!summary.trim()) {
+    return hint;
+  }
+  if (targetSegment === 'chapter_summary_head') {
+    return `${hint}；${summary}`;
+  }
+  if (summary.includes(focus)) {
+    return summary;
+  }
+  return `${summary}；${hint}`;
+}
+
+function appendWebNoNameTrace(
+  text: string,
+  paragraph: string,
+  targetSegment: NoNameTargetSegment,
+  applyScopes: NoNameApplyScope[],
+) {
+  const traceId = `web-trace-${Date.now()}`;
+  const proposalId = `proposal-${traceId}`;
+
+  if (runtimeState.noNameMode === 'disabled') {
+    return;
+  }
+
+  if (runtimeState.noNameMode === 'assisted') {
+    runtimeState.noNameTraces.push({
+      traceId,
+      sessionId: 'web-session',
+      turnId: `turn-${Date.now()}`,
+      mode: 'assisted',
+      graphPath: [
+        'CollectTurnInput',
+        'BuildContextBundle',
+        'PlanTurn',
+        'ValidateProposal',
+        'ApplyProposal',
+        'PersistTrace',
+      ],
+      capabilityCalls: [],
+      proposals: [
+        {
+          proposalId,
+          kind: 'plot_candidate',
+          producerRole: 'director',
+          title: `Director提案：${text}`,
+          summary: `建议优先推进“${text}”`,
+          focus: text,
+          targetSegment,
+          intendedEffect: '为低风险输出提供稳定导向',
+          rationale: 'web mock: assisted apply',
+          suggestedAction: '进入低风险 apply',
+          labels: ['director', 'assisted_ready', 'apply_scope_diagnostics'],
+          applyScopes,
+          status: 'applied',
+          applyable: true,
+        },
+      ],
+      proposalTransitionLog: [
+        `${proposalId}:ready`,
+        `${proposalId}:apply_preflight:ready`,
+        ...applyScopes.map((scope) => `${proposalId}:applied:${scope}`),
+      ],
+      applyPlanLog: applyScopes
+        .map((scope) => ({
+        target: scope,
+        decision: 'apply',
+        priority: scope === 'plotTextHint' ? 300 : scope === 'chapterSummaryHint' ? 200 : scope === 'optionBiasHint' ? 100 : 50,
+        note: `web mock 允许执行 ${scope}`,
+      }))
+        .sort((left, right) => right.priority - left.priority)
+        .map((item, index) => ({ ...item, order: index + 1 })),
+      applyExecutionLog: applyScopes.map((scope) => ({
+        target: scope,
+        outcome: 'applied',
+        note: scope === 'plotTextHint'
+          ? `已将提案提示写入正文，聚焦“${text}”`
+          : scope === 'chapterSummaryHint'
+            ? `已补充章节摘要提示，聚焦“${text}”`
+            : scope === 'optionBiasHint'
+              ? `已补充下轮选项偏置提示，聚焦“${text}”`
+              : `已补充诊断提示，聚焦“${text}”`,
+      })),
+      guardrailResult: { outcome: 'accept' },
+      applyResult: {
+        attempted: true,
+        outcome: applyScopes.includes('plotTextHint')
+          ? 'applied_summary_option_bias_and_plot_text'
+          : 'applied_summary_and_option_bias',
+        reason: `web mock 已将提案应用到低风险输出层，target=${targetSegment}，scopes=${applyScopes.join(',')}，正文为：${paragraph}`,
+      },
+      fallbackUsed: false,
+      elapsedMs: 0,
+    });
+  } else {
+    runtimeState.noNameTraces.push({
+      traceId,
+      sessionId: 'web-session',
+      turnId: `turn-${Date.now()}`,
+      mode: 'observeOnly',
+      graphPath: ['CollectTurnInput', 'BuildContextBundle', 'PlanTurn', 'PersistTrace'],
+      capabilityCalls: [],
+      proposals: [
+        {
+          proposalId,
+          kind: 'plot_candidate',
+          producerRole: 'director',
+          title: `Director提案：${text}`,
+          summary: `建议优先观察“${text}”`,
+          focus: text,
+          targetSegment,
+          intendedEffect: '维持观察链路，不直接改写主剧情',
+          rationale: 'web mock: observe-only',
+          suggestedAction: '保持 observe-only',
+          labels: ['director', 'observe_only'],
+          applyScopes,
+          status: 'observed',
+          applyable: false,
+        },
+      ],
+      proposalTransitionLog: [`${proposalId}:observed`],
+      applyPlanLog: applyScopes
+        .map((scope) => ({
+        target: scope,
+        decision: 'skip',
+        priority: scope === 'plotTextHint' ? 300 : scope === 'chapterSummaryHint' ? 200 : scope === 'optionBiasHint' ? 100 : 50,
+        note: `web mock observe-only：${scope} 仅记录不执行`,
+      }))
+        .sort((left, right) => right.priority - left.priority)
+        .map((item, index) => ({ ...item, order: index + 1 })),
+      applyExecutionLog: [],
+      guardrailResult: { outcome: 'accept' },
+      applyResult: { attempted: false, outcome: 'skipped_observe_only' },
+      fallbackUsed: false,
+      elapsedMs: 0,
+    });
+  }
+
+  if (runtimeState.noNameTraces.length > 8) {
+    runtimeState.noNameTraces = runtimeState.noNameTraces.slice(-8);
+  }
+}
+
 function resolveActionText(action: PlayerAction, options: PlayerOption[]): string {
   if (action.action_type === ActionType.FreeText) {
     return action.content.trim() || '你静静观察局势变化。';
@@ -307,9 +494,14 @@ function updateAfterAction(action: PlayerAction, quickMode: boolean) {
   const gameState = runtimeState.gameState as GameState;
   const plotState = runtimeState.plotState as PlotState;
   const text = resolveActionText(action, plotState.current_scene.available_options);
-  const paragraph = quickMode
+  const targetSegment = pickWebNoNameTargetSegment(action);
+  const applyScopes = deriveWebNoNameApplyScopes(targetSegment);
+  const baseParagraph = quickMode
     ? `你迅速执行“${text}”，局势发生了可控变化。`
     : `你选择“${text}”，新的线索逐渐浮现。`;
+  const paragraph = runtimeState.noNameMode === 'assisted' && applyScopes.includes('plotTextHint')
+    ? applyWebNoNamePlotHint(baseParagraph, text, targetSegment)
+    : baseParagraph;
 
   plotState.current_chapter.content.push(paragraph);
   plotState.plot_history.push(paragraph);
@@ -317,6 +509,22 @@ function updateAfterAction(action: PlayerAction, quickMode: boolean) {
   plotState.segment_count += 1;
   plotState.last_action_result = createActionResult(paragraph);
   plotState.last_generation_diagnostics = quickMode ? '链路：quick_mode_rule_only（web_mock）' : '链路：web_mock';
+  if (runtimeState.noNameMode === 'observeOnly') {
+    plotState.last_generation_diagnostics += `；NoName.observeOnly：focus=${text}；target_segment=${targetSegment}；apply=skipped_observe_only`;
+  }
+  if (runtimeState.noNameMode === 'assisted') {
+    const applyOutcome = applyScopes.includes('plotTextHint')
+      ? 'applied_summary_option_bias_and_plot_text'
+      : 'applied_summary_and_option_bias';
+    plotState.last_generation_diagnostics += `；NoName.assisted：focus=${text}；target_segment=${targetSegment}；scopes=${applyScopes.join(',')}；apply=${applyOutcome}`;
+    if (applyScopes.includes('chapterSummaryHint')) {
+      plotState.current_chapter.summary = applyWebNoNameSummaryHint(
+        plotState.current_chapter.summary,
+        text,
+        targetSegment,
+      );
+    }
+  }
   plotState.current_scene.available_options = buildInitialOptions().map((opt) => ({
     ...opt,
     id: opt.id,
@@ -333,6 +541,7 @@ function updateAfterAction(action: PlayerAction, quickMode: boolean) {
   gameState.game_time.total_days += 1;
   gameState.game_time.day += 1;
   gameState.player.stats.combat_power += 2;
+  appendWebNoNameTrace(text, paragraph, targetSegment, applyScopes);
 }
 
 function listReachable(): string[] {
@@ -365,6 +574,7 @@ function saveSlot(slotId: number) {
     gameState: runtimeState.gameState as GameState,
     plotState: runtimeState.plotState as PlotState,
     timestamp: Date.now(),
+    noNameMode: runtimeState.noNameMode,
   };
 }
 
@@ -376,6 +586,7 @@ function loadSlot(slotId: number): GameState {
   runtimeState.script = snapshot.script;
   runtimeState.gameState = snapshot.gameState;
   runtimeState.plotState = snapshot.plotState;
+  runtimeState.noNameMode = snapshot.noNameMode ?? 'observeOnly';
   refreshWorldRegistry();
   return snapshot.gameState;
 }
@@ -391,6 +602,7 @@ function listSlots(): SaveInfo[] {
       realm: snapshot.gameState.player.stats.cultivation_realm.name,
       location: snapshot.gameState.player.location,
       game_time: `第${snapshot.gameState.game_time.total_days}天`,
+      noname_mode: snapshot.noNameMode,
     }))
     .sort((a, b) => b.timestamp - a.timestamp);
 }
@@ -512,6 +724,18 @@ export async function invokeWebRuntime<T>(
       refreshWorldRegistry();
       persistState();
       return runtimeState.worldRegistry as T;
+    case 'get_noname_recent_traces':
+      return runtimeState.noNameTraces as T;
+    case 'clear_noname_recent_traces':
+      runtimeState.noNameTraces = [];
+      persistState();
+      return undefined as T;
+    case 'get_noname_mode':
+      return runtimeState.noNameMode as T;
+    case 'set_noname_mode':
+      runtimeState.noNameMode = (args.mode as WebRuntimeState['noNameMode']) ?? 'observeOnly';
+      persistState();
+      return runtimeState.noNameMode as T;
     case 'apply_world_registry_patch': {
       refreshWorldRegistry();
       if (runtimeState.worldRegistry && args.patch && typeof args.patch === 'object') {

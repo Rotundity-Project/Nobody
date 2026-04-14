@@ -1,4 +1,4 @@
-﻿use crate::entity_types::{EntityType, StoredEntity};
+use crate::entity_types::{EntityType, StoredEntity};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -26,7 +26,10 @@ impl EntityStore {
 
     pub fn upsert(&mut self, mut entity: StoredEntity) {
         entity.updated_at = now_secs();
-        self.entities.insert(key(&entity.world_id, &entity.run_id, &entity.entity_id), entity);
+        self.entities.insert(
+            key(&entity.world_id, &entity.run_id, &entity.entity_id),
+            entity,
+        );
     }
 
     pub fn get_by_id(&self, world_id: &str, run_id: &str, entity_id: &str) -> Option<StoredEntity> {

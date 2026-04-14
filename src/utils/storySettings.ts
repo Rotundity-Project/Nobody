@@ -10,13 +10,11 @@ export interface StorySettings {
 }
 
 const STORAGE_KEY = 'nobody_story_settings';
-const SUPPORTED_NOVEL_STYLES = [
-  'xianxia-third-person',
-  'xianxia-first-person',
-  'xianxia-elegant-third-person',
-  'xianxia-classical-third-person',
-] as const;
-type SupportedNovelStyle = (typeof SUPPORTED_NOVEL_STYLES)[number];
+type SupportedNovelStyle =
+  | 'xianxia-third-person'
+  | 'xianxia-first-person'
+  | 'xianxia-elegant-third-person'
+  | 'xianxia-classical-third-person';
 const NOVEL_STYLE_ALIAS_MAP: Record<string, SupportedNovelStyle> = {
   'xianxia-third-person': 'xianxia-third-person',
   'xianxia-first-person': 'xianxia-first-person',

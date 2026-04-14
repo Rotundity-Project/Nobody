@@ -1,7 +1,7 @@
 use crate::event_log::GameEvent;
-use crate::plot_engine::PlotState;
 use crate::llm_runtime_config::resolve_llm_config;
 use crate::llm_service::{LLMRequest, LLMService};
+use crate::plot_engine::PlotState;
 use crate::prompt_builder::{PromptBuilder, PromptConstraints, PromptContext, PromptTemplate};
 use crate::response_validator::{ResponseValidator, ValidationConstraints};
 use serde::{Deserialize, Serialize};
@@ -190,7 +190,10 @@ impl NovelGenerator {
         let prompt = self.prompt_builder.build_prompt_with_token_limit(
             PromptTemplate::PlotGeneration,
             &PromptContext {
-                scene: Some(format!("请根据时间线事件生成第 {} 章小说正文", chapter_index)),
+                scene: Some(format!(
+                    "请根据时间线事件生成第 {} 章小说正文",
+                    chapter_index
+                )),
                 location: None,
                 actor_name: Some("player".to_string()),
                 actor_realm: None,
@@ -270,7 +273,10 @@ impl NovelGenerator {
         content.push_str(&format!("事件总数：{}\n\n", novel.total_events));
         content.push_str("目录\n");
         for item in &novel.toc {
-            content.push_str(&format!("{}. {} - {}\n", item.index, item.title, item.summary));
+            content.push_str(&format!(
+                "{}. {} - {}\n",
+                item.index, item.title, item.summary
+            ));
         }
         content.push('\n');
 
@@ -700,4 +706,3 @@ mod property_tests {
         }
     }
 }
-

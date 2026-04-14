@@ -1,4 +1,4 @@
-﻿use crate::models::{CharacterStats, CultivationRealm, Grade, SpiritualRoot};
+use crate::models::{CharacterStats, CultivationRealm, Grade, SpiritualRoot};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -126,7 +126,10 @@ impl NumericalSystem {
         ActionResult {
             success,
             description: if success {
-                format!("突破成功，你已触及 {} 的更高层次！", actor.cultivation_realm.name)
+                format!(
+                    "突破成功，你已触及 {} 的更高层次！",
+                    actor.cultivation_realm.name
+                )
             } else {
                 "突破失败，积累仍不足，需要继续修炼。".to_string()
             },
@@ -145,7 +148,7 @@ impl NumericalSystem {
         target_realm: &CultivationRealm,
     ) -> bool {
         let current = &character.cultivation_realm;
-        
+
         if target_realm.level == current.level {
             target_realm.sub_level == current.sub_level + 1 && target_realm.sub_level <= 3
         } else if target_realm.level == current.level + 1 {
@@ -161,11 +164,19 @@ impl NumericalSystem {
         defender: &CharacterStats,
     ) -> CombatResult {
         let power_diff = attacker.combat_power as i64 - defender.combat_power as i64;
-        
+
         let (winner_id, loser_id, damage) = if power_diff > 0 {
-            ("attacker".to_string(), "defender".to_string(), (power_diff / 10) as u32)
+            (
+                "attacker".to_string(),
+                "defender".to_string(),
+                (power_diff / 10) as u32,
+            )
         } else {
-            ("defender".to_string(), "attacker".to_string(), (power_diff.abs() / 10) as u32)
+            (
+                "defender".to_string(),
+                "attacker".to_string(),
+                (power_diff.abs() / 10) as u32,
+            )
         };
 
         CombatResult {
@@ -212,7 +223,7 @@ mod tests {
             element: Element::Fire,
             grade: Grade::Heavenly,
             affinity: 0.8,
-        elements: Vec::new(),
+            elements: Vec::new(),
         };
         let realm = CultivationRealm::new("Qi Condensation".to_string(), 1, 0, 1.0);
         let lifespan = Lifespan::new(20, 100, 50);
@@ -387,25 +398,25 @@ mod tests {
             element: Element::Fire,
             grade: Grade::Heavenly,
             affinity: 0.8,
-        elements: Vec::new(),
+            elements: Vec::new(),
         };
         let double = SpiritualRoot {
             element: Element::Fire,
             grade: Grade::Double,
             affinity: 0.8,
-        elements: Vec::new(),
+            elements: Vec::new(),
         };
         let triple = SpiritualRoot {
             element: Element::Fire,
             grade: Grade::Triple,
             affinity: 0.8,
-        elements: Vec::new(),
+            elements: Vec::new(),
         };
         let pseudo = SpiritualRoot {
             element: Element::Fire,
             grade: Grade::Pseudo,
             affinity: 0.8,
-        elements: Vec::new(),
+            elements: Vec::new(),
         };
 
         let p_heavenly = system.calculate_initial_combat_power(&heavenly, &realm);
@@ -484,7 +495,7 @@ mod tests {
             element: Element::Earth,
             grade: Grade::Pseudo,
             affinity: 0.0,
-        elements: Vec::new(),
+            elements: Vec::new(),
         };
         let realm = CultivationRealm::new("Weak Realm".to_string(), 1, 0, 0.0);
 
@@ -553,11 +564,14 @@ mod property_tests {
     }
 
     fn arb_character_stats() -> impl Strategy<Value = CharacterStats> {
-        (arb_spiritual_root(), arb_cultivation_realm(), arb_lifespan()).prop_map(
-            |(spiritual_root, cultivation_realm, lifespan)| {
-                CharacterStats::new(spiritual_root, cultivation_realm, lifespan)
-            },
+        (
+            arb_spiritual_root(),
+            arb_cultivation_realm(),
+            arb_lifespan(),
         )
+            .prop_map(|(spiritual_root, cultivation_realm, lifespan)| {
+                CharacterStats::new(spiritual_root, cultivation_realm, lifespan)
+            })
     }
 
     fn arb_action() -> impl Strategy<Value = Action> {
@@ -587,10 +601,10 @@ mod property_tests {
             context in arb_context()
         ) {
             let system = NumericalSystem::new();
-            
+
             let result1 = system.calculate_action_result(&character, &action, &context);
             let result2 = system.calculate_action_result(&character, &action, &context);
-            
+
             prop_assert_eq!(result1.success, result2.success);
             prop_assert_eq!(result1.description, result2.description);
             prop_assert_eq!(result1.stat_changes.len(), result2.stat_changes.len());
@@ -608,12 +622,12 @@ mod property_tests {
             let old_combat_power = character.combat_power;
             let old_realm_level = character.cultivation_realm.level;
             let old_sub_level = character.cultivation_realm.sub_level;
-            
+
             if character.cultivation_realm.sub_level < 3 {
                 character.cultivation_realm.sub_level += 1;
                 character.cultivation_realm.power_multiplier *= 1.2;
                 character.update_combat_power();
-                
+
                 prop_assert_ne!(character.combat_power, old_combat_power);
                 prop_assert!(
                     character.cultivation_realm.sub_level > old_sub_level ||
@@ -634,7 +648,7 @@ mod property_tests {
         ) {
             let lifespan = Lifespan::new(current_age, max_age, realm_bonus);
             let total_max = max_age + realm_bonus;
-            
+
             if current_age >= total_max {
                 prop_assert!(!lifespan.is_alive());
                 prop_assert_eq!(lifespan.remaining_years(), 0);
@@ -653,7 +667,7 @@ mod property_tests {
                 element: Element::Fire,
                 grade: Grade::Heavenly,
                 affinity: 0.8,
-            elements: Vec::new(),
+                elements: Vec::new(),
             },
             CultivationRealm::new("Qi Condensation".to_string(), 1, 0, 1.0),
             Lifespan::new(20, 100, 50),
@@ -664,11 +678,11 @@ mod property_tests {
         character.cultivation_realm.sub_level += 1;
         character.cultivation_realm.power_multiplier *= 1.2;
         character.techniques.push("Fire Palm".to_string());
-        
+
         character.update_combat_power();
-        
+
         assert!(character.combat_power > initial_combat_power);
-        
+
         let expected_power = character.combat_power;
         character.update_combat_power();
         assert_eq!(character.combat_power, expected_power);
@@ -681,24 +695,23 @@ mod property_tests {
                 element: Element::Water,
                 grade: Grade::Double,
                 affinity: 0.6,
-            elements: Vec::new(),
+                elements: Vec::new(),
             },
             CultivationRealm::new("Foundation".to_string(), 2, 0, 2.0),
             Lifespan::new(30, 120, 80),
         );
 
         let power_before = character.combat_power;
-        
+
         character.cultivation_realm.power_multiplier = 3.0;
         character.update_combat_power();
         let power_after_realm = character.combat_power;
-        
+
         assert!(power_after_realm > power_before);
-        
+
         character.techniques.push("Water Shield".to_string());
         character.update_combat_power();
-        
+
         assert_eq!(character.combat_power, power_after_realm);
     }
 }
-

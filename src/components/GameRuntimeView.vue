@@ -1,5 +1,8 @@
 ﻿<template>
-  <div class="game-shell h-screen overflow-hidden text-[var(--ink-text-primary)]" :class="activeThemeClass">
+  <div
+    class="game-shell h-screen overflow-hidden text-[var(--ink-text-primary)]"
+    :class="activeThemeClass"
+  >
     <div class="mx-auto flex h-full w-full max-w-[1380px] flex-col px-4 pb-4 pt-4 sm:px-7 sm:pb-6 sm:pt-5">
       <GameRuntimeTopBar
         :chapter-index-label="chapterIndexLabel"
@@ -25,7 +28,10 @@
             :player-root-type-label="playerRootTypeLabel"
             :player-root-label="playerRootLabel"
           />
-          <GameRuntimeWorldRegistryPanel v-bind="worldRegistryPanelProps" v-on="worldRegistryPanelListeners" />
+          <GameRuntimeWorldRegistryPanel
+            v-bind="worldRegistryPanelProps"
+            v-on="worldRegistryPanelListeners"
+          />
         </aside>
 
         <section class="runtime-panel runtime-main-panel">
@@ -51,14 +57,23 @@
         </section>
 
         <aside class="runtime-panel runtime-side-right">
-          <GameRuntimeInteractionCard v-bind="interactionCardProps" v-on="interactionCardListeners" />
+          <GameRuntimeInteractionCard
+            v-bind="interactionCardProps"
+            v-on="interactionCardListeners"
+          />
         </aside>
       </div>
 
-      <GameRuntimeBottomBar v-bind="bottomBarProps" v-on="bottomBarListeners" />
+      <GameRuntimeBottomBar
+        v-bind="bottomBarProps"
+        v-on="bottomBarListeners"
+      />
     </div>
 
-    <GameSystemDialogs v-bind="systemDialogsProps" v-on="systemDialogsListeners" />
+    <GameSystemDialogs
+      v-bind="systemDialogsProps"
+      v-on="systemDialogsListeners"
+    />
     <GameInfoCenterDialog
       :is-open="showInfoTabs"
       :game-store="gameStore"
@@ -73,16 +88,22 @@
       :option-source-label="optionSourceLabel"
       :option-source-hint="optionSourceHint || undefined"
       :consistency-risk-score="consistencyRiskScore"
+      :no-name-debug-text="noNameDebugText"
+      :no-name-mode="noNameMode"
       @close="showInfoTabs = false"
       @clear-error="gameStore.clearError()"
       @travel="handleTravel"
+      @set-no-name-mode="setNoNameMode"
     />
     <CharacterInfoModal
       :is-open="showCharacterInfo"
       :character="gameStore.playerCharacter"
       @close="showCharacterInfo = false"
     />
-    <RuntimeQuickPanelsDialog v-bind="quickPanelsDialogProps" v-on="quickPanelsDialogListeners" />
+    <RuntimeQuickPanelsDialog
+      v-bind="quickPanelsDialogProps"
+      v-on="quickPanelsDialogListeners"
+    />
     <NotificationCenter
       v-if="runtimeNotifications.length > 0"
       :notifications="runtimeNotifications"
@@ -92,7 +113,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useGameStore } from '../stores/gameStore';
 import CharacterInfoModal from './CharacterInfoModal.vue';
@@ -107,7 +128,8 @@ import GameSystemDialogs from './GameSystemDialogs.vue';
 import NotificationCenter from './NotificationCenter.vue';
 import RuntimeQuickPanelsDialog from './RuntimeQuickPanelsDialog.vue';
 import StoryViewport from './StoryViewport.vue';
-import type { ConsistencyPolicy } from '../types/game';
+import type { ConsistencyPolicy, NoNameMode } from '../types/game';
+import { invokeRuntime } from '../utils/tauriInvoke';
 import {
   createFreeTextAction,
   createOptionAction,
@@ -171,6 +193,28 @@ const storyViewportRef = ref<{ scrollToBottom: () => void } | null>(null);
 const previousChapterParagraphs = ref<string[]>([]);
 const isDevMode = import.meta.env.DEV;
 const showQuickPanel = ref(false);
+const noNameMode = ref<NoNameMode>('observeOnly');
+const noNameDebugText = computed(() => {
+  const getter = (gameStore as { getNoNameTraceDebugText?: () => string }).getNoNameTraceDebugText;
+  return typeof getter === 'function' ? getter.call(gameStore) : '暂无 NoName Agent Trace。';
+});
+
+const refreshNoNameMode = async () => {
+  try {
+    noNameMode.value = await invokeRuntime<NoNameMode>('get_noname_mode', undefined);
+  } catch (error) {
+    console.warn('获取 NoName 模式失败，已忽略：', error);
+  }
+};
+
+const setNoNameMode = async (mode: string) => {
+  const target = (mode as NoNameMode) || 'observeOnly';
+  try {
+    noNameMode.value = await invokeRuntime<NoNameMode>('set_noname_mode', { mode: target });
+  } catch (error) {
+    console.warn('设置 NoName 模式失败，已忽略：', error);
+  }
+};
 
 const safePlayClick = () => {
   try {
@@ -437,6 +481,19 @@ useRuntimeLifecycleRecovery({
   logRuntimeAction,
   notifyRuntimeError,
 });
+
+onMounted(() => {
+  refreshNoNameMode();
+});
+
+watch(
+  () => gameStore.plotState?.segment_count,
+  (value, prev) => {
+    if (value !== prev) {
+      refreshNoNameMode();
+    }
+  },
+);
 </script>
 
 <style scoped src="../styles/game-runtime-view.css"></style>
