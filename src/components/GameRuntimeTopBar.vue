@@ -30,15 +30,15 @@
     </div>
     <div class="runtime-top-right">
       <p>{{ gameTimeLabel }}</p>
-      <p class="runtime-resource-pill">
-        灵石 · {{ spiritStoneLabel }}
-      </p>
+      <p
+        class="runtime-resource-pill"
+        v-text="`灵石 · ${spiritStoneLabel}`"
+      />
       <p
         v-if="characterCreationDurationLabel"
         class="runtime-top-meta"
-      >
-        创建角色耗时 · {{ characterCreationDurationLabel }}
-      </p>
+        v-text="`创建角色耗时 · ${characterCreationDurationLabel}`"
+      />
     </div>
   </header>
 </template>
