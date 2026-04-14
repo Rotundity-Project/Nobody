@@ -515,6 +515,7 @@ type NoNameExecutionView = {
 };
 
 type NoNamePlanView = {
+  order: number;
   target: string;
   decision: string;
   priority: number;

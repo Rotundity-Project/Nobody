@@ -53,13 +53,13 @@ describe('webRuntime', () => {
     });
 
     const plotState = await invokeWebRuntime<PlotState>('get_plot_state');
-    const latestParagraph = plotState.current_chapter.content.at(-1) ?? '';
+    const latestParagraph = plotState.current_chapter.content[plotState.current_chapter.content.length - 1] ?? '';
     expect(latestParagraph.startsWith('【NoName】重点关注：观察灵脉回响')).toBe(true);
     expect(plotState.current_chapter.summary).toContain('NoName提示：后续重点关注观察灵脉回响');
     expect(plotState.last_generation_diagnostics).toContain('target_segment=current_turn_head');
 
     const traces = await invokeWebRuntime<NoNameTrace[]>('get_noname_recent_traces');
-    const latestTrace = traces.at(-1);
+    const latestTrace = traces[traces.length - 1];
     expect(latestTrace?.applyPlanLog?.[0]?.order).toBe(1);
     expect(latestTrace?.proposals[0]?.targetSegment).toBe('current_turn_head');
     expect(latestTrace?.proposals[0]?.applyScopes).toContain('plotTextHint');
@@ -76,23 +76,23 @@ describe('webRuntime', () => {
 
     await invokeWebRuntime('execute_player_action', {
       action: {
-        action_type: ActionType.SelectOption,
+        action_type: ActionType.SelectedOption,
         content: '',
         selected_option_id: 0,
       },
     });
 
     const plotState = await invokeWebRuntime<PlotState>('get_plot_state');
-    const latestParagraph = plotState.current_chapter.content.at(-1) ?? '';
+    const latestParagraph = plotState.current_chapter.content[plotState.current_chapter.content.length - 1] ?? '';
     expect(latestParagraph.includes('【NoName】重点关注')).toBe(false);
     expect(plotState.current_chapter.summary.startsWith('NoName提示：后续重点关注在原地打坐，稳固气息')).toBe(true);
     expect(plotState.last_generation_diagnostics).toContain('target_segment=chapter_summary_head');
 
     const traces = await invokeWebRuntime<NoNameTrace[]>('get_noname_recent_traces');
-    const latestTrace = traces.at(-1);
+    const latestTrace = traces[traces.length - 1];
     expect(latestTrace?.proposals[0]?.targetSegment).toBe('chapter_summary_head');
     expect(latestTrace?.proposals[0]?.applyScopes).not.toContain('plotTextHint');
-    expect(latestTrace?.applyPlanLog?.some((item) => item.target === 'chapterSummaryHint')).toBe(true);
+    expect(latestTrace?.applyPlanLog?.some((item: { target: string }) => item.target === 'chapterSummaryHint')).toBe(true);
     expect(latestTrace?.applyResult?.reason).toContain('target=chapter_summary_head');
   });
 });

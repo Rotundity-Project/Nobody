@@ -1,6 +1,7 @@
 import { mount } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
 import GameInfoCenterDialog from '../GameInfoCenterDialog.vue';
+import type { NoNameApplyScope } from '../../types/game';
 
 const baseStore = {
   playerCharacter: {
@@ -29,7 +30,7 @@ const baseStore = {
     traceId: 'trace-1',
     sessionId: 'session-1',
     turnId: 'turn-1',
-    mode: 'assisted',
+    mode: 'assisted' as const,
     graphPath: ['CollectTurnInput', 'ApplyProposal'],
     capabilityCalls: [],
     proposals: [{
@@ -39,12 +40,12 @@ const baseStore = {
       title: 'Director提案：山门危机',
       summary: '建议优先观察山门危机',
       focus: '山门危机',
-      targetSegment: 'current_turn_tail',
+      targetSegment: 'current_turn_tail' as const,
       intendedEffect: '为下一轮低风险输出提供导向',
       rationale: '当前章节冲突正在汇聚',
       labels: ['director', 'assisted_ready'],
-      applyScopes: ['diagnostics', 'chapterSummaryHint'],
-      status: 'ready',
+      applyScopes: ['diagnostics', 'chapterSummaryHint'] as NoNameApplyScope[],
+      status: 'ready' as const,
       applyable: true,
     }],
     proposalTransitionLog: ['proposal-1:ready'],
