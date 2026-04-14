@@ -25,11 +25,58 @@ const baseStore = {
   gameState: {
     event_history: [],
   },
+  noNameTraces: [{
+    traceId: 'trace-1',
+    sessionId: 'session-1',
+    turnId: 'turn-1',
+    mode: 'assisted',
+    graphPath: ['CollectTurnInput', 'ApplyProposal'],
+    capabilityCalls: [],
+    proposals: [{
+      proposalId: 'proposal-1',
+      kind: 'plotCandidate',
+      producerRole: 'director',
+      title: 'Director提案：山门危机',
+      summary: '建议优先观察山门危机',
+      focus: '山门危机',
+      targetSegment: 'current_turn_tail',
+      intendedEffect: '为下一轮低风险输出提供导向',
+      rationale: '当前章节冲突正在汇聚',
+      labels: ['director', 'assisted_ready'],
+      applyScopes: ['diagnostics', 'chapterSummaryHint'],
+      status: 'ready',
+      applyable: true,
+    }],
+    proposalTransitionLog: ['proposal-1:ready'],
+    applyPlanLog: [{
+      order: 1,
+      target: 'chapter_summary_hint',
+      decision: 'apply',
+      priority: 200,
+      note: '允许执行 chapter_summary_hint',
+    }],
+    applyExecutionLog: [{
+      target: 'chapter_summary_hint',
+      outcome: 'applied',
+      note: '已写入章节摘要提示',
+    }],
+    guardrailResult: {
+      outcome: 'accept',
+      reason: null,
+    },
+    applyResult: {
+      attempted: true,
+      outcome: 'preflight_ready',
+      reason: '已通过 assisted apply 预检',
+    },
+    fallbackUsed: false,
+    elapsedMs: 12,
+  }],
   error: null,
 };
 
 describe('GameInfoCenterDialog', () => {
-  it('forwards close/clear-error/travel events', async () => {
+  it('forwards close/clear-error/travel/mode events', async () => {
     const wrapper = mount(GameInfoCenterDialog, {
       props: {
         isOpen: true,
@@ -53,6 +100,7 @@ describe('GameInfoCenterDialog', () => {
                 <button class="close-btn" @click="$emit('close')" />
                 <button class="clear-btn" @click="$emit('clear-error')" />
                 <button class="travel-btn" @click="$emit('travel', 'loc_1')" />
+                <button class="mode-btn" @click="$emit('set-no-name-mode', 'assisted')" />
               </div>
             `,
           },
@@ -63,9 +111,11 @@ describe('GameInfoCenterDialog', () => {
     await wrapper.find('.close-btn').trigger('click');
     await wrapper.find('.clear-btn').trigger('click');
     await wrapper.find('.travel-btn').trigger('click');
+    await wrapper.find('.mode-btn').trigger('click');
 
     expect(wrapper.emitted('close')).toBeTruthy();
     expect(wrapper.emitted('clear-error')).toBeTruthy();
     expect(wrapper.emitted('travel')?.[0]).toEqual(['loc_1']);
+    expect(wrapper.emitted('set-no-name-mode')?.[0]).toEqual(['assisted']);
   });
 });

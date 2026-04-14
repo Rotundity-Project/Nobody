@@ -1,4 +1,4 @@
-﻿use crate::game_state::{GameState, Item, ItemType};
+use crate::game_state::{GameState, Item, ItemType};
 use crate::llm_bootstrap::{
     build_bootstrap_prompt, build_bootstrap_repair_prompt, validate_bootstrap_payload,
 };
@@ -8,8 +8,8 @@ use crate::plot_engine::PlotState;
 use crate::state_patch_validator::{default_key_field, validate_patch_row};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
-use std::time::Duration;
 use std::collections::BTreeSet;
+use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -213,7 +213,12 @@ impl WorldRegistry {
         };
         let service = match LLMService::new(cfg) {
             Ok(v) => v,
-            Err(err) => return (None, Some(format!("turn update llm service init failed: {}", err))),
+            Err(err) => {
+                return (
+                    None,
+                    Some(format!("turn update llm service init failed: {}", err)),
+                )
+            }
         };
         let mut prompt = build_turn_prompt(
             self,
@@ -291,7 +296,10 @@ impl WorldRegistry {
         )
     }
 
-    pub fn apply_state_patch_transactional(&mut self, patch: &Value) -> Result<Vec<String>, String> {
+    pub fn apply_state_patch_transactional(
+        &mut self,
+        patch: &Value,
+    ) -> Result<Vec<String>, String> {
         let Some(obj) = patch.as_object() else {
             return Err("state_patch must be a JSON object".to_string());
         };
@@ -310,10 +318,7 @@ impl WorldRegistry {
             };
 
             for op in ops {
-                let action = op
-                    .get("__op")
-                    .and_then(Value::as_str)
-                    .unwrap_or("upsert");
+                let action = op.get("__op").and_then(Value::as_str).unwrap_or("upsert");
                 match action {
                     "upsert_by_key" => {
                         let key_field = op
@@ -323,7 +328,10 @@ impl WorldRegistry {
                             .unwrap_or_else(|| default_key_field(table));
                         let row = op.get("row").unwrap_or(op);
                         let Some(row_obj) = row.as_object() else {
-                            return Err(format!("table {} upsert_by_key row must be object", table));
+                            return Err(format!(
+                                "table {} upsert_by_key row must be object",
+                                table
+                            ));
                         };
                         validate_patch_row(table, row_obj)?;
                         let key_value = row_obj
@@ -376,11 +384,10 @@ impl WorldRegistry {
                         notes.push(format!("patch:delete {} @{}", table, idx));
                     }
                     "replace" => {
-                        let idx = op
-                            .get("__index")
-                            .and_then(Value::as_u64)
-                            .ok_or_else(|| format!("table {} replace requires __index", table))?
-                            as usize;
+                        let idx =
+                            op.get("__index").and_then(Value::as_u64).ok_or_else(|| {
+                                format!("table {} replace requires __index", table)
+                            })? as usize;
                         if idx >= target.len() {
                             return Err(format!(
                                 "table {} replace index {} out of bounds({})",
@@ -437,7 +444,10 @@ impl WorldRegistry {
     pub fn validate_turn_narrative_contract(&self, narrative: &str) -> Result<(), String> {
         let chars = narrative.chars().count();
         if !(500..=1200).contains(&chars) {
-            return Err(format!("narrative_segment length out of range: {} (expected 500-1200)", chars));
+            return Err(format!(
+                "narrative_segment length out of range: {} (expected 500-1200)",
+                chars
+            ));
         }
 
         let sentences = narrative
@@ -656,9 +666,9 @@ fn sentence_has_fact_anchor(sentence: &str) -> bool {
 
 fn estimate_adjective_ratio(text: &str) -> f32 {
     let adjectives = [
-        "宏大", "浩瀚", "无尽", "滔天", "璀璨", "古老", "神秘", "强大", "惊人", "绝世",
-        "巍峨", "磅礴", "辉煌", "冷冽", "炽烈", "耀眼", "深邃", "玄妙", "飘渺", "庄严",
-        "沉重", "凌厉", "温润", "阴森", "苍茫", "巨大", "微弱", "稀薄", "混乱", "平静",
+        "宏大", "浩瀚", "无尽", "滔天", "璀璨", "古老", "神秘", "强大", "惊人", "绝世", "巍峨",
+        "磅礴", "辉煌", "冷冽", "炽烈", "耀眼", "深邃", "玄妙", "飘渺", "庄严", "沉重", "凌厉",
+        "温润", "阴森", "苍茫", "巨大", "微弱", "稀薄", "混乱", "平静",
     ];
     let total = text.chars().count().max(1) as f32;
     let mut hits = 0usize;
@@ -672,10 +682,13 @@ fn estimate_adjective_ratio(text: &str) -> f32 {
 
 fn extract_unmarked_named_entities(text: &str) -> Vec<String> {
     let mut out = BTreeSet::new();
-    let suffixes = ['宗', '门', '城', '谷', '宫', '派', '诀', '术', '功', '丹', '剑'];
+    let suffixes = [
+        '宗', '门', '城', '谷', '宫', '派', '诀', '术', '功', '丹', '剑',
+    ];
     let stop_words = [
         "玩家", "主角", "自己", "对方", "众人", "弟子", "长老", "敌人", "灵石", "资源", "关系",
-        "境界", "功法", "地图", "地点", "线索", "目标", "背包", "人物", "山门", "宗门", "城门", "大门",
+        "境界", "功法", "地图", "地点", "线索", "目标", "背包", "人物", "山门", "宗门", "城门",
+        "大门",
     ];
     let chars = text.chars().collect::<Vec<_>>();
     for i in 0..chars.len() {
@@ -685,14 +698,29 @@ fn extract_unmarked_named_entities(text: &str) -> Vec<String> {
         }
         let start = i.saturating_sub(3);
         let end = i;
-        let mut candidate = chars[start..=end].iter().collect::<String>().trim().to_string();
+        let mut candidate = chars[start..=end]
+            .iter()
+            .collect::<String>()
+            .trim()
+            .to_string();
         loop {
             let Some(first) = candidate.chars().next() else {
                 break;
             };
             let is_prefix = matches!(
                 first,
-                '在' | '于' | '从' | '向' | '到' | '自' | '入' | '出' | '对' | '将' | '把' | '与' | '和'
+                '在' | '于'
+                    | '从'
+                    | '向'
+                    | '到'
+                    | '自'
+                    | '入'
+                    | '出'
+                    | '对'
+                    | '将'
+                    | '把'
+                    | '与'
+                    | '和'
             );
             if is_prefix && candidate.chars().count() > 2 {
                 candidate = candidate.chars().skip(1).collect::<String>();
@@ -704,7 +732,10 @@ fn extract_unmarked_named_entities(text: &str) -> Vec<String> {
         if len < 2 || len > 5 {
             continue;
         }
-        if candidate.chars().any(|c| c.is_ascii_whitespace() || c.is_ascii_punctuation()) {
+        if candidate
+            .chars()
+            .any(|c| c.is_ascii_whitespace() || c.is_ascii_punctuation())
+        {
             continue;
         }
         if stop_words.iter().any(|s| candidate.contains(s)) {
@@ -902,7 +933,11 @@ pub fn apply_registry_to_game_state(game_state: &mut GameState, registry: &World
                     .map(|owner| owner == game_state.player.id || owner == "player")
                     .unwrap_or(false)
             })
-            .filter_map(|obj| obj.get("name").and_then(Value::as_str).map(ToString::to_string))
+            .filter_map(|obj| {
+                obj.get("name")
+                    .and_then(Value::as_str)
+                    .map(ToString::to_string)
+            })
             .take(2)
             .collect::<Vec<_>>();
         if !learned.is_empty() {
@@ -976,7 +1011,9 @@ fn normalize_item_type(raw: &str) -> ItemType {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{CharacterStats, CultivationRealm, Element, Grade, Lifespan, SpiritualRoot};
+    use crate::models::{
+        CharacterStats, CultivationRealm, Element, Grade, Lifespan, SpiritualRoot,
+    };
     use crate::script::{InitialState, Script, ScriptType, WorldSetting};
 
     fn sample_state() -> GameState {
@@ -1098,7 +1135,9 @@ mod tests {
         assert!(result.is_ok());
         assert_eq!(registry.tables.world_facts.len(), 1);
         assert_eq!(
-            registry.tables.world_facts[0].get("fact_id").and_then(Value::as_str),
+            registry.tables.world_facts[0]
+                .get("fact_id")
+                .and_then(Value::as_str),
             Some("f1x")
         );
     }
@@ -1122,9 +1161,11 @@ mod tests {
             ]
         }));
         assert!(result.is_ok());
-        assert!(registry.tables.world_facts.iter().any(|r| {
-            r.get("fact_id").and_then(Value::as_str) == Some("f_new")
-        }));
+        assert!(registry
+            .tables
+            .world_facts
+            .iter()
+            .any(|r| { r.get("fact_id").and_then(Value::as_str) == Some("f_new") }));
     }
 
     #[test]
@@ -1207,5 +1248,3 @@ mod tests {
         assert!(ok.is_ok());
     }
 }
-
-

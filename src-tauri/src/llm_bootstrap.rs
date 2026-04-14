@@ -2,7 +2,11 @@ use crate::game_state::GameState;
 use crate::state_patch_validator::validate_patch_row;
 use serde_json::Value;
 
-pub fn build_bootstrap_prompt(game_state: &GameState, reference_78: &str, supplement: &str) -> String {
+pub fn build_bootstrap_prompt(
+    game_state: &GameState,
+    reference_78: &str,
+    supplement: &str,
+) -> String {
     format!(
         "You are a world-state bootstrap generator for a xianxia game. Build tables first, do not write prose.\n\
 Use reference docs 78 + supplement as hard constraints.\n\

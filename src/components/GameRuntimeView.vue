@@ -73,9 +73,12 @@
       :option-source-label="optionSourceLabel"
       :option-source-hint="optionSourceHint || undefined"
       :consistency-risk-score="consistencyRiskScore"
+      :no-name-debug-text="noNameDebugText"
+      :no-name-mode="noNameMode"
       @close="showInfoTabs = false"
       @clear-error="gameStore.clearError()"
       @travel="handleTravel"
+      @set-no-name-mode="setNoNameMode"
     />
     <CharacterInfoModal
       :is-open="showCharacterInfo"
@@ -92,7 +95,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useGameStore } from '../stores/gameStore';
 import CharacterInfoModal from './CharacterInfoModal.vue';
@@ -107,7 +110,8 @@ import GameSystemDialogs from './GameSystemDialogs.vue';
 import NotificationCenter from './NotificationCenter.vue';
 import RuntimeQuickPanelsDialog from './RuntimeQuickPanelsDialog.vue';
 import StoryViewport from './StoryViewport.vue';
-import type { ConsistencyPolicy } from '../types/game';
+import type { ConsistencyPolicy, NoNameMode } from '../types/game';
+import { invokeRuntime } from '../utils/tauriInvoke';
 import {
   createFreeTextAction,
   createOptionAction,
@@ -171,6 +175,28 @@ const storyViewportRef = ref<{ scrollToBottom: () => void } | null>(null);
 const previousChapterParagraphs = ref<string[]>([]);
 const isDevMode = import.meta.env.DEV;
 const showQuickPanel = ref(false);
+const noNameMode = ref<NoNameMode>('observeOnly');
+const noNameDebugText = computed(() => {
+  const getter = (gameStore as { getNoNameTraceDebugText?: () => string }).getNoNameTraceDebugText;
+  return typeof getter === 'function' ? getter.call(gameStore) : '暂无 NoName Agent Trace。';
+});
+
+const refreshNoNameMode = async () => {
+  try {
+    noNameMode.value = await invokeRuntime<NoNameMode>('get_noname_mode', undefined);
+  } catch (error) {
+    console.warn('获取 NoName 模式失败，已忽略：', error);
+  }
+};
+
+const setNoNameMode = async (mode: string) => {
+  const target = (mode as NoNameMode) || 'observeOnly';
+  try {
+    noNameMode.value = await invokeRuntime<NoNameMode>('set_noname_mode', { mode: target });
+  } catch (error) {
+    console.warn('设置 NoName 模式失败，已忽略：', error);
+  }
+};
 
 const safePlayClick = () => {
   try {
@@ -437,6 +463,19 @@ useRuntimeLifecycleRecovery({
   logRuntimeAction,
   notifyRuntimeError,
 });
+
+onMounted(() => {
+  refreshNoNameMode();
+});
+
+watch(
+  () => gameStore.plotState?.segment_count,
+  (value, prev) => {
+    if (value !== prev) {
+      refreshNoNameMode();
+    }
+  },
+);
 </script>
 
 <style scoped src="../styles/game-runtime-view.css"></style>

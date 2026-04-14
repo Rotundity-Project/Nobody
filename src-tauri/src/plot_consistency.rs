@@ -91,13 +91,10 @@ impl Default for ConsistencyPolicy {
 
 impl ConsistencyPolicy {
     fn weight_for(&self, code: &str, level: &IssueLevel) -> i32 {
-        self.code_weights
-            .get(code)
-            .copied()
-            .unwrap_or(match level {
-                IssueLevel::Warning => self.weight_warning,
-                IssueLevel::Critical => self.weight_critical,
-            })
+        self.code_weights.get(code).copied().unwrap_or(match level {
+            IssueLevel::Warning => self.weight_warning,
+            IssueLevel::Critical => self.weight_critical,
+        })
     }
 }
 
@@ -208,7 +205,11 @@ fn jaccard_similarity(a: &str, b: &str) -> f32 {
     }
     let inter = set_a.intersection(&set_b).count() as f32;
     let union = set_a.union(&set_b).count() as f32;
-    if union == 0.0 { 0.0 } else { inter / union }
+    if union == 0.0 {
+        0.0
+    } else {
+        inter / union
+    }
 }
 
 fn build_repair_text(plot_state: &PlotState, action_result: &ActionResult) -> String {
@@ -235,7 +236,15 @@ fn detect_realm_power_conflict(
 ) -> bool {
     let low_tier_targets = ["练气", "qi condensation", "low-tier"];
     let hostility_words = ["妖兽", "monster", "beast"];
-    let fear_words = ["不敌", "害怕", "畏惧", "落荒而逃", "毫无还手", "flee", "panic"];
+    let fear_words = [
+        "不敌",
+        "害怕",
+        "畏惧",
+        "落荒而逃",
+        "毫无还手",
+        "flee",
+        "panic",
+    ];
     let base_hit = contains_any(text, &low_tier_targets)
         && contains_any(text, &hostility_words)
         && contains_any(text, &fear_words);
@@ -271,7 +280,11 @@ fn extract_location_transition(text: &str) -> Option<String> {
             .char_indices()
             .find_map(|(idx, ch)| punct.contains(&ch).then_some(idx))
             .unwrap_or(rest.len());
-        let candidate = rest[..end].trim().trim_matches('\"').trim_matches('“').trim_matches('”');
+        let candidate = rest[..end]
+            .trim()
+            .trim_matches('\"')
+            .trim_matches('“')
+            .trim_matches('”');
         if candidate.chars().count() >= 2 && candidate.chars().count() <= 12 {
             return Some(candidate.to_string());
         }
@@ -466,7 +479,10 @@ pub fn validate_and_repair_plot_update(
             code: "title_drift",
             message: "叙事称谓从玩家视角漂移，已注入称谓修正".to_string(),
         });
-        let fix_line = format!("叙事视角重新锚定为“你（{}）”，你的判断与行动将继续主导局势。", player_name.trim());
+        let fix_line = format!(
+            "叙事视角重新锚定为“你（{}）”，你的判断与行动将继续主导局势。",
+            player_name.trim()
+        );
         let merged = if let Some(existing) = report.repaired_plot_text.clone() {
             format!("{}\n\n{}", existing.trim(), fix_line)
         } else if current_text.is_empty() {
@@ -483,7 +499,10 @@ pub fn validate_and_repair_plot_update(
             report.issues.push(ConsistencyIssue {
                 level: IssueLevel::Warning,
                 code: "location_transition_untracked",
-                message: format!("检测到地点切换（{} -> {}），已同步场景位置", now, next_location),
+                message: format!(
+                    "检测到地点切换（{} -> {}），已同步场景位置",
+                    now, next_location
+                ),
             });
             report.override_location = Some(next_location.clone());
             let bridge = format!("你已从{}转入{}，场景状态随之更新。", now, next_location);
@@ -526,12 +545,9 @@ pub fn validate_and_repair_plot_update(
             .map(|s| s.trim().is_empty())
             .unwrap_or(true)
     {
-        if let Some(summary) = fallback_summary(
-            report
-                .repaired_plot_text
-                .as_deref()
-                .unwrap_or(current_text),
-        ) {
+        if let Some(summary) =
+            fallback_summary(report.repaired_plot_text.as_deref().unwrap_or(current_text))
+        {
             report.issues.push(ConsistencyIssue {
                 level: IssueLevel::Warning,
                 code: "chapter_summary_missing",
@@ -604,7 +620,8 @@ mod tests {
             chapter_end: false,
             generation_diagnostics: None,
         };
-        let report = validate_and_repair_plot_update(&state, &update, &action_result(), 1, 100, "无名弟子");
+        let report =
+            validate_and_repair_plot_update(&state, &update, &action_result(), 1, 100, "无名弟子");
         assert!(report.repaired_plot_text.is_some());
         assert!(!report.issues.is_empty());
     }
@@ -624,7 +641,8 @@ mod tests {
             chapter_end: false,
             generation_diagnostics: None,
         };
-        let report = validate_and_repair_plot_update(&state, &update, &action_result(), 1, 100, "无名弟子");
+        let report =
+            validate_and_repair_plot_update(&state, &update, &action_result(), 1, 100, "无名弟子");
         assert!(report.repaired_plot_text.is_some());
         assert!(report.issues.iter().any(|i| i.code == "duplicate_segment"));
     }
@@ -645,7 +663,8 @@ mod tests {
             chapter_end: false,
             generation_diagnostics: None,
         };
-        let report = validate_and_repair_plot_update(&state, &update, &action_result(), 1, 100, "无名弟子");
+        let report =
+            validate_and_repair_plot_update(&state, &update, &action_result(), 1, 100, "无名弟子");
         assert!(report.issues.iter().any(|i| i.code == "duplicate_segment"));
         assert!(report.repaired_plot_text.is_some());
     }
@@ -665,9 +684,13 @@ mod tests {
             chapter_end: false,
             generation_diagnostics: None,
         };
-        let report = validate_and_repair_plot_update(&state, &update, &action_result(), 1, 100, "无名弟子");
+        let report =
+            validate_and_repair_plot_update(&state, &update, &action_result(), 1, 100, "无名弟子");
         assert!(report.force_non_waiting);
-        assert!(report.issues.iter().any(|i| i.code == "waiting_without_options"));
+        assert!(report
+            .issues
+            .iter()
+            .any(|i| i.code == "waiting_without_options"));
     }
 
     #[test]
@@ -685,8 +708,12 @@ mod tests {
             chapter_end: false,
             generation_diagnostics: None,
         };
-        let report = validate_and_repair_plot_update(&state, &update, &action_result(), 4, 6200, "无名弟子");
-        assert!(report.issues.iter().any(|i| i.code == "realm_power_conflict"));
+        let report =
+            validate_and_repair_plot_update(&state, &update, &action_result(), 4, 6200, "无名弟子");
+        assert!(report
+            .issues
+            .iter()
+            .any(|i| i.code == "realm_power_conflict"));
         assert!(report.repaired_plot_text.is_some());
     }
 
@@ -705,7 +732,8 @@ mod tests {
             chapter_end: false,
             generation_diagnostics: None,
         };
-        let report = validate_and_repair_plot_update(&state, &update, &action_result(), 2, 500, "无名弟子");
+        let report =
+            validate_and_repair_plot_update(&state, &update, &action_result(), 2, 500, "无名弟子");
         assert!(report.issues.iter().any(|i| i.code == "title_drift"));
     }
 
@@ -724,7 +752,8 @@ mod tests {
             chapter_end: false,
             generation_diagnostics: None,
         };
-        let report = validate_and_repair_plot_update(&state, &update, &action_result(), 2, 500, "无名弟子");
+        let report =
+            validate_and_repair_plot_update(&state, &update, &action_result(), 2, 500, "无名弟子");
         assert_eq!(report.override_location.as_deref(), Some("黑风谷"));
     }
 
@@ -744,7 +773,8 @@ mod tests {
             chapter_end: false,
             generation_diagnostics: None,
         };
-        let report = validate_and_repair_plot_update(&state, &update, &action_result(), 2, 500, "无名弟子");
+        let report =
+            validate_and_repair_plot_update(&state, &update, &action_result(), 2, 500, "无名弟子");
         assert!(report.issues.iter().any(|i| i.code == "chapter_goal_weak"));
         assert!(report
             .repaired_plot_text
@@ -776,7 +806,8 @@ mod tests {
             chapter_end: false,
             generation_diagnostics: None,
         };
-        let report = validate_and_repair_plot_update(&state, &update, &action_result(), 2, 500, "无名弟子");
+        let report =
+            validate_and_repair_plot_update(&state, &update, &action_result(), 2, 500, "无名弟子");
         assert!(report
             .issues
             .iter()

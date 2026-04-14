@@ -320,4 +320,65 @@ describe('gameStore', () => {
     expect(store.worldRegistry?.source).toBe('manual_patch');
     expect(store.gameState?.player.id).toBe('player_1');
   });
+
+  it('formats noname trace debug text with apply preflight details', () => {
+    const store = useGameStore();
+    store.noNameTraces = [{
+      traceId: 'trace-1',
+      sessionId: 'session-1',
+      turnId: 'turn-1',
+      mode: 'assisted',
+      graphPath: ['CollectTurnInput', 'ApplyProposal'],
+      capabilityCalls: [],
+      proposals: [{
+        proposalId: 'proposal-1',
+        kind: 'plotCandidate',
+        producerRole: 'director',
+        title: 'Director提案：山门危机',
+        summary: '建议优先观察山门危机',
+        focus: '山门危机',
+        targetSegment: 'current_turn_tail',
+        intendedEffect: '为下一轮低风险输出提供导向',
+        rationale: '当前章节冲突正在汇聚',
+        labels: ['director', 'assisted_ready'],
+        applyScopes: ['diagnostics', 'chapterSummaryHint'],
+        status: 'ready',
+        applyable: true,
+      }],
+      proposalTransitionLog: ['proposal-1:ready'],
+      applyPlanLog: [{
+        order: 1,
+        target: 'chapter_summary_hint',
+        decision: 'apply',
+        priority: 200,
+        note: '允许执行 chapter_summary_hint',
+      }],
+      applyExecutionLog: [{
+        target: 'chapter_summary_hint',
+        outcome: 'applied',
+        note: '已写入章节摘要提示',
+      }],
+      guardrailResult: {
+        outcome: 'accept',
+        reason: null,
+      },
+      applyResult: {
+        attempted: true,
+        outcome: 'preflight_ready',
+        reason: '已通过 assisted apply 预检，尚未修改主剧情结果',
+      },
+      fallbackUsed: false,
+      elapsedMs: 12,
+    }];
+
+    const text = store.getNoNameTraceDebugText();
+    expect(text).toContain('预检：preflight_ready');
+    expect(text).toContain('应用计划：#1:chapter_summary_hint:apply@200');
+    expect(text).toContain('应用执行：chapter_summary_hint:applied');
+    expect(text).toContain('状态迁移：proposal-1:ready');
+    expect(text).toContain('提案：Director提案：山门危机 / 山门危机 / ready');
+    expect(text).toContain('目标段：current_turn_tail');
+    expect(text).toContain('预期效果：为下一轮低风险输出提供导向');
+    expect(text).toContain('作用域：diagnostics, chapterSummaryHint');
+  });
 });

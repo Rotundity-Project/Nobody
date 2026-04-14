@@ -1,4 +1,4 @@
-﻿use crate::event_log::GameEvent;
+use crate::event_log::GameEvent;
 use crate::models::CharacterStats;
 use crate::script::{Location, Script};
 use serde::{Deserialize, Serialize};
@@ -249,12 +249,7 @@ impl Character {
         true
     }
 
-    pub fn new(
-        id: String,
-        name: String,
-        stats: CharacterStats,
-        location: String,
-    ) -> Self {
+    pub fn new(id: String, name: String, stats: CharacterStats, location: String) -> Self {
         let personality_tags = Self::derive_personality_tags(&stats);
         let technique_tree = Self::build_technique_tree(&stats);
         Self {
@@ -313,7 +308,7 @@ mod tests {
                 element: Element::Fire,
                 grade: Grade::Heavenly,
                 affinity: 0.8,
-            elements: Vec::new(),
+                elements: Vec::new(),
             },
             cultivation_realm: CultivationRealm::new("Qi Condensation".to_string(), 1, 0, 1.0),
             techniques: Vec::new(),
@@ -426,7 +421,7 @@ mod tests {
                 element: Element::Fire,
                 grade: Grade::Heavenly,
                 affinity: 0.8,
-            elements: Vec::new(),
+                elements: Vec::new(),
             },
             starting_location: "sect".to_string(),
             starting_age: 16,
@@ -453,9 +448,12 @@ mod tests {
         let game_time = GameTime::new(1, 1, 1);
 
         let mut world_setting = WorldSetting::new();
-        world_setting.cultivation_realms = vec![
-            CultivationRealm::new("Qi Condensation".to_string(), 1, 0, 1.0),
-        ];
+        world_setting.cultivation_realms = vec![CultivationRealm::new(
+            "Qi Condensation".to_string(),
+            1,
+            0,
+            1.0,
+        )];
         world_setting.locations = vec![Location {
             id: "sect".to_string(),
             name: "Azure Cloud Sect".to_string(),
@@ -469,7 +467,7 @@ mod tests {
                 element: Element::Fire,
                 grade: Grade::Heavenly,
                 affinity: 0.8,
-            elements: Vec::new(),
+                elements: Vec::new(),
             },
             starting_location: "sect".to_string(),
             starting_age: 16,
@@ -500,5 +498,3 @@ mod tests {
         assert_eq!(game_state, deserialized);
     }
 }
-
-

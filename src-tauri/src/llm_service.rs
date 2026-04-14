@@ -1,4 +1,4 @@
-﻿use crate::prompt_builder::estimate_token_count;
+use crate::prompt_builder::estimate_token_count;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -370,9 +370,7 @@ fn is_retryable_error(err: &LLMServiceError) -> bool {
                 .split_whitespace()
                 .find_map(|chunk| {
                     if let Some(rest) = chunk.strip_prefix("status=") {
-                        rest.trim_end_matches([',', ';'])
-                            .parse::<u16>()
-                            .ok()
+                        rest.trim_end_matches([',', ';']).parse::<u16>().ok()
                     } else {
                         None
                     }
@@ -449,7 +447,8 @@ impl ResponseCache {
 
     fn purge_expired(&mut self) {
         let ttl = self.ttl;
-        self.entries.retain(|_, entry| entry.cached_at.elapsed() <= ttl);
+        self.entries
+            .retain(|_, entry| entry.cached_at.elapsed() <= ttl);
     }
 
     fn evict_lru(&mut self) {

@@ -1,4 +1,4 @@
-﻿use crate::models::CharacterStats;
+use crate::models::CharacterStats;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -99,7 +99,7 @@ mod tests {
                 element: Element::Fire,
                 grade: Grade::Double,
                 affinity: 0.7,
-            elements: Vec::new(),
+                elements: Vec::new(),
             },
             CultivationRealm::new("Qi Condensation".to_string(), 1, 1, 1.2),
             Lifespan::new(20, 120, 20),

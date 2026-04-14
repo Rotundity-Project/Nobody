@@ -1,4 +1,4 @@
-﻿# Nobody 架构文档
+# Nobody 架构文档
 
 ## 1. 架构概览
 Nobody 采用 `Tauri 2 + Vue 3 + Rust` 桌面应用架构：
@@ -75,15 +75,30 @@ Nobody 采用 `Tauri 2 + Vue 3 + Rust` 桌面应用架构：
 - `GameState`：角色/世界/时间/事件
 - `PlotState`：场景/章节/可选项/交互状态
 
-## 5. 设计原则
+## 5. 文档体系
+
+项目文档分为两类：
+
+- `docs/`：正式文档，面向架构、QA、发布与长期保留
+- `.kiro/`：本地工作文档，面向规格、草稿、handoff 与过程记录
+
+推荐入口：
+
+- 正式文档总索引：`docs/README.md`
+- NoName Agent 文档索引：`docs/architecture/README.md`
+- 本地规格总索引：`.kiro/specs/Nobody/README.md`
+
+## 6. 设计原则
 
 - 单一事实源：状态统一由后端核心与前端 store 管理。
 - 明确边界：跨层调用必须走 Tauri command。
 - 可回退：LLM 失败时必须有规则兜底。
 - 可回归：关键路径保持测试覆盖。
+- 正式文档与本地规格分层维护，避免草稿与正式设计混杂。
 
-## 6. 演进方向
+## 7. 演进方向
 
 - 完善 command 参数与返回结构的统一 schema。
 - 加强 LLM 链路观测（耗时、重试、降级来源）。
 - 继续沉淀 shared/ui 与 composables，降低页面耦合。
+- 推进 `NoName Agent` 的 V1 骨架，实现受约束的 Agent Runtime。

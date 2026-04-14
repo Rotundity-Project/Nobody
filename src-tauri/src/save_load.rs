@@ -1,4 +1,4 @@
-﻿use crate::game_state::GameState;
+use crate::game_state::GameState;
 use crate::plot_engine::{PlotInteractionState, PlotState};
 use crate::world_registry::WorldRegistry;
 use anyhow::{anyhow, Result};
@@ -24,6 +24,14 @@ pub struct SaveData {
     pub plot_state: Option<PlotState>,
     #[serde(default)]
     pub world_registry: Option<WorldRegistry>,
+    #[serde(default)]
+    pub noname_settings: Option<NoNameSaveSettings>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct NoNameSaveSettings {
+    pub mode: crate::noname_types::NoNameMode,
 }
 
 /// 存档文件元数据
@@ -37,6 +45,8 @@ pub struct SaveInfo {
     pub realm: String,
     pub location: String,
     pub game_time: String,
+    #[serde(default)]
+    pub noname_mode: Option<crate::noname_types::NoNameMode>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -78,7 +88,8 @@ impl SaveLoadSystem {
     fn get_default_save_directory() -> PathBuf {
         #[cfg(target_os = "windows")]
         {
-            let mut path = PathBuf::from(std::env::var("USERPROFILE").unwrap_or_else(|_| ".".to_string()));
+            let mut path =
+                PathBuf::from(std::env::var("USERPROFILE").unwrap_or_else(|_| ".".to_string()));
             path.push("Documents");
             path.push("Nobody");
             path.push("saves");
@@ -167,7 +178,12 @@ impl SaveLoadSystem {
                                     version: save_data.version,
                                     timestamp: save_data.timestamp,
                                     player_name: save_data.game_state.player.name.clone(),
-                                    player_age: save_data.game_state.player.stats.lifespan.current_age,
+                                    player_age: save_data
+                                        .game_state
+                                        .player
+                                        .stats
+                                        .lifespan
+                                        .current_age,
                                     realm: save_data
                                         .game_state
                                         .player
@@ -182,6 +198,10 @@ impl SaveLoadSystem {
                                         save_data.game_state.game_time.month,
                                         save_data.game_state.game_time.day
                                     ),
+                                    noname_mode: save_data
+                                        .noname_settings
+                                        .as_ref()
+                                        .map(|settings| settings.mode),
                                 };
                                 saves.push(save_info);
                             }
@@ -341,13 +361,11 @@ impl SaveLoadSystem {
         if !save_data.schema_version.starts_with("v2_") {
             legacy_schema = true;
             migrated = true;
-            save_data
-                .migration_history
-                .push(format!(
-                    "migrated: schema {} -> {}",
-                    save_data.schema_version,
-                    default_schema_version()
-                ));
+            save_data.migration_history.push(format!(
+                "migrated: schema {} -> {}",
+                save_data.schema_version,
+                default_schema_version()
+            ));
             save_data.schema_version = default_schema_version();
         }
         if legacy_schema {
@@ -370,9 +388,10 @@ impl SaveLoadSystem {
         }
         if save_data.migration_history.is_empty() {
             migrated = true;
-            save_data
-                .migration_history
-                .push(format!("loaded:{} -> {}", save_data.version, save_data.schema_version));
+            save_data.migration_history.push(format!(
+                "loaded:{} -> {}",
+                save_data.version, save_data.schema_version
+            ));
         }
         migrated
     }
@@ -398,6 +417,7 @@ impl SaveData {
             game_state,
             plot_state: None,
             world_registry: None,
+            noname_settings: None,
         }
     }
 
@@ -417,7 +437,13 @@ impl SaveData {
             game_state,
             plot_state,
             world_registry,
+            noname_settings: None,
         }
+    }
+
+    pub fn with_noname_settings(mut self, settings: NoNameSaveSettings) -> Self {
+        self.noname_settings = Some(settings);
+        self
     }
 }
 
@@ -429,16 +455,22 @@ fn default_schema_version() -> String {
 mod tests {
     use super::*;
     use crate::game_state::{Character, GameTime, WorldState};
-    use crate::models::{CharacterStats, CultivationRealm, Element, Grade, Lifespan, SpiritualRoot};
+    use crate::models::{
+        CharacterStats, CultivationRealm, Element, Grade, Lifespan, SpiritualRoot,
+    };
+    use crate::noname_types::NoNameMode;
     use crate::plot_engine::{PlotInteractionState, PlotState, Scene};
     use crate::script::{InitialState, Location, Script, ScriptType, WorldSetting};
     use tempfile::TempDir;
 
     fn create_test_game_state() -> GameState {
         let mut world_setting = WorldSetting::new();
-        world_setting.cultivation_realms = vec![
-            CultivationRealm::new("Qi Condensation".to_string(), 1, 0, 1.0),
-        ];
+        world_setting.cultivation_realms = vec![CultivationRealm::new(
+            "Qi Condensation".to_string(),
+            1,
+            0,
+            1.0,
+        )];
         world_setting.locations = vec![Location {
             id: "sect".to_string(),
             name: "Azure Cloud Sect".to_string(),
@@ -452,7 +484,7 @@ mod tests {
                 element: Element::Fire,
                 grade: Grade::Heavenly,
                 affinity: 0.8,
-            elements: Vec::new(),
+                elements: Vec::new(),
             },
             starting_location: "sect".to_string(),
             starting_age: 16,
@@ -471,7 +503,7 @@ mod tests {
                 element: Element::Fire,
                 grade: Grade::Heavenly,
                 affinity: 0.8,
-            elements: Vec::new(),
+                elements: Vec::new(),
             },
             cultivation_realm: CultivationRealm::new("Qi Condensation".to_string(), 1, 0, 1.0),
             techniques: Vec::new(),
@@ -571,6 +603,21 @@ mod tests {
         assert_eq!(saves[0].slot_id, 1);
         assert_eq!(saves[1].slot_id, 2);
         assert_eq!(saves[2].slot_id, 3);
+    }
+
+    #[test]
+    fn test_list_saves_includes_noname_mode() {
+        let temp_dir = TempDir::new().unwrap();
+        let system = SaveLoadSystem::with_directory(temp_dir.path().to_path_buf());
+
+        let game_state = create_test_game_state();
+        let save_data = SaveData::from_game_state(game_state)
+            .with_noname_settings(NoNameSaveSettings { mode: NoNameMode::Assisted });
+        system.save_game(1, &save_data).unwrap();
+
+        let saves = system.list_saves().unwrap();
+        assert_eq!(saves.len(), 1);
+        assert_eq!(saves[0].noname_mode, Some(NoNameMode::Assisted));
     }
 
     #[test]
@@ -781,7 +828,10 @@ mod tests {
         assert_eq!(report.succeeded, 1);
         assert_eq!(report.failed, 1);
         assert!(report.migrated >= 1);
-        assert!(report.items.iter().any(|it| it.success && it.file_name == "save_1.json"));
+        assert!(report
+            .items
+            .iter()
+            .any(|it| it.success && it.file_name == "save_1.json"));
         assert!(report
             .items
             .iter()
@@ -833,7 +883,11 @@ mod tests {
             .find(|i| i.file_name == "save_9.json")
             .unwrap();
         assert!(!item.success);
-        assert!(item.error.as_deref().unwrap_or_default().contains("解析失败"));
+        assert!(item
+            .error
+            .as_deref()
+            .unwrap_or_default()
+            .contains("解析失败"));
     }
 }
 
@@ -842,85 +896,79 @@ mod tests {
 mod property_tests {
     use super::*;
     use crate::game_state::{Character, GameTime, WorldState};
-    use crate::models::{CharacterStats, CultivationRealm, Element, Grade, Lifespan, SpiritualRoot};
+    use crate::models::{
+        CharacterStats, CultivationRealm, Element, Grade, Lifespan, SpiritualRoot,
+    };
     use crate::script::{InitialState, Location, Script, ScriptType, WorldSetting};
     use proptest::prelude::*;
     use tempfile::TempDir;
 
     // 生成任意游戏状态的策略
     fn arb_game_state() -> impl Strategy<Value = GameState> {
-        (
-            "[a-zA-Z]{3,10}",
-            16u32..=100,
-            1u32..=12,
-            1u32..=30,
-        ).prop_map(|(player_name, age, month, day)| {
-            let mut world_setting = WorldSetting::new();
-            world_setting.cultivation_realms = vec![
-                CultivationRealm::new("练气".to_string(), 1, 0, 1.0),
-            ];
-            world_setting.locations = vec![Location {
-                id: "sect".to_string(),
-                name: "宗门".to_string(),
-                description: "修仙宗门".to_string(),
-                spiritual_energy: 1.0,
-            }];
+        ("[a-zA-Z]{3,10}", 16u32..=100, 1u32..=12, 1u32..=30).prop_map(
+            |(player_name, age, month, day)| {
+                let mut world_setting = WorldSetting::new();
+                world_setting.cultivation_realms =
+                    vec![CultivationRealm::new("练气".to_string(), 1, 0, 1.0)];
+                world_setting.locations = vec![Location {
+                    id: "sect".to_string(),
+                    name: "宗门".to_string(),
+                    description: "修仙宗门".to_string(),
+                    spiritual_energy: 1.0,
+                }];
 
-            let initial_state = InitialState {
-                player_name: player_name.clone(),
-                player_spiritual_root: SpiritualRoot {
-                    element: Element::Fire,
-                    grade: Grade::Heavenly,
-                    affinity: 0.8,
-                elements: Vec::new(),
-                },
-                starting_location: "sect".to_string(),
-                starting_age: age,
-            };
+                let initial_state = InitialState {
+                    player_name: player_name.clone(),
+                    player_spiritual_root: SpiritualRoot {
+                        element: Element::Fire,
+                        grade: Grade::Heavenly,
+                        affinity: 0.8,
+                        elements: Vec::new(),
+                    },
+                    starting_location: "sect".to_string(),
+                    starting_age: age,
+                };
 
-            let script = Script::new(
-                "test".to_string(),
-                "测试剧本".to_string(),
-                ScriptType::Custom,
-                world_setting,
-                initial_state,
-            );
+                let script = Script::new(
+                    "test".to_string(),
+                    "测试剧本".to_string(),
+                    ScriptType::Custom,
+                    world_setting,
+                    initial_state,
+                );
 
-            let stats = CharacterStats {
-                spiritual_root: SpiritualRoot {
-                    element: Element::Fire,
-                    grade: Grade::Heavenly,
-                    affinity: 0.8,
-                elements: Vec::new(),
-                },
-                cultivation_realm: CultivationRealm::new("练气".to_string(), 1, 0, 1.0),
-                techniques: Vec::new(),
-                lifespan: Lifespan {
-                    current_age: age,
-                    max_age: 100,
-                    realm_bonus: 0,
-                },
-                combat_power: 100,
-            };
+                let stats = CharacterStats {
+                    spiritual_root: SpiritualRoot {
+                        element: Element::Fire,
+                        grade: Grade::Heavenly,
+                        affinity: 0.8,
+                        elements: Vec::new(),
+                    },
+                    cultivation_realm: CultivationRealm::new("练气".to_string(), 1, 0, 1.0),
+                    techniques: Vec::new(),
+                    lifespan: Lifespan {
+                        current_age: age,
+                        max_age: 100,
+                        realm_bonus: 0,
+                    },
+                    combat_power: 100,
+                };
 
-            let player = Character::new(
-                "player".to_string(),
-                player_name,
-                stats,
-                "sect".to_string(),
-            );
+                let player =
+                    Character::new("player".to_string(), player_name, stats, "sect".to_string());
 
-            let world_state = WorldState::from_script(&script);
-            let game_time = GameTime::new(1, month, day);
+                let world_state = WorldState::from_script(&script);
+                let game_time = GameTime::new(1, month, day);
 
-            GameState {
-                script,
-                player,
-                world_state,
-                game_time,
-                event_history: Vec::new(),
-            }
-        })
+                GameState {
+                    script,
+                    player,
+                    world_state,
+                    game_time,
+                    event_history: Vec::new(),
+                }
+            },
+        )
     }
 
     // 任务 11.2: 属性 24 - 游戏状态保存能力
@@ -1149,12 +1197,3 @@ mod property_tests {
         }
     }
 }
-
-
-
-
-
-
-
-
-

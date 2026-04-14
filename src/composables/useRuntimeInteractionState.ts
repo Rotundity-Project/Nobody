@@ -102,6 +102,10 @@ export const useRuntimeInteractionState = ({
   const optionSourceHint = computed(() => {
     const source = gameStore.plotState?.last_option_generation_source ?? '';
     const diag = gameStore.plotState?.last_generation_diagnostics ?? '';
+    const noNameBiasMatch = diag.match(/NoName选项偏置：([^；\n]+)/);
+    if (noNameBiasMatch) {
+      return noNameBiasMatch[0];
+    }
     if (source === 'rule_fallback_latency_budget') {
       return '受时延预算影响，已跳过模型选项再生成';
     }

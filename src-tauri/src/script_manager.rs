@@ -1,4 +1,4 @@
-﻿use crate::llm_runtime_config::resolve_llm_config;
+use crate::llm_runtime_config::resolve_llm_config;
 use crate::llm_service::{LLMRequest, LLMService};
 use crate::models::{Element, Grade, SpiritualRoot};
 use crate::novel_parser::{NovelParser, ParsedNovelData};
@@ -43,7 +43,7 @@ impl ScriptManager {
     // Load custom script from file
     pub fn load_custom_script(&self, file_path: &str) -> Result<Script> {
         let path = Path::new(file_path);
-        
+
         if !path.exists() {
             return Err(anyhow!("Script file not found: {}", file_path));
         }
@@ -87,16 +87,17 @@ impl ScriptManager {
             .map(|loc| loc.id.clone())
             .ok_or_else(|| anyhow!("无法为小说生成起始地点"))?;
 
-        let player_spiritual_root = world_setting
-            .spiritual_roots
-            .first()
-            .cloned()
-            .unwrap_or(SpiritualRoot {
-                element: Element::Fire,
-                elements: vec![Element::Fire],
-                grade: Grade::Double,
-                affinity: 0.6,
-            });
+        let player_spiritual_root =
+            world_setting
+                .spiritual_roots
+                .first()
+                .cloned()
+                .unwrap_or(SpiritualRoot {
+                    element: Element::Fire,
+                    elements: vec![Element::Fire],
+                    grade: Grade::Double,
+                    affinity: 0.6,
+                });
 
         let initial_state = InitialState {
             player_name,
@@ -132,9 +133,7 @@ impl ScriptManager {
 
         // Check at least one location exists
         if script.world_setting.locations.is_empty() {
-            return Err(anyhow!(
-                "Script validation failed: No locations defined"
-            ));
+            return Err(anyhow!("Script validation failed: No locations defined"));
         }
 
         // Check starting location is valid
@@ -166,7 +165,7 @@ impl ScriptManager {
         if let Some(llm_service) = &self.llm_service {
             return self.generate_random_script_with_llm(llm_service).await;
         }
-        Err(anyhow!("未检测到可用 LLM 配置，无法生成随机剧本"))
+        self.generate_fallback_random_script()
     }
 
     async fn generate_random_script_with_llm(&self, llm_service: &LLMService) -> Result<Script> {
@@ -272,10 +271,14 @@ impl ScriptManager {
             Err(_) => errors.push(format!("LLM 请求超时(D)({}s)", long_timeout)),
         }
 
-        Err(anyhow!(
-            "随机剧本生成失败（重试后仍失败）：{}",
-            errors.join(" | ")
-        ))
+        self.generate_fallback_random_script()
+            .map_err(|fallback_err| {
+                anyhow!(
+                    "随机剧本生成失败（重试后仍失败：{}）；回退规则剧本也失败：{}",
+                    errors.join(" | "),
+                    fallback_err
+                )
+            })
     }
 
     fn build_random_script_seed_prompt_fast() -> String {
@@ -417,13 +420,13 @@ impl ScriptManager {
 
         let script = serde_json::from_value::<Script>(serde_json::json!({
             "id": id,
-            "name": "闅忔満淇粰寮€灞€",
+            "name": "随机修仙开局",
             "script_type": "RandomGenerated",
             "world_setting": {
                 "cultivation_realms": [
-                    { "name": "缁冩皵", "level": 1, "sub_level": 0, "power_multiplier": 1.0 },
-                    { "name": "绛戝熀", "level": 2, "sub_level": 0, "power_multiplier": 2.0 },
-                    { "name": "閲戜腹", "level": 3, "sub_level": 0, "power_multiplier": 4.0 }
+                    { "name": "炼气", "level": 1, "sub_level": 0, "power_multiplier": 1.0 },
+                    { "name": "筑基", "level": 2, "sub_level": 0, "power_multiplier": 2.0 },
+                    { "name": "金丹", "level": 3, "sub_level": 0, "power_multiplier": 4.0 }
                 ],
                 "spiritual_roots": [
                     { "element": "Fire", "grade": "Double", "affinity": 0.75 },
@@ -463,7 +466,7 @@ impl ScriptManager {
                 ]
             },
             "initial_state": {
-                "player_name": "鏃犲悕寮熷瓙",
+                "player_name": "无名弟子",
                 "player_spiritual_root": { "element": "Fire", "grade": "Double", "affinity": 0.75 },
                 "starting_location": "sect_valley",
                 "starting_age": 16
@@ -532,8 +535,8 @@ impl ScriptManager {
         if results.is_empty() {
             results.push(Location {
                 id: "novel_origin".to_string(),
-                name: "灏忚璧风偣".to_string(),
-                description: "浠庡皬璇村鍏ョ殑榛樿璧风偣".to_string(),
+                name: "小说起点".to_string(),
+                description: "从小说导入的默认起点".to_string(),
                 spiritual_energy: 1.0,
             });
         }
@@ -548,7 +551,10 @@ impl ScriptManager {
             if ch.is_ascii_alphanumeric() {
                 out.push(ch.to_ascii_lowercase());
                 last_was_sep = false;
-            } else if (ch.is_whitespace() || ch == '-' || ch == '_') && !last_was_sep && !out.is_empty() {
+            } else if (ch.is_whitespace() || ch == '-' || ch == '_')
+                && !last_was_sep
+                && !out.is_empty()
+            {
                 out.push('_');
                 last_was_sep = true;
             }
@@ -577,17 +583,18 @@ mod tests {
 
     fn create_valid_script() -> Script {
         let mut world_setting = WorldSetting::new();
-        world_setting.cultivation_realms = vec![
-            CultivationRealm::new("Qi Condensation".to_string(), 1, 0, 1.0),
-        ];
-        world_setting.spiritual_roots = vec![
-            SpiritualRoot {
-                element: Element::Fire,
-                elements: vec![Element::Fire],
-                grade: Grade::Heavenly,
-                affinity: 0.8,
-            },
-        ];
+        world_setting.cultivation_realms = vec![CultivationRealm::new(
+            "Qi Condensation".to_string(),
+            1,
+            0,
+            1.0,
+        )];
+        world_setting.spiritual_roots = vec![SpiritualRoot {
+            element: Element::Fire,
+            elements: vec![Element::Fire],
+            grade: Grade::Heavenly,
+            affinity: 0.8,
+        }];
         world_setting.locations = vec![Location {
             id: "sect".to_string(),
             name: "Azure Cloud Sect".to_string(),
@@ -628,10 +635,13 @@ mod tests {
         let manager = ScriptManager::new();
         let mut script = create_valid_script();
         script.world_setting.cultivation_realms.clear();
-        
+
         let result = manager.validate_script(&script);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("cultivation realms"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("cultivation realms"));
     }
 
     #[test]
@@ -639,7 +649,7 @@ mod tests {
         let manager = ScriptManager::new();
         let mut script = create_valid_script();
         script.world_setting.locations.clear();
-        
+
         let result = manager.validate_script(&script);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("locations"));
@@ -650,10 +660,13 @@ mod tests {
         let manager = ScriptManager::new();
         let mut script = create_valid_script();
         script.initial_state.starting_location = "nonexistent".to_string();
-        
+
         let result = manager.validate_script(&script);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Starting location"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Starting location"));
     }
 
     #[test]
@@ -661,7 +674,7 @@ mod tests {
         let manager = ScriptManager::new();
         let mut script = create_valid_script();
         script.initial_state.starting_age = 5;
-        
+
         let result = manager.validate_script(&script);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("Starting age"));
@@ -671,11 +684,17 @@ mod tests {
     fn test_parse_generated_script_from_embedded_json() {
         let manager = ScriptManager::new();
         let script = create_valid_script();
-        let raw = format!("Here is script:\n```json\n{}\n```", serde_json::to_string(&script).unwrap());
+        let raw = format!(
+            "Here is script:\n```json\n{}\n```",
+            serde_json::to_string(&script).unwrap()
+        );
 
         let parsed = manager.parse_generated_script_response(&raw).unwrap();
         assert_eq!(parsed.id, script.id);
-        assert_eq!(parsed.initial_state.starting_location, script.initial_state.starting_location);
+        assert_eq!(
+            parsed.initial_state.starting_location,
+            script.initial_state.starting_location
+        );
     }
 
     #[tokio::test]
@@ -684,9 +703,22 @@ mod tests {
         let script = manager.generate_random_script().await.unwrap();
 
         assert_eq!(script.script_type, ScriptType::RandomGenerated);
+        assert_eq!(script.name, "随机修仙开局");
+        assert_eq!(script.initial_state.player_name, "无名弟子");
         assert!(!script.world_setting.cultivation_realms.is_empty());
         assert!(!script.world_setting.locations.is_empty());
         assert!(manager.validate_script(&script).is_ok());
+    }
+
+    #[test]
+    fn test_build_locations_from_novel_uses_clean_default_origin() {
+        let manager = ScriptManager::new();
+        let locations = manager.build_locations_from_novel(&[]);
+
+        assert_eq!(locations.len(), 1);
+        assert_eq!(locations[0].id, "novel_origin");
+        assert_eq!(locations[0].name, "小说起点");
+        assert_eq!(locations[0].description, "从小说导入的默认起点");
     }
 
     #[test]
@@ -715,9 +747,14 @@ mod tests {
         let script = create_valid_script();
         std::fs::write(&file_path, serde_json::to_string(&script).unwrap()).unwrap();
 
-        let loaded = manager.load_custom_script(file_path.to_str().unwrap()).unwrap();
+        let loaded = manager
+            .load_custom_script(file_path.to_str().unwrap())
+            .unwrap();
         assert_eq!(loaded.id, script.id);
-        assert_eq!(loaded.initial_state.player_name, script.initial_state.player_name);
+        assert_eq!(
+            loaded.initial_state.player_name,
+            script.initial_state.player_name
+        );
         assert!(manager.validate_script(&loaded).is_ok());
     }
 
@@ -782,7 +819,10 @@ mod tests {
         let result = manager.load_custom_script("nonexistent_script.json");
 
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Script file not found"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Script file not found"));
     }
 
     #[test]
@@ -812,9 +852,9 @@ mod proptests {
     use super::*;
     use crate::models::{CultivationRealm, Element, Grade, SpiritualRoot};
     use crate::script::{Faction, InitialState, Location, ScriptType, Technique, WorldSetting};
-    use proptest::test_runner::TestRunner;
-    use proptest::strategy::ValueTree;
     use proptest::prelude::*;
+    use proptest::strategy::ValueTree;
+    use proptest::test_runner::TestRunner;
 
     fn arb_element() -> impl Strategy<Value = Element> {
         prop_oneof![
@@ -854,25 +894,33 @@ mod proptests {
     }
 
     fn arb_location() -> impl Strategy<Value = Location> {
-        ("[a-z]{3,10}", "[a-zA-Z ]{5,20}", "[a-zA-Z ]{10,50}", 0.0f32..=10.0f32).prop_map(
-            |(id, name, description, spiritual_energy)| Location {
+        (
+            "[a-z]{3,10}",
+            "[a-zA-Z ]{5,20}",
+            "[a-zA-Z ]{10,50}",
+            0.0f32..=10.0f32,
+        )
+            .prop_map(|(id, name, description, spiritual_energy)| Location {
                 id,
                 name,
                 description,
                 spiritual_energy,
-            },
-        )
+            })
     }
 
     fn arb_faction() -> impl Strategy<Value = Faction> {
-        ("[a-z]{3,10}", "[a-zA-Z ]{5,20}", "[a-zA-Z ]{10,50}", 1u32..=100).prop_map(
-            |(id, name, description, power_level)| Faction {
+        (
+            "[a-z]{3,10}",
+            "[a-zA-Z ]{5,20}",
+            "[a-zA-Z ]{10,50}",
+            1u32..=100,
+        )
+            .prop_map(|(id, name, description, power_level)| Faction {
                 id,
                 name,
                 description,
                 power_level,
-            },
-        )
+            })
     }
 
     fn arb_technique() -> impl Strategy<Value = Technique> {
@@ -883,13 +931,15 @@ mod proptests {
             1u32..=10,
             prop::option::of(arb_element()),
         )
-            .prop_map(|(id, name, description, required_realm_level, element)| Technique {
-                id,
-                name,
-                description,
-                required_realm_level,
-                element,
-            })
+            .prop_map(
+                |(id, name, description, required_realm_level, element)| Technique {
+                    id,
+                    name,
+                    description,
+                    required_realm_level,
+                    element,
+                },
+            )
     }
 
     fn arb_world_setting() -> impl Strategy<Value = WorldSetting> {
@@ -1052,5 +1102,3 @@ mod proptests {
         }
     }
 }
-
-

@@ -58,7 +58,9 @@ pub fn rules() -> &'static CombatStyleRules {
     static RULES: OnceLock<CombatStyleRules> = OnceLock::new();
     RULES.get_or_init(|| {
         load_from_disk()
-            .or_else(|| serde_json::from_str(include_str!("../config/combat_style_rules_v2.json")).ok())
+            .or_else(|| {
+                serde_json::from_str(include_str!("../config/combat_style_rules_v2.json")).ok()
+            })
             .unwrap_or_default()
     })
 }
@@ -81,8 +83,9 @@ mod tests {
 
     #[test]
     fn embedded_config_is_valid() {
-        let cfg =
-            serde_json::from_str::<CombatStyleRules>(include_str!("../config/combat_style_rules_v2.json"));
+        let cfg = serde_json::from_str::<CombatStyleRules>(include_str!(
+            "../config/combat_style_rules_v2.json"
+        ));
         assert!(cfg.is_ok());
     }
 

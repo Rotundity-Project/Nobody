@@ -174,7 +174,81 @@
             <p v-if="debugOptionHint">来源说明：{{ debugOptionHint }}</p>
             <p>等待输入：{{ isWaitingForInput ? '是' : '否' }}</p>
             <p>一致性风险分：{{ debugRiskScore ?? '无' }}</p>
+            <div class="info-map-card rounded border p-2">
+              <p class="info-text-muted text-xs">NoName 模式</p>
+              <div class="mt-2 flex flex-wrap gap-2">
+                <UiButton
+                  v-for="item in noNameModeOptions"
+                  :key="item.value"
+                  size="sm"
+                  class="ink-ui-btn"
+                  :variant="noNameMode === item.value ? 'primary' : 'neutral'"
+                  @click="$emit('setNoNameMode', item.value)"
+                >
+                  {{ item.label }}
+                </UiButton>
+              </div>
+            </div>
+            <div class="grid gap-2 sm:grid-cols-2">
+              <div class="info-map-card rounded border p-2">
+                <p class="info-text-muted text-xs">最新提案</p>
+                <p class="mt-1 text-sm">{{ debugNoNameProposalTitle || '无' }}</p>
+                <p class="info-text-muted mt-1">状态：{{ debugNoNameProposalStatus || '无' }}</p>
+                <p class="info-text-muted mt-1">目标段：{{ debugNoNameTargetSegment || '无' }}</p>
+                <p class="info-text-muted mt-1 whitespace-pre-wrap">预期效果：{{ debugNoNameIntendedEffect || '无' }}</p>
+                <p class="info-text-muted mt-1">作用域：{{ debugNoNameScopes.length > 0 ? debugNoNameScopes.join(' / ') : '无' }}</p>
+              </div>
+              <div class="info-map-card rounded border p-2">
+                <p class="info-text-muted text-xs">Apply 结果</p>
+                <p class="mt-1 text-sm">{{ debugNoNameApplyOutcome || '无' }}</p>
+                <p v-if="debugNoNameApplyReason" class="info-text-muted mt-1 whitespace-pre-wrap">
+                  {{ debugNoNameApplyReason }}
+                </p>
+              </div>
+            </div>
+            <div class="info-map-card rounded border p-2">
+              <p class="info-text-muted text-xs">状态迁移</p>
+              <p v-if="debugNoNameTransitions.length === 0" class="mt-2 text-xs info-text-muted">暂无状态迁移</p>
+              <ul v-else class="mt-2 space-y-1">
+                <li
+                  v-for="(item, index) in debugNoNameTransitions"
+                  :key="`transition-${index}-${item}`"
+                  class="rounded border px-2 py-1 info-text-body"
+                >
+                  {{ item }}
+                </li>
+              </ul>
+            </div>
+            <div class="info-map-card rounded border p-2">
+              <p class="info-text-muted text-xs">应用计划</p>
+              <p v-if="debugNoNamePlans.length === 0" class="mt-2 text-xs info-text-muted">暂无应用计划</p>
+              <ul v-else class="mt-2 space-y-1">
+                <li
+                  v-for="(item, index) in debugNoNamePlans"
+                  :key="`plan-${index}-${item.target}-${item.decision}`"
+                  class="rounded border px-2 py-1"
+                >
+                  <p class="info-text-body">#{{ item.order }} · {{ item.target }} · {{ item.decision }} · P{{ item.priority }}</p>
+                  <p v-if="item.note" class="info-text-muted mt-1 whitespace-pre-wrap">{{ item.note }}</p>
+                </li>
+              </ul>
+            </div>
+            <div class="info-map-card rounded border p-2">
+              <p class="info-text-muted text-xs">应用执行</p>
+              <p v-if="debugNoNameExecutions.length === 0" class="mt-2 text-xs info-text-muted">暂无应用执行</p>
+              <ul v-else class="mt-2 space-y-1">
+                <li
+                  v-for="(item, index) in debugNoNameExecutions"
+                  :key="`execution-${index}-${item.target}-${item.outcome}`"
+                  class="rounded border px-2 py-1"
+                >
+                  <p class="info-text-body">{{ item.target }} · {{ item.outcome }}</p>
+                  <p v-if="item.note" class="info-text-muted mt-1 whitespace-pre-wrap">{{ item.note }}</p>
+                </li>
+              </ul>
+            </div>
             <p class="info-text-muted whitespace-pre-wrap">诊断：{{ debugDiagnostics || '无' }}</p>
+            <p class="info-text-muted whitespace-pre-wrap">Agent：{{ debugNoNameTrace || '无' }}</p>
           </template>
         </section>
 
@@ -227,6 +301,19 @@ type MapOverviewNodeView = {
   suggestedPathLabels: string[];
 };
 
+type NoNameExecutionView = {
+  target: string;
+  outcome: string;
+  note?: string | null;
+};
+
+type NoNamePlanView = {
+  target: string;
+  decision: string;
+  priority: number;
+  note?: string | null;
+};
+
 const props = defineProps<{
   isOpen: boolean;
   playerName: string;
@@ -254,6 +341,18 @@ const props = defineProps<{
   debugOptionHint?: string;
   debugRiskScore: number | null;
   debugDiagnostics: string;
+  debugNoNameTrace?: string;
+  noNameMode?: string;
+  debugNoNameProposalTitle?: string;
+  debugNoNameProposalStatus?: string;
+  debugNoNameTargetSegment?: string;
+  debugNoNameIntendedEffect?: string;
+  debugNoNameApplyOutcome?: string;
+  debugNoNameApplyReason?: string;
+  debugNoNameScopes?: string[];
+  debugNoNameTransitions?: string[];
+  debugNoNamePlans?: NoNamePlanView[];
+  debugNoNameExecutions?: NoNameExecutionView[];
   systemError: string | null;
 }>();
 
@@ -261,6 +360,7 @@ defineEmits<{
   close: [];
   clearError: [];
   travel: [locationId: string];
+  setNoNameMode: [mode: string];
 }>();
 
 const tabs: Array<{ id: TabId; label: string }> = [
@@ -376,6 +476,17 @@ const normalizedCurrentLocationLabel = computed(() =>
 const reachableNodeCount = computed(
   () => resolvedMapNodes.value.filter((node) => node.reachable).length,
 );
+
+const noNameMode = computed(() => props.noNameMode ?? 'observeOnly');
+const noNameModeOptions = [
+  { value: 'disabled', label: '关闭' },
+  { value: 'observeOnly', label: '观察' },
+  { value: 'assisted', label: '辅助' },
+];
+const debugNoNameTransitions = computed(() => props.debugNoNameTransitions ?? []);
+const debugNoNamePlans = computed(() => props.debugNoNamePlans ?? []);
+const debugNoNameExecutions = computed(() => props.debugNoNameExecutions ?? []);
+const debugNoNameScopes = computed(() => props.debugNoNameScopes ?? []);
 </script>
 
 <style scoped>

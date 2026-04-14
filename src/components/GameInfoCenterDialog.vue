@@ -26,17 +26,30 @@
     :debug-option-hint="optionSourceHint || ''"
     :debug-risk-score="consistencyRiskScore"
     :debug-diagnostics="gameStore.plotState?.last_generation_diagnostics || ''"
+    :debug-no-name-trace="noNameDebugText"
+    :no-name-mode="noNameMode"
+    :debug-no-name-proposal-title="latestNoNameProposal?.title || ''"
+    :debug-no-name-proposal-status="latestNoNameProposalStatus"
+    :debug-no-name-target-segment="latestNoNameProposal?.targetSegment || ''"
+    :debug-no-name-intended-effect="latestNoNameProposal?.intendedEffect || ''"
+    :debug-no-name-apply-outcome="latestNoNameApplyOutcome"
+    :debug-no-name-apply-reason="latestNoNameApplyReason"
+    :debug-no-name-scopes="latestNoNameScopes"
+    :debug-no-name-transitions="latestNoNameTransitions"
+    :debug-no-name-plans="latestNoNamePlans"
+    :debug-no-name-executions="latestNoNameExecutions"
     :system-error="systemErrorView"
     @close="$emit('close')"
     @clear-error="$emit('clear-error')"
     @travel="$emit('travel', $event)"
+    @set-no-name-mode="$emit('set-no-name-mode', $event)"
   />
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
 import InfoTabsDialog from './InfoTabsDialog.vue';
-import type { Element, MapLocationOverview } from '../types/game';
+import type { Element, MapLocationOverview, NoNameTrace } from '../types/game';
 import { buildLocationLabelMap, formatLocationLabel } from '../shared/locationLabel';
 
 type WorldLocation = {
@@ -74,6 +87,7 @@ type GameStoreView = {
   gameState?: {
     event_history?: unknown[];
   } | null;
+  noNameTraces?: NoNameTrace[];
   error: string | null;
 };
 
@@ -91,12 +105,15 @@ const props = defineProps<{
   optionSourceLabel: string;
   optionSourceHint?: string;
   consistencyRiskScore: number | null;
+  noNameDebugText?: string;
+  noNameMode?: string;
 }>();
 
 defineEmits<{
   (event: 'close'): void;
   (event: 'clear-error'): void;
   (event: 'travel', locationId: string): void;
+  (event: 'set-no-name-mode', mode: string): void;
 }>();
 
 const locationLabelMap = computed(() =>
@@ -157,5 +174,46 @@ const playerRootTypeLabel = computed(() => {
   if (count === 3) return '三灵根';
   return '杂灵根';
 });
+
+const noNameDebugText = computed(() => props.noNameDebugText ?? '暂无 NoName Agent Trace。');
+const latestNoNameTrace = computed(() => {
+  const traces = props.gameStore.noNameTraces ?? [];
+  return traces.length > 0 ? traces[traces.length - 1] : null;
+});
+const latestNoNameProposal = computed(() => {
+  const trace = latestNoNameTrace.value;
+  if (!trace || trace.proposals.length === 0) {
+    return null;
+  }
+  return trace.proposals[trace.proposals.length - 1];
+});
+const latestNoNameProposalStatus = computed(() =>
+  latestNoNameProposal.value?.status ?? (latestNoNameProposal.value?.applyable ? 'ready' : ''),
+);
+const latestNoNameApplyOutcome = computed(() =>
+  latestNoNameTrace.value?.applyResult?.outcome ?? '',
+);
+const latestNoNameApplyReason = computed(() =>
+  latestNoNameTrace.value?.applyResult?.reason ?? '',
+);
+const latestNoNameScopes = computed(() => {
+  const scopes = latestNoNameProposal.value?.applyScopes ?? [];
+  return scopes.map((scope) => {
+    if (scope === 'diagnostics') return 'diagnostics';
+    if (scope === 'chapterSummaryHint') return 'chapter_summary_hint';
+    if (scope === 'optionBiasHint') return 'option_bias_hint';
+    if (scope === 'plotTextHint') return 'plot_text_hint';
+    return scope;
+  });
+});
+const latestNoNameTransitions = computed(() =>
+  latestNoNameTrace.value?.proposalTransitionLog ?? [],
+);
+const latestNoNamePlans = computed(() =>
+  latestNoNameTrace.value?.applyPlanLog ?? [],
+);
+const latestNoNameExecutions = computed(() =>
+  latestNoNameTrace.value?.applyExecutionLog ?? [],
+);
 </script>
 

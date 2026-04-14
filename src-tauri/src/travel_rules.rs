@@ -76,7 +76,8 @@ mod tests {
 
     #[test]
     fn embedded_config_is_valid() {
-        let cfg = serde_json::from_str::<TravelRules>(include_str!("../config/travel_rules_v2.json"));
+        let cfg =
+            serde_json::from_str::<TravelRules>(include_str!("../config/travel_rules_v2.json"));
         assert!(cfg.is_ok());
     }
 

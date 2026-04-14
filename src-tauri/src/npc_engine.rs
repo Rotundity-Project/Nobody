@@ -1,6 +1,6 @@
-﻿use crate::llm_service::{LLMRequest, LLMResponse, LLMService};
+use crate::llm_service::{LLMRequest, LLMResponse, LLMService};
 use crate::memory_manager::MemoryManager;
-use crate::npc::{InteractionRecord, MemoryEntry, NPC, Relationship};
+use crate::npc::{InteractionRecord, MemoryEntry, Relationship, NPC};
 use crate::prompt_builder::{PromptBuilder, PromptConstraints, PromptContext, PromptTemplate};
 use crate::response_validator::{ResponseValidator, ValidationConstraints};
 use serde::{Deserialize, Serialize};
@@ -250,7 +250,9 @@ impl NPCEngine {
                 .take(5)
                 .map(|m| m.event.clone())
                 .collect(),
-            world_setting_summary: Some("Cultivation world with strict numerical rules".to_string()),
+            world_setting_summary: Some(
+                "Cultivation world with strict numerical rules".to_string(),
+            ),
         };
         let constraints = PromptConstraints {
             numerical_rules: vec![
@@ -282,7 +284,9 @@ impl NPCEngine {
         let mut npc_refs = Vec::new();
 
         for npc_id in npc_ids {
-            let Some(npc) = self.npcs.get(npc_id) else { continue };
+            let Some(npc) = self.npcs.get(npc_id) else {
+                continue;
+            };
             npc_summaries.push(format!(
                 "npc_id: {}, name: {}, realm: {}, combat_power: {}, traits: {:?}",
                 npc.id,
@@ -466,12 +470,16 @@ impl NPCEngine {
 
         if is_cautious && decision.action.contains("reckless") {
             decision.action = "observe_and_plan".to_string();
-            decision.reason.push_str(" | adjusted for cautious personality");
+            decision
+                .reason
+                .push_str(" | adjusted for cautious personality");
         }
 
         if is_aggressive && decision.action == "observe_and_plan" {
             decision.action = "intervene".to_string();
-            decision.reason.push_str(" | adjusted for aggressive personality");
+            decision
+                .reason
+                .push_str(" | adjusted for aggressive personality");
         }
 
         Ok(decision)
@@ -570,7 +578,7 @@ mod tests {
                     element: Element::Fire,
                     grade: Grade::Double,
                     affinity: 0.7,
-                elements: Vec::new(),
+                    elements: Vec::new(),
                 },
                 CultivationRealm::new("Qi Condensation".to_string(), 1, 0, 1.0),
                 Lifespan::new(20, 120, 20),
@@ -755,7 +763,7 @@ mod property_tests {
                     element: Element::Water,
                     grade: Grade::Double,
                     affinity: 0.6,
-                elements: Vec::new(),
+                    elements: Vec::new(),
                 },
                 CultivationRealm::new("Qi Condensation".to_string(), 1, 0, 1.0),
                 Lifespan::new(20, 100, 10),

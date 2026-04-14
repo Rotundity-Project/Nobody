@@ -133,6 +133,9 @@
               <span class="menu-chip">
                 时间：{{ latestSaveGameTimeLabel }}
               </span>
+              <span v-if="latestSaveNoNameModeLabel" class="menu-chip">
+                NoName：{{ latestSaveNoNameModeLabel }}
+              </span>
             </span>
             <span class="menu-text-muted mt-1 block text-xs">
               <template v-if="hasLatestSaveTimestamp">
@@ -237,6 +240,9 @@
                 @click="selectedSaveSlotId = slot.slot_id"
               >
                 槽位 {{ slot.slot_id }} · {{ normalizeSaveText(slot.player_name, '未命名角色') }}
+                <span v-if="formatNoNameModeLabel(slot.noname_mode)" class="menu-text-muted text-[11px]">
+                  · NoName：{{ formatNoNameModeLabel(slot.noname_mode) }}
+                </span>
               </button>
               <p v-if="saveSlots.length === 0" class="menu-text-muted text-xs">暂无存档槽位</p>
             </div>
@@ -270,6 +276,9 @@
                   位置：{{ formatLocationLabel(selectedSaveSlot.location) }} ·
                 </template>
                 时间：{{ normalizeSaveText(selectedSaveSlot.game_time, '时间未知') }}
+                <template v-if="selectedSaveNoNameModeLabel">
+                  · NoName：{{ selectedSaveNoNameModeLabel }}
+                </template>
               </span>
             </p>
             <p v-else class="menu-text-muted mt-2 text-sm">请选择左侧存档槽。</p>
@@ -437,6 +446,12 @@ const normalizeSaveText = (value: string | null | undefined, fallback: string): 
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : fallback;
 };
+const formatNoNameModeLabel = (mode?: SaveInfo['noname_mode'] | null): string => {
+  if (!mode) return '';
+  if (mode === 'disabled') return '关闭';
+  if (mode === 'assisted') return '辅助';
+  return '观察';
+};
 const latestSavePlayerLabel = computed(() =>
   normalizeSaveText(latestSave.value?.player_name, '未命名角色'),
 );
@@ -445,6 +460,9 @@ const latestSaveRealmLabel = computed(() =>
 );
 const latestSaveGameTimeLabel = computed(() =>
   normalizeSaveText(latestSave.value?.game_time, '时间未知'),
+);
+const latestSaveNoNameModeLabel = computed(() =>
+  formatNoNameModeLabel(latestSave.value?.noname_mode),
 );
 const latestSaveLocationLabel = computed(() => formatLocationLabel(latestSave.value?.location));
 const showLatestSaveLocationTag = computed(
@@ -456,6 +474,9 @@ const selectedSaveSlot = computed(() => {
   }
   return saveSlots.value.find((slot) => slot.slot_id === selectedSaveSlotId.value) ?? latestSave.value;
 });
+const selectedSaveNoNameModeLabel = computed(() =>
+  formatNoNameModeLabel(selectedSaveSlot.value?.noname_mode),
+);
 const latestSaveTimestampLabel = computed(() => {
   const ts = latestSave.value?.timestamp;
   if (!ts || !Number.isFinite(ts)) {

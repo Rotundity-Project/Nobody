@@ -11,6 +11,7 @@ import type {
   WorldRegistry,
   GenerationTimingSummary,
   GenerationFailureSummary,
+  NoNameTrace,
 } from '../types/game';
 
 interface GameStoreState {
@@ -24,6 +25,7 @@ interface GameStoreState {
   generationDiagnostics: string[];
   generationTimingSummary: GenerationTimingSummary | null;
   generationFailureSummary: GenerationFailureSummary | null;
+  noNameTraces: NoNameTrace[];
   backgroundNotice: { id: string; message: string } | null;
   isLoading: boolean;
   error: string | null;
@@ -45,6 +47,7 @@ export const useGameStore = defineStore('game', {
     generationDiagnostics: [],
     generationTimingSummary: null,
     generationFailureSummary: null,
+    noNameTraces: [],
     backgroundNotice: null,
     isLoading: false,
     error: null,
@@ -75,6 +78,7 @@ export const useGameStore = defineStore('game', {
         this.plotState = plotState;
         this.appendGenerationDiagnostics(plotState.last_generation_diagnostics);
         await this.refreshGenerationDiagnosticsSummary();
+        await this.refreshNoNameTraces();
         this.backgroundNotice = {
           id: `rehydrate-${Date.now()}`,
           message: '快速模式结果已补全为完整叙事版本',
@@ -109,6 +113,15 @@ export const useGameStore = defineStore('game', {
         this.worldRegistry = await invokeRuntime<WorldRegistry>('get_world_registry', undefined);
       } catch {
         this.worldRegistry = null;
+      }
+    },
+
+    async refreshNoNameTraces() {
+      try {
+        const traces = await invokeRuntime<NoNameTrace[]>('get_noname_recent_traces', undefined);
+        this.noNameTraces = Array.isArray(traces) ? traces : [];
+      } catch {
+        this.noNameTraces = [];
       }
     },
 
@@ -153,6 +166,16 @@ export const useGameStore = defineStore('game', {
       this.generationFailureSummary = null;
     },
 
+    async clearNoNameTraces() {
+      try {
+        await invokeRuntime('clear_noname_recent_traces', undefined);
+      } catch {
+        // Older runtimes or web mocks may not implement this command.
+      } finally {
+        this.noNameTraces = [];
+      }
+    },
+
     getGenerationDiagnosticsText() {
       if (this.generationDiagnostics.length === 0) {
         return '暂无诊断数据。';
@@ -160,6 +183,54 @@ export const useGameStore = defineStore('game', {
       return this.generationDiagnostics
         .map((line, index) => `${index + 1}. ${line}`)
         .join('\n');
+    },
+
+    getNoNameTraceDebugText() {
+      if (this.noNameTraces.length === 0) {
+        return '暂无 NoName Agent Trace。';
+      }
+      const latest = this.noNameTraces[this.noNameTraces.length - 1];
+      const path = latest.graphPath.join(' -> ') || '无';
+      const calls = latest.capabilityCalls.length > 0
+        ? latest.capabilityCalls
+          .map((item) => `${item.callKind}:${item.capabilityId}[${item.status}]`)
+          .join(', ')
+        : '无';
+      const proposal = latest.proposals.length > 0
+        ? latest.proposals[latest.proposals.length - 1]
+        : null;
+      const proposalStatus = proposal?.status ?? (proposal?.applyable ? 'ready' : 'observed');
+      const proposalScopes = proposal?.applyScopes && proposal.applyScopes.length > 0
+        ? proposal.applyScopes.join(', ')
+        : '无';
+      const applyExecutions = latest.applyExecutionLog && latest.applyExecutionLog.length > 0
+        ? latest.applyExecutionLog
+          .map((item) => `${item.target}:${item.outcome}${item.note ? `(${item.note})` : ''}`)
+          .join(', ')
+        : '无';
+      const applyPlans = latest.applyPlanLog && latest.applyPlanLog.length > 0
+        ? latest.applyPlanLog
+          .map((item) => `#${item.order}:${item.target}:${item.decision}@${item.priority}${item.note ? `(${item.note})` : ''}`)
+          .join(', ')
+        : '无';
+      return [
+        `最近 Trace：${latest.traceId}`,
+        `模式：${latest.mode}`,
+        `路径：${path}`,
+        `能力调用：${calls}`,
+        `提案：${proposal ? `${proposal.title} / ${proposal.focus} / ${proposalStatus}` : '无'}`,
+        `目标段：${proposal?.targetSegment || '无'}`,
+        `预期效果：${proposal?.intendedEffect || '无'}`,
+        `作用域：${proposalScopes}`,
+        `预检：${latest.applyResult ? `${latest.applyResult.outcome}${latest.applyResult.reason ? ` (${latest.applyResult.reason})` : ''}` : '无'}`,
+        `应用计划：${applyPlans}`,
+        `应用执行：${applyExecutions}`,
+        `状态迁移：${latest.proposalTransitionLog && latest.proposalTransitionLog.length > 0 ? latest.proposalTransitionLog.join(', ') : '无'}`,
+        `护栏：${latest.guardrailResult ? `${latest.guardrailResult.outcome}${latest.guardrailResult.reason ? ` (${latest.guardrailResult.reason})` : ''}` : '无'}`,
+        `回退：${latest.fallbackUsed ? '是' : '否'}`,
+        `耗时：${latest.elapsedMs} ms`,
+        `历史条数：${this.noNameTraces.length}`,
+      ].join('\n');
     },
 
     async applyWorldRegistryPatch(patch: unknown) {
@@ -204,6 +275,7 @@ export const useGameStore = defineStore('game', {
         this.plotState = plotState;
         this.appendGenerationDiagnostics(plotState.last_generation_diagnostics);
         await this.refreshGenerationDiagnosticsSummary();
+        await this.refreshNoNameTraces();
         this.lastInitializationDurationMs = Date.now() - startedAt;
         await this.refreshWorldRegistry();
         await this.refreshReachableLocations();
@@ -245,6 +317,7 @@ export const useGameStore = defineStore('game', {
         this.plotState = plotState;
         this.appendGenerationDiagnostics(plotState.last_generation_diagnostics);
         await this.refreshGenerationDiagnosticsSummary();
+        await this.refreshNoNameTraces();
         await this.refreshWorldRegistry();
         await this.refreshReachableLocations();
         await this.refreshMapOverview();
@@ -280,6 +353,7 @@ export const useGameStore = defineStore('game', {
             this.plotState = quickPlotState;
             this.appendGenerationDiagnostics(quickPlotState.last_generation_diagnostics);
             await this.refreshGenerationDiagnosticsSummary();
+            await this.refreshNoNameTraces();
             await this.refreshWorldRegistry();
             await this.refreshReachableLocations();
             await this.refreshMapOverview();
@@ -296,6 +370,7 @@ export const useGameStore = defineStore('game', {
               this.plotState = latestPlotState;
               this.appendGenerationDiagnostics(latestPlotState.last_generation_diagnostics);
               await this.refreshGenerationDiagnosticsSummary();
+              await this.refreshNoNameTraces();
               this.error = latestPlotState.last_generation_diagnostics ?? '剧情推进超时，请稍后重试';
             } catch {
               this.error = '剧情推进超时，请稍后重试。你可以尝试重连或调整 LLM 设置。';
@@ -339,6 +414,7 @@ export const useGameStore = defineStore('game', {
         this.plotState = plotState;
         this.appendGenerationDiagnostics(plotState.last_generation_diagnostics);
         await this.refreshGenerationDiagnosticsSummary();
+        await this.refreshNoNameTraces();
         await this.refreshWorldRegistry();
         await this.refreshReachableLocations();
         await this.refreshMapOverview();
@@ -361,6 +437,7 @@ export const useGameStore = defineStore('game', {
         this.plotState = plotState;
         this.appendGenerationDiagnostics(plotState.last_generation_diagnostics);
         await this.refreshGenerationDiagnosticsSummary();
+        await this.refreshNoNameTraces();
         await this.refreshWorldRegistry();
         await this.refreshReachableLocations();
         await this.refreshMapOverview();
@@ -418,6 +495,7 @@ export const useGameStore = defineStore('game', {
         this.plotState = plotState;
         this.appendGenerationDiagnostics(plotState.last_generation_diagnostics);
         await this.refreshGenerationDiagnosticsSummary();
+        await this.refreshNoNameTraces();
         this.lastInitializationDurationMs = Date.now() - startedAt;
         await this.refreshWorldRegistry();
         await this.refreshReachableLocations();
@@ -458,6 +536,7 @@ export const useGameStore = defineStore('game', {
       this.generationDiagnostics = [];
       this.generationTimingSummary = null;
       this.generationFailureSummary = null;
+      this.noNameTraces = [];
       this.backgroundNotice = null;
       this.error = null;
     },
