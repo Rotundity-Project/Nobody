@@ -700,7 +700,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_generate_random_script_fallback_when_llm_missing() {
-        let manager = ScriptManager::new();
+        let manager = ScriptManager { llm_service: None };
         let script = manager.generate_random_script().await.unwrap();
 
         assert_eq!(script.script_type, ScriptType::RandomGenerated);

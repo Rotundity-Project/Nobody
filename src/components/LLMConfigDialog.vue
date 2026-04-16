@@ -37,8 +37,15 @@
           v-model="form.apiKey"
           type="password"
           class="llm-input"
+          :placeholder="apiKeyInputPlaceholder"
         >
       </label>
+      <p
+        v-if="savedApiKeyHint"
+        class="llm-note text-xs"
+      >
+        {{ savedApiKeyHint }}
+      </p>
 
       <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
         <label class="llm-label text-sm">
@@ -181,7 +188,14 @@
                 v-model="form.apiKey"
                 type="password"
                 class="llm-input"
+                :placeholder="apiKeyInputPlaceholder"
               ></label>
+              <p
+                v-if="savedApiKeyHint"
+                class="llm-note text-xs"
+              >
+                {{ savedApiKeyHint }}
+              </p>
               <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <label class="llm-label text-sm">maxTokens<input
                   v-model.number="form.maxTokens"
@@ -277,6 +291,8 @@ interface LLMConfigStatus {
   model?: string;
   max_tokens?: number;
   temperature?: number;
+  api_key_saved?: boolean;
+  api_key_hint?: string;
 }
 
 const props = withDefaults(defineProps<{ isOpen: boolean; inline?: boolean }>(), {
@@ -313,6 +329,19 @@ const providerToneClass = computed(() => {
   if (detectedProviderKey.value === 'kimi') return 'llm-provider-kimi';
   return 'llm-provider-generic';
 });
+const hasSavedApiKey = computed(() => Boolean(status.value?.api_key_saved));
+const savedApiKeyHint = computed(() => {
+  if (form.apiKey.trim() || !hasSavedApiKey.value) {
+    return '';
+  }
+  if (status.value?.api_key_hint?.trim()) {
+    return `已检测到本地已保存的 API Key（${status.value.api_key_hint.trim()}），留空保存会继续沿用。`;
+  }
+  return '已检测到本地已保存的 API Key，留空保存会继续沿用。';
+});
+const apiKeyInputPlaceholder = computed(() =>
+  !form.apiKey.trim() && hasSavedApiKey.value ? '已保存，可留空沿用' : '',
+);
 
 watch(
   () => props.isOpen,
@@ -321,9 +350,10 @@ watch(
       void loadStatus();
     }
   },
+  { immediate: true },
 );
 
-const loadStatus = async () => {
+async function loadStatus() {
   busy.value = true;
   error.value = '';
   message.value = '';
@@ -354,7 +384,7 @@ const loadStatus = async () => {
     busy.value = false;
     loadingMessage.value = '处理中...';
   }
-};
+}
 
 const formValidation = computed(() => {
   const errors: string[] = [];
@@ -381,6 +411,8 @@ const saveConfig = async () => {
     return;
   }
 
+  const trimmedApiKey = form.apiKey.trim();
+  const reusedSavedApiKey = !trimmedApiKey && hasSavedApiKey.value;
   busy.value = true;
   error.value = '';
   message.value = '';
@@ -392,7 +424,7 @@ const saveConfig = async () => {
       {
         input: {
           endpoint: form.endpoint.trim(),
-          apiKey: form.apiKey.trim(),
+          apiKey: trimmedApiKey,
           model: form.model.trim(),
           maxTokens: form.maxTokens,
           temperature: form.temperature,
@@ -401,12 +433,12 @@ const saveConfig = async () => {
       10000,
       '保存配置超时，请检查网络或重试',
     );
-    if (form.apiKey.trim()) {
-      window.localStorage.setItem(API_KEY_STORAGE, form.apiKey.trim());
-    } else {
+    if (trimmedApiKey) {
+      window.localStorage.setItem(API_KEY_STORAGE, trimmedApiKey);
+    } else if (!reusedSavedApiKey) {
       window.localStorage.removeItem(API_KEY_STORAGE);
     }
-    message.value = msg;
+    message.value = reusedSavedApiKey ? `${msg}（沿用已保存的 API Key）` : msg;
     await loadStatus();
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e);

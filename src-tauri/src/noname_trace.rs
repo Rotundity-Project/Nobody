@@ -1,4 +1,4 @@
-use crate::noname_types::{NoNameMode, NoNameProposal, NoNameTraceStage};
+use crate::noname_types::{NoNameMode, NoNameProposal, NoNameRole, NoNameTraceStage};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -44,6 +44,28 @@ pub struct NoNameApplyPlanRecord {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct NoNameRelatedObservationRecord {
+    pub role: NoNameRole,
+    pub action_summary: String,
+    pub focus: String,
+    pub rationale: String,
+    pub proposal: NoNameProposal,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NoNameProtocolEventRecord {
+    pub channel: String,
+    pub from: Option<String>,
+    pub to: Option<String>,
+    pub kind: String,
+    pub task_id: String,
+    pub status: String,
+    pub detail: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct NoNameTrace {
     pub trace_id: String,
     pub session_id: String,
@@ -60,6 +82,10 @@ pub struct NoNameTrace {
     pub apply_plan_log: Vec<NoNameApplyPlanRecord>,
     #[serde(default)]
     pub apply_execution_log: Vec<NoNameApplyExecutionRecord>,
+    #[serde(default)]
+    pub related_observations: Vec<NoNameRelatedObservationRecord>,
+    #[serde(default)]
+    pub protocol_events: Vec<NoNameProtocolEventRecord>,
     pub guardrail_result: Option<NoNameGuardrailTraceResult>,
     pub apply_result: Option<NoNameApplyTraceResult>,
     pub fallback_used: bool,
@@ -84,6 +110,8 @@ impl NoNameTrace {
             proposal_transition_log: Vec::new(),
             apply_plan_log: Vec::new(),
             apply_execution_log: Vec::new(),
+            related_observations: Vec::new(),
+            protocol_events: Vec::new(),
             guardrail_result: None,
             apply_result: None,
             fallback_used: false,
@@ -171,6 +199,35 @@ impl NoNameTrace {
             target: target.into(),
             outcome: outcome.into(),
             note,
+        });
+    }
+
+    pub fn replace_related_observations(
+        &mut self,
+        observations: Vec<NoNameRelatedObservationRecord>,
+    ) {
+        self.related_observations = observations;
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn record_protocol_event(
+        &mut self,
+        channel: impl Into<String>,
+        from: Option<String>,
+        to: Option<String>,
+        kind: impl Into<String>,
+        task_id: impl Into<String>,
+        status: impl Into<String>,
+        detail: Option<String>,
+    ) {
+        self.protocol_events.push(NoNameProtocolEventRecord {
+            channel: channel.into(),
+            from,
+            to,
+            kind: kind.into(),
+            task_id: task_id.into(),
+            status: status.into(),
+            detail,
         });
     }
 }

@@ -174,8 +174,35 @@
             <p class="script-help">
               请稍候，阴阳轮转，正在推演修仙世界。
             </p>
+            <div
+              v-if="loadingProgress !== null"
+              data-testid="random-generation-progress"
+              class="script-random-progress"
+              role="progressbar"
+              aria-label="创建进度"
+              :aria-valuemin="0"
+              :aria-valuemax="100"
+              :aria-valuenow="randomLoadingProgressPercent"
+            >
+              <div
+                class="script-random-progress-track"
+                aria-hidden="true"
+              >
+                <div
+                  class="script-random-progress-fill"
+                  :style="{ width: `${randomLoadingProgressPercent}%` }"
+                />
+              </div>
+              <div class="script-random-progress-meta">
+                <span class="script-random-progress-value">{{ randomLoadingProgressPercent }}%</span>
+                <span
+                  v-if="loadingProgressText"
+                  class="script-random-progress-text"
+                >{{ loadingProgressText }}</span>
+              </div>
+            </div>
             <p
-              v-if="loadingProgressText"
+              v-else-if="loadingProgressText"
               class="script-help"
             >
               {{ loadingProgressText }}
@@ -484,6 +511,12 @@ const confirmButtonLabel = computed(() => {
 });
 const isRandomGenerating = computed(() =>
   selectedType.value === 'random_generated' && loadingMessage.value.includes('随机剧本'));
+const randomLoadingProgressPercent = computed(() => {
+  if (loadingProgress.value == null) {
+    return 0;
+  }
+  return Math.max(0, Math.min(100, Math.round(loadingProgress.value)));
+});
 
 const flowHint = computed(() => {
   if (isLoading.value) return loadingMessage.value;
@@ -1156,6 +1189,48 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 14px;
+}
+
+.script-random-progress {
+  margin-top: 14px;
+  display: grid;
+  gap: 8px;
+}
+
+.script-random-progress-track {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(221, 211, 192, 0.78), rgba(206, 193, 170, 0.92));
+  box-shadow:
+    inset 0 1px 1px rgba(72, 49, 34, 0.12),
+    0 1px 0 rgba(255, 255, 255, 0.38);
+}
+
+.script-random-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--ink-title-color), var(--ink-text-cool));
+  box-shadow: 0 0 14px rgba(59, 122, 107, 0.18);
+  transition: width 220ms ease;
+}
+
+.script-random-progress-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.script-random-progress-value {
+  color: var(--ink-title-color);
+  font-weight: 700;
+}
+
+.script-random-progress-text {
+  color: var(--ink-text-muted);
 }
 
 .taiji-loader-stage {

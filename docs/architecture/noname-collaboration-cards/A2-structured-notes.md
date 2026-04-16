@@ -1,6 +1,6 @@
 # A2 任务卡: Structured Notes / Narrative Notes 增强
 
-状态: 未开始
+状态: V1 已完成
 优先级: 高
 任务量: 中
 任务联系度: 高

@@ -41,7 +41,7 @@ use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::sync::{Mutex, OnceLock};
-use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::State;
 
 static ENTITY_STORE: OnceLock<Mutex<EntityStore>> = OnceLock::new();
@@ -2713,15 +2713,35 @@ pub struct LLMConfigInput {
     pub temperature: f32,
 }
 
-#[tauri::command]
-pub async fn set_llm_config(input: LLMConfigInput) -> Result<String, String> {
-    validate_llm_config_input(&input).map_err(|e| map_error("LLM 配置校验失败", e))?;
-    let config = LLMConfig {
-        endpoint: input.endpoint,
-        api_key: input.api_key,
-        model: input.model,
+fn merge_llm_config_input_with_existing(
+    input: &LLMConfigInput,
+    existing: Option<LLMConfig>,
+) -> LLMConfigInput {
+    let existing_api_key = existing.map(|cfg| cfg.api_key).unwrap_or_default();
+
+    LLMConfigInput {
+        endpoint: input.endpoint.clone(),
+        api_key: if input.api_key.trim().is_empty() {
+            existing_api_key
+        } else {
+            input.api_key.clone()
+        },
+        model: input.model.clone(),
         max_tokens: input.max_tokens,
         temperature: input.temperature,
+    }
+}
+
+#[tauri::command]
+pub async fn set_llm_config(input: LLMConfigInput) -> Result<String, String> {
+    let merged_input = merge_llm_config_input_with_existing(&input, resolve_llm_config());
+    validate_llm_config_input(&merged_input).map_err(|e| map_error("LLM 配置校验失败", e))?;
+    let config = LLMConfig {
+        endpoint: merged_input.endpoint,
+        api_key: merged_input.api_key,
+        model: merged_input.model,
+        max_tokens: merged_input.max_tokens,
+        temperature: merged_input.temperature,
     };
     LLMService::new(config.clone()).map_err(|e| map_error("LLM 配置校验失败", e))?;
     set_runtime_llm_config(config);
@@ -2759,6 +2779,7 @@ pub async fn initialize_game(
     script: Script,
     engine: State<'_, Mutex<GameEngine>>,
 ) -> Result<GameState, String> {
+    const INIT_WORLD_REGISTRY_BOOTSTRAP_TIMEOUT_SECS: u64 = 20;
     let init_started = Instant::now();
     let mut game_state = {
         let mut engine = match engine.lock() {
@@ -2769,13 +2790,22 @@ pub async fn initialize_game(
     };
     let input_assembly_ms = init_started.elapsed().as_millis();
     let bootstrap_started = Instant::now();
-    let mut registry = WorldRegistry::bootstrap_with_llm(
-        &game_state,
-        WORLD_REGISTRY_REFERENCE,
-        WORLD_REGISTRY_SUPPLEMENT,
+    let mut registry = match tokio::time::timeout(
+        Duration::from_secs(INIT_WORLD_REGISTRY_BOOTSTRAP_TIMEOUT_SECS),
+        WorldRegistry::bootstrap_with_llm(
+            &game_state,
+            WORLD_REGISTRY_REFERENCE,
+            WORLD_REGISTRY_SUPPLEMENT,
+        ),
     )
     .await
-    .unwrap_or_else(|| WorldRegistry::fallback_from_game_state(&game_state, "bootstrap_fallback"));
+    {
+        Ok(Some(registry)) => registry,
+        Ok(None) => WorldRegistry::fallback_from_game_state(&game_state, "bootstrap_fallback"),
+        Err(_) => {
+            WorldRegistry::fallback_from_game_state(&game_state, "bootstrap_timeout_fallback")
+        }
+    };
     let model_request_parse_ms = bootstrap_started.elapsed().as_millis();
     let apply_started = Instant::now();
     apply_registry_to_game_state(&mut game_state, &registry);
@@ -4790,6 +4820,52 @@ mod tests {
     }
 
     #[test]
+    fn test_merge_llm_config_input_reuses_existing_api_key() {
+        let input = LLMConfigInput {
+            endpoint: "https://api.example.com/v1".to_string(),
+            api_key: "".to_string(),
+            model: "test".to_string(),
+            max_tokens: 128,
+            temperature: 0.7,
+        };
+        let existing = Some(LLMConfig {
+            endpoint: "https://api.example.com/v1".to_string(),
+            api_key: "saved-secret".to_string(),
+            model: "saved-model".to_string(),
+            max_tokens: 256,
+            temperature: 0.5,
+        });
+
+        let merged = merge_llm_config_input_with_existing(&input, existing);
+
+        assert_eq!(merged.api_key, "saved-secret");
+        assert_eq!(merged.endpoint, input.endpoint);
+        assert_eq!(merged.model, input.model);
+    }
+
+    #[test]
+    fn test_merge_llm_config_input_prefers_new_api_key() {
+        let input = LLMConfigInput {
+            endpoint: "https://api.example.com/v1".to_string(),
+            api_key: "new-secret".to_string(),
+            model: "test".to_string(),
+            max_tokens: 128,
+            temperature: 0.7,
+        };
+        let existing = Some(LLMConfig {
+            endpoint: "https://api.example.com/v1".to_string(),
+            api_key: "saved-secret".to_string(),
+            model: "saved-model".to_string(),
+            max_tokens: 256,
+            temperature: 0.5,
+        });
+
+        let merged = merge_llm_config_input_with_existing(&input, existing);
+
+        assert_eq!(merged.api_key, "new-secret");
+    }
+
+    #[test]
     fn test_validate_output_path_extension() {
         let dir = tempdir().unwrap();
         let out = dir.path().join("novel.txt");
@@ -6512,6 +6588,8 @@ mod tests {
                 proposal_transition_log: vec!["proposal-1:observed".to_string()],
                 apply_plan_log: vec![],
                 apply_execution_log: vec![],
+                related_observations: vec![],
+                protocol_events: vec![],
                 guardrail_result: None,
                 apply_result: Some(crate::noname_trace::NoNameApplyTraceResult {
                     attempted: false,
@@ -6568,6 +6646,8 @@ mod tests {
                 proposal_transition_log: vec![],
                 apply_plan_log: vec![],
                 apply_execution_log: vec![],
+                related_observations: vec![],
+                protocol_events: vec![],
                 guardrail_result: None,
                 apply_result: None,
                 fallback_used: false,
@@ -6627,6 +6707,7 @@ mod tests {
                 applyable: true,
             },
             guardrail_result: None,
+            related_observations: vec![],
         };
 
         apply_noname_low_risk_outputs(&mut plot_state, &mut result, false);
@@ -6679,6 +6760,8 @@ mod tests {
                 proposal_transition_log: vec![],
                 apply_plan_log: vec![],
                 apply_execution_log: vec![],
+                related_observations: vec![],
+                protocol_events: vec![],
                 guardrail_result: None,
                 apply_result: None,
                 fallback_used: false,
@@ -6724,6 +6807,7 @@ mod tests {
                 applyable: true,
             },
             guardrail_result: None,
+            related_observations: vec![],
         };
         let mut plot_text = "山门风声渐紧".to_string();
 
@@ -6757,6 +6841,8 @@ mod tests {
                 proposal_transition_log: vec![],
                 apply_plan_log: vec![],
                 apply_execution_log: vec![],
+                related_observations: vec![],
+                protocol_events: vec![],
                 guardrail_result: None,
                 apply_result: None,
                 fallback_used: false,
@@ -6802,6 +6888,7 @@ mod tests {
                 applyable: true,
             },
             guardrail_result: None,
+            related_observations: vec![],
         };
         let mut plot_text = "山门风声渐紧".to_string();
 
@@ -6846,6 +6933,8 @@ mod tests {
                 proposal_transition_log: vec![],
                 apply_plan_log: vec![],
                 apply_execution_log: vec![],
+                related_observations: vec![],
+                protocol_events: vec![],
                 guardrail_result: None,
                 apply_result: None,
                 fallback_used: false,
@@ -6891,6 +6980,7 @@ mod tests {
                 applyable: true,
             },
             guardrail_result: None,
+            related_observations: vec![],
         };
 
         apply_noname_low_risk_outputs(&mut plot_state, &mut result, false);
@@ -6954,6 +7044,8 @@ mod tests {
                 proposal_transition_log: vec![],
                 apply_plan_log: vec![],
                 apply_execution_log: vec![],
+                related_observations: vec![],
+                protocol_events: vec![],
                 guardrail_result: None,
                 apply_result: None,
                 fallback_used: false,
@@ -6999,6 +7091,7 @@ mod tests {
                 applyable: true,
             },
             guardrail_result: None,
+            related_observations: vec![],
         };
 
         apply_noname_low_risk_outputs(&mut plot_state, &mut result, false);
@@ -7023,6 +7116,8 @@ mod tests {
                 proposal_transition_log: vec![],
                 apply_plan_log: vec![],
                 apply_execution_log: vec![],
+                related_observations: vec![],
+                protocol_events: vec![],
                 guardrail_result: None,
                 apply_result: None,
                 fallback_used: false,
@@ -7068,6 +7163,7 @@ mod tests {
                 applyable: true,
             },
             guardrail_result: None,
+            related_observations: vec![],
         };
         let mut plot_text = "山门风声渐紧".to_string();
 
@@ -7120,6 +7216,8 @@ mod tests {
                 proposal_transition_log: vec![],
                 apply_plan_log: vec![],
                 apply_execution_log: vec![],
+                related_observations: vec![],
+                protocol_events: vec![],
                 guardrail_result: None,
                 apply_result: None,
                 fallback_used: false,
@@ -7165,6 +7263,7 @@ mod tests {
                 applyable: true,
             },
             guardrail_result: None,
+            related_observations: vec![],
         };
 
         apply_noname_low_risk_outputs(&mut plot_state, &mut result, false);
@@ -7216,6 +7315,8 @@ mod tests {
                 proposal_transition_log: vec![],
                 apply_plan_log: vec![],
                 apply_execution_log: vec![],
+                related_observations: vec![],
+                protocol_events: vec![],
                 guardrail_result: None,
                 apply_result: None,
                 fallback_used: false,
@@ -7261,6 +7362,7 @@ mod tests {
                 applyable: true,
             },
             guardrail_result: None,
+            related_observations: vec![],
         };
 
         apply_noname_low_risk_outputs(&mut plot_state, &mut result, false);

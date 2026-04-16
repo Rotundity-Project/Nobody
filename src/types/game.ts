@@ -353,6 +353,24 @@ export interface NoNameProposal {
   applyable: boolean;
 }
 
+export interface NoNameRelatedObservation {
+  role: string;
+  actionSummary: string;
+  focus: string;
+  rationale: string;
+  proposal: NoNameProposal;
+}
+
+export interface NoNameProtocolEvent {
+  channel: string;
+  from?: string | null;
+  to?: string | null;
+  kind: string;
+  taskId: string;
+  status: string;
+  detail?: string | null;
+}
+
 export interface NoNameTrace {
   traceId: string;
   sessionId: string;
@@ -364,6 +382,8 @@ export interface NoNameTrace {
   proposalTransitionLog?: string[];
   applyPlanLog?: NoNameApplyPlanRecord[];
   applyExecutionLog?: NoNameApplyExecutionRecord[];
+  relatedObservations?: NoNameRelatedObservation[];
+  protocolEvents?: NoNameProtocolEvent[];
   guardrailResult?: NoNameGuardrailTraceResult | null;
   applyResult?: NoNameApplyTraceResult | null;
   fallbackUsed: boolean;
