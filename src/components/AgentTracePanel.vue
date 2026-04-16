@@ -179,6 +179,35 @@
         </ul>
       </section>
 
+      <section class="agent-trace-card">
+        <p class="agent-trace-card-title">
+          受控输出复核
+        </p>
+        <p
+          v-if="controlledOutputReviews.length === 0"
+          class="agent-trace-muted"
+        >
+          暂无受控输出复核记录
+        </p>
+        <ul
+          v-else
+          class="agent-trace-rows"
+        >
+          <li
+            v-for="review in controlledOutputReviews"
+            :key="review.requestId"
+            class="agent-trace-row"
+          >
+            <p class="agent-trace-main-line">
+              {{ review.requestedKind }} · {{ review.safeApplyScope || '无作用域' }} · {{ review.decision }}
+            </p>
+            <p class="agent-trace-muted">
+              {{ review.requiresHumanReview ? '需要人工复核' : '可自动通过' }} · {{ review.reason }}
+            </p>
+          </li>
+        </ul>
+      </section>
+
       <div class="agent-trace-grid">
         <section class="agent-trace-card">
           <p class="agent-trace-card-title">
@@ -298,6 +327,7 @@ const latestProposal = computed(() => {
 
 const relatedObservations = computed(() => props.trace?.relatedObservations ?? []);
 const protocolEvents = computed(() => props.trace?.protocolEvents ?? []);
+const controlledOutputReviews = computed(() => props.trace?.controlledOutputReviews ?? []);
 
 const guardrailLabel = computed(() => {
   const result = props.trace?.guardrailResult;

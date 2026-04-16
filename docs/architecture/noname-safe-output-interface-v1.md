@@ -60,6 +60,8 @@
 3. 返回 `Allow / Reject / NeedsReview`。
 4. V1 不直接执行 apply，只作为后续接入前的安全门面。
 
+当前 V2 切片已把 review 结果接入 `NoNameRuntime` trace：`assisted` 预检通过后会记录每个 apply scope 的 controlled output review，其中 `PlotTextHint` 仍保持 `NeedsReview`，不会自动接管最终剧情正文。
+
 ## V1 决策规则
 
 - 空 request id、空 title、空 content 会被拒绝。
@@ -90,6 +92,6 @@
 
 下一步可以继续:
 
-1. 在 `NoNameRuntime` trace 中记录 controlled output review，但仍不自动 apply。
-2. 把 A3 的 `forbiddenScopes` 映射到本接口的 forbidden scopes。
-3. 为 `NeedsReview` 设计前端调试台入口，让开发者手动确认是否进入更高层 apply。
+1. 把 A3 的 `forbiddenScopes` 映射到本接口的 forbidden scopes。
+2. 为 `NeedsReview` 设计更完整的前端确认入口，让开发者手动确认是否进入更高层 apply。
+3. 继续保持 `PlotTextHint` 与最终剧情正文写入之间的人工/护栏边界。

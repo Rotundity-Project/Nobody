@@ -71,6 +71,15 @@ const trace: NoNameTrace = {
     status: 'running',
     detail: 'turn-8-director-observe',
   }],
+  controlledOutputReviews: [{
+    requestId: 'controlled-output-proposal-2-plot_text_hint',
+    requestedKind: 'sceneAugmentation',
+    decision: 'needsReview',
+    reason: 'plot text hint requires human review before higher-layer apply',
+    normalizedKind: 'sceneAugmentation',
+    safeApplyScope: 'plotTextHint',
+    requiresHumanReview: true,
+  }],
   guardrailResult: {
     outcome: 'accept',
     reason: null,
@@ -106,6 +115,9 @@ describe('AgentTracePanel', () => {
     expect(wrapper.text()).toContain('WorldCurator提案：山门法阵');
     expect(wrapper.text()).toContain('协议事件');
     expect(wrapper.text()).toContain('agent · delegation · running');
+    expect(wrapper.text()).toContain('受控输出复核');
+    expect(wrapper.text()).toContain('sceneAugmentation · plotTextHint · needsReview');
+    expect(wrapper.text()).toContain('需要人工复核');
   });
 
   it('shows empty state when trace is missing', () => {

@@ -19,6 +19,14 @@
         </div>
         <div class="noname-debug-console-actions">
           <button
+            type="button"
+            class="noname-debug-console-btn"
+            :disabled="!selectedTraceReport"
+            @click="copySelectedTraceReport"
+          >
+            复制摘要
+          </button>
+          <button
             v-if="isDevMode"
             type="button"
             class="noname-debug-console-btn"
@@ -78,6 +86,24 @@
               </span>
             </button>
           </div>
+
+          <section
+            v-if="selectedTraceReport"
+            class="noname-debug-console-report"
+          >
+            <div class="noname-debug-console-report-head">
+              <p class="noname-debug-console-section-title">
+                诊断摘要
+              </p>
+              <span
+                v-if="copyStatus"
+                class="noname-debug-console-copy-status"
+              >
+                {{ copyStatus }}
+              </span>
+            </div>
+            <pre class="noname-debug-console-report-body">{{ selectedTraceReport }}</pre>
+          </section>
         </aside>
 
         <main class="noname-debug-console-main">
@@ -155,6 +181,59 @@ const selectedTrace = computed(() => {
   const index = selectedIndex.value;
   return props.traces[index] ?? props.traces[props.traces.length - 1];
 });
+
+const copyStatus = ref('');
+
+const selectedTraceReport = computed(() => buildTraceReport(selectedTrace.value));
+
+async function copySelectedTraceReport() {
+  const report = selectedTraceReport.value;
+  if (!report) {
+    return;
+  }
+  try {
+    await navigator.clipboard?.writeText(report);
+    copyStatus.value = '摘要已复制';
+  } catch {
+    copyStatus.value = '复制失败，请手动选择摘要';
+  }
+}
+
+function buildTraceReport(trace: NoNameTrace | null) {
+  if (!trace) {
+    return '';
+  }
+  const latestProposal = trace.proposals.length > 0
+    ? trace.proposals[trace.proposals.length - 1]
+    : null;
+  const readyCount = trace.proposals.filter((proposal) => proposal.applyable || proposal.status === 'ready').length;
+  const graphPath = trace.graphPath.length > 0 ? trace.graphPath.join(' -> ') : '无';
+  const protocolEvents = trace.protocolEvents ?? [];
+  const controlledReviews = trace.controlledOutputReviews ?? [];
+  const humanReviewCount = controlledReviews.filter((review) => review.requiresHumanReview).length;
+  const relatedObservations = trace.relatedObservations ?? [];
+  const guardrail = trace.guardrailResult
+    ? `${trace.guardrailResult.outcome}${trace.guardrailResult.reason ? ` (${trace.guardrailResult.reason})` : ''}`
+    : '无';
+  const applyResult = trace.applyResult
+    ? `${trace.applyResult.outcome}${trace.applyResult.reason ? ` (${trace.applyResult.reason})` : ''}`
+    : '无';
+  return [
+    `Trace: ${trace.traceId}`,
+    `Mode: ${trace.mode}`,
+    `Turn: ${trace.turnId}`,
+    `Graph: ${graphPath}`,
+    `Proposals: ${readyCount}/${trace.proposals.length} applyable`,
+    `Latest Proposal: ${latestProposal ? `${latestProposal.producerRole}:${latestProposal.kind}:${latestProposal.focus}` : '无'}`,
+    `Related Observations: ${relatedObservations.length}`,
+    `Protocol Events: ${protocolEvents.length}`,
+    `Controlled Reviews: ${controlledReviews.length} (${humanReviewCount} needs human review)`,
+    `Guardrail: ${guardrail}`,
+    `Apply Result: ${applyResult}`,
+    `Fallback: ${trace.fallbackUsed ? 'yes' : 'no'}`,
+    `Elapsed: ${trace.elapsedMs} ms`,
+  ].join('\n');
+}
 </script>
 
 <style scoped>
@@ -305,6 +384,43 @@ const selectedTrace = computed(() => {
 .noname-debug-console-trace-meta {
   font-size: 12px;
   color: var(--ink-text-muted);
+}
+
+.noname-debug-console-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.54;
+}
+
+.noname-debug-console-report {
+  margin-top: 16px;
+  border: 1px solid color-mix(in srgb, var(--ink-border-soft) 76%, transparent);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--ink-card-bg-soft) 88%, transparent);
+  padding: 12px;
+}
+
+.noname-debug-console-report-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+}
+
+.noname-debug-console-copy-status {
+  color: var(--ink-text-muted);
+  font-size: 12px;
+}
+
+.noname-debug-console-report-body {
+  margin: 10px 0 0;
+  max-height: 220px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--ink-text-primary);
+  font-size: 12px;
+  line-height: 1.55;
+  font-family: "LXGW WenKai", "Noto Serif SC", serif;
 }
 
 @media (max-width: 1024px) {

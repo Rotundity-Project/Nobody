@@ -224,6 +224,11 @@ export const useGameStore = defineStore('game', {
           .map((item) => `${item.channel}:${item.kind}:${item.status}`)
           .join(', ')
         : '无';
+      const controlledOutputReviews = latest.controlledOutputReviews && latest.controlledOutputReviews.length > 0
+        ? latest.controlledOutputReviews
+          .map((item) => `${item.requestedKind}:${item.safeApplyScope ?? 'none'}:${item.decision}${item.requiresHumanReview ? ':human' : ''}`)
+          .join(', ')
+        : '无';
       return [
         `最近 Trace：${latest.traceId}`,
         `模式：${latest.mode}`,
@@ -232,6 +237,7 @@ export const useGameStore = defineStore('game', {
         `提案：${proposal ? `${proposal.title} / ${proposal.focus} / ${proposalStatus}` : '无'}`,
         `协作观察：${relatedObservations}`,
         `协议事件：${protocolEvents}`,
+        `受控输出复核：${controlledOutputReviews}`,
         `目标段：${proposal?.targetSegment || '无'}`,
         `预期效果：${proposal?.intendedEffect || '无'}`,
         `作用域：${proposalScopes}`,

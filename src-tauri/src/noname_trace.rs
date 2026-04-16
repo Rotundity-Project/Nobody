@@ -1,4 +1,9 @@
-use crate::noname_types::{NoNameMode, NoNameProposal, NoNameRole, NoNameTraceStage};
+use crate::noname_output_interface::{
+    NoNameControlledOutputDecision, NoNameControlledOutputKind, NoNameControlledOutputReview,
+};
+use crate::noname_types::{
+    NoNameApplyScope, NoNameMode, NoNameProposal, NoNameRole, NoNameTraceStage,
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -44,6 +49,18 @@ pub struct NoNameApplyPlanRecord {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct NoNameControlledOutputReviewRecord {
+    pub request_id: String,
+    pub requested_kind: NoNameControlledOutputKind,
+    pub decision: NoNameControlledOutputDecision,
+    pub reason: String,
+    pub normalized_kind: Option<NoNameControlledOutputKind>,
+    pub safe_apply_scope: Option<NoNameApplyScope>,
+    pub requires_human_review: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct NoNameRelatedObservationRecord {
     pub role: NoNameRole,
     pub action_summary: String,
@@ -83,6 +100,8 @@ pub struct NoNameTrace {
     #[serde(default)]
     pub apply_execution_log: Vec<NoNameApplyExecutionRecord>,
     #[serde(default)]
+    pub controlled_output_reviews: Vec<NoNameControlledOutputReviewRecord>,
+    #[serde(default)]
     pub related_observations: Vec<NoNameRelatedObservationRecord>,
     #[serde(default)]
     pub protocol_events: Vec<NoNameProtocolEventRecord>,
@@ -110,6 +129,7 @@ impl NoNameTrace {
             proposal_transition_log: Vec::new(),
             apply_plan_log: Vec::new(),
             apply_execution_log: Vec::new(),
+            controlled_output_reviews: Vec::new(),
             related_observations: Vec::new(),
             protocol_events: Vec::new(),
             guardrail_result: None,
@@ -200,6 +220,23 @@ impl NoNameTrace {
             outcome: outcome.into(),
             note,
         });
+    }
+
+    pub fn record_controlled_output_review(
+        &mut self,
+        requested_kind: NoNameControlledOutputKind,
+        review: NoNameControlledOutputReview,
+    ) {
+        self.controlled_output_reviews
+            .push(NoNameControlledOutputReviewRecord {
+                request_id: review.request_id,
+                requested_kind,
+                decision: review.decision,
+                reason: review.reason,
+                normalized_kind: review.normalized_kind,
+                safe_apply_scope: review.safe_apply_scope,
+                requires_human_review: review.requires_human_review,
+            });
     }
 
     pub fn replace_related_observations(
@@ -398,5 +435,28 @@ mod tests {
             trace.apply_result.as_ref().map(|item| item.attempted),
             Some(true)
         );
+    }
+
+    #[test]
+    fn controlled_output_review_can_be_recorded() {
+        let mut trace = NoNameTrace::empty("trace-1", "session-1", "turn-1", NoNameMode::Assisted);
+        trace.record_controlled_output_review(
+            NoNameControlledOutputKind::SceneAugmentation,
+            NoNameControlledOutputReview {
+                request_id: "review-1".to_string(),
+                decision: NoNameControlledOutputDecision::NeedsReview,
+                reason: "plot text hint requires human review".to_string(),
+                normalized_kind: Some(NoNameControlledOutputKind::SceneAugmentation),
+                safe_apply_scope: Some(crate::noname_types::NoNameApplyScope::PlotTextHint),
+                requires_human_review: true,
+            },
+        );
+
+        assert_eq!(trace.controlled_output_reviews.len(), 1);
+        assert_eq!(
+            trace.controlled_output_reviews[0].decision,
+            NoNameControlledOutputDecision::NeedsReview
+        );
+        assert!(trace.controlled_output_reviews[0].requires_human_review);
     }
 }

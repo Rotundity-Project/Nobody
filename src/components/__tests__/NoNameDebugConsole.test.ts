@@ -1,5 +1,5 @@
 import { mount } from '@vue/test-utils';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import NoNameDebugConsole from '../NoNameDebugConsole.vue';
 import type { NoNameTrace } from '../../types/game';
 
@@ -71,6 +71,24 @@ const traces: NoNameTrace[] = [
     }],
     guardrailResult: { outcome: 'accept', reason: null },
     applyResult: { attempted: true, outcome: 'preflight_ready', reason: '允许应用' },
+    protocolEvents: [{
+      channel: 'agent',
+      from: 'runtime',
+      to: 'worldCurator',
+      kind: 'taskRequest',
+      taskId: 'task-1',
+      status: 'queued',
+      detail: 'fan-out',
+    }],
+    controlledOutputReviews: [{
+      requestId: 'controlled-output-proposal-2-plot_text_hint',
+      requestedKind: 'sceneAugmentation',
+      decision: 'needsReview',
+      reason: 'plot text hint requires human review before higher-layer apply',
+      normalizedKind: 'sceneAugmentation',
+      safeApplyScope: 'plotTextHint',
+      requiresHumanReview: true,
+    }],
     fallbackUsed: false,
     elapsedMs: 28,
   },
@@ -89,6 +107,9 @@ describe('NoNameDebugConsole', () => {
 
     expect(wrapper.text()).toContain('WorldCurator提案：山门法阵');
     expect(wrapper.text()).toContain('当前模式：assisted');
+    expect(wrapper.text()).toContain('Protocol Events: 1');
+    expect(wrapper.text()).toContain('Controlled Reviews: 1 (1 needs human review)');
+    expect(wrapper.text()).toContain('Proposals: 1/1 applyable');
 
     const traceButtons = wrapper.findAll('.noname-debug-console-trace-btn');
     expect(traceButtons).toHaveLength(2);
@@ -107,12 +128,36 @@ describe('NoNameDebugConsole', () => {
       },
     });
 
-    await wrapper.find('.noname-debug-console-btn').trigger('click');
+    await wrapper.findAll('.noname-debug-console-btn')[1].trigger('click');
     await wrapper.findAll('.noname-debug-console-mode-btn')[2].trigger('click');
     await wrapper.find('.noname-debug-console-btn-primary').trigger('click');
 
     expect(wrapper.emitted('clear-traces')).toBeTruthy();
     expect(wrapper.emitted('set-no-name-mode')?.[0]).toEqual(['assisted']);
     expect(wrapper.emitted('close')).toBeTruthy();
+  });
+
+  it('copies the selected trace report', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+
+    const wrapper = mount(NoNameDebugConsole, {
+      props: {
+        isOpen: true,
+        traces,
+        noNameMode: 'assisted',
+        isDevMode: true,
+      },
+    });
+
+    await wrapper.findAll('.noname-debug-console-btn')[0].trigger('click');
+
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Trace: trace-2'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Protocol Events: 1'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Controlled Reviews: 1'));
+    expect(wrapper.text()).toContain('摘要已复制');
   });
 });
