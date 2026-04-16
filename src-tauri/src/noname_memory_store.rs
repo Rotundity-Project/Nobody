@@ -1,3 +1,6 @@
+use crate::noname_memory_retrieval::{
+    retrieve_memories, NoNameMemoryQuery, NoNameRetrievedMemories,
+};
 use crate::noname_memory_types::{
     NoNameEpisodicMemoryItem, NoNameNarrativeMemoryItem, NoNameSemanticMemoryItem,
     NoNameWorkingMemoryItem,
@@ -67,6 +70,16 @@ impl NoNameMemoryStore {
     pub fn narrative(&self) -> &[NoNameNarrativeMemoryItem] {
         &self.narrative
     }
+
+    pub fn retrieve(&self, query: &NoNameMemoryQuery) -> NoNameRetrievedMemories {
+        retrieve_memories(
+            query,
+            self.working(),
+            self.episodic(),
+            self.semantic(),
+            self.narrative(),
+        )
+    }
 }
 
 #[cfg(test)]
@@ -75,6 +88,7 @@ mod tests {
     use crate::noname_memory_types::{
         NoNameMemoryImportance, NoNameNarrativeNoteType, NoNameNarrativeStatus,
     };
+    use crate::noname_types::NoNameRole;
 
     #[test]
     fn working_memory_respects_max_len() {
@@ -147,5 +161,35 @@ mod tests {
         assert_eq!(store.semantic()[0].object, "大殿");
         assert_eq!(store.narrative().len(), 1);
         assert_eq!(store.episodic().len(), 1);
+    }
+
+    #[test]
+    fn store_can_delegate_structured_retrieval() {
+        let mut store = NoNameMemoryStore::new();
+        store.push_episodic(NoNameEpisodicMemoryItem {
+            memory_id: "event-1".to_string(),
+            event_type: "battle".to_string(),
+            timestamp: 1,
+            chapter_index: 1,
+            location_id: Some("山门".to_string()),
+            actors: vec!["青河长老".to_string()],
+            summary: "青河长老在山门布阵".to_string(),
+            detail_ref: None,
+            importance: NoNameMemoryImportance::High,
+        });
+
+        let result = store.retrieve(&NoNameMemoryQuery {
+            role: NoNameRole::NpcIntent,
+            search_term: None,
+            actor: Some("青河长老".to_string()),
+            location: Some("山门".to_string()),
+            goal: None,
+            keyword: Some("布阵".to_string()),
+            token_budget: 200,
+            per_section_limit: 2,
+        });
+
+        assert_eq!(result.episodic.len(), 1);
+        assert_eq!(result.episodic[0].memory_id, "event-1");
     }
 }

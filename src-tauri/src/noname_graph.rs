@@ -1,6 +1,6 @@
 use crate::noname_errors::{NoNameError, NoNameErrorKind};
 use crate::noname_trace::NoNameTrace;
-use crate::noname_types::NoNameTraceStage;
+use crate::noname_types::{NoNameRole, NoNameTraceStage};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NoNameGraphNode {
@@ -43,6 +43,15 @@ impl NoNameGraphExecutor {
         ]
     }
 
+    pub fn default_role_dispatch_order() -> &'static [NoNameRole] {
+        &[
+            NoNameRole::Director,
+            NoNameRole::WorldCurator,
+            NoNameRole::NpcIntent,
+            NoNameRole::CombatNarrator,
+        ]
+    }
+
     pub fn execute_empty_turn(
         &self,
         trace: &mut NoNameTrace,
@@ -81,6 +90,19 @@ mod tests {
                 NoNameGraphNode::BuildContextBundle,
                 NoNameGraphNode::PlanTurn,
                 NoNameGraphNode::PersistTrace,
+            ]
+        );
+    }
+
+    #[test]
+    fn default_role_dispatch_order_starts_from_director() {
+        assert_eq!(
+            NoNameGraphExecutor::default_role_dispatch_order(),
+            &[
+                NoNameRole::Director,
+                NoNameRole::WorldCurator,
+                NoNameRole::NpcIntent,
+                NoNameRole::CombatNarrator,
             ]
         );
     }

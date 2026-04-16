@@ -1,3 +1,4 @@
+use crate::noname_agent_registry::NoNameAgentRegistry;
 use crate::noname_config::NoNameConfig;
 use crate::noname_context_types::NoNameContextPacket;
 use crate::noname_errors::{NoNameError, NoNameErrorKind};
@@ -6,9 +7,12 @@ use crate::noname_guardrails::{
     validate_director_observation, validate_director_proposal_for_apply,
     NoNameDirectorGuardrailInput, NoNameGuardrailResult,
 };
-use crate::noname_roles::{DirectorAgent, NoNameDirectorObservation};
+use crate::noname_protocol_agent::{NoNameAgentMessage, NoNameAgentMessageKind};
+use crate::noname_protocol_runtime::NoNameProtocolRuntime;
+use crate::noname_protocol_types::{NoNameAgentAddress, NoNameProtocolHeader, NoNameTraceWritable};
+use crate::noname_roles::{DirectorAgent, NoNameDirectorObservation, NoNameRoleObservation};
 use crate::noname_tools::build_director_registry;
-use crate::noname_trace::NoNameTrace;
+use crate::noname_trace::{NoNameRelatedObservationRecord, NoNameTrace};
 use crate::noname_types::{
     NoNameApplyScope, NoNameMode, NoNameProposal, NoNameProposalStatus, NoNameRole,
     NoNameTraceStage,
@@ -39,6 +43,8 @@ impl Default for NoNameTurnInput {
 pub struct NoNameRuntime {
     config: NoNameConfig,
     graph_executor: NoNameGraphExecutor,
+    agent_registry: NoNameAgentRegistry,
+    protocol_runtime: NoNameProtocolRuntime,
     recent_traces: VecDeque<NoNameTrace>,
 }
 
@@ -48,6 +54,7 @@ pub struct NoNameDirectorRunResult {
     pub observation: NoNameDirectorObservation,
     pub proposal: NoNameProposal,
     pub guardrail_result: Option<NoNameGuardrailResult>,
+    pub related_observations: Vec<NoNameRoleObservation>,
 }
 
 impl NoNameRuntime {
@@ -55,6 +62,8 @@ impl NoNameRuntime {
         Self {
             config,
             graph_executor: NoNameGraphExecutor::new(),
+            agent_registry: NoNameAgentRegistry::new_default(),
+            protocol_runtime: NoNameProtocolRuntime::new(),
             recent_traces: VecDeque::new(),
         }
     }
@@ -116,6 +125,20 @@ impl NoNameRuntime {
         let proposal = self.record_assisted_apply_preflight(&mut trace, proposal, guardrail_input);
         observation.proposal = proposal.clone();
         trace.replace_last_proposal(proposal.clone());
+        let related_observations =
+            self.run_protocol_observe_fan_out(&input, &mut trace, context_packet, action_summary)?;
+        trace.replace_related_observations(
+            related_observations
+                .iter()
+                .map(|observation| NoNameRelatedObservationRecord {
+                    role: observation.role,
+                    action_summary: observation.action_summary.clone(),
+                    focus: observation.focus.clone(),
+                    rationale: observation.rationale.clone(),
+                    proposal: observation.proposal.clone(),
+                })
+                .collect(),
+        );
         trace.elapsed_ms = start.elapsed().as_millis() as u64;
 
         if self.config.trace_policy.enabled {
@@ -127,6 +150,7 @@ impl NoNameRuntime {
             observation,
             proposal,
             guardrail_result,
+            related_observations,
         })
     }
 
@@ -168,6 +192,7 @@ impl NoNameRuntime {
 
     pub fn clear_traces(&mut self) {
         self.recent_traces.clear();
+        self.protocol_runtime.clear();
     }
 
     fn execute_turn_skeleton(&self, input: &NoNameTurnInput) -> Result<NoNameTrace, NoNameError> {
@@ -384,6 +409,152 @@ impl NoNameRuntime {
 
         proposal
     }
+
+    fn run_protocol_observe_fan_out(
+        &mut self,
+        input: &NoNameTurnInput,
+        trace: &mut NoNameTrace,
+        context_packet: &NoNameContextPacket,
+        action_summary: &str,
+    ) -> Result<Vec<NoNameRoleObservation>, NoNameError> {
+        if !self.config.mode.is_enabled() {
+            return Ok(Vec::new());
+        }
+
+        self.protocol_runtime.clear();
+
+        let orchestrator = NoNameAgentAddress {
+            agent_id: NoNameRole::Director.as_str().to_string(),
+            role: NoNameRole::Director,
+            runtime: "local".to_string(),
+        };
+        let parent_task_id = format!("{}-director-observe", input.turn_id);
+        let mut observations = Vec::new();
+
+        for role in NoNameGraphExecutor::default_role_dispatch_order()
+            .iter()
+            .copied()
+            .filter(|role| *role != NoNameRole::Director)
+        {
+            let header =
+                NoNameProtocolHeader::new(trace.trace_id.clone(), trace.session_id.clone());
+            let callee = NoNameAgentAddress {
+                agent_id: role.as_str().to_string(),
+                role,
+                runtime: "local".to_string(),
+            };
+            let base_lifecycle = crate::noname_protocol_types::NoNameTaskLifecycle::new(format!(
+                "{}-{}-observe",
+                input.turn_id,
+                role.as_str()
+            ))
+            .with_parent(parent_task_id.clone())
+            .with_timeout(self.config.timeout_policy.planning_timeout_ms);
+
+            let task_request = NoNameAgentMessage::new(
+                header.clone(),
+                orchestrator.clone(),
+                callee.clone(),
+                NoNameAgentMessageKind::TaskRequest,
+                base_lifecycle.clone(),
+                serde_json::json!({
+                    "actionSummary": action_summary,
+                    "callerRole": input.caller_role.as_str(),
+                    "targetRole": role.as_str(),
+                }),
+            );
+            let queued = self.protocol_runtime.submit_agent_message(task_request.clone())?;
+            task_request.record_on_trace(trace, queued.status.as_str());
+
+            let delegation = NoNameAgentMessage::new(
+                header.clone(),
+                orchestrator.clone(),
+                callee.clone(),
+                NoNameAgentMessageKind::Delegation,
+                queued.clone(),
+                serde_json::json!({
+                    "goal": action_summary,
+                    "targetRole": role.as_str(),
+                }),
+            );
+            let running = self
+                .protocol_runtime
+                .submit_agent_message(delegation.clone())?;
+            delegation.record_on_trace(trace, running.status.as_str());
+
+            let mut role_context = context_packet.clone();
+            role_context.role = role;
+            let mut role_trace = NoNameTrace::empty(
+                trace.trace_id.clone(),
+                trace.session_id.clone(),
+                trace.turn_id.clone(),
+                trace.mode,
+            );
+
+            match self.agent_registry.dispatch_observe_turn(
+                role,
+                &mut role_trace,
+                &role_context,
+                action_summary,
+            ) {
+                Ok(observation) => {
+                    trace.capability_calls.extend(role_trace.capability_calls);
+                    trace.record_proposal_transition(format!(
+                        "{}:fanout:{}:{}",
+                        observation.proposal.proposal_id,
+                        role.as_str(),
+                        observation.proposal.status.as_str()
+                    ));
+
+                    let result_message = NoNameAgentMessage::new(
+                        header,
+                        callee,
+                        orchestrator.clone(),
+                        NoNameAgentMessageKind::Result,
+                        running,
+                        serde_json::json!({
+                            "proposalId": observation.proposal.proposal_id,
+                            "proposalKind": format!("{:?}", observation.proposal.kind),
+                            "focus": observation.focus,
+                        }),
+                    );
+                    let completed = self
+                        .protocol_runtime
+                        .submit_agent_message(result_message.clone())?;
+                    result_message.record_on_trace(trace, completed.status.as_str());
+                    observations.push(observation);
+                }
+                Err(error) => {
+                    let error_message = NoNameAgentMessage::new(
+                        header,
+                        callee,
+                        orchestrator.clone(),
+                        NoNameAgentMessageKind::Error,
+                        running,
+                        serde_json::json!({
+                            "code": error.code,
+                            "message": error.message,
+                        }),
+                    );
+                    let failed = self
+                        .protocol_runtime
+                        .submit_agent_message(error_message.clone())?;
+                    error_message.record_on_trace(trace, failed.status.as_str());
+                    trace.record_proposal_transition(format!(
+                        "{}:fanout:{}:error:{}",
+                        input.turn_id,
+                        role.as_str(),
+                        error_message
+                            .payload["code"]
+                            .as_str()
+                            .unwrap_or("unknown")
+                    ));
+                }
+            }
+        }
+
+        Ok(observations)
+    }
 }
 
 #[cfg(test)]
@@ -530,7 +701,10 @@ mod tests {
             result.proposal.kind,
             crate::noname_types::NoNameProposalKind::PlotCandidate
         );
-        assert_eq!(result.trace.capability_calls.len(), 3);
+        assert_eq!(result.related_observations.len(), 3);
+        assert_eq!(result.trace.related_observations.len(), 3);
+        assert_eq!(result.trace.protocol_events.len(), 9);
+        assert_eq!(result.trace.capability_calls.len(), 21);
         assert_eq!(result.trace.proposals.len(), 1);
         assert!(!result.proposal.applyable);
         assert_eq!(result.proposal.status, NoNameProposalStatus::Observed);
@@ -546,6 +720,11 @@ mod tests {
             result.guardrail_result.as_ref().map(|item| item.outcome),
             Some(NoNameGuardrailOutcome::Accept | NoNameGuardrailOutcome::Repair)
         ));
+        assert!(result
+            .trace
+            .proposal_transition_log
+            .iter()
+            .any(|item| item.contains(":fanout:world_curator:observed")));
         assert_eq!(runtime.get_recent_traces().len(), 1);
     }
 

@@ -26,6 +26,22 @@ pub struct NoNameContextPacket {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct NoNameRoleContextPacket {
+    pub role: NoNameRole,
+    pub role_goal: String,
+    pub scene_focus: String,
+    pub world_facts: Vec<String>,
+    pub character_relationships: Vec<String>,
+    pub narrative_priorities: Vec<String>,
+    pub recent_signals: Vec<String>,
+    pub visible_constraints: Vec<String>,
+    pub forbidden_scopes: Vec<String>,
+    pub source_stats: Vec<NoNameContextSourceStat>,
+    pub token_budget_used: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct NoNameContextBuildInput {
     pub role: NoNameRole,
     pub world_id: String,

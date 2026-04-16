@@ -213,12 +213,25 @@ export const useGameStore = defineStore('game', {
           .map((item) => `#${item.order}:${item.target}:${item.decision}@${item.priority}${item.note ? `(${item.note})` : ''}`)
           .join(', ')
         : '无';
+      const relatedObservations = latest.relatedObservations && latest.relatedObservations.length > 0
+        ? latest.relatedObservations
+          .map((item) => `${item.role}:${item.focus}`)
+          .join(', ')
+        : '无';
+      const protocolEvents = latest.protocolEvents && latest.protocolEvents.length > 0
+        ? latest.protocolEvents
+          .slice(-6)
+          .map((item) => `${item.channel}:${item.kind}:${item.status}`)
+          .join(', ')
+        : '无';
       return [
         `最近 Trace：${latest.traceId}`,
         `模式：${latest.mode}`,
         `路径：${path}`,
         `能力调用：${calls}`,
         `提案：${proposal ? `${proposal.title} / ${proposal.focus} / ${proposalStatus}` : '无'}`,
+        `协作观察：${relatedObservations}`,
+        `协议事件：${protocolEvents}`,
         `目标段：${proposal?.targetSegment || '无'}`,
         `预期效果：${proposal?.intendedEffect || '无'}`,
         `作用域：${proposalScopes}`,
@@ -542,5 +555,3 @@ export const useGameStore = defineStore('game', {
     },
   },
 });
-
-

@@ -1,4 +1,4 @@
-﻿use crate::llm_service::LLMConfig;
+use crate::llm_service::LLMConfig;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
@@ -22,6 +22,8 @@ pub struct LLMConfigStatus {
     pub model: Option<String>,
     pub max_tokens: Option<u32>,
     pub temperature: Option<f32>,
+    pub api_key_saved: bool,
+    pub api_key_hint: Option<String>,
 }
 
 pub fn set_runtime_llm_config(config: LLMConfig) {
@@ -50,36 +52,15 @@ pub fn resolve_llm_config() -> Option<LLMConfig> {
 
 pub fn get_llm_config_status() -> LLMConfigStatus {
     if let Some(cfg) = get_runtime_llm_config() {
-        return LLMConfigStatus {
-            configured: true,
-            source: "runtime".to_string(),
-            endpoint: Some(cfg.endpoint),
-            model: Some(cfg.model),
-            max_tokens: Some(cfg.max_tokens),
-            temperature: Some(cfg.temperature),
-        };
+        return status_from_config(&cfg, "runtime");
     }
 
     if let Some(cfg) = load_llm_config_from_file() {
-        return LLMConfigStatus {
-            configured: true,
-            source: "file".to_string(),
-            endpoint: Some(cfg.endpoint),
-            model: Some(cfg.model),
-            max_tokens: Some(cfg.max_tokens),
-            temperature: Some(cfg.temperature),
-        };
+        return status_from_config(&cfg, "file");
     }
 
     if let Some(cfg) = load_llm_config_from_env() {
-        return LLMConfigStatus {
-            configured: true,
-            source: "env".to_string(),
-            endpoint: Some(cfg.endpoint),
-            model: Some(cfg.model),
-            max_tokens: Some(cfg.max_tokens),
-            temperature: Some(cfg.temperature),
-        };
+        return status_from_config(&cfg, "env");
     }
 
     LLMConfigStatus {
@@ -89,7 +70,39 @@ pub fn get_llm_config_status() -> LLMConfigStatus {
         model: None,
         max_tokens: None,
         temperature: None,
+        api_key_saved: false,
+        api_key_hint: None,
     }
+}
+
+fn status_from_config(cfg: &LLMConfig, source: &str) -> LLMConfigStatus {
+    let api_key_hint = mask_api_key(&cfg.api_key);
+    LLMConfigStatus {
+        configured: true,
+        source: source.to_string(),
+        endpoint: Some(cfg.endpoint.clone()),
+        model: Some(cfg.model.clone()),
+        max_tokens: Some(cfg.max_tokens),
+        temperature: Some(cfg.temperature),
+        api_key_saved: api_key_hint.is_some(),
+        api_key_hint,
+    }
+}
+
+fn mask_api_key(api_key: &str) -> Option<String> {
+    let trimmed = api_key.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let suffix = trimmed
+        .chars()
+        .rev()
+        .take(4)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect::<String>();
+    Some(format!("***{}", suffix))
 }
 
 fn load_llm_config_from_env() -> Option<LLMConfig> {
@@ -131,4 +144,33 @@ fn remove_llm_config_file() -> Result<(), String> {
         fs::remove_file(path).map_err(|e| e.to_string())?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_mask_api_key_returns_last_four_hint() {
+        assert_eq!(
+            mask_api_key("dummy-api-key-1234"),
+            Some("***1234".to_string())
+        );
+        assert_eq!(mask_api_key(""), None);
+    }
+
+    #[test]
+    fn test_status_from_config_marks_saved_api_key() {
+        let cfg = LLMConfig {
+            endpoint: "https://api.example.com/v1/chat/completions".to_string(),
+            api_key: "secret-key".to_string(),
+            model: "demo-model".to_string(),
+            max_tokens: 512,
+            temperature: 0.7,
+        };
+
+        let status = status_from_config(&cfg, "file");
+        assert!(status.api_key_saved);
+        assert_eq!(status.api_key_hint, Some("***-key".to_string()));
+    }
 }

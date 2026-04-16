@@ -1,4 +1,4 @@
-﻿import { mount } from '@vue/test-utils';
+import { mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ScriptSelector from '../ScriptSelector.vue';
 
@@ -248,6 +248,9 @@ describe('ScriptSelector', () => {
     expect(wrapper.text()).toContain('正在生成随机剧本');
     expect(wrapper.text()).toContain('生成进度 1/2');
     expect(wrapper.text()).toContain('阴阳轮转');
+    const progress = wrapper.get('[data-testid="random-generation-progress"]');
+    expect(progress.attributes('aria-valuenow')).toBe('50');
+    expect(progress.text()).toContain('50%');
 
     resolveInit?.();
     await flushPromises();

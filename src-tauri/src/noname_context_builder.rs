@@ -2,9 +2,11 @@ use crate::entity_store::{EntityQuery, EntityStore};
 use crate::entity_types::EntityType;
 use crate::noname_context_types::{
     NoNameContextBuildInput, NoNameContextPacket, NoNameContextSourceStat,
+    NoNameRoleContextPacket,
 };
 use crate::noname_memory_manager::NoNameMemoryManager;
 use crate::noname_memory_retrieval::NoNameMemoryQuery;
+use crate::noname_types::NoNameRole;
 
 pub fn build_context_packet(
     store: &EntityStore,
@@ -14,6 +16,10 @@ pub fn build_context_packet(
     let retrieved = memory_manager.retrieve(&NoNameMemoryQuery {
         role: input.role,
         search_term: input.player_intent.clone(),
+        actor: None,
+        location: input.map_node_id.clone(),
+        goal: input.player_intent.clone(),
+        keyword: input.player_intent.clone(),
         token_budget: input.token_budget,
         per_section_limit: input.per_section_limit,
     });
@@ -149,6 +155,168 @@ pub fn build_context_packet(
     }
 }
 
+pub fn build_role_context_packet(
+    store: &EntityStore,
+    memory_manager: &NoNameMemoryManager,
+    input: &NoNameContextBuildInput,
+    role: NoNameRole,
+) -> NoNameRoleContextPacket {
+    let mut role_input = input.clone();
+    role_input.role = role;
+    let packet = build_context_packet(store, memory_manager, &role_input);
+    specialize_context_packet(&packet)
+}
+
+pub fn build_role_context_packets(
+    store: &EntityStore,
+    memory_manager: &NoNameMemoryManager,
+    input: &NoNameContextBuildInput,
+    roles: &[NoNameRole],
+) -> Vec<NoNameRoleContextPacket> {
+    roles
+        .iter()
+        .copied()
+        .map(|role| build_role_context_packet(store, memory_manager, input, role))
+        .collect()
+}
+
+pub fn specialize_context_packet(packet: &NoNameContextPacket) -> NoNameRoleContextPacket {
+    match packet.role {
+        NoNameRole::Director => director_context(packet),
+        NoNameRole::WorldCurator => world_curator_context(packet),
+        NoNameRole::NpcIntent => npc_intent_context(packet),
+        NoNameRole::CombatNarrator => combat_narrator_context(packet),
+        NoNameRole::System => system_context(packet),
+    }
+}
+
+fn director_context(packet: &NoNameContextPacket) -> NoNameRoleContextPacket {
+    NoNameRoleContextPacket {
+        role: NoNameRole::Director,
+        role_goal: "Select the safest narrative focus for the next beat.".to_string(),
+        scene_focus: first_of(&[
+            &packet.narrative_notes,
+            &packet.episodic_memory,
+            &packet.recent_context,
+            &packet.hard_facts,
+        ]),
+        world_facts: take_lines(&packet.hard_facts, 2),
+        character_relationships: take_lines(&packet.referenced_entities, 4),
+        narrative_priorities: take_joined(&[&packet.narrative_notes, &packet.chapter_summaries], 6),
+        recent_signals: take_joined(&[&packet.working_memory, &packet.recent_context], 4),
+        visible_constraints: vec![
+            "May propose low-risk narrative direction.".to_string(),
+            "Should keep unresolved threads visible for later turns.".to_string(),
+        ],
+        forbidden_scopes: vec![
+            "Must not directly rewrite final plot state.".to_string(),
+            "Must not invent hard world canon without WorldCurator support.".to_string(),
+        ],
+        source_stats: packet.source_stats.clone(),
+        token_budget_used: packet.token_budget_used,
+    }
+}
+
+fn world_curator_context(packet: &NoNameContextPacket) -> NoNameRoleContextPacket {
+    NoNameRoleContextPacket {
+        role: NoNameRole::WorldCurator,
+        role_goal: "Maintain world facts, scene constraints, and canon anchors.".to_string(),
+        scene_focus: first_of(&[
+            &packet.hard_facts,
+            &packet.chapter_summaries,
+            &packet.referenced_entities,
+            &packet.recent_context,
+        ]),
+        world_facts: take_joined(&[&packet.hard_facts, &packet.chapter_summaries], 8),
+        character_relationships: take_lines(&packet.referenced_entities, 3),
+        narrative_priorities: take_lines(&packet.chapter_summaries, 3),
+        recent_signals: take_lines(&packet.recent_context, 2),
+        visible_constraints: vec![
+            "May clarify setting rules and location constraints.".to_string(),
+            "Should preserve established facts over dramatic convenience.".to_string(),
+        ],
+        forbidden_scopes: vec![
+            "Must not decide NPC private intent.".to_string(),
+            "Must not choose the main plot beat alone.".to_string(),
+        ],
+        source_stats: packet.source_stats.clone(),
+        token_budget_used: packet.token_budget_used,
+    }
+}
+
+fn npc_intent_context(packet: &NoNameContextPacket) -> NoNameRoleContextPacket {
+    NoNameRoleContextPacket {
+        role: NoNameRole::NpcIntent,
+        role_goal: "Infer NPC motivation, stance changes, and relationship pressure.".to_string(),
+        scene_focus: first_of(&[
+            &packet.referenced_entities,
+            &packet.episodic_memory,
+            &packet.narrative_notes,
+            &packet.recent_context,
+        ]),
+        world_facts: take_lines(&packet.hard_facts, 2),
+        character_relationships: take_joined(
+            &[&packet.referenced_entities, &packet.narrative_notes],
+            6,
+        ),
+        narrative_priorities: take_lines(&packet.narrative_notes, 4),
+        recent_signals: take_joined(&[&packet.episodic_memory, &packet.recent_context], 5),
+        visible_constraints: vec![
+            "May infer motivation only from visible context.".to_string(),
+            "Should keep uncertainty explicit when evidence is thin.".to_string(),
+        ],
+        forbidden_scopes: vec![
+            "Must not reveal hidden knowledge not present in context.".to_string(),
+            "Must not override world facts or combat outcomes.".to_string(),
+        ],
+        source_stats: packet.source_stats.clone(),
+        token_budget_used: packet.token_budget_used,
+    }
+}
+
+fn combat_narrator_context(packet: &NoNameContextPacket) -> NoNameRoleContextPacket {
+    NoNameRoleContextPacket {
+        role: NoNameRole::CombatNarrator,
+        role_goal: "Track conflict rhythm, action feedback, and combat narration anchors.".to_string(),
+        scene_focus: first_of(&[
+            &packet.recent_context,
+            &packet.episodic_memory,
+            &packet.working_memory,
+            &packet.narrative_notes,
+        ]),
+        world_facts: take_lines(&packet.hard_facts, 3),
+        character_relationships: take_lines(&packet.referenced_entities, 3),
+        narrative_priorities: take_lines(&packet.narrative_notes, 3),
+        recent_signals: take_joined(&[&packet.recent_context, &packet.episodic_memory], 6),
+        visible_constraints: vec![
+            "May describe action consequences as low-risk narration anchors.".to_string(),
+            "Should preserve current combat constraints.".to_string(),
+        ],
+        forbidden_scopes: vec![
+            "Must not determine final damage or victory state.".to_string(),
+            "Must not invent new combat rules.".to_string(),
+        ],
+        source_stats: packet.source_stats.clone(),
+        token_budget_used: packet.token_budget_used,
+    }
+}
+
+fn system_context(packet: &NoNameContextPacket) -> NoNameRoleContextPacket {
+    NoNameRoleContextPacket {
+        role: NoNameRole::System,
+        role_goal: "Provide diagnostics without narrative authority.".to_string(),
+        scene_focus: first_of(&[&packet.recent_context, &packet.working_memory]),
+        world_facts: Vec::new(),
+        character_relationships: Vec::new(),
+        narrative_priorities: Vec::new(),
+        recent_signals: take_joined(&[&packet.working_memory, &packet.recent_context], 4),
+        visible_constraints: vec!["May inspect available context shape.".to_string()],
+        forbidden_scopes: vec!["Must not author narrative content.".to_string()],
+        source_stats: packet.source_stats.clone(),
+        token_budget_used: packet.token_budget_used,
+    }
+}
+
 fn trim_to_budget(items: &mut Vec<String>, remain_budget: usize, used: &mut usize) {
     let mut current = 0usize;
     items.retain(|line| {
@@ -185,6 +353,32 @@ fn build_compressed_summary(
         .cloned()
         .unwrap_or_else(|| "暂无叙事线索".to_string());
     format!("硬事实: {}; 近期事件: {}; 当前叙事: {}", fact, event, note)
+}
+
+fn first_of(groups: &[&Vec<String>]) -> String {
+    groups
+        .iter()
+        .find_map(|items| items.first().cloned())
+        .unwrap_or_else(|| "No focused context available.".to_string())
+}
+
+fn take_lines(items: &[String], limit: usize) -> Vec<String> {
+    items.iter().take(limit).cloned().collect()
+}
+
+fn take_joined(groups: &[&Vec<String>], limit: usize) -> Vec<String> {
+    let mut values = Vec::new();
+    for group in groups {
+        for item in group.iter() {
+            if values.len() >= limit {
+                return values;
+            }
+            if !values.iter().any(|existing| existing == item) {
+                values.push(item.clone());
+            }
+        }
+    }
+    values
 }
 
 #[cfg(test)]
@@ -293,5 +487,130 @@ mod tests {
         );
 
         assert!(packet.compressed_summary.is_some());
+    }
+
+    #[test]
+    fn role_context_builder_returns_distinct_packets_for_core_roles() {
+        let store = EntityStore::new();
+        let mut manager = NoNameMemoryManager::new();
+        manager.push_working_memory(
+            NoNameWorkingMemoryItem {
+                memory_id: "work-1".to_string(),
+                turn_id: "turn-1".to_string(),
+                source: "runtime".to_string(),
+                category: "recent_turn".to_string(),
+                summary: "Player asks Elder Qinghe about the broken ward.".to_string(),
+                expires_at: None,
+                priority: 10,
+            },
+            8,
+        );
+        manager.push_episodic_memory(crate::noname_memory_types::NoNameEpisodicMemoryItem {
+            memory_id: "event-1".to_string(),
+            event_type: "dialogue".to_string(),
+            timestamp: 1,
+            chapter_index: 1,
+            location_id: Some("mountain_gate".to_string()),
+            actors: vec!["Player".to_string(), "Elder Qinghe".to_string()],
+            summary: "Elder Qinghe hesitates before naming the ward saboteur.".to_string(),
+            detail_ref: None,
+            importance: crate::noname_memory_types::NoNameMemoryImportance::High,
+        });
+        manager.upsert_semantic_memory(crate::noname_memory_types::NoNameSemanticMemoryItem {
+            fact_id: "fact-1".to_string(),
+            subject: "Mountain Gate".to_string(),
+            predicate: "is protected by".to_string(),
+            object: "ward formation".to_string(),
+            confidence: 95,
+            source: "test".to_string(),
+            updated_at: 1,
+            tags: vec!["mountain_gate".to_string()],
+        });
+        manager.upsert_narrative_memory(crate::noname_memory_types::NoNameNarrativeMemoryItem {
+            note_id: "note-1".to_string(),
+            chapter_index: 1,
+            arc_id: None,
+            note_type: crate::noname_memory_types::NoNameNarrativeNoteType::UnresolvedThread,
+            title: "Broken Ward".to_string(),
+            summary: "The saboteur behind the ward damage remains unknown.".to_string(),
+            status: crate::noname_memory_types::NoNameNarrativeStatus::Active,
+            related_entities: vec!["Elder Qinghe".to_string()],
+            updated_at: 1,
+        });
+
+        let input = NoNameContextBuildInput {
+            role: NoNameRole::Director,
+            world_id: "w1".to_string(),
+            run_id: "r1".to_string(),
+            scene_id: "s1".to_string(),
+            character_ids: vec!["player".to_string()],
+            map_node_id: Some("mountain_gate".to_string()),
+            player_intent: Some("ward".to_string()),
+            recent_context_lines: vec![
+                "The ward light flickers.".to_string(),
+                "Elder Qinghe avoids the player's gaze.".to_string(),
+            ],
+            token_budget: 240,
+            per_section_limit: 4,
+        };
+
+        let packets = build_role_context_packets(
+            &store,
+            &manager,
+            &input,
+            &[
+                NoNameRole::Director,
+                NoNameRole::WorldCurator,
+                NoNameRole::NpcIntent,
+            ],
+        );
+
+        assert_eq!(packets.len(), 3);
+        assert_eq!(packets[0].role, NoNameRole::Director);
+        assert_eq!(packets[1].role, NoNameRole::WorldCurator);
+        assert_eq!(packets[2].role, NoNameRole::NpcIntent);
+        assert_ne!(packets[0].role_goal, packets[1].role_goal);
+        assert_ne!(packets[1].forbidden_scopes, packets[2].forbidden_scopes);
+        assert!(packets[1]
+            .world_facts
+            .iter()
+            .any(|item| item.contains("Mountain Gate")));
+        assert!(packets[2]
+            .recent_signals
+            .iter()
+            .any(|item| item.contains("Elder Qinghe")));
+    }
+
+    #[test]
+    fn role_context_specialization_limits_world_curator_npc_visibility_differently() {
+        let packet = NoNameContextPacket {
+            role: NoNameRole::WorldCurator,
+            hard_facts: vec!["Gate has a ward".to_string()],
+            working_memory: vec!["Player suspects Elder Qinghe".to_string()],
+            episodic_memory: vec!["Elder Qinghe hesitated".to_string()],
+            narrative_notes: vec!["Broken Ward: saboteur unknown".to_string()],
+            chapter_summaries: vec!["Gate Crisis: ward damaged".to_string()],
+            recent_context: vec!["Ward flickers".to_string()],
+            referenced_entities: vec!["Character:ElderQinghe".to_string()],
+            compressed_summary: None,
+            token_budget_used: 42,
+            source_stats: vec![NoNameContextSourceStat {
+                source: "test".to_string(),
+                count: 1,
+            }],
+        };
+
+        let world = specialize_context_packet(&packet);
+        let mut npc_packet = packet.clone();
+        npc_packet.role = NoNameRole::NpcIntent;
+        let npc = specialize_context_packet(&npc_packet);
+
+        assert_eq!(world.scene_focus, "Gate has a ward");
+        assert_eq!(npc.scene_focus, "Character:ElderQinghe");
+        assert!(world.forbidden_scopes.iter().any(|item| item.contains("NPC")));
+        assert!(npc
+            .forbidden_scopes
+            .iter()
+            .any(|item| item.contains("hidden knowledge")));
     }
 }

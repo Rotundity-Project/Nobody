@@ -358,6 +358,36 @@ describe('gameStore', () => {
         outcome: 'applied',
         note: '已写入章节摘要提示',
       }],
+      relatedObservations: [{
+        role: 'worldCurator',
+        actionSummary: '玩家返回山门',
+        focus: '山门法阵',
+        rationale: '需要补齐世界设定锚点',
+        proposal: {
+          proposalId: 'proposal-world-1',
+          kind: 'worldPatchProposal',
+          producerRole: 'worldCurator',
+          title: 'WorldCurator提案：山门法阵',
+          summary: '补齐法阵约束',
+          focus: '山门法阵',
+          targetSegment: 'chapter_summary_tail',
+          intendedEffect: '补足世界事实',
+          rationale: '设定缺口明显',
+          labels: ['worldCurator'],
+          applyScopes: ['diagnostics', 'chapterSummaryHint'],
+          status: 'observed',
+          applyable: false,
+        },
+      }],
+      protocolEvents: [{
+        channel: 'agent',
+        from: 'director',
+        to: 'world_curator',
+        kind: 'delegation',
+        taskId: 'turn-1-world_curator-observe',
+        status: 'running',
+        detail: 'turn-1-director-observe',
+      }],
       guardrailResult: {
         outcome: 'accept',
         reason: null,
@@ -380,5 +410,7 @@ describe('gameStore', () => {
     expect(text).toContain('目标段：current_turn_tail');
     expect(text).toContain('预期效果：为下一轮低风险输出提供导向');
     expect(text).toContain('作用域：diagnostics, chapterSummaryHint');
+    expect(text).toContain('agent:delegation:running');
+    expect(text).toContain('协作观察：worldCurator:山门法阵');
   });
 });

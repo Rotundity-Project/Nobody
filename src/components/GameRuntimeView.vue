@@ -64,10 +64,24 @@
         </aside>
       </div>
 
-      <GameRuntimeBottomBar
-        v-bind="bottomBarProps"
-        v-on="bottomBarListeners"
-      />
+    <GameRuntimeBottomBar
+      v-bind="bottomBarProps"
+      v-on="bottomBarListeners"
+    />
+
+    <button
+      v-if="isDevMode && hasNoNameTraceHistory"
+      type="button"
+      class="fixed bottom-6 right-6 z-40 rounded-full border px-4 py-2 text-sm shadow-lg transition hover:-translate-y-0.5"
+      :style="{
+        borderColor: 'var(--ink-border-accent)',
+        background: 'color-mix(in srgb, var(--ink-card-bg) 92%, transparent)',
+        color: 'var(--ink-text-primary)',
+      }"
+      @click="showNoNameDebugConsole = true"
+    >
+      NoName 调试台
+    </button>
     </div>
 
     <GameSystemDialogs
@@ -104,6 +118,15 @@
       v-bind="quickPanelsDialogProps"
       v-on="quickPanelsDialogListeners"
     />
+    <NoNameDebugConsole
+      :is-open="showNoNameDebugConsole"
+      :traces="gameStore.noNameTraces"
+      :no-name-mode="noNameMode"
+      :is-dev-mode="isDevMode"
+      @close="showNoNameDebugConsole = false"
+      @clear-traces="gameStore.clearNoNameTraces()"
+      @set-no-name-mode="setNoNameMode"
+    />
     <NotificationCenter
       v-if="runtimeNotifications.length > 0"
       :notifications="runtimeNotifications"
@@ -126,6 +149,7 @@ import GameRuntimeTopBar from './GameRuntimeTopBar.vue';
 import GameRuntimeWorldRegistryPanel from './GameRuntimeWorldRegistryPanel.vue';
 import GameSystemDialogs from './GameSystemDialogs.vue';
 import NotificationCenter from './NotificationCenter.vue';
+import NoNameDebugConsole from './NoNameDebugConsole.vue';
 import RuntimeQuickPanelsDialog from './RuntimeQuickPanelsDialog.vue';
 import StoryViewport from './StoryViewport.vue';
 import type { ConsistencyPolicy, NoNameMode } from '../types/game';
@@ -193,7 +217,9 @@ const storyViewportRef = ref<{ scrollToBottom: () => void } | null>(null);
 const previousChapterParagraphs = ref<string[]>([]);
 const isDevMode = import.meta.env.DEV;
 const showQuickPanel = ref(false);
+const showNoNameDebugConsole = ref(false);
 const noNameMode = ref<NoNameMode>('observeOnly');
+const hasNoNameTraceHistory = computed(() => gameStore.noNameTraces.length > 0);
 const noNameDebugText = computed(() => {
   const getter = (gameStore as { getNoNameTraceDebugText?: () => string }).getNoNameTraceDebugText;
   return typeof getter === 'function' ? getter.call(gameStore) : '暂无 NoName Agent Trace。';
@@ -494,7 +520,15 @@ watch(
     }
   },
 );
+
+watch(
+  () => gameStore.noNameTraces.length,
+  (length) => {
+    if (length === 0) {
+      showNoNameDebugConsole.value = false;
+    }
+  },
+);
 </script>
 
 <style scoped src="../styles/game-runtime-view.css"></style>
-

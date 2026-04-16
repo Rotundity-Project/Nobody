@@ -1,7 +1,7 @@
 # 任务卡片 A2
 
 任务名: Structured Notes / Narrative Notes 增强
-状态: 未开始
+状态: V1 已完成
 建议优先级: 高
 
 ## 目标

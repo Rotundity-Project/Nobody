@@ -30,6 +30,18 @@ pub enum NoNameRole {
     System,
 }
 
+impl NoNameRole {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Director => "director",
+            Self::WorldCurator => "world_curator",
+            Self::NpcIntent => "npc_intent",
+            Self::CombatNarrator => "combat_narrator",
+            Self::System => "system",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum NoNameProposalKind {
