@@ -62,6 +62,8 @@
 
 当前 V2 切片已把 review 结果接入 `NoNameRuntime` trace：`assisted` 预检通过后会记录每个 apply scope 的 controlled output review，其中 `PlotTextHint` 仍保持 `NeedsReview`，不会自动接管最终剧情正文。
 
+当前 V2 后续切片已把 A3 角色上下文中的 `forbiddenScopes` 映射到 `NoNameControlledOutputPolicy.forbiddenScopes`，并在 trace 的 `controlledOutputReviews[].policyForbiddenScopes` 中显式记录当次 review 使用的策略禁区。
+
 ## V1 决策规则
 
 - 空 request id、空 title、空 content 会被拒绝。
@@ -87,11 +89,11 @@
 - 触碰 canon world fact 的 request 会被拒绝。
 - scene augmentation 映射到 plot text hint 时需要人工复核。
 - policy 明确列出 allowlist 和 forbidden scopes。
+- A3 role context 的 `forbiddenScopes` 可以映射为 controlled output policy，并随 review trace 输出。
 
 ## 后续建议
 
 下一步可以继续:
 
-1. 把 A3 的 `forbiddenScopes` 映射到本接口的 forbidden scopes。
-2. 为 `NeedsReview` 设计更完整的前端确认入口，让开发者手动确认是否进入更高层 apply。
-3. 继续保持 `PlotTextHint` 与最终剧情正文写入之间的人工/护栏边界。
+1. 为 `NeedsReview` 设计更完整的前端确认入口，让开发者手动确认是否进入更高层 apply。
+2. 继续保持 `PlotTextHint` 与最终剧情正文写入之间的人工/护栏边界。

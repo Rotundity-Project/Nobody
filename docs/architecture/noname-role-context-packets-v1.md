@@ -102,12 +102,12 @@
 
 - 角色上下文包还没有接入 runtime fan-out，当前仍是独立 builder 能力。
 - 当前差异化是规则式裁剪，不是 LLM 动态裁剪。
-- `visibleConstraints` 和 `forbiddenScopes` 先作为显式文本约束，后续可接 guardrail。
+- `forbiddenScopes` 已开始接入受控输出策略，用于生成 `policyForbiddenScopes` trace；`visibleConstraints` 仍先作为显式文本约束。
 
 ## 后续建议
 
 下一步可以继续:
 
 1. 在 B4 observe fan-out 中改用 `build_role_context_packet` 或由基础包生成角色视图。
-2. 让每个角色 prompt 读取 `roleGoal / forbiddenScopes`。
+2. 让每个角色 prompt 继续读取 `roleGoal / forbiddenScopes`，并与受控输出策略保持一致。
 3. 与 A2 structured notes 联动，让不同角色优先读取不同 note type。
