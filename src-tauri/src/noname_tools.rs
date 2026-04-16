@@ -102,6 +102,7 @@ pub fn build_combat_narrator_registry(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn build_role_registry(
     context_packet: &NoNameContextPacket,
     resource_id: &str,

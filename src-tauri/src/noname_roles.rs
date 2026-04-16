@@ -394,6 +394,7 @@ impl CombatNarratorAgent {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run_observe_capability_pipeline(
     trace: &mut NoNameTrace,
     registry: &NoNameCapabilityRegistry,

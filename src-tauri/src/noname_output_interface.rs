@@ -161,7 +161,7 @@ impl NoNameControlledOutputInterface {
         if !touched_forbidden.is_empty() {
             return self.reject(
                 request,
-                &format!(
+                format!(
                     "touches forbidden scope: {}",
                     touched_forbidden
                         .iter()

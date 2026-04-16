@@ -209,6 +209,7 @@ impl NoNameTrace {
         self.related_observations = observations;
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn record_protocol_event(
         &mut self,
         channel: impl Into<String>,

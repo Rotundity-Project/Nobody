@@ -40,7 +40,12 @@
           :placeholder="apiKeyInputPlaceholder"
         >
       </label>
-      <p v-if="savedApiKeyHint" class="llm-note text-xs">{{ savedApiKeyHint }}</p>
+      <p
+        v-if="savedApiKeyHint"
+        class="llm-note text-xs"
+      >
+        {{ savedApiKeyHint }}
+      </p>
 
       <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
         <label class="llm-label text-sm">
@@ -185,7 +190,12 @@
                 class="llm-input"
                 :placeholder="apiKeyInputPlaceholder"
               ></label>
-              <p v-if="savedApiKeyHint" class="llm-note text-xs">{{ savedApiKeyHint }}</p>
+              <p
+                v-if="savedApiKeyHint"
+                class="llm-note text-xs"
+              >
+                {{ savedApiKeyHint }}
+              </p>
               <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <label class="llm-label text-sm">maxTokens<input
                   v-model.number="form.maxTokens"

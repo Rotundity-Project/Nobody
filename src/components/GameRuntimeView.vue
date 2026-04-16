@@ -64,24 +64,24 @@
         </aside>
       </div>
 
-    <GameRuntimeBottomBar
-      v-bind="bottomBarProps"
-      v-on="bottomBarListeners"
-    />
+      <GameRuntimeBottomBar
+        v-bind="bottomBarProps"
+        v-on="bottomBarListeners"
+      />
 
-    <button
-      v-if="isDevMode && hasNoNameTraceHistory"
-      type="button"
-      class="fixed bottom-6 right-6 z-40 rounded-full border px-4 py-2 text-sm shadow-lg transition hover:-translate-y-0.5"
-      :style="{
-        borderColor: 'var(--ink-border-accent)',
-        background: 'color-mix(in srgb, var(--ink-card-bg) 92%, transparent)',
-        color: 'var(--ink-text-primary)',
-      }"
-      @click="showNoNameDebugConsole = true"
-    >
-      NoName 调试台
-    </button>
+      <button
+        v-if="isDevMode && hasNoNameTraceHistory"
+        type="button"
+        class="fixed bottom-6 right-6 z-40 rounded-full border px-4 py-2 text-sm shadow-lg transition hover:-translate-y-0.5"
+        :style="{
+          borderColor: 'var(--ink-border-accent)',
+          background: 'color-mix(in srgb, var(--ink-card-bg) 92%, transparent)',
+          color: 'var(--ink-text-primary)',
+        }"
+        @click="showNoNameDebugConsole = true"
+      >
+        NoName 调试台
+      </button>
     </div>
 
     <GameSystemDialogs
@@ -119,8 +119,9 @@
       v-on="quickPanelsDialogListeners"
     />
     <NoNameDebugConsole
+      v-if="showNoNameDebugConsole"
       :is-open="showNoNameDebugConsole"
-      :traces="gameStore.noNameTraces"
+      :traces="gameStore.noNameTraces ?? []"
       :no-name-mode="noNameMode"
       :is-dev-mode="isDevMode"
       @close="showNoNameDebugConsole = false"
@@ -219,7 +220,7 @@ const isDevMode = import.meta.env.DEV;
 const showQuickPanel = ref(false);
 const showNoNameDebugConsole = ref(false);
 const noNameMode = ref<NoNameMode>('observeOnly');
-const hasNoNameTraceHistory = computed(() => gameStore.noNameTraces.length > 0);
+const hasNoNameTraceHistory = computed(() => (gameStore.noNameTraces?.length ?? 0) > 0);
 const noNameDebugText = computed(() => {
   const getter = (gameStore as { getNoNameTraceDebugText?: () => string }).getNoNameTraceDebugText;
   return typeof getter === 'function' ? getter.call(gameStore) : '暂无 NoName Agent Trace。';
@@ -522,7 +523,7 @@ watch(
 );
 
 watch(
-  () => gameStore.noNameTraces.length,
+  () => gameStore.noNameTraces?.length ?? 0,
   (length) => {
     if (length === 0) {
       showNoNameDebugConsole.value = false;

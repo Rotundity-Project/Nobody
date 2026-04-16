@@ -13,6 +13,7 @@ const createContinueActionMock = vi.fn();
 const createFreeTextActionMock = vi.fn();
 const validateFreeTextInputMock = vi.fn();
 const invokeWithTimeoutMock = vi.fn();
+const invokeRuntimeMock = vi.fn();
 const getStorySettingsMock = vi.fn();
 const saveStorySettingsMock = vi.fn();
 
@@ -80,6 +81,7 @@ vi.mock('../../utils/storySettings', () => ({
 
 vi.mock('../../utils/tauriInvoke', () => ({
   invokeWithTimeout: (...args: unknown[]) => invokeWithTimeoutMock(...args),
+  invokeRuntime: (...args: unknown[]) => invokeRuntimeMock(...args),
 }));
 
 const buildStore = (overrides: Record<string, unknown> = {}) =>
@@ -443,4 +445,3 @@ describe('GameView', () => {
     expect(wrapper.text()).not.toContain(' ·  · ');
   });
 });
-

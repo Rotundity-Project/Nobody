@@ -184,7 +184,10 @@
               :aria-valuemax="100"
               :aria-valuenow="randomLoadingProgressPercent"
             >
-              <div class="script-random-progress-track" aria-hidden="true">
+              <div
+                class="script-random-progress-track"
+                aria-hidden="true"
+              >
                 <div
                   class="script-random-progress-fill"
                   :style="{ width: `${randomLoadingProgressPercent}%` }"
@@ -192,7 +195,10 @@
               </div>
               <div class="script-random-progress-meta">
                 <span class="script-random-progress-value">{{ randomLoadingProgressPercent }}%</span>
-                <span v-if="loadingProgressText" class="script-random-progress-text">{{ loadingProgressText }}</span>
+                <span
+                  v-if="loadingProgressText"
+                  class="script-random-progress-text"
+                >{{ loadingProgressText }}</span>
               </div>
             </div>
             <p

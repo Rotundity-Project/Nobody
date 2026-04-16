@@ -143,8 +143,8 @@ impl NoNameMemoryCompactionService {
         }
 
         let summary = compact_fragments(summary_fragments, self.summary_char_limit);
-        let locations = dedupe_optional(input.location_id.into_iter());
-        let goals = dedupe_optional(input.goal.into_iter());
+        let locations = dedupe_optional(input.location_id);
+        let goals = dedupe_optional(input.goal);
 
         NoNameCompactionSummary {
             summary_id: format!("compact-turn-{}", stable_key(&input.turn_id)),
