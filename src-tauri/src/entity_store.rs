@@ -53,7 +53,7 @@ impl EntityStore {
             let lower = keyword.to_lowercase();
             out.retain(|e| e.payload.to_string().to_lowercase().contains(&lower));
         }
-        out.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+        out.sort_by_key(|entity| std::cmp::Reverse(entity.updated_at));
         out
     }
 }
