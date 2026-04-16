@@ -704,10 +704,7 @@ fn extract_unmarked_named_entities(text: &str) -> Vec<String> {
             .collect::<String>()
             .trim()
             .to_string();
-        loop {
-            let Some(first) = candidate.chars().next() else {
-                break;
-            };
+        while let Some(first) = candidate.chars().next() {
             let is_prefix = matches!(
                 first,
                 '在' | '于'
