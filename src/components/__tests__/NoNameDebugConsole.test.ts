@@ -87,6 +87,7 @@ const traces: NoNameTrace[] = [
       reason: 'plot text hint requires human review before higher-layer apply',
       normalizedKind: 'sceneAugmentation',
       safeApplyScope: 'plotTextHint',
+      policyForbiddenScopes: ['finalPlotState', 'canonWorldFact'],
       requiresHumanReview: true,
     }],
     fallbackUsed: false,

@@ -1,3 +1,4 @@
+use crate::noname_context_types::NoNameRoleContextPacket;
 use crate::noname_types::{NoNameApplyScope, NoNameProposalRef, NoNameRole};
 use serde::{Deserialize, Serialize};
 
@@ -149,7 +150,10 @@ impl NoNameControlledOutputInterface {
             return self.reject(request, "output kind is not allowed by policy");
         }
         if request.content.chars().count() > self.policy.max_content_chars {
-            return self.reject(request, "content exceeds controlled output character budget");
+            return self.reject(
+                request,
+                "content exceeds controlled output character budget",
+            );
         }
 
         let touched_forbidden = request
@@ -178,7 +182,8 @@ impl NoNameControlledOutputInterface {
             return NoNameControlledOutputReview {
                 request_id: request.request_id.clone(),
                 decision: NoNameControlledOutputDecision::NeedsReview,
-                reason: "plot text hint requires human review before higher-layer apply".to_string(),
+                reason: "plot text hint requires human review before higher-layer apply"
+                    .to_string(),
                 normalized_kind: Some(request.kind),
                 safe_apply_scope: Some(request.target_scope),
                 requires_human_review: true,
@@ -212,7 +217,10 @@ impl NoNameControlledOutputInterface {
             title: title.into(),
             content: content.into(),
             touched_forbidden_scopes: Vec::new(),
-            labels: vec!["noname_controlled_output_v1".to_string(), kind_key.to_string()],
+            labels: vec![
+                "noname_controlled_output_v1".to_string(),
+                kind_key.to_string(),
+            ],
         }
     }
 
@@ -229,6 +237,89 @@ impl NoNameControlledOutputInterface {
             safe_apply_scope: None,
             requires_human_review: false,
         }
+    }
+}
+
+pub fn controlled_output_policy_from_role_context(
+    context: &NoNameRoleContextPacket,
+) -> NoNameControlledOutputPolicy {
+    let mut policy = NoNameControlledOutputPolicy::default();
+    let mapped = forbidden_output_scopes_from_role_constraints(&context.forbidden_scopes);
+    if !mapped.is_empty() {
+        policy.forbidden_scopes = mapped;
+    }
+    policy
+}
+
+pub fn forbidden_output_scopes_from_role_constraints(
+    constraints: &[String],
+) -> Vec<NoNameForbiddenOutputScope> {
+    let mut scopes = Vec::new();
+    for constraint in constraints {
+        let text = constraint.to_ascii_lowercase();
+        if contains_any(
+            &text,
+            &[
+                "final plot state",
+                "main plot beat",
+                "author narrative content",
+            ],
+        ) {
+            push_unique(&mut scopes, NoNameForbiddenOutputScope::FinalPlotState);
+        }
+        if contains_any(
+            &text,
+            &[
+                "canon",
+                "world fact",
+                "world facts",
+                "hard world",
+                "override world facts",
+            ],
+        ) {
+            push_unique(&mut scopes, NoNameForbiddenOutputScope::CanonWorldFact);
+        }
+        if contains_any(
+            &text,
+            &["character stats", "attribute", "realm", "cultivation"],
+        ) {
+            push_unique(&mut scopes, NoNameForbiddenOutputScope::CharacterStats);
+        }
+        if contains_any(&text, &["inventory", "resource"]) {
+            push_unique(&mut scopes, NoNameForbiddenOutputScope::InventoryOrResource);
+        }
+        if contains_any(&text, &["map topology", "location graph", "route graph"]) {
+            push_unique(&mut scopes, NoNameForbiddenOutputScope::MapTopology);
+        }
+        if contains_any(&text, &["chapter lifecycle", "chapter transition"]) {
+            push_unique(&mut scopes, NoNameForbiddenOutputScope::ChapterLifecycle);
+        }
+        if contains_any(&text, &["player choice", "choose for player"]) {
+            push_unique(&mut scopes, NoNameForbiddenOutputScope::PlayerChoice);
+        }
+        if contains_any(
+            &text,
+            &[
+                "combat outcome",
+                "damage",
+                "victory",
+                "combat rules",
+                "final damage",
+            ],
+        ) {
+            push_unique(&mut scopes, NoNameForbiddenOutputScope::CombatOutcome);
+        }
+    }
+    scopes
+}
+
+fn contains_any(text: &str, needles: &[&str]) -> bool {
+    needles.iter().any(|needle| text.contains(needle))
+}
+
+fn push_unique(scopes: &mut Vec<NoNameForbiddenOutputScope>, scope: NoNameForbiddenOutputScope) {
+    if !scopes.contains(&scope) {
+        scopes.push(scope);
     }
 }
 
@@ -276,7 +367,10 @@ mod tests {
         let review = interface.review(&request);
 
         assert_eq!(review.decision, NoNameControlledOutputDecision::Allow);
-        assert_eq!(review.safe_apply_scope, Some(NoNameApplyScope::ChapterSummaryHint));
+        assert_eq!(
+            review.safe_apply_scope,
+            Some(NoNameApplyScope::ChapterSummaryHint)
+        );
         assert!(!review.requires_human_review);
     }
 
@@ -313,7 +407,39 @@ mod tests {
         let review = interface.review(&request);
 
         assert_eq!(review.decision, NoNameControlledOutputDecision::NeedsReview);
-        assert_eq!(review.safe_apply_scope, Some(NoNameApplyScope::PlotTextHint));
+        assert_eq!(
+            review.safe_apply_scope,
+            Some(NoNameApplyScope::PlotTextHint)
+        );
         assert!(review.requires_human_review);
+    }
+
+    #[test]
+    fn role_context_forbidden_scopes_map_to_output_policy() {
+        let context = NoNameRoleContextPacket {
+            role: NoNameRole::CombatNarrator,
+            role_goal: "Track conflict rhythm".to_string(),
+            scene_focus: "山门冲突".to_string(),
+            world_facts: vec![],
+            character_relationships: vec![],
+            narrative_priorities: vec![],
+            recent_signals: vec![],
+            visible_constraints: vec![],
+            forbidden_scopes: vec![
+                "Must not determine final damage or victory state.".to_string(),
+                "Must not override world facts or combat outcomes.".to_string(),
+            ],
+            source_stats: vec![],
+            token_budget_used: 0,
+        };
+
+        let policy = controlled_output_policy_from_role_context(&context);
+
+        assert!(policy
+            .forbidden_scopes
+            .contains(&NoNameForbiddenOutputScope::CombatOutcome));
+        assert!(policy
+            .forbidden_scopes
+            .contains(&NoNameForbiddenOutputScope::CanonWorldFact));
     }
 }

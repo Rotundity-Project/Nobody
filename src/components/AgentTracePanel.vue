@@ -204,6 +204,12 @@
             <p class="agent-trace-muted">
               {{ review.requiresHumanReview ? '需要人工复核' : '可自动通过' }} · {{ review.reason }}
             </p>
+            <p
+              v-if="review.policyForbiddenScopes?.length"
+              class="agent-trace-muted"
+            >
+              策略禁区：{{ review.policyForbiddenScopes.join(' / ') }}
+            </p>
           </li>
         </ul>
       </section>

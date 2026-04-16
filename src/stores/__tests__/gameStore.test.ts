@@ -358,6 +358,16 @@ describe('gameStore', () => {
         outcome: 'applied',
         note: '已写入章节摘要提示',
       }],
+      controlledOutputReviews: [{
+        requestId: 'controlled-output-proposal-1-plot_text_hint',
+        requestedKind: 'sceneAugmentation',
+        decision: 'needsReview',
+        reason: 'plot text hint requires human review before higher-layer apply',
+        normalizedKind: 'sceneAugmentation',
+        safeApplyScope: 'plotTextHint',
+        policyForbiddenScopes: ['finalPlotState', 'canonWorldFact'],
+        requiresHumanReview: true,
+      }],
       relatedObservations: [{
         role: 'worldCurator',
         actionSummary: '玩家返回山门',
@@ -405,6 +415,7 @@ describe('gameStore', () => {
     expect(text).toContain('预检：preflight_ready');
     expect(text).toContain('应用计划：#1:chapter_summary_hint:apply@200');
     expect(text).toContain('应用执行：chapter_summary_hint:applied');
+    expect(text).toContain('受控输出复核：sceneAugmentation:plotTextHint:needsReview:human[禁区=finalPlotState/canonWorldFact]');
     expect(text).toContain('状态迁移：proposal-1:ready');
     expect(text).toContain('提案：Director提案：山门危机 / 山门危机 / ready');
     expect(text).toContain('目标段：current_turn_tail');
