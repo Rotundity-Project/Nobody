@@ -7,6 +7,9 @@ use crate::noname_guardrails::{
     validate_director_observation, validate_director_proposal_for_apply,
     NoNameDirectorGuardrailInput, NoNameGuardrailResult,
 };
+use crate::noname_output_interface::{
+    NoNameControlledOutputDecision, NoNameControlledOutputInterface, NoNameControlledOutputKind,
+};
 use crate::noname_protocol_agent::{NoNameAgentMessage, NoNameAgentMessageKind};
 use crate::noname_protocol_runtime::NoNameProtocolRuntime;
 use crate::noname_protocol_types::{NoNameAgentAddress, NoNameProtocolHeader, NoNameTraceWritable};
@@ -312,7 +315,9 @@ impl NoNameRuntime {
                             proposal.labels.push("apply_preflight_ready".to_string());
                         }
                         if proposal.apply_scopes.is_empty()
-                            || proposal.apply_scopes.contains(&NoNameApplyScope::Diagnostics)
+                            || proposal
+                                .apply_scopes
+                                .contains(&NoNameApplyScope::Diagnostics)
                         {
                             if !proposal
                                 .labels
@@ -330,6 +335,28 @@ impl NoNameRuntime {
                                 "{}:preflight_ready:no_diagnostics_scope",
                                 proposal.proposal_id
                             ));
+                        }
+                        let (review_count, needs_review_count) =
+                            self.record_controlled_output_reviews(trace, &proposal);
+                        if review_count > 0 {
+                            trace.record_apply_execution(
+                                "runtime.controlled_output_review",
+                                "recorded",
+                                Some(format!(
+                                    "已记录{}条受控输出 review，其中{}条需要人工复核",
+                                    review_count, needs_review_count
+                                )),
+                            );
+                        }
+                        if needs_review_count > 0
+                            && !proposal
+                                .labels
+                                .iter()
+                                .any(|item| item == "controlled_output_needs_review")
+                        {
+                            proposal
+                                .labels
+                                .push("controlled_output_needs_review".to_string());
                         }
                         trace.record_apply_execution(
                             "runtime.apply_preflight",
@@ -410,6 +437,56 @@ impl NoNameRuntime {
         proposal
     }
 
+    fn record_controlled_output_reviews(
+        &self,
+        trace: &mut NoNameTrace,
+        proposal: &NoNameProposal,
+    ) -> (usize, usize) {
+        let interface = NoNameControlledOutputInterface::default();
+        let scopes = if proposal.apply_scopes.is_empty() {
+            vec![NoNameApplyScope::Diagnostics]
+        } else {
+            proposal.apply_scopes.clone()
+        };
+        let mut review_count = 0;
+        let mut needs_review_count = 0;
+
+        for scope in scopes {
+            let kind = controlled_output_kind_for_scope(scope);
+            let mut request = interface.draft_stub(
+                kind,
+                proposal.producer_role,
+                proposal.title.clone(),
+                proposal.summary.clone(),
+            );
+            request.request_id = format!(
+                "controlled-output-{}-{}",
+                proposal.proposal_id,
+                scope.as_str()
+            );
+            request.proposal_ref = Some(proposal.to_ref());
+            request.target_scope = scope;
+            request
+                .labels
+                .push("runtime_assisted_preflight".to_string());
+
+            let review = interface.review(&request);
+            if review.decision == NoNameControlledOutputDecision::NeedsReview {
+                needs_review_count += 1;
+            }
+            trace.record_proposal_transition(format!(
+                "{}:controlled_output:{}:{}",
+                proposal.proposal_id,
+                scope.as_str(),
+                controlled_output_decision_key(review.decision)
+            ));
+            trace.record_controlled_output_review(kind, review);
+            review_count += 1;
+        }
+
+        (review_count, needs_review_count)
+    }
+
     fn run_protocol_observe_fan_out(
         &mut self,
         input: &NoNameTurnInput,
@@ -463,7 +540,9 @@ impl NoNameRuntime {
                     "targetRole": role.as_str(),
                 }),
             );
-            let queued = self.protocol_runtime.submit_agent_message(task_request.clone())?;
+            let queued = self
+                .protocol_runtime
+                .submit_agent_message(task_request.clone())?;
             task_request.record_on_trace(trace, queued.status.as_str());
 
             let delegation = NoNameAgentMessage::new(
@@ -544,16 +623,30 @@ impl NoNameRuntime {
                         "{}:fanout:{}:error:{}",
                         input.turn_id,
                         role.as_str(),
-                        error_message
-                            .payload["code"]
-                            .as_str()
-                            .unwrap_or("unknown")
+                        error_message.payload["code"].as_str().unwrap_or("unknown")
                     ));
                 }
             }
         }
 
         Ok(observations)
+    }
+}
+
+fn controlled_output_kind_for_scope(scope: NoNameApplyScope) -> NoNameControlledOutputKind {
+    match scope {
+        NoNameApplyScope::Diagnostics => NoNameControlledOutputKind::NarrativeNote,
+        NoNameApplyScope::ChapterSummaryHint => NoNameControlledOutputKind::RecapNote,
+        NoNameApplyScope::OptionBiasHint => NoNameControlledOutputKind::IntermediateNarrativeHint,
+        NoNameApplyScope::PlotTextHint => NoNameControlledOutputKind::SceneAugmentation,
+    }
+}
+
+fn controlled_output_decision_key(decision: NoNameControlledOutputDecision) -> &'static str {
+    match decision {
+        NoNameControlledOutputDecision::Allow => "allow",
+        NoNameControlledOutputDecision::Reject => "reject",
+        NoNameControlledOutputDecision::NeedsReview => "needs_review",
     }
 }
 
@@ -716,6 +809,7 @@ mod tests {
                 .map(|item| item.outcome.as_str()),
             Some("skipped_observe_only")
         );
+        assert!(result.trace.controlled_output_reviews.is_empty());
         assert!(matches!(
             result.guardrail_result.as_ref().map(|item| item.outcome),
             Some(NoNameGuardrailOutcome::Accept | NoNameGuardrailOutcome::Repair)
@@ -818,6 +912,17 @@ mod tests {
                 .map(|item| item.outcome.as_str()),
             Some("applied_diagnostics_note")
         );
+        assert_eq!(result.trace.controlled_output_reviews.len(), 4);
+        assert!(result.trace.controlled_output_reviews.iter().any(|item| {
+            item.decision == NoNameControlledOutputDecision::NeedsReview
+                && item.safe_apply_scope == Some(NoNameApplyScope::PlotTextHint)
+                && item.requires_human_review
+        }));
+        assert!(result
+            .trace
+            .proposal_transition_log
+            .iter()
+            .any(|item| item.contains("controlled_output:plot_text_hint:needs_review")));
         assert!(result
             .trace
             .graph_path
@@ -909,6 +1014,7 @@ mod tests {
                 .map(|item| item.outcome.as_str()),
             Some("preflight_blocked")
         );
+        assert!(result.trace.controlled_output_reviews.is_empty());
         assert!(result
             .trace
             .graph_path
@@ -959,6 +1065,7 @@ mod tests {
                 .map(|item| item.outcome.as_str()),
             Some("preflight_fallback_required")
         );
+        assert!(result.trace.controlled_output_reviews.is_empty());
         assert!(result
             .trace
             .graph_path

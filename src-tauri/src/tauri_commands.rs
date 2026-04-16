@@ -192,10 +192,7 @@ fn target_segment_supports_apply_scope(
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum NoNameApplyTargetDecision {
     Apply,
-    Skip {
-        outcome: &'static str,
-        note: String,
-    },
+    Skip { outcome: &'static str, note: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -320,7 +317,10 @@ fn plan_noname_apply_target(
                 };
             }
             let option_hint = build_noname_option_bias_hint(proposal);
-            let diagnostics = state.last_generation_diagnostics.as_deref().unwrap_or_default();
+            let diagnostics = state
+                .last_generation_diagnostics
+                .as_deref()
+                .unwrap_or_default();
             if diagnostics.contains(option_hint.as_str()) {
                 return NoNameApplyTargetPlan {
                     target,
@@ -353,8 +353,18 @@ fn build_noname_apply_plan_set(
     plot_text: Option<&str>,
 ) -> Vec<NoNameApplyTargetPlan> {
     let mut plans = vec![
-        plan_noname_apply_target(proposal, NoNameApplyScope::PlotTextHint, plot_state, plot_text),
-        plan_noname_apply_target(proposal, NoNameApplyScope::ChapterSummaryHint, plot_state, None),
+        plan_noname_apply_target(
+            proposal,
+            NoNameApplyScope::PlotTextHint,
+            plot_state,
+            plot_text,
+        ),
+        plan_noname_apply_target(
+            proposal,
+            NoNameApplyScope::ChapterSummaryHint,
+            plot_state,
+            None,
+        ),
         plan_noname_apply_target(proposal, NoNameApplyScope::OptionBiasHint, plot_state, None),
     ];
     plans.sort_by(|left, right| {
@@ -369,10 +379,7 @@ fn build_noname_apply_plan_set(
     plans
 }
 
-fn record_noname_apply_plan(
-    trace: &mut NoNameTrace,
-    plan: &NoNameApplyTargetPlan,
-) {
+fn record_noname_apply_plan(trace: &mut NoNameTrace, plan: &NoNameApplyTargetPlan) {
     let (decision, note) = match &plan.decision {
         NoNameApplyTargetDecision::Apply => (
             "apply",
@@ -6588,6 +6595,7 @@ mod tests {
                 proposal_transition_log: vec!["proposal-1:observed".to_string()],
                 apply_plan_log: vec![],
                 apply_execution_log: vec![],
+                controlled_output_reviews: vec![],
                 related_observations: vec![],
                 protocol_events: vec![],
                 guardrail_result: None,
@@ -6646,6 +6654,7 @@ mod tests {
                 proposal_transition_log: vec![],
                 apply_plan_log: vec![],
                 apply_execution_log: vec![],
+                controlled_output_reviews: vec![],
                 related_observations: vec![],
                 protocol_events: vec![],
                 guardrail_result: None,
@@ -6760,6 +6769,7 @@ mod tests {
                 proposal_transition_log: vec![],
                 apply_plan_log: vec![],
                 apply_execution_log: vec![],
+                controlled_output_reviews: vec![],
                 related_observations: vec![],
                 protocol_events: vec![],
                 guardrail_result: None,
@@ -6841,6 +6851,7 @@ mod tests {
                 proposal_transition_log: vec![],
                 apply_plan_log: vec![],
                 apply_execution_log: vec![],
+                controlled_output_reviews: vec![],
                 related_observations: vec![],
                 protocol_events: vec![],
                 guardrail_result: None,
@@ -6933,6 +6944,7 @@ mod tests {
                 proposal_transition_log: vec![],
                 apply_plan_log: vec![],
                 apply_execution_log: vec![],
+                controlled_output_reviews: vec![],
                 related_observations: vec![],
                 protocol_events: vec![],
                 guardrail_result: None,
@@ -7044,6 +7056,7 @@ mod tests {
                 proposal_transition_log: vec![],
                 apply_plan_log: vec![],
                 apply_execution_log: vec![],
+                controlled_output_reviews: vec![],
                 related_observations: vec![],
                 protocol_events: vec![],
                 guardrail_result: None,
@@ -7116,6 +7129,7 @@ mod tests {
                 proposal_transition_log: vec![],
                 apply_plan_log: vec![],
                 apply_execution_log: vec![],
+                controlled_output_reviews: vec![],
                 related_observations: vec![],
                 protocol_events: vec![],
                 guardrail_result: None,
@@ -7175,8 +7189,9 @@ mod tests {
             .trace
             .apply_execution_log
             .iter()
-            .any(|item| item.target == "plot_text_hint"
-                && item.outcome == "skipped_target_mismatch"));
+            .any(
+                |item| item.target == "plot_text_hint" && item.outcome == "skipped_target_mismatch"
+            ));
     }
 
     #[test]
@@ -7216,6 +7231,7 @@ mod tests {
                 proposal_transition_log: vec![],
                 apply_plan_log: vec![],
                 apply_execution_log: vec![],
+                controlled_output_reviews: vec![],
                 related_observations: vec![],
                 protocol_events: vec![],
                 guardrail_result: None,
@@ -7276,8 +7292,9 @@ mod tests {
             .trace
             .apply_execution_log
             .iter()
-            .any(|item| item.target == "chapter_summary_hint"
-                && item.outcome == "skipped_duplicate"));
+            .any(
+                |item| item.target == "chapter_summary_hint" && item.outcome == "skipped_duplicate"
+            ));
     }
 
     #[test]
@@ -7315,6 +7332,7 @@ mod tests {
                 proposal_transition_log: vec![],
                 apply_plan_log: vec![],
                 apply_execution_log: vec![],
+                controlled_output_reviews: vec![],
                 related_observations: vec![],
                 protocol_events: vec![],
                 guardrail_result: None,
@@ -7378,7 +7396,6 @@ mod tests {
             .trace
             .apply_execution_log
             .iter()
-            .any(|item| item.target == "option_bias_hint"
-                && item.outcome == "skipped_duplicate"));
+            .any(|item| item.target == "option_bias_hint" && item.outcome == "skipped_duplicate"));
     }
 }

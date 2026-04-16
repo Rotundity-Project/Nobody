@@ -324,6 +324,23 @@ export interface NoNameApplyPlanRecord {
   note?: string | null;
 }
 
+export type NoNameControlledOutputDecision = 'allow' | 'reject' | 'needsReview';
+export type NoNameControlledOutputKind =
+  | 'recapNote'
+  | 'sceneAugmentation'
+  | 'narrativeNote'
+  | 'intermediateNarrativeHint';
+
+export interface NoNameControlledOutputReviewRecord {
+  requestId: string;
+  requestedKind: NoNameControlledOutputKind;
+  decision: NoNameControlledOutputDecision;
+  reason: string;
+  normalizedKind?: NoNameControlledOutputKind | null;
+  safeApplyScope?: NoNameApplyScope | null;
+  requiresHumanReview: boolean;
+}
+
 export type NoNameProposalStatus = 'observed' | 'ready' | 'blocked' | 'applied' | 'fallback';
 export type NoNameApplyScope =
   | 'diagnostics'
@@ -382,6 +399,7 @@ export interface NoNameTrace {
   proposalTransitionLog?: string[];
   applyPlanLog?: NoNameApplyPlanRecord[];
   applyExecutionLog?: NoNameApplyExecutionRecord[];
+  controlledOutputReviews?: NoNameControlledOutputReviewRecord[];
   relatedObservations?: NoNameRelatedObservation[];
   protocolEvents?: NoNameProtocolEvent[];
   guardrailResult?: NoNameGuardrailTraceResult | null;

@@ -469,13 +469,15 @@
 - runtime 已按 guardrail 结果标记 proposal 为 `observed / ready / blocked`
 - 诊断文本已输出 `proposal_status=...`
 - trace 已记录 apply preflight 结果
+- trace 已记录 controlled output review，能区分 `Allow / Reject / NeedsReview`
 - 前端调试文本已显示 apply preflight 与 proposal transition log
+- 前端调试台已展示 controlled output review，并支持复制当前 Trace 摘要
 - apply 阶段已补独立 guardrail 入口
 
 ### 当前边界
 
 - proposal 目前不会改写剧情正文与状态机，但已可写入章节摘要提示这类低风险输出
-- 当前已完成 `assisted preflight`，并可应用到“诊断层 + 章节摘要提示 + 选项偏置提示”三类低风险输出，但还不是最终剧情应用分支
+- 当前已完成 `assisted preflight`，并可应用到“诊断层 + 章节摘要提示 + 选项偏置提示”三类低风险输出；`plotTextHint` 会先进入 controlled output review，仍不直接接管最终剧情应用分支
 - 仍然保持“经典主链路优先，NoName 仅辅助”
 
 ### 下一步子任务
