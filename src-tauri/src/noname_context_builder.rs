@@ -1,8 +1,7 @@
 use crate::entity_store::{EntityQuery, EntityStore};
 use crate::entity_types::EntityType;
 use crate::noname_context_types::{
-    NoNameContextBuildInput, NoNameContextPacket, NoNameContextSourceStat,
-    NoNameRoleContextPacket,
+    NoNameContextBuildInput, NoNameContextPacket, NoNameContextSourceStat, NoNameRoleContextPacket,
 };
 use crate::noname_memory_manager::NoNameMemoryManager;
 use crate::noname_memory_retrieval::NoNameMemoryQuery;
@@ -277,7 +276,8 @@ fn npc_intent_context(packet: &NoNameContextPacket) -> NoNameRoleContextPacket {
 fn combat_narrator_context(packet: &NoNameContextPacket) -> NoNameRoleContextPacket {
     NoNameRoleContextPacket {
         role: NoNameRole::CombatNarrator,
-        role_goal: "Track conflict rhythm, action feedback, and combat narration anchors.".to_string(),
+        role_goal: "Track conflict rhythm, action feedback, and combat narration anchors."
+            .to_string(),
         scene_focus: first_of(&[
             &packet.recent_context,
             &packet.episodic_memory,
@@ -607,7 +607,10 @@ mod tests {
 
         assert_eq!(world.scene_focus, "Gate has a ward");
         assert_eq!(npc.scene_focus, "Character:ElderQinghe");
-        assert!(world.forbidden_scopes.iter().any(|item| item.contains("NPC")));
+        assert!(world
+            .forbidden_scopes
+            .iter()
+            .any(|item| item.contains("NPC")));
         assert!(npc
             .forbidden_scopes
             .iter()

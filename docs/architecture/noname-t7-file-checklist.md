@@ -1,6 +1,6 @@
 # NoName Agent T7 文件级实现清单
 
-更新时间: 2026-04-09
+更新时间: 2026-04-17
 状态: 文件级执行清单
 目标: 将 `T7 Assisted Skeleton 与受控应用预备` 拆到可直接实施的文件粒度
 关联文档:
@@ -27,7 +27,7 @@
 
 ## 1.1 当前进度
 
-截至 `2026-04-09`，`T7` 第一批已经完成：
+截至 `2026-04-17`，`T7` 第一批已经完成：
 
 - `NoNameProposal` 已补 `status`
   - `observed / ready / blocked / applied / fallback`
@@ -37,12 +37,22 @@
 - apply 阶段已补独立 guardrail 入口
 - 调试诊断已输出 `proposal_status` 与 `apply=...`
 - 前端调试文本已优先展示显式 `status`、apply preflight 与状态迁移
+- 已补 `disabled / observe_only / assisted` 模式矩阵测试，并在命令层确保 disabled 跳过 NoName turn
+- 前端调试台已为 `NeedsReview` 受控输出增加本地人工复核标记入口，用于记录“可进入高层 apply 设计 / 暂不应用”
+- 后端已提供 `mark_noname_controlled_output_review`，可把人工复核 intent 写回最近 trace
+- 人工批准后的 `PlotTextHint` intent 已进入二次 guardrail / apply planner 等待队列，trace 会记录 `review_intent_ready / awaiting_second_guardrail`
+- 后端已提供 `resolve_noname_second_guardrail`，可记录 `allow / reject / fallback` 二次护栏决策
+- `T7-0.6` 已接入 `apply_noname_manual_plot_text_hint`，要求人工批准、二次护栏 allow、章节/段落快照一致后才显式写入正文提示，并记录 `manual_plot_text_applied`
+- `T7-0.7` 已补前端差异预览、重复写入禁用与 stale snapshot 友好错误提示，显式人工写入前能看到“写入前 / 写入后”
+- `T7-3` 已补 `noNameApplyLifecycle` 前端收敛层，统一从 plan / execution / review / transition / fallback 推导 apply 生命周期，并展示到调试台、复制摘要和 Info 文本
+- `T7-1` 第三切片已新增 `src-tauri/src/noname_apply.rs`，把 reviewed apply 校验、快照校验、剧情写入和 trace 记录从命令层抽成可复用 runtime；前端已改走 `apply_noname_reviewed_output(scope=plotTextHint)`，后端与 Web mock 已扩展支持 `ChapterSummaryHint` 和 `OptionBiasHint`
 
 当前仍未完成的部分：
 
 - proposal 已可进入“诊断层 + 章节摘要提示 + 选项偏置提示”低风险 apply，但还没有进入更高权重的剧情输出层
-- trace 已有 apply transition log，并已记录诊断层 / 章节摘要提示 / 选项偏置提示 apply；但还没有更高权重输出层的 apply/reject/fallback 执行明细
+- trace 已有 apply transition log、执行明细和 lifecycle 可视化；`PlotTextHint`、`ChapterSummaryHint` 与 `OptionBiasHint` 已补人工显式 apply 执行明细，但还没有通用化到所有高权重输出层
 - `plot_engine` 侧还没有低风险输出层应用入口
+- reviewed apply runtime 目前支持 `PlotTextHint`、`ChapterSummaryHint` 与 `OptionBiasHint`，下一步重点是评估 `plot_engine` 低风险输出层入口
 
 ## 2. 建议文件范围
 
@@ -53,6 +63,7 @@
 - `src-tauri/src/tauri_commands.rs`
 - `src-tauri/src/noname_trace.rs`
 - `src-tauri/src/noname_types.rs`
+- `src-tauri/src/noname_apply.rs`
 
 ### 高概率配套修改文件
 
@@ -170,6 +181,7 @@
 
 - 增加显式的 apply 分支，例如：
   - `maybe_apply_assisted_proposal()`
+  - `apply_noname_manual_plot_text_hint()`
 - 明确三种模式行为：
   - `disabled`: 完全跳过 NoName
   - `observe_only`: 记录 proposal，但不尝试应用
@@ -340,12 +352,11 @@
 
 如果下一步开始写代码，建议按这个顺序推进：
 
-1. `noname_types.rs`
+1. `tauri_commands.rs`
 2. `noname_trace.rs`
-3. `noname_guardrails.rs`
-4. `noname_runtime.rs`
-5. `tauri_commands.rs`
-6. `game.ts`
-7. `gameStore.ts`
-8. `webRuntime.ts`
-这个顺序的好处是：先把状态机和边界讲清楚，再碰真正容易引发回归的应用分支。
+3. `game.ts`
+4. `gameStore.ts`
+5. `AgentTracePanel.vue`
+6. `webRuntime.ts`
+7. 对应前后端测试
+这个顺序的好处是：在已有 lifecycle 可视化基线下，先把当前显式 apply 命令抽象成可复用 runtime，再补更多输出类型的回归测试。

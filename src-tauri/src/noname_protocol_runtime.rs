@@ -40,8 +40,7 @@ impl NoNameProtocolRuntime {
         message: NoNameAgentMessage,
     ) -> Result<NoNameTaskLifecycle, NoNameError> {
         let next = self.resolve_next_lifecycle(&message.lifecycle, message.kind)?;
-        self.task_states
-            .insert(next.task_id.clone(), next.clone());
+        self.task_states.insert(next.task_id.clone(), next.clone());
         self.agent_history.push(message);
         Ok(next)
     }
@@ -251,8 +250,14 @@ mod tests {
             )
             .expect("tool execution should succeed");
 
-        assert_eq!(envelope.kind, crate::noname_protocol_tool::NoNameToolEnvelopeKind::Result);
-        assert_eq!(envelope.result.as_ref().map(|value| value["echo"].as_str()), Some(Some("ok")));
+        assert_eq!(
+            envelope.kind,
+            crate::noname_protocol_tool::NoNameToolEnvelopeKind::Result
+        );
+        assert_eq!(
+            envelope.result.as_ref().map(|value| value["echo"].as_str()),
+            Some(Some("ok"))
+        );
         assert_eq!(
             runtime.task_state("tool-task-1").map(|state| state.status),
             Some(NoNameTaskStatus::Completed)

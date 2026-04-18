@@ -102,7 +102,11 @@ impl NoNameKnowledgeProvider for InMemoryKnowledgeProvider {
             })
             .collect::<Vec<_>>();
 
-        snippets.sort_by(|a, b| b.score.cmp(&a.score).then_with(|| a.document_id.cmp(&b.document_id)));
+        snippets.sort_by(|a, b| {
+            b.score
+                .cmp(&a.score)
+                .then_with(|| a.document_id.cmp(&b.document_id))
+        });
         snippets.truncate(query.limit);
         snippets
     }
@@ -115,10 +119,7 @@ pub struct GraphKnowledgeProvider {
 }
 
 impl GraphKnowledgeProvider {
-    pub fn new(
-        nodes: Vec<NoNameKnowledgeGraphNode>,
-        edges: Vec<NoNameKnowledgeGraphEdge>,
-    ) -> Self {
+    pub fn new(nodes: Vec<NoNameKnowledgeGraphNode>, edges: Vec<NoNameKnowledgeGraphEdge>) -> Self {
         Self { nodes, edges }
     }
 }
@@ -141,7 +142,13 @@ impl NoNameKnowledgeProvider for GraphKnowledgeProvider {
             .iter()
             .filter_map(|node| {
                 let score = score_graph_node(node, keyword.as_deref(), &tag_terms)
-                    + score_graph_edges(node, &self.nodes, &self.edges, keyword.as_deref(), &tag_terms);
+                    + score_graph_edges(
+                        node,
+                        &self.nodes,
+                        &self.edges,
+                        keyword.as_deref(),
+                        &tag_terms,
+                    );
                 if score == 0 {
                     return None;
                 }
@@ -157,7 +164,11 @@ impl NoNameKnowledgeProvider for GraphKnowledgeProvider {
             })
             .collect::<Vec<_>>();
 
-        snippets.sort_by(|a, b| b.score.cmp(&a.score).then_with(|| a.document_id.cmp(&b.document_id)));
+        snippets.sort_by(|a, b| {
+            b.score
+                .cmp(&a.score)
+                .then_with(|| a.document_id.cmp(&b.document_id))
+        });
         snippets.truncate(query.limit);
         snippets
     }
@@ -173,11 +184,7 @@ fn score_document(
     if let Some(keyword) = keyword {
         score += contains_text(&document.title, keyword) as u32 * 5;
         score += contains_text(&document.body, keyword) as u32 * 3;
-        score += document
-            .tags
-            .iter()
-            .any(|tag| contains_text(tag, keyword)) as u32
-            * 2;
+        score += document.tags.iter().any(|tag| contains_text(tag, keyword)) as u32 * 2;
     }
 
     for tag in tags {
@@ -203,11 +210,7 @@ fn score_graph_node(
     if let Some(keyword) = keyword {
         score += contains_text(&node.label, keyword) as u32 * 5;
         score += contains_text(&node.body, keyword) as u32 * 3;
-        score += node
-            .tags
-            .iter()
-            .any(|tag| contains_text(tag, keyword)) as u32
-            * 2;
+        score += node.tags.iter().any(|tag| contains_text(tag, keyword)) as u32 * 2;
     }
 
     for tag in tags {
@@ -234,7 +237,11 @@ fn score_graph_edges(
         .iter()
         .filter(|edge| edge.from == node.node_id || edge.to == node.node_id)
         .map(|edge| {
-            let neighbor_id = if edge.from == node.node_id { &edge.to } else { &edge.from };
+            let neighbor_id = if edge.from == node.node_id {
+                &edge.to
+            } else {
+                &edge.from
+            };
             let neighbor = nodes.iter().find(|item| &item.node_id == neighbor_id);
             let relation_score = keyword
                 .map(|term| contains_text(&edge.relation, term) as u32 * 3)
@@ -276,7 +283,11 @@ fn build_graph_excerpt(
         .filter(|edge| edge.from == node.node_id || edge.to == node.node_id)
         .take(3)
         .filter_map(|edge| {
-            let neighbor_id = if edge.from == node.node_id { &edge.to } else { &edge.from };
+            let neighbor_id = if edge.from == node.node_id {
+                &edge.to
+            } else {
+                &edge.from
+            };
             let neighbor = nodes.iter().find(|item| &item.node_id == neighbor_id)?;
             Some(format!("{}:{}", edge.relation, neighbor.label))
         })

@@ -2,8 +2,8 @@ use crate::noname_capability_registry::NoNameCapabilityRegistry;
 use crate::noname_context_types::NoNameContextPacket;
 use crate::noname_errors::{NoNameError, NoNameErrorKind};
 use crate::noname_prompts::{
-    COMBAT_NARRATOR_OBSERVE_PROMPT_ID, DIRECTOR_OBSERVE_PROMPT_ID,
-    NPC_INTENT_OBSERVE_PROMPT_ID, WORLD_CURATOR_OBSERVE_PROMPT_ID,
+    COMBAT_NARRATOR_OBSERVE_PROMPT_ID, DIRECTOR_OBSERVE_PROMPT_ID, NPC_INTENT_OBSERVE_PROMPT_ID,
+    WORLD_CURATOR_OBSERVE_PROMPT_ID,
 };
 use crate::noname_protocol_tool::{NoNamePromptResolve, NoNameResourceRead, NoNameToolCall};
 use crate::noname_protocol_types::{NoNameProtocolHeader, NoNameTraceWritable};
@@ -95,7 +95,10 @@ impl DirectorAgent {
             intended_effect: "为下一轮低风险输出提供稳定导向".to_string(),
             rationale: rationale.clone(),
             suggested_action: Some("保持 observe-only，等待后续 assisted 落地".to_string()),
-            labels: vec![NoNameRole::Director.as_str().to_string(), "observe_only".to_string()],
+            labels: vec![
+                NoNameRole::Director.as_str().to_string(),
+                "observe_only".to_string(),
+            ],
             apply_scopes: vec![
                 NoNameApplyScope::Diagnostics,
                 NoNameApplyScope::ChapterSummaryHint,
@@ -355,7 +358,10 @@ impl CombatNarratorAgent {
                 "observe_only".to_string(),
                 "combat".to_string(),
             ],
-            apply_scopes: vec![NoNameApplyScope::Diagnostics, NoNameApplyScope::PlotTextHint],
+            apply_scopes: vec![
+                NoNameApplyScope::Diagnostics,
+                NoNameApplyScope::PlotTextHint,
+            ],
             status: NoNameProposalStatus::Observed,
             applyable: false,
         };
@@ -372,7 +378,11 @@ impl CombatNarratorAgent {
         })
     }
 
-    fn goal_from_context(&self, context_packet: &NoNameContextPacket, action_summary: &str) -> String {
+    fn goal_from_context(
+        &self,
+        context_packet: &NoNameContextPacket,
+        action_summary: &str,
+    ) -> String {
         self.pick_focus(context_packet, action_summary)
     }
 
@@ -466,13 +476,18 @@ fn first_non_player_character(referenced_entities: &[String]) -> Option<String> 
 }
 
 fn contains_combat_signal(text: &str) -> bool {
-    ["战", "斗", "交手", "冲突", "出招", "杀", "攻"].iter().any(|token| text.contains(token))
+    ["战", "斗", "交手", "冲突", "出招", "杀", "攻"]
+        .iter()
+        .any(|token| text.contains(token))
 }
 
 pub fn unsupported_role_error(role: NoNameRole) -> NoNameError {
     NoNameError::new(
         NoNameErrorKind::Config,
-        format!("role {} is not registered for observe dispatch", role.as_str()),
+        format!(
+            "role {} is not registered for observe dispatch",
+            role.as_str()
+        ),
         "noname.agent.unsupported_role",
         true,
     )
@@ -491,9 +506,15 @@ mod tests {
     fn sample_packet(role: NoNameRole) -> NoNameContextPacket {
         NoNameContextPacket {
             role,
-            hard_facts: vec!["玩家 位于 山门".to_string(), "山门受宗门法阵保护".to_string()],
+            hard_facts: vec![
+                "玩家 位于 山门".to_string(),
+                "山门受宗门法阵保护".to_string(),
+            ],
             working_memory: vec!["玩家刚刚选择回到山门".to_string()],
-            episodic_memory: vec!["玩家返回山门".to_string(), "执事长老抬手示意弟子退后".to_string()],
+            episodic_memory: vec![
+                "玩家返回山门".to_string(),
+                "执事长老抬手示意弟子退后".to_string(),
+            ],
             narrative_notes: vec!["山门危机: 强敌逼近".to_string()],
             chapter_summaries: vec!["第一章: 危机渐近".to_string()],
             recent_context: vec!["敌修拔剑逼近，山门弟子列阵应对".to_string()],

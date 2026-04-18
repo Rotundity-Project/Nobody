@@ -1,7 +1,7 @@
 # NoName Agent V1 实施蓝图
 
-更新时间: 2026-04-09
-状态: V1 已完成，`assisted skeleton` 进行中
+更新时间: 2026-04-17
+状态: V1 已完成，`T7 assisted skeleton / 受控应用 proposal` 进行中
 目标: 将 `NoName Agent` 从设计文档推进到可运行的 V1 骨架，并为后续受控应用阶段建立基线
 关联文档:
 - `noname-agent-v1.md`
@@ -23,15 +23,16 @@ V1 的核心目标：
 
 ## 1.1 当前状态快照
 
-截至 `2026-04-09`，当前代码状态为：
+截至 `2026-04-17`，当前代码状态为：
 
 - `V1` 基础闭环已经完成
 - `DirectorAgent` 已接入 `execute_player_action`
 - 结构化 `NoNameProposal` 已落地
 - Guardrail 已接入并可产出 `accept / repair / reject`
 - 前端已经能查看 trace、proposal、guardrail、fallback 调试摘要
-- 当前正在推进 `assisted skeleton`
-- 当前尚未进入“真正应用 proposal 到主剧情结果”的阶段
+- 当前正在推进 `T7 assisted skeleton / 受控应用 proposal`
+- `assisted` 已可自动应用诊断层、章节摘要提示、选项偏置提示这三类低风险输出
+- `PlotTextHint` 已进入人工批准、二次护栏、显式命令、段落快照校验后的人工写入链路，不会自动接管最终剧情生成
 
 ## 2. V1 范围边界
 
@@ -244,12 +245,20 @@ V1 的核心目标：
 - runtime 可将 proposal 标记为 `applyable`
 - trace 可记录 proposal、guardrail、fallback、阶段跳转
 - 前端调试信息可显示 proposal 是否 `ready`
+- 已补 `disabled / observe_only / assisted` 模式矩阵测试，确保 disabled 不影响主链路、observe-only 仅记录、assisted 才进入受控低风险 apply
+- 前端调试台已为 `NeedsReview` 受控输出补本地人工复核入口，支持标记“可进入高层 apply 设计 / 暂不应用”
+- `mark_noname_controlled_output_review` 已可把人工复核 intent 写回最近 trace，记录 `humanReviewDecision / humanReviewedAt / humanReviewNote`
+- 人工批准后的 `PlotTextHint` intent 已可进入二次 guardrail / apply planner 等待队列，trace 记录 `review_intent_ready / awaiting_second_guardrail`
+- `resolve_noname_second_guardrail` 已可输出 `allow / reject / fallback` 决策，并记录 `second_guardrail_*` apply plan / execution / transition
+- `apply_noname_manual_plot_text_hint` 已提供显式人工 apply 命令，要求人工批准、二次护栏 allow、章节/段落快照一致后才写入 `PlotTextHint`，并记录 `manual_plot_text_applied`
+- 前端调试台已补应用前差异预览、重复写入禁用与 stale snapshot 友好错误提示
+- `T7-3` 已补 apply lifecycle 可视化基线，能从提案、预检、低风险输出、人工复核、二次护栏、人工写入、fallback 等阶段阅读当前 trace
+- `T7-1` 第三切片已抽出 reviewed apply runtime，并新增 `apply_noname_reviewed_output` 通用命令入口；现有 `PlotTextHint` 人工写入已改走该入口，旧命令保留兼容，`ChapterSummaryHint` 与 `OptionBiasHint` 已复用同一入口和快照校验
 
 当前未完成：
 
-- proposal 还没有真正影响最终剧情文本或状态落地
-- 还没有“应用 proposal 后的二次 guardrail + 回退”链路
-- 还没有完整的 `disabled / observe_only / assisted` 集成测试矩阵
+- proposal 仍不会自动影响最终剧情文本或核心状态；`PlotTextHint` 只允许在人工批准 + 二次护栏 + 显式命令下写入
+- reviewed apply runtime 已接入 `PlotTextHint`、`ChapterSummaryHint` 与 `OptionBiasHint`，尚未扩展到 `plot_engine` 低风险输出层入口
 
 阶段完成标准：
 

@@ -87,6 +87,28 @@
 
       <section class="agent-trace-card">
         <p class="agent-trace-card-title">
+          应用生命周期
+        </p>
+        <ul class="agent-trace-lifecycle">
+          <li
+            v-for="step in applyLifecycleSteps"
+            :key="step.key"
+            class="agent-trace-lifecycle-step"
+            :class="`is-${step.tone}`"
+          >
+            <div class="agent-trace-lifecycle-head">
+              <span class="agent-trace-main-line">{{ step.label }}</span>
+              <span class="agent-trace-lifecycle-state">{{ step.state }}</span>
+            </div>
+            <p class="agent-trace-muted">
+              {{ step.detail }}
+            </p>
+          </li>
+        </ul>
+      </section>
+
+      <section class="agent-trace-card">
+        <p class="agent-trace-card-title">
           状态迁移
         </p>
         <p
@@ -210,6 +232,109 @@
             >
               策略禁区：{{ review.policyForbiddenScopes.join(' / ') }}
             </p>
+            <p
+              v-if="review.requiresHumanReview"
+              class="agent-trace-review-state"
+            >
+              {{ humanReviewDecisionLabel(review.requestId) }}
+            </p>
+            <div
+              v-if="review.requiresHumanReview"
+              class="agent-trace-review-actions"
+            >
+              <button
+                type="button"
+                class="agent-trace-review-btn"
+                :class="{ 'is-active': humanReviewDecision(review.requestId) === 'approvedForHigherApply' }"
+                @click="markHumanReview(review.requestId, 'approvedForHigherApply')"
+              >
+                标记可进入高层 apply 设计
+              </button>
+              <button
+                type="button"
+                class="agent-trace-review-btn"
+                :class="{ 'is-active': humanReviewDecision(review.requestId) === 'rejectedForHigherApply' }"
+                @click="markHumanReview(review.requestId, 'rejectedForHigherApply')"
+              >
+                暂不应用
+              </button>
+              <button
+                v-if="humanReviewDecision(review.requestId) !== 'pending'"
+                type="button"
+                class="agent-trace-review-btn agent-trace-review-btn-ghost"
+                @click="markHumanReview(review.requestId, 'pending')"
+              >
+                重置待复核
+              </button>
+            </div>
+            <div
+              v-if="humanReviewDecision(review.requestId) === 'approvedForHigherApply'"
+              class="agent-trace-review-actions"
+            >
+              <button
+                type="button"
+                class="agent-trace-review-btn"
+                @click="resolveSecondGuardrail(review.requestId, 'allow')"
+              >
+                二次护栏允许
+              </button>
+              <button
+                type="button"
+                class="agent-trace-review-btn"
+                @click="resolveSecondGuardrail(review.requestId, 'reject')"
+              >
+                二次护栏拒绝
+              </button>
+              <button
+                type="button"
+                class="agent-trace-review-btn agent-trace-review-btn-ghost"
+                @click="resolveSecondGuardrail(review.requestId, 'fallback')"
+              >
+                回退经典链路
+              </button>
+            </div>
+            <div
+              v-if="hasSecondGuardrailAllow(review.requestId)"
+              class="agent-trace-manual-preview"
+              :class="manualApplyPreview(review.requestId).toneClass"
+            >
+              <p class="agent-trace-main-line">
+                人工写入预览：{{ manualApplyPreview(review.requestId).statusLabel }}
+              </p>
+              <p class="agent-trace-muted">
+                {{ manualApplyPreview(review.requestId).statusText }}
+              </p>
+              <div
+                v-if="manualApplyPreview(review.requestId).before && manualApplyPreview(review.requestId).after"
+                class="agent-trace-manual-preview-grid"
+              >
+                <div>
+                  <p class="agent-trace-preview-label">
+                    写入前
+                  </p>
+                  <pre class="agent-trace-preview-text">{{ manualApplyPreview(review.requestId).before }}</pre>
+                </div>
+                <div>
+                  <p class="agent-trace-preview-label">
+                    写入后
+                  </p>
+                  <pre class="agent-trace-preview-text">{{ manualApplyPreview(review.requestId).after }}</pre>
+                </div>
+              </div>
+            </div>
+            <div
+              v-if="hasSecondGuardrailAllow(review.requestId)"
+              class="agent-trace-review-actions"
+            >
+              <button
+                type="button"
+                class="agent-trace-review-btn is-active"
+                :disabled="!manualApplyPreview(review.requestId).canApply"
+                @click="applyManualPlotTextHint(review.requestId)"
+              >
+                显式人工写入正文提示
+              </button>
+            </div>
           </li>
         </ul>
       </section>
@@ -311,18 +436,38 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { NoNameTrace } from '../types/game';
+import type {
+  NoNameHumanReviewDecision,
+  NoNameHumanReviewMarkPayload,
+  NoNameManualApplySegmentSnapshot,
+  NoNameManualPlotTextApplyPayload,
+  NoNameProposal,
+  NoNameSecondGuardrailDecision,
+  NoNameSecondGuardrailResolvePayload,
+  NoNameTrace,
+} from '../types/game';
+import { buildNoNameApplyLifecycle } from '../utils/noNameApplyLifecycle';
 
 const props = withDefaults(defineProps<{
   trace: NoNameTrace | null;
   selectedIndex?: number;
   totalCount?: number;
   activeMode?: string;
+  reviewDecisions?: Record<string, NoNameHumanReviewDecision>;
+  manualApplySegment?: NoNameManualApplySegmentSnapshot | null;
 }>(), {
   selectedIndex: 0,
   totalCount: 0,
   activeMode: '',
+  reviewDecisions: () => ({}),
+  manualApplySegment: null,
 });
+
+const emit = defineEmits<{
+  (event: 'mark-controlled-output-review', payload: NoNameHumanReviewMarkPayload): void;
+  (event: 'resolve-second-guardrail', payload: NoNameSecondGuardrailResolvePayload): void;
+  (event: 'apply-manual-plot-text-hint', payload: NoNameManualPlotTextApplyPayload): void;
+}>();
 
 const latestProposal = computed(() => {
   if (!props.trace || props.trace.proposals.length === 0) {
@@ -334,6 +479,9 @@ const latestProposal = computed(() => {
 const relatedObservations = computed(() => props.trace?.relatedObservations ?? []);
 const protocolEvents = computed(() => props.trace?.protocolEvents ?? []);
 const controlledOutputReviews = computed(() => props.trace?.controlledOutputReviews ?? []);
+const applyLifecycleSteps = computed(() => (
+  props.trace ? buildNoNameApplyLifecycle(props.trace, props.reviewDecisions) : []
+));
 
 const guardrailLabel = computed(() => {
   const result = props.trace?.guardrailResult;
@@ -350,6 +498,145 @@ const applyResultLabel = computed(() => {
   }
   return result.reason ? `${result.outcome} (${result.reason})` : result.outcome;
 });
+
+function humanReviewDecision(requestId: string): NoNameHumanReviewDecision {
+  return props.reviewDecisions[requestId] ?? 'pending';
+}
+
+function humanReviewDecisionLabel(requestId: string) {
+  const decision = humanReviewDecision(requestId);
+  if (decision === 'approvedForHigherApply') {
+    return '人工结论：可进入下一阶段 apply 设计；当前不会自动写入剧情正文。';
+  }
+  if (decision === 'rejectedForHigherApply') {
+    return '人工结论：暂不应用；保持当前安全边界。';
+  }
+  return '等待开发者确认：当前只记录，不会自动写入剧情正文。';
+}
+
+function markHumanReview(requestId: string, decision: NoNameHumanReviewDecision) {
+  if (!props.trace) {
+    return;
+  }
+  emit('mark-controlled-output-review', {
+    traceId: props.trace.traceId,
+    requestId,
+    decision,
+  });
+}
+
+function resolveSecondGuardrail(requestId: string, decision: NoNameSecondGuardrailDecision) {
+  if (!props.trace) {
+    return;
+  }
+  emit('resolve-second-guardrail', {
+    traceId: props.trace.traceId,
+    requestId,
+    decision,
+  });
+}
+
+function hasSecondGuardrailAllow(requestId: string) {
+  const transition = `${requestId}:second_guardrail:allow`;
+  return Boolean(props.trace?.proposalTransitionLog?.includes(transition))
+    || Boolean(props.trace?.applyExecutionLog?.some((item) => (
+      (item.target === 'plot_text_hint' || item.target === 'plotTextHint')
+      && item.outcome === 'second_guardrail_allowed'
+    )));
+}
+
+function hasManualPlotTextApplied(requestId: string) {
+  return Boolean(props.trace?.proposalTransitionLog?.includes(`${requestId}:manual_apply:plot_text_hint`))
+    || Boolean(props.trace?.applyExecutionLog?.some((item) => (
+      (item.target === 'plot_text_hint' || item.target === 'plotTextHint')
+      && item.outcome === 'manual_plot_text_applied'
+    )));
+}
+
+function findProposalForReview(requestId: string): NoNameProposal | null {
+  const proposals = props.trace?.proposals ?? [];
+  return [...proposals].reverse().find((proposal) => requestId.includes(proposal.proposalId))
+    ?? proposals[proposals.length - 1]
+    ?? null;
+}
+
+function buildManualPlotText(proposal: NoNameProposal, segmentText: string) {
+  const hint = `【NoName】重点关注：${proposal.focus}`;
+  if (proposal.targetSegment === 'current_turn_head') {
+    return `${hint}\n\n${segmentText.trim()}`;
+  }
+  return `${segmentText.trim()}\n\n${hint}`;
+}
+
+function manualApplyPreview(requestId: string) {
+  if (hasManualPlotTextApplied(requestId)) {
+    return {
+      canApply: false,
+      toneClass: 'is-safe',
+      statusLabel: '已写入',
+      statusText: '这条 review 已记录 manual_plot_text_applied，避免重复写入同一条正文提示。',
+      before: '',
+      after: '',
+    };
+  }
+
+  const segment = props.manualApplySegment;
+  if (!segment || !segment.text.trim()) {
+    return {
+      canApply: false,
+      toneClass: 'is-warn',
+      statusLabel: '缺少当前段落快照',
+      statusText: '当前剧情段落为空，无法执行显式人工写入。',
+      before: '',
+      after: '',
+    };
+  }
+
+  if (segment.text.includes('【NoName】') || segment.text.includes('NoName提示')) {
+    return {
+      canApply: false,
+      toneClass: 'is-warn',
+      statusLabel: '疑似已包含 NoName 标记',
+      statusText: '当前段落已经包含 NoName 标记，为避免重复写入，按钮已禁用。',
+      before: segment.text,
+      after: '',
+    };
+  }
+
+  const proposal = findProposalForReview(requestId);
+  if (!proposal) {
+    return {
+      canApply: false,
+      toneClass: 'is-warn',
+      statusLabel: '找不到关联提案',
+      statusText: '无法从 requestId 反查 proposal，暂不允许写入。',
+      before: segment.text,
+      after: '',
+    };
+  }
+
+  return {
+    canApply: true,
+    toneClass: 'is-ready',
+    statusLabel: `将写入第 ${segment.chapterIndex} 章第 ${segment.segmentIndex + 1} 段`,
+    statusText: '请确认下方差异预览无误；后端还会再次校验章节、段落和正文快照。',
+    before: segment.text,
+    after: buildManualPlotText(proposal, segment.text),
+  };
+}
+
+function applyManualPlotTextHint(requestId: string) {
+  if (!props.trace) {
+    return;
+  }
+  if (!manualApplyPreview(requestId).canApply) {
+    return;
+  }
+  emit('apply-manual-plot-text-hint', {
+    traceId: props.trace.traceId,
+    requestId,
+  });
+}
 </script>
 
 <style scoped>
@@ -456,6 +743,51 @@ const applyResultLabel = computed(() => {
   gap: 8px;
 }
 
+.agent-trace-lifecycle {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.agent-trace-lifecycle-step {
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--ink-border-soft) 72%, transparent);
+  background: color-mix(in srgb, var(--ink-card-bg) 90%, transparent);
+  padding: 10px 12px;
+}
+
+.agent-trace-lifecycle-step.is-done {
+  border-color: color-mix(in srgb, #2f6b4b 46%, var(--ink-border-soft));
+}
+
+.agent-trace-lifecycle-step.is-pending {
+  border-color: color-mix(in srgb, var(--ink-accent-main) 54%, var(--ink-border-soft));
+}
+
+.agent-trace-lifecycle-step.is-blocked,
+.agent-trace-lifecycle-step.is-fallback {
+  border-color: color-mix(in srgb, #9b4d2e 54%, var(--ink-border-soft));
+}
+
+.agent-trace-lifecycle-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+}
+
+.agent-trace-lifecycle-state {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--ink-border-accent) 72%, transparent);
+  padding: 3px 8px;
+  color: var(--ink-text-muted);
+  font-size: 12px;
+}
+
 .agent-trace-row {
   display: grid;
   gap: 4px;
@@ -465,8 +797,111 @@ const applyResultLabel = computed(() => {
   padding: 10px 12px;
 }
 
+.agent-trace-review-state {
+  margin: 8px 0 0;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--ink-border-accent) 72%, transparent);
+  background: color-mix(in srgb, var(--ink-accent-main) 10%, var(--ink-card-bg));
+  color: var(--ink-text-primary);
+  padding: 8px 10px;
+  line-height: 1.5;
+}
+
+.agent-trace-review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.agent-trace-manual-preview {
+  margin-top: 10px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--ink-border-soft) 72%, transparent);
+  background: color-mix(in srgb, var(--ink-card-bg) 90%, transparent);
+  padding: 10px 12px;
+}
+
+.agent-trace-manual-preview.is-ready {
+  border-color: color-mix(in srgb, #2f6b4b 44%, var(--ink-border-soft));
+}
+
+.agent-trace-manual-preview.is-warn {
+  border-color: color-mix(in srgb, #9b4d2e 54%, var(--ink-border-soft));
+}
+
+.agent-trace-manual-preview.is-safe {
+  border-color: color-mix(in srgb, var(--ink-accent-main) 48%, var(--ink-border-soft));
+}
+
+.agent-trace-manual-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.agent-trace-preview-label {
+  margin: 0 0 6px;
+  color: var(--ink-text-muted);
+  font-size: 12px;
+}
+
+.agent-trace-preview-text {
+  margin: 0;
+  max-height: 170px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--ink-border-soft) 70%, transparent);
+  background: color-mix(in srgb, var(--ink-card-bg-soft) 88%, transparent);
+  padding: 8px;
+  color: var(--ink-text-primary);
+  font-family: "LXGW WenKai", "Noto Serif SC", serif;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.agent-trace-review-btn {
+  border: 1px solid color-mix(in srgb, var(--ink-border-accent) 78%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink-card-bg) 92%, transparent);
+  color: var(--ink-text-primary);
+  cursor: pointer;
+  padding: 7px 10px;
+  transition: background-color 180ms ease, border-color 180ms ease, transform 120ms ease;
+}
+
+.agent-trace-review-btn:hover {
+  transform: translateY(-1px);
+}
+
+.agent-trace-review-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  transform: none;
+}
+
+.agent-trace-review-btn.is-active {
+  border-color: var(--ink-accent-main);
+  background: color-mix(in srgb, var(--ink-accent-main) 20%, var(--ink-card-bg));
+}
+
+.agent-trace-review-btn-ghost {
+  color: var(--ink-text-muted);
+}
+
 @media (max-width: 900px) {
   .agent-trace-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .agent-trace-lifecycle {
+    grid-template-columns: 1fr;
+  }
+
+  .agent-trace-manual-preview-grid {
     grid-template-columns: 1fr;
   }
 }

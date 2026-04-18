@@ -622,7 +622,9 @@ mod tests {
         proposal.status = crate::noname_types::NoNameProposalStatus::Ready;
         proposal.applyable = true;
         proposal.target_segment = crate::noname_types::NoNameTargetSegment::ChapterSummaryHead;
-        proposal.apply_scopes.push(crate::noname_types::NoNameApplyScope::PlotTextHint);
+        proposal
+            .apply_scopes
+            .push(crate::noname_types::NoNameApplyScope::PlotTextHint);
 
         let result = validate_director_proposal_for_apply(
             NoNameMode::Assisted,

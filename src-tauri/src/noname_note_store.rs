@@ -73,10 +73,7 @@ impl NoNameNoteStore {
             .collect()
     }
 
-    pub fn list_by_status(
-        &self,
-        status: NoNameNarrativeStatus,
-    ) -> Vec<NoNameNarrativeMemoryItem> {
+    pub fn list_by_status(&self, status: NoNameNarrativeStatus) -> Vec<NoNameNarrativeMemoryItem> {
         self.notes
             .iter()
             .filter(|item| item.status == status)
@@ -157,18 +154,18 @@ impl NoNameNoteStore {
         review
     }
 
-    pub fn review_chapter(
-        &self,
-        chapter_index: u32,
-        updated_at: u64,
-    ) -> NoNameChapterNoteReview {
+    pub fn review_chapter(&self, chapter_index: u32, updated_at: u64) -> NoNameChapterNoteReview {
         let mut review = NoNameChapterNoteReview {
             chapter_index,
             updated_at,
             ..NoNameChapterNoteReview::default()
         };
 
-        for note in self.notes.iter().filter(|item| item.chapter_index == chapter_index) {
+        for note in self
+            .notes
+            .iter()
+            .filter(|item| item.chapter_index == chapter_index)
+        {
             match note.status {
                 NoNameNarrativeStatus::Active => review.active_note_ids.push(note.note_id.clone()),
                 NoNameNarrativeStatus::Resolved | NoNameNarrativeStatus::Archived => {
@@ -275,7 +272,10 @@ mod tests {
 
         let archived = store.archive("note-1", 12).expect("note should archive");
         assert_eq!(archived.status, NoNameNarrativeStatus::Archived);
-        assert_eq!(store.list_by_status(NoNameNarrativeStatus::Archived).len(), 1);
+        assert_eq!(
+            store.list_by_status(NoNameNarrativeStatus::Archived).len(),
+            1
+        );
     }
 
     #[test]
