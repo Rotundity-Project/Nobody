@@ -165,10 +165,7 @@ impl NoNameMemoryCompactionService {
         }
     }
 
-    pub fn compact_chapter(
-        &self,
-        input: NoNameChapterCompactionInput,
-    ) -> NoNameCompactionSummary {
+    pub fn compact_chapter(&self, input: NoNameChapterCompactionInput) -> NoNameCompactionSummary {
         let mut source_ids = Vec::new();
         let mut fragments = Vec::new();
         let mut key_entities = Vec::new();
@@ -447,7 +444,12 @@ mod tests {
                 importance: NoNameMemoryImportance::High,
             }],
             notes: vec![
-                note("note-goal", NoNameNarrativeNoteType::Goal, "Hold Gate", "Keep the gate standing"),
+                note(
+                    "note-goal",
+                    NoNameNarrativeNoteType::Goal,
+                    "Hold Gate",
+                    "Keep the gate standing",
+                ),
                 note(
                     "note-conflict",
                     NoNameNarrativeNoteType::Conflict,
@@ -513,7 +515,10 @@ mod tests {
         assert_eq!(summary.kind, NoNameCompactionKind::Trace);
         assert_eq!(summary.source_ids, vec!["trace-1"]);
         assert!(summary.goals.contains(&"gate crisis".to_string()));
-        assert!(summary.diagnostics.iter().any(|item| item.contains("guardrail=reject")));
+        assert!(summary
+            .diagnostics
+            .iter()
+            .any(|item| item.contains("guardrail=reject")));
         assert!(summary
             .diagnostics
             .iter()

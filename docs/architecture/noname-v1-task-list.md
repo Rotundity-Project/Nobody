@@ -1,7 +1,7 @@
 # NoName Agent V1 开发任务清单
 
-更新时间: 2026-04-09
-状态: V1 基础闭环已完成，已进入 `assisted skeleton` 阶段
+更新时间: 2026-04-17
+状态: V1 基础闭环已完成，已进入 `T7 assisted skeleton / 受控应用 proposal` 阶段
 目标: 将 `NoName Agent` V1 设计拆解为可按顺序实施的开发任务
 关联文档:
 - `noname-agent-v1.md`
@@ -24,12 +24,12 @@
 
 ## 1.1 当前实现状态
 
-截至 `2026-04-09`，当前仓库中的 `NoName Agent` 实现状态如下：
+截至 `2026-04-17`，当前仓库中的 `NoName Agent` 实现状态如下：
 
 - `T0` 到 `T6` 已完成
 - `V1 Done` 条件已满足
 - 代码已超出原始 V1 任务清单，进入 `T7 assisted skeleton`
-- 当前 `assisted` 仅完成“可判定 / 可标记 / 可调试”，尚未进入真正的受控应用分支
+- 当前 `assisted` 已进入受控应用分支：低风险输出可自动 apply，`PlotTextHint` 仅允许人工批准 + 二次护栏 + 显式命令 + 快照校验后写入
 - 当前验证基线：
   - `cargo test -q` 通过
   - 前端定向测试通过
@@ -474,18 +474,26 @@
 - 前端调试台已展示 controlled output review，并支持复制当前 Trace 摘要
 - A3 `forbiddenScopes` 已映射到 controlled output policy，review trace 会显示 `policyForbiddenScopes`
 - apply 阶段已补独立 guardrail 入口
+- `T7-4` 已补 `disabled / observe_only / assisted` 模式矩阵测试，覆盖 disabled 跳过、observe-only 只记录、assisted 受控低风险 apply
+- `NeedsReview` 已补前端本地人工复核入口，可标记“可进入高层 apply 设计 / 暂不应用 / 重置待复核”，但不直接写入剧情正文
+- `mark_noname_controlled_output_review` 已接入，人工复核 intent 会写回最近 trace 并记录状态迁移
+- 人工批准后的 `PlotTextHint` intent 已进入二次 guardrail / apply planner 等待队列，trace 会记录 `review_intent_ready / awaiting_second_guardrail`
+- `resolve_noname_second_guardrail` 已接入，能记录 `allow / reject / fallback` 二次护栏决策，但仍不直接写入剧情正文
+- `T7-0.6` 已接入 `apply_noname_manual_plot_text_hint`，只有人工批准 + 二次护栏 allow + 当前章节/段落快照一致时，才允许显式写入 `PlotTextHint`
+- `T7-0.7` 已补显式人工 apply 的前端差异预览、重复写入禁用与 stale snapshot 友好提示
+- `T7-3` 已补 apply lifecycle 展示与测试基线，调试面板、复制摘要、Info 调试文本可以统一展示 apply / review / guardrail / manual apply / fallback 进度
+- `T7-1` 第三切片已新增 `noname_apply.rs` reviewed apply runtime，提供 `apply_noname_reviewed_output` 通用命令入口；现有 `PlotTextHint` 显式写入已改走该入口，`ChapterSummaryHint` 与 `OptionBiasHint` 也已接入人工批准 + 二次护栏 + 快照一致的显式 reviewed apply
 
 ### 当前边界
 
-- proposal 目前不会改写剧情正文与状态机，但已可写入章节摘要提示这类低风险输出
-- 当前已完成 `assisted preflight`，并可应用到“诊断层 + 章节摘要提示 + 选项偏置提示”三类低风险输出；`plotTextHint` 会先进入 controlled output review，仍不直接接管最终剧情应用分支
+- proposal 目前不会自动改写剧情正文与状态机，但已可写入章节摘要提示这类低风险输出
+- 当前已完成 `assisted preflight`，并可应用到“诊断层 + 章节摘要提示 + 选项偏置提示”三类低风险输出；`plotTextHint` 会先进入 controlled output review、人工复核 intent、二次护栏，再由显式人工命令写入当前剧情段落
+- reviewed apply runtime 已形成统一通道，目前支持 `PlotTextHint`、`ChapterSummaryHint` 与 `OptionBiasHint`；`plot_engine` 低风险输出层入口还需要继续评估
 - 仍然保持“经典主链路优先，NoName 仅辅助”
 
 ### 下一步子任务
 
-- `T7-1` 将受控应用边界从选项偏置提示继续扩展到下一层低风险输出
-- `T7-3` 明确 apply / reject / fallback 的 trace 记录
-- `T7-4` 增加 `disabled / observe_only / assisted` 的集成测试矩阵
+- `T7-1.2` 已完成两个扩展 scope：`ChapterSummaryHint` 与 `OptionBiasHint` 可复用 reviewed apply runtime；下一步可继续评估 `plot_engine` 低风险输出层入口
 
 ### 验收标准
 
@@ -577,6 +585,6 @@
 
 如果继续推进实现，当前最推荐的是：
 
-1. 推进 `T7`，把 `assisted skeleton` 变成真正的“受控应用 proposal”
-2. 为 `disabled / observe_only / assisted` 补完整集成测试矩阵
+1. 继续推进 `T7-1.2` 的后续落地层，让 `plot_engine` 低风险输出层复用 `noname_apply.rs` reviewed apply runtime
+2. 把新增 scope 持续接入现有 apply lifecycle，让后续更多输出类型复用同一套可视化与测试基线
 这会比继续扩文档或继续堆更多角色更有价值，因为它决定 `NoName Agent` 是否能从“可观察”走向“可辅助落地”。

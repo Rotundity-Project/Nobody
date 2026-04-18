@@ -13,9 +13,10 @@ pub mod llm_service;
 pub mod memory_layers;
 pub mod memory_manager;
 pub mod models;
+pub mod noname_agent_registry;
+pub mod noname_apply;
 pub mod noname_capability_base;
 pub mod noname_capability_registry;
-pub mod noname_agent_registry;
 pub mod noname_config;
 pub mod noname_context_builder;
 pub mod noname_context_types;
@@ -24,8 +25,8 @@ pub mod noname_graph;
 pub mod noname_guardrails;
 pub mod noname_knowledge_retrieval;
 pub mod noname_knowledge_store;
-pub mod noname_memory_manager;
 pub mod noname_memory_compaction;
+pub mod noname_memory_manager;
 pub mod noname_memory_retrieval;
 pub mod noname_memory_store;
 pub mod noname_memory_types;
@@ -80,6 +81,10 @@ pub fn run() {
             tauri_commands::execute_player_action,
             tauri_commands::get_noname_recent_traces,
             tauri_commands::clear_noname_recent_traces,
+            tauri_commands::mark_noname_controlled_output_review,
+            tauri_commands::resolve_noname_second_guardrail,
+            tauri_commands::apply_noname_manual_plot_text_hint,
+            tauri_commands::apply_noname_reviewed_output,
             tauri_commands::get_noname_mode,
             tauri_commands::set_noname_mode,
             tauri_commands::travel_to_location,

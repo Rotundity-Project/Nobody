@@ -101,7 +101,9 @@ impl NoNameAgentMessage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::noname_protocol_types::{NoNameTaskLifecycle, NoNameTaskStatus, NoNameTraceWritable};
+    use crate::noname_protocol_types::{
+        NoNameTaskLifecycle, NoNameTaskStatus, NoNameTraceWritable,
+    };
     use crate::noname_types::{NoNameMode, NoNameRole};
     use serde_json::json;
 

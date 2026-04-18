@@ -4,10 +4,14 @@
 
 ## 当前状态
 
-截至 `2026-04-09`：
+截至 `2026-04-18`：
 
 - `NoName Agent V1` 基础闭环已完成
-- 当前代码进度已经超过原始 `T6` 计划，进入 `assisted skeleton`
+- 当前代码进度已经超过原始 `T6` 计划，进入 `T7 assisted skeleton / 受控应用 proposal` 阶段
+- `T7-0.6` 已完成：`PlotTextHint` 只有在人工批准、二次护栏 allow、显式命令与段落快照一致时才会写入正文
+- `T7-0.7` 已完成：前端调试台已补显式人工 apply 的差异预览、重复写入禁用与 stale snapshot 友好提示
+- `T7-3` 已完成最小可视化基线：apply lifecycle 已统一展示到调试面板、复制摘要与 Info 调试文本
+- `T7-1` 已完成第三切片：后端 reviewed apply runtime 与通用命令入口 `apply_noname_reviewed_output` 已复用到 `PlotTextHint`、`ChapterSummaryHint` 与 `OptionBiasHint`，三者都要求人工批准、二次护栏 allow 与快照一致
 - 如果要继续推进实现，优先阅读 `noname-v1-blueprint.md`、`noname-v1-task-list.md` 与 `noname-t7-file-checklist.md`
 
 ## 推荐阅读顺序
@@ -51,7 +55,7 @@
   - 面向实现的 V1 蓝图、阶段目标、当前状态与下一阶段方向。
 
 - `noname-v1-task-list.md`
-  - 可执行的开发任务清单，现已补充 `T0-T6` 完成状态与 `T7 assisted skeleton` 说明。
+  - 可执行的开发任务清单，现已补充 `T0-T6` 完成状态与 `T7 assisted skeleton` / 显式人工 apply 说明。
 
 - `noname-t1-file-checklist.md`
   - `T1 Core 类型与配置骨架` 的文件级实现清单，明确每个文件该放什么、先做什么、做到什么算完成。

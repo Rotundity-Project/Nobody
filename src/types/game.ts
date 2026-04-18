@@ -349,6 +349,44 @@ export interface NoNameControlledOutputReviewRecord {
   safeApplyScope?: NoNameApplyScope | null;
   policyForbiddenScopes?: NoNameForbiddenOutputScope[];
   requiresHumanReview: boolean;
+  humanReviewDecision?: NoNameHumanReviewDecision | null;
+  humanReviewedAt?: number | null;
+  humanReviewNote?: string | null;
+}
+
+export type NoNameHumanReviewDecision =
+  | 'pending'
+  | 'approvedForHigherApply'
+  | 'rejectedForHigherApply';
+
+export interface NoNameHumanReviewMarkPayload {
+  traceId: string;
+  requestId: string;
+  decision: NoNameHumanReviewDecision;
+}
+
+export type NoNameSecondGuardrailDecision = 'allow' | 'reject' | 'fallback';
+
+export interface NoNameSecondGuardrailResolvePayload {
+  traceId: string;
+  requestId: string;
+  decision: NoNameSecondGuardrailDecision;
+}
+
+export interface NoNameManualPlotTextApplyPayload {
+  traceId: string;
+  requestId: string;
+}
+
+export interface NoNameManualApplySegmentSnapshot {
+  chapterIndex: number;
+  segmentIndex: number;
+  text: string;
+}
+
+export interface NoNameManualPlotTextApplyResult {
+  trace: NoNameTrace;
+  plotState: PlotState;
 }
 
 export type NoNameProposalStatus = 'observed' | 'ready' | 'blocked' | 'applied' | 'fallback';

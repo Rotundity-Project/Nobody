@@ -198,7 +198,11 @@ where
 }
 
 fn working_match_score(query: &NoNameMemoryQuery, item: &NoNameWorkingMemoryItem) -> u32 {
-    let content = [item.summary.as_str(), item.category.as_str(), item.source.as_str()];
+    let content = [
+        item.summary.as_str(),
+        item.category.as_str(),
+        item.source.as_str(),
+    ];
     score_text_fields(query, &content)
 }
 
@@ -211,11 +215,21 @@ fn episodic_match_score(query: &NoNameMemoryQuery, item: &NoNameEpisodicMemoryIt
     let location_score = query
         .location
         .as_deref()
-        .map(|location| item.location_id.as_deref().map(|value| contains_text(value, location)).unwrap_or(false) as u32 * 5)
+        .map(|location| {
+            item.location_id
+                .as_deref()
+                .map(|value| contains_text(value, location))
+                .unwrap_or(false) as u32
+                * 5
+        })
         .unwrap_or_default();
     let text_score = score_text_fields(
         query,
-        &[item.summary.as_str(), item.event_type.as_str(), item.detail_ref.as_deref().unwrap_or("")],
+        &[
+            item.summary.as_str(),
+            item.event_type.as_str(),
+            item.detail_ref.as_deref().unwrap_or(""),
+        ],
     );
 
     actor_score + location_score + text_score
@@ -425,7 +439,14 @@ mod tests {
                 2,
                 NoNameMemoryImportance::High,
             )],
-            &[sample_semantic("fact-1", "青河长老", "山门", 85, 4, vec!["防守"])],
+            &[sample_semantic(
+                "fact-1",
+                "青河长老",
+                "山门",
+                85,
+                4,
+                vec!["防守"],
+            )],
             &[sample_narrative(
                 "note-1",
                 "守住山门",
@@ -446,7 +467,10 @@ mod tests {
     fn retrieval_ranks_by_relevance_then_recency_then_importance() {
         let result = retrieve_memories(
             &NoNameMemoryQuery::by_keyword(NoNameRole::CombatNarrator, "交锋", 200, 2),
-            &[sample_working("敌修与玩家激烈交锋", 3), sample_working("普通巡山记录", 9)],
+            &[
+                sample_working("敌修与玩家激烈交锋", 3),
+                sample_working("普通巡山记录", 9),
+            ],
             &[
                 sample_episodic(
                     "episode-old",
@@ -465,7 +489,14 @@ mod tests {
                     NoNameMemoryImportance::Medium,
                 ),
             ],
-            &[sample_semantic("fact-1", "玩家", "山门", 70, 1, vec!["战斗"])],
+            &[sample_semantic(
+                "fact-1",
+                "玩家",
+                "山门",
+                70,
+                1,
+                vec!["战斗"],
+            )],
             &[sample_narrative(
                 "note-1",
                 "山门交锋",
@@ -503,7 +534,14 @@ mod tests {
                 2,
                 NoNameMemoryImportance::Medium,
             )],
-            &[sample_semantic("fact-1", "玩家", "山门", 80, 3, vec!["地点"])],
+            &[sample_semantic(
+                "fact-1",
+                "玩家",
+                "山门",
+                80,
+                3,
+                vec!["地点"],
+            )],
             &[sample_narrative(
                 "note-1",
                 "山门危机",

@@ -367,6 +367,7 @@ describe('gameStore', () => {
         safeApplyScope: 'plotTextHint',
         policyForbiddenScopes: ['finalPlotState', 'canonWorldFact'],
         requiresHumanReview: true,
+        humanReviewDecision: 'approvedForHigherApply',
       }],
       relatedObservations: [{
         role: 'worldCurator',
@@ -413,9 +414,10 @@ describe('gameStore', () => {
 
     const text = store.getNoNameTraceDebugText();
     expect(text).toContain('预检：preflight_ready');
+    expect(text).toContain('应用生命周期：提案阶段:ready');
     expect(text).toContain('应用计划：#1:chapter_summary_hint:apply@200');
     expect(text).toContain('应用执行：chapter_summary_hint:applied');
-    expect(text).toContain('受控输出复核：sceneAugmentation:plotTextHint:needsReview:human[禁区=finalPlotState/canonWorldFact]');
+    expect(text).toContain('受控输出复核：sceneAugmentation:plotTextHint:needsReview:human[禁区=finalPlotState/canonWorldFact][人工=approvedForHigherApply]');
     expect(text).toContain('状态迁移：proposal-1:ready');
     expect(text).toContain('提案：Director提案：山门危机 / 山门危机 / ready');
     expect(text).toContain('目标段：current_turn_tail');
@@ -423,5 +425,164 @@ describe('gameStore', () => {
     expect(text).toContain('作用域：diagnostics, chapterSummaryHint');
     expect(text).toContain('agent:delegation:running');
     expect(text).toContain('协作观察：worldCurator:山门法阵');
+  });
+
+  it('marks a NoName controlled output review and updates local trace', async () => {
+    const store = useGameStore();
+    store.noNameTraces = [{
+      traceId: 'trace-1',
+      sessionId: 'session-1',
+      turnId: 'turn-1',
+      mode: 'assisted',
+      graphPath: [],
+      capabilityCalls: [],
+      proposals: [],
+      fallbackUsed: false,
+      elapsedMs: 0,
+      controlledOutputReviews: [{
+        requestId: 'review-1',
+        requestedKind: 'sceneAugmentation',
+        decision: 'needsReview',
+        reason: 'requires review',
+        safeApplyScope: 'plotTextHint',
+        requiresHumanReview: true,
+      }],
+    }];
+    invokeMock.mockResolvedValue({
+      ...store.noNameTraces[0],
+      controlledOutputReviews: [{
+        requestId: 'review-1',
+        requestedKind: 'sceneAugmentation',
+        decision: 'needsReview',
+        reason: 'requires review',
+        safeApplyScope: 'plotTextHint',
+        requiresHumanReview: true,
+        humanReviewDecision: 'rejectedForHigherApply',
+      }],
+    });
+
+    await store.markNoNameControlledOutputReview({
+      traceId: 'trace-1',
+      requestId: 'review-1',
+      decision: 'rejectedForHigherApply',
+    });
+
+    expect(invokeMock).toHaveBeenCalledWith('mark_noname_controlled_output_review', {
+      traceId: 'trace-1',
+      requestId: 'review-1',
+      decision: 'rejectedForHigherApply',
+    });
+    expect(store.noNameTraces[0].controlledOutputReviews?.[0].humanReviewDecision)
+      .toBe('rejectedForHigherApply');
+  });
+
+  it('resolves a NoName second guardrail decision and updates local trace', async () => {
+    const store = useGameStore();
+    store.noNameTraces = [{
+      traceId: 'trace-1',
+      sessionId: 'session-1',
+      turnId: 'turn-1',
+      mode: 'assisted',
+      graphPath: [],
+      capabilityCalls: [],
+      proposals: [],
+      fallbackUsed: false,
+      elapsedMs: 0,
+      applyPlanLog: [],
+      applyExecutionLog: [],
+    }];
+    invokeMock.mockResolvedValue({
+      ...store.noNameTraces[0],
+      applyPlanLog: [{
+        order: 1,
+        target: 'plot_text_hint',
+        decision: 'second_guardrail_allow',
+        priority: 350,
+        note: 'allowed',
+      }],
+    });
+
+    await store.resolveNoNameSecondGuardrail({
+      traceId: 'trace-1',
+      requestId: 'review-1',
+      decision: 'allow',
+    });
+
+    expect(invokeMock).toHaveBeenCalledWith('resolve_noname_second_guardrail', {
+      traceId: 'trace-1',
+      requestId: 'review-1',
+      decision: 'allow',
+    });
+    expect(store.noNameTraces[0].applyPlanLog?.[0]?.decision).toBe('second_guardrail_allow');
+  });
+
+  it('applies a manual NoName plot text hint with current segment snapshot', async () => {
+    const store = useGameStore();
+    const plotState = basePlotState();
+    plotState.current_chapter.index = 1;
+    plotState.current_chapter.content = ['你看见山门风声渐紧。'];
+    plotState.plot_history = ['你看见山门风声渐紧。'];
+    store.plotState = plotState;
+    store.noNameTraces = [{
+      traceId: 'trace-1',
+      sessionId: 'session-1',
+      turnId: 'turn-1',
+      mode: 'assisted',
+      graphPath: [],
+      capabilityCalls: [],
+      proposals: [],
+      fallbackUsed: false,
+      elapsedMs: 0,
+    }];
+    invokeMock.mockResolvedValue({
+      trace: {
+        ...store.noNameTraces[0],
+        applyExecutionLog: [{
+          target: 'plot_text_hint',
+          outcome: 'manual_plot_text_applied',
+          note: 'applied',
+        }],
+      },
+      plotState: {
+        ...plotState,
+        current_chapter: {
+          ...plotState.current_chapter,
+          content: ['你看见山门风声渐紧。\n\n【NoName】重点关注：山门危机'],
+        },
+      },
+    });
+
+    await store.applyNoNameManualPlotTextHint({
+      traceId: 'trace-1',
+      requestId: 'review-1',
+    });
+
+    expect(invokeMock).toHaveBeenCalledWith('apply_noname_reviewed_output', {
+      traceId: 'trace-1',
+      requestId: 'review-1',
+      scope: 'plotTextHint',
+      chapterIndex: 1,
+      segmentIndex: 0,
+      expectedSegmentText: '你看见山门风声渐紧。',
+    });
+    expect(store.plotState?.current_chapter.content[0]).toContain('【NoName】重点关注');
+    expect(store.noNameTraces[0].applyExecutionLog?.[0]?.outcome)
+      .toBe('manual_plot_text_applied');
+  });
+
+  it('shows a friendly stale snapshot error for manual NoName plot text apply', async () => {
+    const store = useGameStore();
+    const plotState = basePlotState();
+    plotState.current_chapter.index = 1;
+    plotState.current_chapter.content = ['你看见山门风声渐紧。'];
+    store.plotState = plotState;
+    invokeMock.mockRejectedValue(new Error('segment snapshot mismatch; refusing stale manual apply'));
+
+    await expect(store.applyNoNameManualPlotTextHint({
+      traceId: 'trace-1',
+      requestId: 'review-1',
+    })).rejects.toThrow('当前剧情段落已变化');
+
+    expect(store.error).toBe('NoName 人工写入已取消：当前剧情段落已变化，请重新打开调试台确认差异预览。');
   });
 });

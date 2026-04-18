@@ -241,7 +241,13 @@ mod tests {
             .cancelled("operator request")
             .expect("cancel");
 
-        assert_eq!(failed.last_error.as_ref().map(|err| err.code.as_str()), Some("noname.tool.failure"));
-        assert_eq!(cancelled.cancellation_reason.as_deref(), Some("operator request"));
+        assert_eq!(
+            failed.last_error.as_ref().map(|err| err.code.as_str()),
+            Some("noname.tool.failure")
+        );
+        assert_eq!(
+            cancelled.cancellation_reason.as_deref(),
+            Some("operator request")
+        );
     }
 }

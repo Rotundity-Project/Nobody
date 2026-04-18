@@ -110,6 +110,8 @@ describe('NoNameDebugConsole', () => {
     expect(wrapper.text()).toContain('当前模式：assisted');
     expect(wrapper.text()).toContain('Protocol Events: 1');
     expect(wrapper.text()).toContain('Controlled Reviews: 1 (1 needs human review)');
+    expect(wrapper.text()).toContain('Human Review Decisions: 0 approved / 0 rejected / 1 pending');
+    expect(wrapper.text()).toContain('Apply Lifecycle:');
     expect(wrapper.text()).toContain('Proposals: 1/1 applyable');
 
     const traceButtons = wrapper.findAll('.noname-debug-console-trace-btn');
@@ -117,6 +119,37 @@ describe('NoNameDebugConsole', () => {
 
     await traceButtons[0].trigger('click');
     expect(wrapper.text()).toContain('Director提案：初始观察');
+  });
+
+  it('tracks local human review decisions for NeedsReview outputs', async () => {
+    const wrapper = mount(NoNameDebugConsole, {
+      props: {
+        isOpen: true,
+        traces,
+        noNameMode: 'assisted',
+        isDevMode: true,
+      },
+    });
+
+    expect(wrapper.text()).toContain('等待开发者确认');
+
+    const reviewButtons = wrapper.findAll('.agent-trace-review-btn');
+    await reviewButtons
+      .find((button) => button.text() === '标记可进入高层 apply 设计')
+      ?.trigger('click');
+
+    expect(wrapper.text()).toContain('人工结论：可进入下一阶段 apply 设计');
+    expect(wrapper.text()).toContain('Human Review Decisions: 1 approved / 0 rejected / 0 pending');
+
+    await wrapper
+      .findAll('.agent-trace-review-btn')
+      .find((button) => button.text() === '二次护栏允许')
+      ?.trigger('click');
+    expect(wrapper.emitted('resolve-second-guardrail')?.[0]).toEqual([{
+      traceId: 'trace-2',
+      requestId: 'controlled-output-proposal-2-plot_text_hint',
+      decision: 'allow',
+    }]);
   });
 
   it('emits close, clear and mode change events', async () => {
@@ -159,6 +192,7 @@ describe('NoNameDebugConsole', () => {
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Trace: trace-2'));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Protocol Events: 1'));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Controlled Reviews: 1'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Apply Lifecycle:'));
     expect(wrapper.text()).toContain('摘要已复制');
   });
 });

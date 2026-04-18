@@ -134,18 +134,13 @@ fn min_score_matches(snippet: &NoNameKnowledgeSnippet, min_score: Option<u32>) -
         .unwrap_or(true)
 }
 
-fn dedupe_snippets(
-    snippets: Vec<NoNameKnowledgeSnippet>,
-) -> (Vec<NoNameKnowledgeSnippet>, usize) {
+fn dedupe_snippets(snippets: Vec<NoNameKnowledgeSnippet>) -> (Vec<NoNameKnowledgeSnippet>, usize) {
     let mut deduped: Vec<NoNameKnowledgeSnippet> = Vec::new();
     let mut duplicate_count = 0;
 
     for snippet in snippets {
         let key = snippet_key(&snippet);
-        if let Some(existing) = deduped
-            .iter_mut()
-            .find(|item| snippet_key(item) == key)
-        {
+        if let Some(existing) = deduped.iter_mut().find(|item| snippet_key(item) == key) {
             duplicate_count += 1;
             if compare_snippets(&snippet, existing).is_lt() {
                 *existing = snippet;
