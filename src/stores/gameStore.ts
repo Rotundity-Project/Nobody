@@ -226,7 +226,12 @@ export const useGameStore = defineStore('game', {
         : '无';
       const controlledOutputReviews = latest.controlledOutputReviews && latest.controlledOutputReviews.length > 0
         ? latest.controlledOutputReviews
-          .map((item) => `${item.requestedKind}:${item.safeApplyScope ?? 'none'}:${item.decision}${item.requiresHumanReview ? ':human' : ''}`)
+          .map((item) => {
+            const policyScopes = item.policyForbiddenScopes?.length
+              ? `[禁区=${item.policyForbiddenScopes.join('/')}]`
+              : '';
+            return `${item.requestedKind}:${item.safeApplyScope ?? 'none'}:${item.decision}${item.requiresHumanReview ? ':human' : ''}${policyScopes}`;
+          })
           .join(', ')
         : '无';
       return [

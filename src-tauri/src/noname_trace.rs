@@ -1,5 +1,6 @@
 use crate::noname_output_interface::{
     NoNameControlledOutputDecision, NoNameControlledOutputKind, NoNameControlledOutputReview,
+    NoNameForbiddenOutputScope,
 };
 use crate::noname_types::{
     NoNameApplyScope, NoNameMode, NoNameProposal, NoNameRole, NoNameTraceStage,
@@ -56,6 +57,8 @@ pub struct NoNameControlledOutputReviewRecord {
     pub reason: String,
     pub normalized_kind: Option<NoNameControlledOutputKind>,
     pub safe_apply_scope: Option<NoNameApplyScope>,
+    #[serde(default)]
+    pub policy_forbidden_scopes: Vec<NoNameForbiddenOutputScope>,
     pub requires_human_review: bool,
 }
 
@@ -225,6 +228,7 @@ impl NoNameTrace {
     pub fn record_controlled_output_review(
         &mut self,
         requested_kind: NoNameControlledOutputKind,
+        policy_forbidden_scopes: Vec<NoNameForbiddenOutputScope>,
         review: NoNameControlledOutputReview,
     ) {
         self.controlled_output_reviews
@@ -235,6 +239,7 @@ impl NoNameTrace {
                 reason: review.reason,
                 normalized_kind: review.normalized_kind,
                 safe_apply_scope: review.safe_apply_scope,
+                policy_forbidden_scopes,
                 requires_human_review: review.requires_human_review,
             });
     }
@@ -442,6 +447,7 @@ mod tests {
         let mut trace = NoNameTrace::empty("trace-1", "session-1", "turn-1", NoNameMode::Assisted);
         trace.record_controlled_output_review(
             NoNameControlledOutputKind::SceneAugmentation,
+            vec![NoNameForbiddenOutputScope::CombatOutcome],
             NoNameControlledOutputReview {
                 request_id: "review-1".to_string(),
                 decision: NoNameControlledOutputDecision::NeedsReview,
@@ -456,6 +462,10 @@ mod tests {
         assert_eq!(
             trace.controlled_output_reviews[0].decision,
             NoNameControlledOutputDecision::NeedsReview
+        );
+        assert_eq!(
+            trace.controlled_output_reviews[0].policy_forbidden_scopes,
+            vec![NoNameForbiddenOutputScope::CombatOutcome]
         );
         assert!(trace.controlled_output_reviews[0].requires_human_review);
     }

@@ -330,6 +330,15 @@ export type NoNameControlledOutputKind =
   | 'sceneAugmentation'
   | 'narrativeNote'
   | 'intermediateNarrativeHint';
+export type NoNameForbiddenOutputScope =
+  | 'finalPlotState'
+  | 'canonWorldFact'
+  | 'characterStats'
+  | 'inventoryOrResource'
+  | 'mapTopology'
+  | 'chapterLifecycle'
+  | 'playerChoice'
+  | 'combatOutcome';
 
 export interface NoNameControlledOutputReviewRecord {
   requestId: string;
@@ -338,6 +347,7 @@ export interface NoNameControlledOutputReviewRecord {
   reason: string;
   normalizedKind?: NoNameControlledOutputKind | null;
   safeApplyScope?: NoNameApplyScope | null;
+  policyForbiddenScopes?: NoNameForbiddenOutputScope[];
   requiresHumanReview: boolean;
 }
 

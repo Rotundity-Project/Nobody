@@ -78,6 +78,7 @@ const trace: NoNameTrace = {
     reason: 'plot text hint requires human review before higher-layer apply',
     normalizedKind: 'sceneAugmentation',
     safeApplyScope: 'plotTextHint',
+    policyForbiddenScopes: ['finalPlotState', 'canonWorldFact'],
     requiresHumanReview: true,
   }],
   guardrailResult: {
@@ -118,6 +119,7 @@ describe('AgentTracePanel', () => {
     expect(wrapper.text()).toContain('受控输出复核');
     expect(wrapper.text()).toContain('sceneAugmentation · plotTextHint · needsReview');
     expect(wrapper.text()).toContain('需要人工复核');
+    expect(wrapper.text()).toContain('策略禁区：finalPlotState / canonWorldFact');
   });
 
   it('shows empty state when trace is missing', () => {

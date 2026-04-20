@@ -472,6 +472,7 @@
 - trace 已记录 controlled output review，能区分 `Allow / Reject / NeedsReview`
 - 前端调试文本已显示 apply preflight 与 proposal transition log
 - 前端调试台已展示 controlled output review，并支持复制当前 Trace 摘要
+- A3 `forbiddenScopes` 已映射到 controlled output policy，review trace 会显示 `policyForbiddenScopes`
 - apply 阶段已补独立 guardrail 入口
 
 ### 当前边界

@@ -192,7 +192,7 @@ where
         })
         .collect::<Vec<_>>();
 
-    ranked.sort_by(|a, b| b.0.cmp(&a.0));
+    ranked.sort_by_key(|item| std::cmp::Reverse(item.0));
     ranked.truncate(query.per_section_limit);
     ranked.into_iter().map(|(_, item)| item).collect()
 }

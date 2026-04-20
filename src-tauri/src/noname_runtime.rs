@@ -1,5 +1,6 @@
 use crate::noname_agent_registry::NoNameAgentRegistry;
 use crate::noname_config::NoNameConfig;
+use crate::noname_context_builder::specialize_context_packet;
 use crate::noname_context_types::NoNameContextPacket;
 use crate::noname_errors::{NoNameError, NoNameErrorKind};
 use crate::noname_graph::NoNameGraphExecutor;
@@ -8,7 +9,8 @@ use crate::noname_guardrails::{
     NoNameDirectorGuardrailInput, NoNameGuardrailResult,
 };
 use crate::noname_output_interface::{
-    NoNameControlledOutputDecision, NoNameControlledOutputInterface, NoNameControlledOutputKind,
+    controlled_output_policy_from_role_context, NoNameControlledOutputDecision,
+    NoNameControlledOutputInterface, NoNameControlledOutputKind,
 };
 use crate::noname_protocol_agent::{NoNameAgentMessage, NoNameAgentMessageKind};
 use crate::noname_protocol_runtime::NoNameProtocolRuntime;
@@ -125,7 +127,12 @@ impl NoNameRuntime {
             result
         });
         let proposal = self.finalize_director_proposal(&mut observation, guardrail_result.as_ref());
-        let proposal = self.record_assisted_apply_preflight(&mut trace, proposal, guardrail_input);
+        let proposal = self.record_assisted_apply_preflight(
+            &mut trace,
+            proposal,
+            guardrail_input,
+            context_packet,
+        );
         observation.proposal = proposal.clone();
         trace.replace_last_proposal(proposal.clone());
         let related_observations =
@@ -259,6 +266,7 @@ impl NoNameRuntime {
         trace: &mut NoNameTrace,
         mut proposal: NoNameProposal,
         guardrail_input: Option<&NoNameDirectorGuardrailInput>,
+        context_packet: &NoNameContextPacket,
     ) -> NoNameProposal {
         trace.record_proposal_transition(format!(
             "{}:{}",
@@ -337,7 +345,7 @@ impl NoNameRuntime {
                             ));
                         }
                         let (review_count, needs_review_count) =
-                            self.record_controlled_output_reviews(trace, &proposal);
+                            self.record_controlled_output_reviews(trace, &proposal, context_packet);
                         if review_count > 0 {
                             trace.record_apply_execution(
                                 "runtime.controlled_output_review",
@@ -441,8 +449,13 @@ impl NoNameRuntime {
         &self,
         trace: &mut NoNameTrace,
         proposal: &NoNameProposal,
+        context_packet: &NoNameContextPacket,
     ) -> (usize, usize) {
-        let interface = NoNameControlledOutputInterface::default();
+        let role_context = specialize_context_packet(context_packet);
+        let interface = NoNameControlledOutputInterface::new(
+            controlled_output_policy_from_role_context(&role_context),
+        );
+        let policy_forbidden_scopes = interface.policy().forbidden_scopes.clone();
         let scopes = if proposal.apply_scopes.is_empty() {
             vec![NoNameApplyScope::Diagnostics]
         } else {
@@ -480,7 +493,7 @@ impl NoNameRuntime {
                 scope.as_str(),
                 controlled_output_decision_key(review.decision)
             ));
-            trace.record_controlled_output_review(kind, review);
+            trace.record_controlled_output_review(kind, policy_forbidden_scopes.clone(), review);
             review_count += 1;
         }
 
@@ -653,6 +666,7 @@ fn controlled_output_decision_key(decision: NoNameControlledOutputDecision) -> &
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::noname_output_interface::NoNameForbiddenOutputScope;
     use crate::noname_types::NoNameTraceStage;
 
     #[test]
@@ -916,6 +930,12 @@ mod tests {
         assert!(result.trace.controlled_output_reviews.iter().any(|item| {
             item.decision == NoNameControlledOutputDecision::NeedsReview
                 && item.safe_apply_scope == Some(NoNameApplyScope::PlotTextHint)
+                && item
+                    .policy_forbidden_scopes
+                    .contains(&NoNameForbiddenOutputScope::FinalPlotState)
+                && item
+                    .policy_forbidden_scopes
+                    .contains(&NoNameForbiddenOutputScope::CanonWorldFact)
                 && item.requires_human_review
         }));
         assert!(result
