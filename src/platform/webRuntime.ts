@@ -9,6 +9,7 @@ import {
   type GameState,
   type MapLocationOverview,
   type NoNameApplyScope,
+  type NoNameForbiddenOutputScope,
   type NoNameHumanReviewMarkPayload,
   type NoNameMode,
   type NoNameSecondGuardrailResolvePayload,
@@ -70,6 +71,17 @@ const defaultConsistencyPolicy = (): ConsistencyPolicy => ({
     waiting_without_options: 12,
   },
 });
+
+const defaultControlledOutputForbiddenScopes: NoNameForbiddenOutputScope[] = [
+  'finalPlotState',
+  'canonWorldFact',
+  'characterStats',
+  'inventoryOrResource',
+  'mapTopology',
+  'chapterLifecycle',
+  'playerChoice',
+  'combatOutcome',
+];
 
 const initialState = (): WebRuntimeState => ({
   script: null,
@@ -330,6 +342,34 @@ function deriveWebNoNameApplyScopes(targetSegment: NoNameTargetSegment): NoNameA
   return baseScopes;
 }
 
+function controlledOutputRequestId(proposalId: string, scope: NoNameApplyScope): string {
+  return `controlled-output-${proposalId}-${scope === 'plotTextHint' ? 'plot_text_hint' : scope}`;
+}
+
+function controlledOutputKindForScope(scope: NoNameApplyScope) {
+  return scope === 'plotTextHint'
+    ? 'sceneAugmentation'
+    : scope === 'chapterSummaryHint'
+      ? 'recapNote'
+      : scope === 'optionBiasHint'
+        ? 'intermediateNarrativeHint'
+        : 'narrativeNote';
+}
+
+function policyForbiddenScopesForProducerRole(_producerRole: string): NoNameForbiddenOutputScope[] {
+  return [...defaultControlledOutputForbiddenScopes];
+}
+
+function findProposalForControlledOutputRequest(trace: NoNameTrace, requestId: string) {
+  const proposalId = (trace.controlledOutputReviews ?? [])
+    .find((item) => item.requestId === requestId)
+    ?.proposalId;
+  if (!proposalId) {
+    return null;
+  }
+  return trace.proposals.find((item) => item.proposalId === proposalId) ?? null;
+}
+
 function applyWebNoNameSummaryHint(summary: string, focus: string, targetSegment: NoNameTargetSegment): string {
   const hint = `NoName提示：后续重点关注${focus}`;
   if (!summary.trim()) {
@@ -352,6 +392,8 @@ function appendWebNoNameTrace(
 ) {
   const traceId = `web-trace-${Date.now()}`;
   const proposalId = `proposal-${traceId}`;
+  const producerRole = 'director';
+  const policyForbiddenScopes = policyForbiddenScopesForProducerRole(producerRole);
 
   if (runtimeState.noNameMode === 'disabled') {
     return;
@@ -376,7 +418,7 @@ function appendWebNoNameTrace(
         {
           proposalId,
           kind: 'plot_candidate',
-          producerRole: 'director',
+          producerRole,
           title: `Director提案：${text}`,
           summary: `建议优先推进“${text}”`,
           focus: text,
@@ -423,29 +465,20 @@ function appendWebNoNameTrace(
               : `已补充诊断提示，聚焦“${text}”`,
       })),
       controlledOutputReviews: applyScopes.map((scope) => ({
-        requestId: `controlled-output-${proposalId}-${scope === 'plotTextHint' ? 'plot_text_hint' : scope}`,
+        requestId: controlledOutputRequestId(proposalId, scope),
         proposalId,
-        requestedKind: scope === 'plotTextHint'
-          ? 'sceneAugmentation'
-          : scope === 'chapterSummaryHint'
-            ? 'recapNote'
-            : scope === 'optionBiasHint'
-              ? 'intermediateNarrativeHint'
-              : 'narrativeNote',
+        requestedKind: controlledOutputKindForScope(scope),
         decision: scope === 'plotTextHint' ? 'needsReview' : 'allow',
         reason: scope === 'plotTextHint'
           ? 'plot text hint requires human review before higher-layer apply'
           : 'controlled output stays within allowed boundary',
-        normalizedKind: scope === 'plotTextHint'
-          ? 'sceneAugmentation'
-          : scope === 'chapterSummaryHint'
-            ? 'recapNote'
-            : scope === 'optionBiasHint'
-              ? 'intermediateNarrativeHint'
-              : 'narrativeNote',
+        normalizedKind: controlledOutputKindForScope(scope),
         safeApplyScope: scope,
-        policyForbiddenScopes: ['finalPlotState', 'canonWorldFact'],
+        policyForbiddenScopes,
         requiresHumanReview: scope === 'plotTextHint',
+        humanReviewDecision: null,
+        humanReviewedAt: null,
+        humanReviewNote: null,
       })),
       guardrailResult: { outcome: 'accept' },
       applyResult: {
@@ -586,11 +619,7 @@ function markWebNoNameControlledOutputReview(payload: NoNameHumanReviewMarkPaylo
     return trace;
   }
 
-  const proposal = trace.proposals
-    .slice()
-    .reverse()
-    .find((item) => payload.requestId.includes(item.proposalId))
-    ?? trace.proposals[trace.proposals.length - 1];
+  const proposal = findProposalForControlledOutputRequest(trace, payload.requestId);
   const secondGuardrailRejected = trace.mode !== 'assisted'
     || review.safeApplyScope !== 'plotTextHint'
     || !proposal
@@ -668,11 +697,7 @@ function resolveWebNoNameSecondGuardrail(payload: NoNameSecondGuardrailResolvePa
   const isWaiting = (trace.proposalTransitionLog ?? [])
     .includes(`${payload.requestId}:apply_intent:awaiting_second_guardrail`)
     || (trace.applyExecutionLog ?? []).some((item) => item.outcome === 'awaiting_second_guardrail');
-  const proposal = trace.proposals
-    .slice()
-    .reverse()
-    .find((item) => payload.requestId.includes(item.proposalId))
-    ?? trace.proposals[trace.proposals.length - 1];
+  const proposal = findProposalForControlledOutputRequest(trace, payload.requestId);
   const revalidateRejected = !isWaiting
     || trace.mode !== 'assisted'
     || review.safeApplyScope !== 'plotTextHint'
@@ -783,11 +808,7 @@ function applyWebNoNameManualPlotTextHint(args: {
   if (expectedSegmentText.includes('【NoName】') || expectedSegmentText.includes('NoName提示')) {
     throw new Error('segment already contains a NoName marker');
   }
-  const proposal = trace.proposals
-    .slice()
-    .reverse()
-    .find((item) => requestId.includes(item.proposalId))
-    ?? trace.proposals[trace.proposals.length - 1];
+  const proposal = findProposalForControlledOutputRequest(trace, requestId);
   if (!proposal) {
     throw new Error('NoName proposal not found for manual apply');
   }
@@ -884,11 +905,7 @@ function applyWebNoNameManualChapterSummaryHint(args: {
   if (plotState.current_chapter.summary !== expectedSummary) {
     throw new Error('summary snapshot mismatch; refusing stale manual apply');
   }
-  const proposal = trace.proposals
-    .slice()
-    .reverse()
-    .find((item) => requestId.includes(item.proposalId))
-    ?? trace.proposals[trace.proposals.length - 1];
+  const proposal = findProposalForControlledOutputRequest(trace, requestId);
   if (!proposal) {
     throw new Error('NoName proposal not found for manual apply');
   }
@@ -992,11 +1009,7 @@ function applyWebNoNameManualOptionBiasHint(args: {
   if (currentDiagnostics !== expectedGenerationDiagnostics) {
     throw new Error('diagnostics snapshot mismatch; refusing stale manual apply');
   }
-  const proposal = trace.proposals
-    .slice()
-    .reverse()
-    .find((item) => requestId.includes(item.proposalId))
-    ?? trace.proposals[trace.proposals.length - 1];
+  const proposal = findProposalForControlledOutputRequest(trace, requestId);
   if (!proposal) {
     throw new Error('NoName proposal not found for manual apply');
   }

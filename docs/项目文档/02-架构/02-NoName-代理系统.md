@@ -77,7 +77,12 @@
 
 ### 5.2 Web mock 与后端容易漂移
 
-当前 `webRuntime.ts` 在某些 `NoName` 语义上仍是简化模型，必须持续对齐后端真实行为。
+当前 `webRuntime.ts` 仍然是简化 runtime，但第一轮关键对齐已经完成：
+
+- `policyForbiddenScopes` 不再只保留极小子集
+- controlled output review 已保留 `proposalId` 精确绑定语义
+
+后续仍要继续跟随后端真实行为演进，避免新的 review / apply 字段再次漂移。
 
 ### 5.3 文档曾经明显落后于代码
 

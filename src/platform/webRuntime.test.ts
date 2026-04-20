@@ -117,6 +117,18 @@ describe('webRuntime', () => {
     expect(latestTrace?.controlledOutputReviews?.some((item) => (
       item.safeApplyScope === 'plotTextHint' && item.decision === 'needsReview'
     ))).toBe(true);
+    const plotTextReview = latestTrace?.controlledOutputReviews?.find((item) => item.safeApplyScope === 'plotTextHint');
+    expect(plotTextReview?.proposalId).toBe(latestTrace?.proposals[0]?.proposalId);
+    expect(plotTextReview?.policyForbiddenScopes).toEqual(expect.arrayContaining([
+      'finalPlotState',
+      'canonWorldFact',
+      'characterStats',
+      'inventoryOrResource',
+      'mapTopology',
+      'chapterLifecycle',
+      'playerChoice',
+      'combatOutcome',
+    ]));
     expect(latestTrace?.applyResult?.outcome).toBe('applied_summary_and_option_bias');
     expect(latestTrace?.applyResult?.reason).toContain('plotTextHint 等待人工复核');
     expect(latestTrace?.applyResult?.reason).toContain('target=current_turn_head');
