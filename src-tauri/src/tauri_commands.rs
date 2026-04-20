@@ -15,8 +15,8 @@ use crate::llm_runtime_config::{
 use crate::llm_service::{LLMConfig, LLMRequest, LLMService};
 use crate::memory_layers::{ChapterSummary, MemoryEntry, WorldFact};
 use crate::noname_apply::{
-    apply_reviewed_output_to_plot_state, NoNameApplyDiagnosticsSnapshot,
-    NoNameApplySegmentSnapshot, NoNameApplySummarySnapshot, NoNameReviewedApplyRequest,
+    apply_manual_plot_text_hint_to_plot_state, apply_reviewed_output_to_plot_state,
+    build_reviewed_apply_request,
 };
 use crate::noname_config::NoNameConfig;
 use crate::noname_context_builder::build_context_packet;
@@ -713,100 +713,6 @@ fn record_noname_second_guardrail_decision(
     }
 
     Ok(())
-}
-
-fn apply_noname_manual_plot_text_hint_to_plot_state(
-    trace: NoNameTrace,
-    request_id: &str,
-    plot_state: PlotState,
-    chapter_index: u32,
-    segment_index: usize,
-    expected_segment_text: &str,
-) -> Result<NoNameManualPlotTextApplyResult, String> {
-    let outcome = apply_reviewed_output_to_plot_state(
-        trace,
-        NoNameReviewedApplyRequest {
-            request_id: request_id.to_string(),
-            scope: NoNameApplyScope::PlotTextHint,
-            segment_snapshot: Some(NoNameApplySegmentSnapshot {
-                chapter_index,
-                segment_index,
-                expected_segment_text: expected_segment_text.to_string(),
-            }),
-            summary_snapshot: None,
-            diagnostics_snapshot: None,
-        },
-        plot_state,
-    )?;
-    Ok(NoNameManualPlotTextApplyResult {
-        trace: outcome.trace,
-        plot_state: outcome.plot_state,
-    })
-}
-
-fn build_noname_reviewed_apply_request(
-    request_id: String,
-    scope: NoNameApplyScope,
-    chapter_index: Option<u32>,
-    segment_index: Option<usize>,
-    expected_segment_text: Option<String>,
-    expected_summary: Option<String>,
-    expected_generation_diagnostics: Option<String>,
-) -> Result<NoNameReviewedApplyRequest, String> {
-    let segment_snapshot = match scope {
-        NoNameApplyScope::PlotTextHint => Some(NoNameApplySegmentSnapshot {
-            chapter_index: chapter_index
-                .ok_or_else(|| "plot_text_hint manual apply requires chapter_index".to_string())?,
-            segment_index: segment_index
-                .ok_or_else(|| "plot_text_hint manual apply requires segment_index".to_string())?,
-            expected_segment_text: expected_segment_text.ok_or_else(|| {
-                "plot_text_hint manual apply requires expected_segment_text".to_string()
-            })?,
-        }),
-        _ => None,
-    };
-    let summary_snapshot = match scope {
-        NoNameApplyScope::ChapterSummaryHint => Some(NoNameApplySummarySnapshot {
-            chapter_index: chapter_index.ok_or_else(|| {
-                "chapter_summary_hint manual apply requires chapter_index".to_string()
-            })?,
-            expected_summary: expected_summary.ok_or_else(|| {
-                "chapter_summary_hint manual apply requires expected_summary".to_string()
-            })?,
-        }),
-        _ => None,
-    };
-    let diagnostics_snapshot = match scope {
-        NoNameApplyScope::OptionBiasHint => Some(NoNameApplyDiagnosticsSnapshot {
-            chapter_index: chapter_index.ok_or_else(|| {
-                "option_bias_hint manual apply requires chapter_index".to_string()
-            })?,
-            expected_generation_diagnostics: expected_generation_diagnostics.ok_or_else(|| {
-                "option_bias_hint manual apply requires expected_generation_diagnostics".to_string()
-            })?,
-        }),
-        _ => None,
-    };
-
-    Ok(NoNameReviewedApplyRequest {
-        request_id,
-        scope,
-        segment_snapshot,
-        summary_snapshot,
-        diagnostics_snapshot,
-    })
-}
-
-fn apply_noname_reviewed_output_to_plot_state(
-    trace: NoNameTrace,
-    request: NoNameReviewedApplyRequest,
-    plot_state: PlotState,
-) -> Result<NoNameManualPlotTextApplyResult, String> {
-    let outcome = apply_reviewed_output_to_plot_state(trace, request, plot_state)?;
-    Ok(NoNameManualPlotTextApplyResult {
-        trace: outcome.trace,
-        plot_state: outcome.plot_state,
-    })
 }
 
 fn apply_noname_plot_text_hint(
@@ -4554,7 +4460,7 @@ pub async fn apply_noname_manual_plot_text_hint(
             Err(poisoned) => poisoned.into_inner(),
         };
         let plot_state = engine.get_plot_state().map_err(|e| e.to_string())?;
-        let result = apply_noname_manual_plot_text_hint_to_plot_state(
+        let outcome = apply_manual_plot_text_hint_to_plot_state(
             trace,
             &request_id,
             plot_state,
@@ -4562,6 +4468,10 @@ pub async fn apply_noname_manual_plot_text_hint(
             segment_index,
             &expected_segment_text,
         )?;
+        let result = NoNameManualPlotTextApplyResult {
+            trace: outcome.trace,
+            plot_state: outcome.plot_state,
+        };
         engine
             .update_plot_state(result.plot_state.clone())
             .map_err(|e| e.to_string())?;
@@ -4591,7 +4501,7 @@ pub async fn apply_noname_reviewed_output(
     expected_generation_diagnostics: Option<String>,
     engine: State<'_, Mutex<GameEngine>>,
 ) -> Result<NoNameManualPlotTextApplyResult, String> {
-    let request = build_noname_reviewed_apply_request(
+    let request = build_reviewed_apply_request(
         request_id,
         scope,
         chapter_index,
@@ -4618,7 +4528,11 @@ pub async fn apply_noname_reviewed_output(
             Err(poisoned) => poisoned.into_inner(),
         };
         let plot_state = engine.get_plot_state().map_err(|e| e.to_string())?;
-        let result = apply_noname_reviewed_output_to_plot_state(trace, request, plot_state)?;
+        let outcome = apply_reviewed_output_to_plot_state(trace, request, plot_state)?;
+        let result = NoNameManualPlotTextApplyResult {
+            trace: outcome.trace,
+            plot_state: outcome.plot_state,
+        };
         engine
             .update_plot_state(result.plot_state.clone())
             .map_err(|e| e.to_string())?;
@@ -7553,7 +7467,7 @@ mod tests {
             last_option_generation_source: None,
             last_consistency_risk_score: None,
         };
-        let applied = apply_noname_manual_plot_text_hint_to_plot_state(
+        let applied = crate::noname_apply::apply_manual_plot_text_hint_to_plot_state(
             resolved,
             "controlled-output-proposal-review-plot_text_hint",
             plot_state,
@@ -7561,6 +7475,10 @@ mod tests {
             0,
             "你看见山门风声渐紧。",
         )
+        .map(|outcome| NoNameManualPlotTextApplyResult {
+            trace: outcome.trace,
+            plot_state: outcome.plot_state,
+        })
         .expect("manual apply should update plot text");
         assert!(applied.plot_state.current_chapter.content[0].contains("【NoName】重点关注"));
         assert!(applied
