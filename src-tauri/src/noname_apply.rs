@@ -59,12 +59,17 @@ fn find_review_proposal<'a>(
     trace: &'a NoNameTrace,
     request_id: &str,
 ) -> Option<&'a NoNameProposal> {
+    let proposal_id = trace
+        .controlled_output_reviews
+        .iter()
+        .find(|review| review.request_id == request_id)
+        .and_then(|review| review.proposal_id.as_deref())?;
+
     trace
         .proposals
         .iter()
         .rev()
-        .find(|proposal| request_id.contains(&proposal.proposal_id))
-        .or_else(|| trace.proposals.last())
+        .find(|proposal| proposal.proposal_id == proposal_id)
 }
 
 fn target_segment_supports_apply_scope(
@@ -483,6 +488,7 @@ mod tests {
             applyable: true,
         });
         trace.record_controlled_output_review(
+            Some("proposal-summary".to_string()),
             NoNameControlledOutputKind::RecapNote,
             Vec::new(),
             NoNameControlledOutputReview {
@@ -525,6 +531,7 @@ mod tests {
             applyable: true,
         });
         trace.record_controlled_output_review(
+            Some("proposal-option-bias".to_string()),
             NoNameControlledOutputKind::IntermediateNarrativeHint,
             Vec::new(),
             NoNameControlledOutputReview {
@@ -668,5 +675,30 @@ mod tests {
         .expect_err("stale diagnostics should be rejected");
 
         assert!(error.contains("diagnostics snapshot mismatch"));
+    }
+
+    #[test]
+    fn reviewed_apply_rejects_when_reviewed_proposal_binding_is_missing() {
+        let (mut trace, request_id) = make_trace_for_summary_apply();
+        trace.controlled_output_reviews[0].proposal_id = Some("proposal-missing".to_string());
+        let plot_state = make_plot_state("existing summary");
+
+        let error = apply_reviewed_output_to_plot_state(
+            trace,
+            NoNameReviewedApplyRequest {
+                request_id,
+                scope: NoNameApplyScope::ChapterSummaryHint,
+                segment_snapshot: None,
+                summary_snapshot: Some(NoNameApplySummarySnapshot {
+                    chapter_index: 1,
+                    expected_summary: "existing summary".to_string(),
+                }),
+                diagnostics_snapshot: None,
+            },
+            plot_state,
+        )
+        .expect_err("missing reviewed proposal binding should be rejected");
+
+        assert!(error.contains("NoName proposal not found"));
     }
 }

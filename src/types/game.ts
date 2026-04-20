@@ -342,6 +342,7 @@ export type NoNameForbiddenOutputScope =
 
 export interface NoNameControlledOutputReviewRecord {
   requestId: string;
+  proposalId?: string | null;
   requestedKind: NoNameControlledOutputKind;
   decision: NoNameControlledOutputDecision;
   reason: string;

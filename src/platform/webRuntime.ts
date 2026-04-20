@@ -424,6 +424,7 @@ function appendWebNoNameTrace(
       })),
       controlledOutputReviews: applyScopes.map((scope) => ({
         requestId: `controlled-output-${proposalId}-${scope === 'plotTextHint' ? 'plot_text_hint' : scope}`,
+        proposalId,
         requestedKind: scope === 'plotTextHint'
           ? 'sceneAugmentation'
           : scope === 'chapterSummaryHint'

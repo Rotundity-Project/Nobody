@@ -52,6 +52,8 @@ pub struct NoNameApplyPlanRecord {
 #[serde(rename_all = "camelCase")]
 pub struct NoNameControlledOutputReviewRecord {
     pub request_id: String,
+    #[serde(default)]
+    pub proposal_id: Option<String>,
     pub requested_kind: NoNameControlledOutputKind,
     pub decision: NoNameControlledOutputDecision,
     pub reason: String,
@@ -277,6 +279,7 @@ impl NoNameTrace {
 
     pub fn record_controlled_output_review(
         &mut self,
+        proposal_id: Option<String>,
         requested_kind: NoNameControlledOutputKind,
         policy_forbidden_scopes: Vec<NoNameForbiddenOutputScope>,
         review: NoNameControlledOutputReview,
@@ -284,6 +287,7 @@ impl NoNameTrace {
         self.controlled_output_reviews
             .push(NoNameControlledOutputReviewRecord {
                 request_id: review.request_id,
+                proposal_id,
                 requested_kind,
                 decision: review.decision,
                 reason: review.reason,
@@ -499,6 +503,7 @@ mod tests {
     fn controlled_output_review_can_be_recorded() {
         let mut trace = NoNameTrace::empty("trace-1", "session-1", "turn-1", NoNameMode::Assisted);
         trace.record_controlled_output_review(
+            Some("proposal-1".to_string()),
             NoNameControlledOutputKind::SceneAugmentation,
             vec![NoNameForbiddenOutputScope::CombatOutcome],
             NoNameControlledOutputReview {
@@ -512,6 +517,10 @@ mod tests {
         );
 
         assert_eq!(trace.controlled_output_reviews.len(), 1);
+        assert_eq!(
+            trace.controlled_output_reviews[0].proposal_id.as_deref(),
+            Some("proposal-1")
+        );
         assert_eq!(
             trace.controlled_output_reviews[0].decision,
             NoNameControlledOutputDecision::NeedsReview

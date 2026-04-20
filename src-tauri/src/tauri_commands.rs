@@ -7430,6 +7430,7 @@ mod tests {
             applyable: true,
         });
         trace.record_controlled_output_review(
+            Some("proposal-review".to_string()),
             crate::noname_output_interface::NoNameControlledOutputKind::SceneAugmentation,
             vec![crate::noname_output_interface::NoNameForbiddenOutputScope::FinalPlotState],
             crate::noname_output_interface::NoNameControlledOutputReview {

@@ -493,7 +493,12 @@ impl NoNameRuntime {
                 scope.as_str(),
                 controlled_output_decision_key(review.decision)
             ));
-            trace.record_controlled_output_review(kind, policy_forbidden_scopes.clone(), review);
+            trace.record_controlled_output_review(
+                Some(proposal.proposal_id.clone()),
+                kind,
+                policy_forbidden_scopes.clone(),
+                review,
+            );
             review_count += 1;
         }
 
