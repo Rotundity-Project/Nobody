@@ -14,14 +14,19 @@ use crate::llm_runtime_config::{
 };
 use crate::llm_service::{LLMConfig, LLMRequest, LLMService};
 use crate::memory_layers::{ChapterSummary, MemoryEntry, WorldFact};
+use crate::noname_apply::{
+    apply_reviewed_output_to_plot_state, NoNameApplyDiagnosticsSnapshot,
+    NoNameApplySegmentSnapshot, NoNameApplySummarySnapshot, NoNameReviewedApplyRequest,
+};
 use crate::noname_config::NoNameConfig;
 use crate::noname_context_builder::build_context_packet;
 use crate::noname_context_types::NoNameContextBuildInput;
 use crate::noname_guardrails::{NoNameDirectorGuardrailInput, NoNameGuardrailResult};
 use crate::noname_memory_manager::NoNameMemoryManager;
+use crate::noname_output_interface::NoNameControlledOutputDecision;
 use crate::noname_roles::NoNameDirectorObservation;
 use crate::noname_runtime::{NoNameDirectorRunResult, NoNameRuntime, NoNameTurnInput};
-use crate::noname_trace::NoNameTrace;
+use crate::noname_trace::{NoNameHumanReviewDecision, NoNameSecondGuardrailDecision, NoNameTrace};
 use crate::noname_types::{NoNameApplyScope, NoNameMode, NoNameRole, NoNameTargetSegment};
 use crate::novel_generator::{Novel, NovelGenerator};
 use crate::numerical_system::{Action, Context, StatChange};
@@ -201,6 +206,13 @@ struct NoNameApplyTargetPlan {
     priority: u32,
     order: u32,
     decision: NoNameApplyTargetDecision,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NoNameManualPlotTextApplyResult {
+    pub trace: NoNameTrace,
+    pub plot_state: PlotState,
 }
 
 fn priority_for_apply_scope(scope: NoNameApplyScope) -> u32 {
@@ -401,6 +413,400 @@ fn record_noname_apply_plan_and_skip_execution(
     if let NoNameApplyTargetDecision::Skip { outcome, note } = &plan.decision {
         trace.record_apply_execution(plan.target, *outcome, Some(note.clone()));
     }
+}
+
+fn next_noname_apply_plan_order(trace: &NoNameTrace) -> u32 {
+    trace
+        .apply_plan_log
+        .iter()
+        .map(|item| item.order)
+        .max()
+        .unwrap_or_default()
+        + 1
+}
+
+fn find_review_proposal<'a>(
+    trace: &'a NoNameTrace,
+    request_id: &str,
+) -> Option<&'a crate::noname_types::NoNameProposal> {
+    trace
+        .proposals
+        .iter()
+        .rev()
+        .find(|proposal| request_id.contains(&proposal.proposal_id))
+        .or_else(|| trace.proposals.last())
+}
+
+fn record_noname_human_review_apply_intent(
+    trace: &mut NoNameTrace,
+    request_id: &str,
+    decision: NoNameHumanReviewDecision,
+    safe_apply_scope: Option<NoNameApplyScope>,
+) {
+    let target = safe_apply_scope
+        .map(|scope| scope.as_str())
+        .unwrap_or("controlled_output");
+    let order = next_noname_apply_plan_order(trace);
+    let priority = safe_apply_scope.map(priority_for_apply_scope).unwrap_or(10) + 25;
+
+    match decision {
+        NoNameHumanReviewDecision::Pending => {
+            trace.record_apply_plan(
+                order,
+                target,
+                "review_intent_pending",
+                priority,
+                Some("人工复核已重置为待确认，未进入二次 guardrail".to_string()),
+            );
+            trace.record_apply_execution(
+                target,
+                "human_review_pending",
+                Some("等待人工确认，不触发高层 apply".to_string()),
+            );
+            trace.record_proposal_transition(format!("{}:apply_intent:pending", request_id));
+        }
+        NoNameHumanReviewDecision::RejectedForHigherApply => {
+            trace.record_apply_plan(
+                order,
+                target,
+                "reject",
+                priority,
+                Some("人工复核拒绝进入高层 apply，保持安全边界".to_string()),
+            );
+            trace.record_apply_execution(
+                target,
+                "rejected_by_human_review",
+                Some("开发者选择暂不应用，未触发二次 guardrail".to_string()),
+            );
+            trace.record_proposal_transition(format!(
+                "{}:apply_intent:rejected_by_human_review",
+                request_id
+            ));
+        }
+        NoNameHumanReviewDecision::ApprovedForHigherApply => {
+            let rejection_reason = if trace.mode != NoNameMode::Assisted {
+                Some("当前 trace 不是 assisted 模式，拒绝进入高层 apply intent".to_string())
+            } else if safe_apply_scope != Some(NoNameApplyScope::PlotTextHint) {
+                Some(format!(
+                    "当前仅允许 plot_text_hint 进入人工确认后的二次 guardrail，实际作用域为 {}",
+                    target
+                ))
+            } else {
+                match find_review_proposal(trace, request_id) {
+                    Some(proposal)
+                        if proposal.status
+                            == crate::noname_types::NoNameProposalStatus::Applied
+                            && proposal.applyable
+                            && target_segment_supports_apply_scope(
+                                proposal.target_segment,
+                                NoNameApplyScope::PlotTextHint,
+                            ) =>
+                    {
+                        None
+                    }
+                    Some(proposal)
+                        if proposal.status
+                            != crate::noname_types::NoNameProposalStatus::Applied
+                            || !proposal.applyable =>
+                    {
+                        Some(format!(
+                            "proposal 状态为 {} / applyable={}，拒绝进入高层 apply intent",
+                            proposal.status.as_str(),
+                            proposal.applyable
+                        ))
+                    }
+                    Some(proposal) => Some(format!(
+                        "target_segment={} 不支持 plot_text_hint 二次 apply",
+                        proposal.target_segment.as_str()
+                    )),
+                    None => {
+                        Some("未找到 review 对应 proposal，拒绝进入高层 apply intent".to_string())
+                    }
+                }
+            };
+
+            if let Some(reason) = rejection_reason {
+                trace.record_apply_plan(
+                    order,
+                    target,
+                    "second_guardrail_reject",
+                    priority,
+                    Some(reason.clone()),
+                );
+                trace.record_apply_execution(target, "second_guardrail_rejected", Some(reason));
+                trace.record_proposal_transition(format!(
+                    "{}:apply_intent:second_guardrail_rejected",
+                    request_id
+                ));
+                return;
+            }
+
+            trace.record_apply_plan(
+                order,
+                target,
+                "review_intent_ready",
+                priority,
+                Some(
+                    "人工确认已通过，已排入二次 guardrail / apply planner，未写入正文".to_string(),
+                ),
+            );
+            trace.record_apply_execution(
+                target,
+                "awaiting_second_guardrail",
+                Some("高层 apply intent 已记录，等待后续二次 guardrail 决策".to_string()),
+            );
+            trace.record_proposal_transition(format!(
+                "{}:apply_intent:awaiting_second_guardrail",
+                request_id
+            ));
+        }
+    }
+}
+
+fn review_is_waiting_for_second_guardrail(trace: &NoNameTrace, request_id: &str) -> bool {
+    let transition = format!("{}:apply_intent:awaiting_second_guardrail", request_id);
+    trace
+        .proposal_transition_log
+        .iter()
+        .any(|entry| entry == &transition)
+        || trace.apply_execution_log.iter().any(|entry| {
+            entry.outcome == "awaiting_second_guardrail"
+                && entry.target == NoNameApplyScope::PlotTextHint.as_str()
+        })
+}
+
+fn second_guardrail_revalidation_reason(
+    trace: &NoNameTrace,
+    request_id: &str,
+    safe_apply_scope: Option<NoNameApplyScope>,
+) -> Option<String> {
+    if trace.mode != NoNameMode::Assisted {
+        return Some("当前 trace 不是 assisted 模式，二次 guardrail 拒绝".to_string());
+    }
+    if safe_apply_scope != Some(NoNameApplyScope::PlotTextHint) {
+        return Some("当前二次 guardrail 只允许处理 plot_text_hint".to_string());
+    }
+    if !review_is_waiting_for_second_guardrail(trace, request_id) {
+        return Some("review 尚未进入 awaiting_second_guardrail 队列".to_string());
+    }
+
+    match find_review_proposal(trace, request_id) {
+        Some(proposal)
+            if proposal.status == crate::noname_types::NoNameProposalStatus::Applied
+                && proposal.applyable
+                && target_segment_supports_apply_scope(
+                    proposal.target_segment,
+                    NoNameApplyScope::PlotTextHint,
+                ) =>
+        {
+            None
+        }
+        Some(proposal)
+            if proposal.status != crate::noname_types::NoNameProposalStatus::Applied
+                || !proposal.applyable =>
+        {
+            Some(format!(
+                "proposal 状态为 {} / applyable={}，二次 guardrail 拒绝",
+                proposal.status.as_str(),
+                proposal.applyable
+            ))
+        }
+        Some(proposal) => Some(format!(
+            "target_segment={} 不支持 plot_text_hint 二次 guardrail",
+            proposal.target_segment.as_str()
+        )),
+        None => Some("未找到 review 对应 proposal，二次 guardrail 拒绝".to_string()),
+    }
+}
+
+fn record_noname_second_guardrail_decision(
+    trace: &mut NoNameTrace,
+    request_id: &str,
+    decision: NoNameSecondGuardrailDecision,
+    safe_apply_scope: Option<NoNameApplyScope>,
+) -> Result<(), String> {
+    let target = safe_apply_scope
+        .map(|scope| scope.as_str())
+        .unwrap_or("controlled_output");
+    let order = next_noname_apply_plan_order(trace);
+    let priority = safe_apply_scope.map(priority_for_apply_scope).unwrap_or(10) + 50;
+    let revalidation_reason =
+        second_guardrail_revalidation_reason(trace, request_id, safe_apply_scope);
+
+    if let Some(reason) = revalidation_reason {
+        trace.record_apply_plan(
+            order,
+            target,
+            "second_guardrail_reject",
+            priority,
+            Some(reason.clone()),
+        );
+        trace.record_apply_execution(target, "second_guardrail_rejected", Some(reason.clone()));
+        trace.record_proposal_transition(format!("{}:second_guardrail:reject", request_id));
+        trace.set_apply_result(true, "second_guardrail_reject", Some(reason));
+        return Ok(());
+    }
+
+    match decision {
+        NoNameSecondGuardrailDecision::Allow => {
+            trace.record_apply_plan(
+                order,
+                target,
+                "second_guardrail_allow",
+                priority,
+                Some("二次 guardrail 允许进入后续人工 apply 命令；当前不写正文".to_string()),
+            );
+            trace.record_apply_execution(
+                target,
+                "second_guardrail_allowed",
+                Some("已允许进入下一步人工 apply，但未改写剧情正文".to_string()),
+            );
+            trace.record_proposal_transition(format!("{}:second_guardrail:allow", request_id));
+            trace.set_apply_result(
+                true,
+                "second_guardrail_allow",
+                Some("二次 guardrail 已允许；等待显式人工 apply 命令".to_string()),
+            );
+        }
+        NoNameSecondGuardrailDecision::Reject => {
+            trace.record_apply_plan(
+                order,
+                target,
+                "second_guardrail_reject",
+                priority,
+                Some("二次 guardrail 人工拒绝高层 apply".to_string()),
+            );
+            trace.record_apply_execution(
+                target,
+                "second_guardrail_rejected",
+                Some("二次 guardrail 决策为拒绝，未改写剧情正文".to_string()),
+            );
+            trace.record_proposal_transition(format!("{}:second_guardrail:reject", request_id));
+            trace.set_apply_result(
+                true,
+                "second_guardrail_reject",
+                Some("二次 guardrail 已拒绝高层 apply".to_string()),
+            );
+        }
+        NoNameSecondGuardrailDecision::Fallback => {
+            trace.push_stage(crate::noname_types::NoNameTraceStage::ApplyFallback);
+            trace.fallback_used = true;
+            trace.record_apply_plan(
+                order,
+                target,
+                "second_guardrail_fallback",
+                priority,
+                Some("二次 guardrail 要求回退经典链路".to_string()),
+            );
+            trace.record_apply_execution(
+                target,
+                "second_guardrail_fallback",
+                Some("已记录回退决策，未改写剧情正文".to_string()),
+            );
+            trace.record_proposal_transition(format!("{}:second_guardrail:fallback", request_id));
+            trace.set_apply_result(
+                true,
+                "second_guardrail_fallback",
+                Some("二次 guardrail 决策为 fallback，继续依赖经典链路".to_string()),
+            );
+        }
+    }
+
+    Ok(())
+}
+
+fn apply_noname_manual_plot_text_hint_to_plot_state(
+    trace: NoNameTrace,
+    request_id: &str,
+    plot_state: PlotState,
+    chapter_index: u32,
+    segment_index: usize,
+    expected_segment_text: &str,
+) -> Result<NoNameManualPlotTextApplyResult, String> {
+    let outcome = apply_reviewed_output_to_plot_state(
+        trace,
+        NoNameReviewedApplyRequest {
+            request_id: request_id.to_string(),
+            scope: NoNameApplyScope::PlotTextHint,
+            segment_snapshot: Some(NoNameApplySegmentSnapshot {
+                chapter_index,
+                segment_index,
+                expected_segment_text: expected_segment_text.to_string(),
+            }),
+            summary_snapshot: None,
+            diagnostics_snapshot: None,
+        },
+        plot_state,
+    )?;
+    Ok(NoNameManualPlotTextApplyResult {
+        trace: outcome.trace,
+        plot_state: outcome.plot_state,
+    })
+}
+
+fn build_noname_reviewed_apply_request(
+    request_id: String,
+    scope: NoNameApplyScope,
+    chapter_index: Option<u32>,
+    segment_index: Option<usize>,
+    expected_segment_text: Option<String>,
+    expected_summary: Option<String>,
+    expected_generation_diagnostics: Option<String>,
+) -> Result<NoNameReviewedApplyRequest, String> {
+    let segment_snapshot = match scope {
+        NoNameApplyScope::PlotTextHint => Some(NoNameApplySegmentSnapshot {
+            chapter_index: chapter_index
+                .ok_or_else(|| "plot_text_hint manual apply requires chapter_index".to_string())?,
+            segment_index: segment_index
+                .ok_or_else(|| "plot_text_hint manual apply requires segment_index".to_string())?,
+            expected_segment_text: expected_segment_text.ok_or_else(|| {
+                "plot_text_hint manual apply requires expected_segment_text".to_string()
+            })?,
+        }),
+        _ => None,
+    };
+    let summary_snapshot = match scope {
+        NoNameApplyScope::ChapterSummaryHint => Some(NoNameApplySummarySnapshot {
+            chapter_index: chapter_index.ok_or_else(|| {
+                "chapter_summary_hint manual apply requires chapter_index".to_string()
+            })?,
+            expected_summary: expected_summary.ok_or_else(|| {
+                "chapter_summary_hint manual apply requires expected_summary".to_string()
+            })?,
+        }),
+        _ => None,
+    };
+    let diagnostics_snapshot = match scope {
+        NoNameApplyScope::OptionBiasHint => Some(NoNameApplyDiagnosticsSnapshot {
+            chapter_index: chapter_index.ok_or_else(|| {
+                "option_bias_hint manual apply requires chapter_index".to_string()
+            })?,
+            expected_generation_diagnostics: expected_generation_diagnostics.ok_or_else(|| {
+                "option_bias_hint manual apply requires expected_generation_diagnostics".to_string()
+            })?,
+        }),
+        _ => None,
+    };
+
+    Ok(NoNameReviewedApplyRequest {
+        request_id,
+        scope,
+        segment_snapshot,
+        summary_snapshot,
+        diagnostics_snapshot,
+    })
+}
+
+fn apply_noname_reviewed_output_to_plot_state(
+    trace: NoNameTrace,
+    request: NoNameReviewedApplyRequest,
+    plot_state: PlotState,
+) -> Result<NoNameManualPlotTextApplyResult, String> {
+    let outcome = apply_reviewed_output_to_plot_state(trace, request, plot_state)?;
+    Ok(NoNameManualPlotTextApplyResult {
+        trace: outcome.trace,
+        plot_state: outcome.plot_state,
+    })
 }
 
 fn apply_noname_plot_text_hint(
@@ -648,6 +1054,23 @@ fn run_noname_observe_only_for_turn(
         .map_err(|e| e.to_string())?;
 
     Ok(result)
+}
+
+fn maybe_run_noname_for_turn(
+    action_summary: &str,
+    game_state: &GameState,
+    plot_state: &PlotState,
+    timestamp: u64,
+) -> Option<NoNameDirectorRunResult> {
+    let mode = noname_runtime()
+        .lock()
+        .map(|runtime| runtime.mode())
+        .unwrap_or(NoNameMode::Disabled);
+    if !mode.is_enabled() {
+        return None;
+    }
+
+    run_noname_observe_only_for_turn(action_summary, game_state, plot_state, timestamp).ok()
 }
 
 fn build_plot_context_for_generation(
@@ -3668,13 +4091,8 @@ pub async fn execute_player_action(
     plot_state.last_action_result = Some(action_result.clone());
     let plot_text_for_history = plot_update.plot_text.clone();
     let mut plot_text_for_player = plot_update.plot_text.clone();
-    let mut noname_result = run_noname_observe_only_for_turn(
-        &noname_action_summary,
-        &game_state,
-        &plot_state,
-        timestamp,
-    )
-    .ok();
+    let mut noname_result =
+        maybe_run_noname_for_turn(&noname_action_summary, &game_state, &plot_state, timestamp);
     let mut noname_plot_text_applied = false;
     if let Some(result) = noname_result.as_mut() {
         let plans = build_noname_apply_plan_set(
@@ -4006,6 +4424,215 @@ pub async fn clear_noname_recent_traces() -> Result<(), String> {
         .map_err(|_| "NoName runtime lock poisoned".to_string())?;
     runtime.clear_traces();
     Ok(())
+}
+
+#[tauri::command]
+pub async fn mark_noname_controlled_output_review(
+    trace_id: String,
+    request_id: String,
+    decision: NoNameHumanReviewDecision,
+) -> Result<NoNameTrace, String> {
+    let mut runtime = noname_runtime()
+        .lock()
+        .map_err(|_| "NoName runtime lock poisoned".to_string())?;
+    let mut trace = runtime
+        .get_recent_traces()
+        .into_iter()
+        .rev()
+        .find(|trace| trace.trace_id == trace_id)
+        .ok_or_else(|| format!("NoName trace not found: {}", trace_id))?;
+
+    let reviewed_at = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_secs())
+        .unwrap_or_default();
+    let safe_apply_scope = {
+        let review = trace
+            .controlled_output_reviews
+            .iter_mut()
+            .find(|review| review.request_id == request_id)
+            .ok_or_else(|| format!("NoName controlled output review not found: {}", request_id))?;
+
+        if review.decision != NoNameControlledOutputDecision::NeedsReview
+            || !review.requires_human_review
+        {
+            return Err(format!(
+                "NoName controlled output review does not require human review: {}",
+                request_id
+            ));
+        }
+
+        review.human_review_decision = Some(decision);
+        review.human_reviewed_at = Some(reviewed_at);
+        review.human_review_note = Some(decision.note().to_string());
+        review.safe_apply_scope
+    };
+
+    if safe_apply_scope.is_none() {
+        return Err(format!(
+            "NoName controlled output review has no safe apply scope: {}",
+            request_id
+        ));
+    }
+
+    trace.record_proposal_transition(format!("{}:human_review:{}", request_id, decision.as_str()));
+    record_noname_human_review_apply_intent(&mut trace, &request_id, decision, safe_apply_scope);
+
+    if !runtime.replace_trace(trace.clone()) {
+        return Err(format!("NoName trace not found: {}", trace_id));
+    }
+
+    Ok(trace)
+}
+
+#[tauri::command]
+pub async fn resolve_noname_second_guardrail(
+    trace_id: String,
+    request_id: String,
+    decision: NoNameSecondGuardrailDecision,
+) -> Result<NoNameTrace, String> {
+    let mut runtime = noname_runtime()
+        .lock()
+        .map_err(|_| "NoName runtime lock poisoned".to_string())?;
+    let mut trace = runtime
+        .get_recent_traces()
+        .into_iter()
+        .rev()
+        .find(|trace| trace.trace_id == trace_id)
+        .ok_or_else(|| format!("NoName trace not found: {}", trace_id))?;
+
+    let safe_apply_scope = {
+        let review = trace
+            .controlled_output_reviews
+            .iter()
+            .find(|review| review.request_id == request_id)
+            .ok_or_else(|| format!("NoName controlled output review not found: {}", request_id))?;
+
+        if review.human_review_decision != Some(NoNameHumanReviewDecision::ApprovedForHigherApply) {
+            return Err(format!(
+                "NoName controlled output review is not approved for second guardrail: {}",
+                request_id
+            ));
+        }
+
+        review.safe_apply_scope
+    };
+
+    record_noname_second_guardrail_decision(&mut trace, &request_id, decision, safe_apply_scope)?;
+
+    if !runtime.replace_trace(trace.clone()) {
+        return Err(format!("NoName trace not found: {}", trace_id));
+    }
+
+    Ok(trace)
+}
+
+#[tauri::command]
+pub async fn apply_noname_manual_plot_text_hint(
+    trace_id: String,
+    request_id: String,
+    chapter_index: u32,
+    segment_index: usize,
+    expected_segment_text: String,
+    engine: State<'_, Mutex<GameEngine>>,
+) -> Result<NoNameManualPlotTextApplyResult, String> {
+    let trace = {
+        let runtime = noname_runtime()
+            .lock()
+            .map_err(|_| "NoName runtime lock poisoned".to_string())?;
+        runtime
+            .get_recent_traces()
+            .into_iter()
+            .rev()
+            .find(|trace| trace.trace_id == trace_id)
+            .ok_or_else(|| format!("NoName trace not found: {}", trace_id))?
+    };
+
+    let result = {
+        let engine = match engine.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        let plot_state = engine.get_plot_state().map_err(|e| e.to_string())?;
+        let result = apply_noname_manual_plot_text_hint_to_plot_state(
+            trace,
+            &request_id,
+            plot_state,
+            chapter_index,
+            segment_index,
+            &expected_segment_text,
+        )?;
+        engine
+            .update_plot_state(result.plot_state.clone())
+            .map_err(|e| e.to_string())?;
+        result
+    };
+
+    let mut runtime = noname_runtime()
+        .lock()
+        .map_err(|_| "NoName runtime lock poisoned".to_string())?;
+    if !runtime.replace_trace(result.trace.clone()) {
+        return Err(format!("NoName trace not found: {}", trace_id));
+    }
+
+    Ok(result)
+}
+
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+pub async fn apply_noname_reviewed_output(
+    trace_id: String,
+    request_id: String,
+    scope: NoNameApplyScope,
+    chapter_index: Option<u32>,
+    segment_index: Option<usize>,
+    expected_segment_text: Option<String>,
+    expected_summary: Option<String>,
+    expected_generation_diagnostics: Option<String>,
+    engine: State<'_, Mutex<GameEngine>>,
+) -> Result<NoNameManualPlotTextApplyResult, String> {
+    let request = build_noname_reviewed_apply_request(
+        request_id,
+        scope,
+        chapter_index,
+        segment_index,
+        expected_segment_text,
+        expected_summary,
+        expected_generation_diagnostics,
+    )?;
+    let trace = {
+        let runtime = noname_runtime()
+            .lock()
+            .map_err(|_| "NoName runtime lock poisoned".to_string())?;
+        runtime
+            .get_recent_traces()
+            .into_iter()
+            .rev()
+            .find(|trace| trace.trace_id == trace_id)
+            .ok_or_else(|| format!("NoName trace not found: {}", trace_id))?
+    };
+
+    let result = {
+        let engine = match engine.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        let plot_state = engine.get_plot_state().map_err(|e| e.to_string())?;
+        let result = apply_noname_reviewed_output_to_plot_state(trace, request, plot_state)?;
+        engine
+            .update_plot_state(result.plot_state.clone())
+            .map_err(|e| e.to_string())?;
+        result
+    };
+
+    let mut runtime = noname_runtime()
+        .lock()
+        .map_err(|_| "NoName runtime lock poisoned".to_string())?;
+    if !runtime.replace_trace(result.trace.clone()) {
+        return Err(format!("NoName trace not found: {}", trace_id));
+    }
+
+    Ok(result)
 }
 
 #[tauri::command]
@@ -4710,6 +5337,7 @@ mod tests {
     use crate::event_log::{EventImportance, GameEvent};
     use crate::models::{CultivationRealm, Element, Grade, SpiritualRoot};
     use crate::script::{InitialState, Location, ScriptType, WorldSetting};
+    use std::sync::{Mutex as TestMutex, OnceLock as TestOnceLock};
     use tempfile::tempdir;
 
     fn create_test_script() -> Script {
@@ -4744,6 +5372,35 @@ mod tests {
             world_setting,
             initial_state,
         )
+    }
+
+    fn noname_mode_matrix_lock() -> &'static TestMutex<()> {
+        static LOCK: TestOnceLock<TestMutex<()>> = TestOnceLock::new();
+        LOCK.get_or_init(|| TestMutex::new(()))
+    }
+
+    fn reset_noname_runtime_for_mode_test(mode: NoNameMode) {
+        let mut runtime = noname_runtime()
+            .lock()
+            .expect("noname runtime lock should be available");
+        runtime.set_mode(mode);
+        runtime.clear_traces();
+    }
+
+    fn create_noname_mode_fixture() -> (GameState, PlotState) {
+        let mut engine = GameEngine::new();
+        let script = create_test_script();
+        let game_state = engine
+            .initialize_game(script)
+            .expect("test game should initialize");
+        let plot_state = engine
+            .initialize_plot_with_opening(
+                "山门风声渐紧，灵气沿石阶回荡。".to_string(),
+                Some(vec![make_option(0, "返回山门广场")]),
+            )
+            .expect("test plot should initialize");
+
+        (game_state, plot_state)
     }
 
     #[test]
@@ -6618,6 +7275,302 @@ mod tests {
         assert!(text.contains("applyable=no"));
         assert!(text.contains("guardrail=accept"));
         assert!(text.contains("apply=skipped_observe_only"));
+    }
+
+    #[test]
+    fn test_t7_mode_matrix_disabled_skips_noname_turn() {
+        let _guard = noname_mode_matrix_lock()
+            .lock()
+            .expect("mode matrix lock should be available");
+        reset_noname_runtime_for_mode_test(NoNameMode::Disabled);
+        let (game_state, plot_state) = create_noname_mode_fixture();
+
+        let result =
+            maybe_run_noname_for_turn("自由输入: 观察山门灵气", &game_state, &plot_state, 10);
+
+        assert!(result.is_none());
+        assert!(noname_runtime()
+            .lock()
+            .expect("noname runtime lock should be available")
+            .get_recent_traces()
+            .is_empty());
+    }
+
+    #[test]
+    fn test_t7_mode_matrix_observe_only_records_without_apply() {
+        let _guard = noname_mode_matrix_lock()
+            .lock()
+            .expect("mode matrix lock should be available");
+        reset_noname_runtime_for_mode_test(NoNameMode::ObserveOnly);
+        let (game_state, plot_state) = create_noname_mode_fixture();
+        let mut plot_state_after = plot_state.clone();
+
+        let mut result =
+            maybe_run_noname_for_turn("自由输入: 观察山门灵气", &game_state, &plot_state, 11)
+                .expect("observe-only should produce a NoName observation");
+        apply_noname_low_risk_outputs(&mut plot_state_after, &mut result, false);
+        append_noname_observation_diagnostics(
+            &mut plot_state_after.last_generation_diagnostics,
+            result.trace.mode,
+            &result.observation,
+            result.guardrail_result.as_ref(),
+            &result.trace,
+        );
+
+        assert_eq!(
+            result.proposal.status,
+            crate::noname_types::NoNameProposalStatus::Observed
+        );
+        assert!(!result.proposal.applyable);
+        assert!(result.trace.controlled_output_reviews.is_empty());
+        assert_eq!(
+            result
+                .trace
+                .apply_result
+                .as_ref()
+                .map(|item| item.outcome.as_str()),
+            Some("skipped_observe_only")
+        );
+        assert!(!plot_state_after
+            .current_chapter
+            .summary
+            .contains("NoName提示"));
+        let diagnostics = plot_state_after
+            .last_generation_diagnostics
+            .as_deref()
+            .unwrap_or_default();
+        assert!(diagnostics.contains("NoName.observe_only"));
+        assert!(diagnostics.contains("proposal_status=observed"));
+        assert!(diagnostics.contains("apply=skipped_observe_only"));
+    }
+
+    #[test]
+    fn test_t7_mode_matrix_assisted_records_review_and_low_risk_apply() {
+        let _guard = noname_mode_matrix_lock()
+            .lock()
+            .expect("mode matrix lock should be available");
+        reset_noname_runtime_for_mode_test(NoNameMode::Assisted);
+        let (game_state, plot_state) = create_noname_mode_fixture();
+        let mut plot_state_after = plot_state.clone();
+
+        let mut result =
+            maybe_run_noname_for_turn("自由输入: 观察山门灵气", &game_state, &plot_state, 12)
+                .expect("assisted should produce a NoName observation");
+        apply_noname_low_risk_outputs(&mut plot_state_after, &mut result, false);
+        append_noname_observation_diagnostics(
+            &mut plot_state_after.last_generation_diagnostics,
+            result.trace.mode,
+            &result.observation,
+            result.guardrail_result.as_ref(),
+            &result.trace,
+        );
+
+        assert_eq!(
+            result.proposal.status,
+            crate::noname_types::NoNameProposalStatus::Applied
+        );
+        assert!(result.proposal.applyable);
+        assert_eq!(result.trace.controlled_output_reviews.len(), 4);
+        assert!(result
+            .trace
+            .controlled_output_reviews
+            .iter()
+            .any(|review| review.requires_human_review));
+        assert!(plot_state_after
+            .current_chapter
+            .summary
+            .contains("NoName提示"));
+        let diagnostics = plot_state_after
+            .last_generation_diagnostics
+            .as_deref()
+            .unwrap_or_default();
+        assert!(diagnostics.contains("NoName选项偏置"));
+        assert!(diagnostics.contains("NoName.assisted"));
+        assert!(diagnostics.contains("proposal_status=applied"));
+        assert!(diagnostics.contains("apply=applied_scoped_outputs"));
+        assert!(result
+            .trace
+            .apply_execution_log
+            .iter()
+            .any(|item| item.target == "chapter_summary_hint" && item.outcome == "applied"));
+        assert!(result
+            .trace
+            .apply_execution_log
+            .iter()
+            .any(|item| item.target == "option_bias_hint" && item.outcome == "applied"));
+    }
+
+    #[tokio::test]
+    async fn test_mark_noname_controlled_output_review_records_human_intent() {
+        let _guard = noname_mode_matrix_lock()
+            .lock()
+            .expect("mode matrix lock should be available");
+        reset_noname_runtime_for_mode_test(NoNameMode::Assisted);
+
+        let mut trace = NoNameTrace::empty(
+            "trace-review-1",
+            "session-1",
+            "turn-1",
+            NoNameMode::Assisted,
+        );
+        trace.record_proposal(crate::noname_types::NoNameProposal {
+            proposal_id: "proposal-review".to_string(),
+            kind: crate::noname_types::NoNameProposalKind::PlotCandidate,
+            producer_role: NoNameRole::Director,
+            title: "Director提案：山门危机".to_string(),
+            summary: "建议优先观察山门危机".to_string(),
+            focus: "山门危机".to_string(),
+            target_segment: crate::noname_types::NoNameTargetSegment::CurrentTurnTail,
+            intended_effect: "为下一轮低风险输出提供导向".to_string(),
+            rationale: "当前章节冲突正在汇聚".to_string(),
+            suggested_action: Some("进入人工确认后的二次 guardrail".to_string()),
+            labels: vec!["director".to_string(), "apply_preflight_ready".to_string()],
+            apply_scopes: vec![crate::noname_types::NoNameApplyScope::PlotTextHint],
+            status: crate::noname_types::NoNameProposalStatus::Applied,
+            applyable: true,
+        });
+        trace.record_controlled_output_review(
+            Some("proposal-review".to_string()),
+            crate::noname_output_interface::NoNameControlledOutputKind::SceneAugmentation,
+            vec![crate::noname_output_interface::NoNameForbiddenOutputScope::FinalPlotState],
+            crate::noname_output_interface::NoNameControlledOutputReview {
+                request_id: "controlled-output-proposal-review-plot_text_hint".to_string(),
+                decision: NoNameControlledOutputDecision::NeedsReview,
+                reason: "plot text hint requires human review".to_string(),
+                normalized_kind: Some(
+                    crate::noname_output_interface::NoNameControlledOutputKind::SceneAugmentation,
+                ),
+                safe_apply_scope: Some(crate::noname_types::NoNameApplyScope::PlotTextHint),
+                requires_human_review: true,
+            },
+        );
+
+        noname_runtime()
+            .lock()
+            .expect("noname runtime lock should be available")
+            .store_trace(trace)
+            .expect("trace should be stored");
+
+        let updated = mark_noname_controlled_output_review(
+            "trace-review-1".to_string(),
+            "controlled-output-proposal-review-plot_text_hint".to_string(),
+            NoNameHumanReviewDecision::ApprovedForHigherApply,
+        )
+        .await
+        .expect("review intent should be recorded");
+
+        let review = updated
+            .controlled_output_reviews
+            .iter()
+            .find(|item| item.request_id == "controlled-output-proposal-review-plot_text_hint")
+            .expect("review should exist");
+        assert_eq!(
+            review.human_review_decision,
+            Some(NoNameHumanReviewDecision::ApprovedForHigherApply)
+        );
+        assert!(review.human_reviewed_at.is_some());
+        assert!(review
+            .human_review_note
+            .as_ref()
+            .is_some_and(|note| note.contains("二次 guardrail")));
+        assert!(updated
+            .proposal_transition_log
+            .iter()
+            .any(|entry| entry
+                == "controlled-output-proposal-review-plot_text_hint:human_review:approved_for_higher_apply"));
+        assert!(updated.apply_plan_log.iter().any(|item| {
+            item.target == "plot_text_hint" && item.decision == "review_intent_ready"
+        }));
+        assert!(updated.apply_execution_log.iter().any(|item| {
+            item.target == "plot_text_hint" && item.outcome == "awaiting_second_guardrail"
+        }));
+        assert!(updated.proposal_transition_log.iter().any(|entry| entry
+            == "controlled-output-proposal-review-plot_text_hint:apply_intent:awaiting_second_guardrail"));
+        assert_eq!(
+            noname_runtime()
+                .lock()
+                .expect("noname runtime lock should be available")
+                .get_recent_traces()[0]
+                .controlled_output_reviews[0]
+                .human_review_decision,
+            Some(NoNameHumanReviewDecision::ApprovedForHigherApply)
+        );
+
+        let resolved = resolve_noname_second_guardrail(
+            "trace-review-1".to_string(),
+            "controlled-output-proposal-review-plot_text_hint".to_string(),
+            NoNameSecondGuardrailDecision::Allow,
+        )
+        .await
+        .expect("second guardrail should resolve");
+
+        assert!(resolved.apply_plan_log.iter().any(|item| {
+            item.target == "plot_text_hint" && item.decision == "second_guardrail_allow"
+        }));
+        assert!(resolved.apply_execution_log.iter().any(|item| {
+            item.target == "plot_text_hint" && item.outcome == "second_guardrail_allowed"
+        }));
+        assert!(resolved.proposal_transition_log.iter().any(|entry| {
+            entry == "controlled-output-proposal-review-plot_text_hint:second_guardrail:allow"
+        }));
+        assert_eq!(
+            resolved
+                .apply_result
+                .as_ref()
+                .map(|item| item.outcome.as_str()),
+            Some("second_guardrail_allow")
+        );
+
+        let plot_state = PlotState {
+            current_scene: crate::plot_engine::Scene {
+                id: "scene-1".to_string(),
+                name: "山门".to_string(),
+                description: "你看见山门风声渐紧。".to_string(),
+                location: "sect".to_string(),
+                available_options: vec![make_option(0, "继续观察")],
+            },
+            plot_history: vec!["你看见山门风声渐紧。".to_string()],
+            is_waiting_for_input: true,
+            interaction_state: PlotInteractionState::WaitingForChoice,
+            last_action_result: Some(crate::numerical_system::ActionResult {
+                success: true,
+                description: "你看见山门风声渐紧。".to_string(),
+                stat_changes: vec![],
+                events: vec![],
+            }),
+            settings: PlotSettings::default(),
+            current_chapter: crate::plot_engine::ChapterState {
+                index: 1,
+                title: "第一章".to_string(),
+                content: vec!["你看见山门风声渐紧。".to_string()],
+                summary: String::new(),
+                interaction_count: 1,
+                status: crate::plot_engine::ChapterLifecycle::InProgress,
+            },
+            chapters: vec![],
+            segment_count: 1,
+            last_generation_diagnostics: None,
+            last_option_generation_source: None,
+            last_consistency_risk_score: None,
+        };
+        let applied = apply_noname_manual_plot_text_hint_to_plot_state(
+            resolved,
+            "controlled-output-proposal-review-plot_text_hint",
+            plot_state,
+            1,
+            0,
+            "你看见山门风声渐紧。",
+        )
+        .expect("manual apply should update plot text");
+        assert!(applied.plot_state.current_chapter.content[0].contains("【NoName】重点关注"));
+        assert!(applied
+            .plot_state
+            .plot_history
+            .last()
+            .is_some_and(|item| item.contains("【NoName】重点关注")));
+        assert!(applied.trace.apply_execution_log.iter().any(|item| {
+            item.target == "plot_text_hint" && item.outcome == "manual_plot_text_applied"
+        }));
     }
 
     #[test]

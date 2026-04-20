@@ -108,10 +108,7 @@ impl NoNameMemoryManager {
         self.store.retrieve(query)
     }
 
-    pub fn compact_turn_memory(
-        &self,
-        input: NoNameTurnCompactionInput,
-    ) -> NoNameCompactionSummary {
+    pub fn compact_turn_memory(&self, input: NoNameTurnCompactionInput) -> NoNameCompactionSummary {
         NoNameMemoryCompactionService::new().compact_turn(input)
     }
 

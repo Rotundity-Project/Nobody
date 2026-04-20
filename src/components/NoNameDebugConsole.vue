@@ -112,6 +112,11 @@
             :selected-index="selectedIndex"
             :total-count="traces.length"
             :active-mode="noNameMode"
+            :review-decisions="selectedReviewDecisions"
+            :manual-apply-segment="manualApplySegment"
+            @mark-controlled-output-review="markControlledOutputReview"
+            @resolve-second-guardrail="resolveSecondGuardrail"
+            @apply-manual-plot-text-hint="applyManualPlotTextHint"
           />
         </main>
       </div>
@@ -122,21 +127,35 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import AgentTracePanel from './AgentTracePanel.vue';
-import type { NoNameMode, NoNameTrace } from '../types/game';
+import type {
+  NoNameHumanReviewDecision,
+  NoNameHumanReviewMarkPayload,
+  NoNameManualApplySegmentSnapshot,
+  NoNameManualPlotTextApplyPayload,
+  NoNameMode,
+  NoNameSecondGuardrailResolvePayload,
+  NoNameTrace,
+} from '../types/game';
+import { summarizeNoNameApplyLifecycle } from '../utils/noNameApplyLifecycle';
 
 const props = withDefaults(defineProps<{
   isOpen: boolean;
   traces: NoNameTrace[];
   noNameMode: NoNameMode;
   isDevMode?: boolean;
+  manualApplySegment?: NoNameManualApplySegmentSnapshot | null;
 }>(), {
   isDevMode: false,
+  manualApplySegment: null,
 });
 
-defineEmits<{
+const emit = defineEmits<{
   (event: 'close'): void;
   (event: 'clear-traces'): void;
   (event: 'set-no-name-mode', mode: NoNameMode): void;
+  (event: 'mark-controlled-output-review', payload: NoNameHumanReviewMarkPayload): void;
+  (event: 'resolve-second-guardrail', payload: NoNameSecondGuardrailResolvePayload): void;
+  (event: 'apply-manual-plot-text-hint', payload: NoNameManualPlotTextApplyPayload): void;
 }>();
 
 const modeOptions: Array<{ value: NoNameMode; label: string }> = [
@@ -183,8 +202,27 @@ const selectedTrace = computed(() => {
 });
 
 const copyStatus = ref('');
+const humanReviewDecisions = ref<Record<string, NoNameHumanReviewDecision>>({});
 
-const selectedTraceReport = computed(() => buildTraceReport(selectedTrace.value));
+const selectedReviewDecisions = computed<Record<string, NoNameHumanReviewDecision>>(() => {
+  const trace = selectedTrace.value;
+  if (!trace) {
+    return {};
+  }
+  return Object.fromEntries(
+    (trace.controlledOutputReviews ?? []).map((review) => [
+      review.requestId,
+      humanReviewDecisions.value[humanReviewDecisionKey(trace.traceId, review.requestId)]
+        ?? review.humanReviewDecision
+        ?? 'pending',
+    ]),
+  );
+});
+
+const selectedTraceReport = computed(() => buildTraceReport(
+  selectedTrace.value,
+  selectedReviewDecisions.value,
+));
 
 async function copySelectedTraceReport() {
   const report = selectedTraceReport.value;
@@ -199,7 +237,30 @@ async function copySelectedTraceReport() {
   }
 }
 
-function buildTraceReport(trace: NoNameTrace | null) {
+function markControlledOutputReview(payload: NoNameHumanReviewMarkPayload) {
+  humanReviewDecisions.value = {
+    ...humanReviewDecisions.value,
+    [humanReviewDecisionKey(payload.traceId, payload.requestId)]: payload.decision,
+  };
+  emit('mark-controlled-output-review', payload);
+}
+
+function resolveSecondGuardrail(payload: NoNameSecondGuardrailResolvePayload) {
+  emit('resolve-second-guardrail', payload);
+}
+
+function applyManualPlotTextHint(payload: NoNameManualPlotTextApplyPayload) {
+  emit('apply-manual-plot-text-hint', payload);
+}
+
+function humanReviewDecisionKey(traceId: string, requestId: string) {
+  return `${traceId}::${requestId}`;
+}
+
+function buildTraceReport(
+  trace: NoNameTrace | null,
+  reviewDecisions: Record<string, NoNameHumanReviewDecision> = {},
+) {
   if (!trace) {
     return '';
   }
@@ -211,6 +272,18 @@ function buildTraceReport(trace: NoNameTrace | null) {
   const protocolEvents = trace.protocolEvents ?? [];
   const controlledReviews = trace.controlledOutputReviews ?? [];
   const humanReviewCount = controlledReviews.filter((review) => review.requiresHumanReview).length;
+  const reviewDecisionCounts = controlledReviews.reduce(
+    (counts, review) => {
+      const decision = reviewDecisions[review.requestId] ?? 'pending';
+      counts[decision] += 1;
+      return counts;
+    },
+    {
+      pending: 0,
+      approvedForHigherApply: 0,
+      rejectedForHigherApply: 0,
+    } satisfies Record<NoNameHumanReviewDecision, number>,
+  );
   const relatedObservations = trace.relatedObservations ?? [];
   const guardrail = trace.guardrailResult
     ? `${trace.guardrailResult.outcome}${trace.guardrailResult.reason ? ` (${trace.guardrailResult.reason})` : ''}`
@@ -218,6 +291,7 @@ function buildTraceReport(trace: NoNameTrace | null) {
   const applyResult = trace.applyResult
     ? `${trace.applyResult.outcome}${trace.applyResult.reason ? ` (${trace.applyResult.reason})` : ''}`
     : '无';
+  const lifecycle = summarizeNoNameApplyLifecycle(trace, reviewDecisions);
   return [
     `Trace: ${trace.traceId}`,
     `Mode: ${trace.mode}`,
@@ -228,8 +302,10 @@ function buildTraceReport(trace: NoNameTrace | null) {
     `Related Observations: ${relatedObservations.length}`,
     `Protocol Events: ${protocolEvents.length}`,
     `Controlled Reviews: ${controlledReviews.length} (${humanReviewCount} needs human review)`,
+    `Human Review Decisions: ${reviewDecisionCounts.approvedForHigherApply} approved / ${reviewDecisionCounts.rejectedForHigherApply} rejected / ${reviewDecisionCounts.pending} pending`,
     `Guardrail: ${guardrail}`,
     `Apply Result: ${applyResult}`,
+    `Apply Lifecycle: ${lifecycle}`,
     `Fallback: ${trace.fallbackUsed ? 'yes' : 'no'}`,
     `Elapsed: ${trace.elapsedMs} ms`,
   ].join('\n');

@@ -611,8 +611,10 @@ mod tests {
         let system = SaveLoadSystem::with_directory(temp_dir.path().to_path_buf());
 
         let game_state = create_test_game_state();
-        let save_data = SaveData::from_game_state(game_state)
-            .with_noname_settings(NoNameSaveSettings { mode: NoNameMode::Assisted });
+        let save_data =
+            SaveData::from_game_state(game_state).with_noname_settings(NoNameSaveSettings {
+                mode: NoNameMode::Assisted,
+            });
         system.save_game(1, &save_data).unwrap();
 
         let saves = system.list_saves().unwrap();

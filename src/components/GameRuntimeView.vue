@@ -124,9 +124,13 @@
       :traces="gameStore.noNameTraces ?? []"
       :no-name-mode="noNameMode"
       :is-dev-mode="isDevMode"
+      :manual-apply-segment="manualApplySegment"
       @close="showNoNameDebugConsole = false"
       @clear-traces="gameStore.clearNoNameTraces()"
       @set-no-name-mode="setNoNameMode"
+      @mark-controlled-output-review="gameStore.markNoNameControlledOutputReview"
+      @resolve-second-guardrail="gameStore.resolveNoNameSecondGuardrail"
+      @apply-manual-plot-text-hint="gameStore.applyNoNameManualPlotTextHint"
     />
     <NotificationCenter
       v-if="runtimeNotifications.length > 0"
@@ -153,7 +157,7 @@ import NotificationCenter from './NotificationCenter.vue';
 import NoNameDebugConsole from './NoNameDebugConsole.vue';
 import RuntimeQuickPanelsDialog from './RuntimeQuickPanelsDialog.vue';
 import StoryViewport from './StoryViewport.vue';
-import type { ConsistencyPolicy, NoNameMode } from '../types/game';
+import type { ConsistencyPolicy, NoNameManualApplySegmentSnapshot, NoNameMode } from '../types/game';
 import { invokeRuntime } from '../utils/tauriInvoke';
 import {
   createFreeTextAction,
@@ -224,6 +228,18 @@ const hasNoNameTraceHistory = computed(() => (gameStore.noNameTraces?.length ?? 
 const noNameDebugText = computed(() => {
   const getter = (gameStore as { getNoNameTraceDebugText?: () => string }).getNoNameTraceDebugText;
   return typeof getter === 'function' ? getter.call(gameStore) : '暂无 NoName Agent Trace。';
+});
+const manualApplySegment = computed<NoNameManualApplySegmentSnapshot | null>(() => {
+  const chapter = gameStore.plotState?.current_chapter;
+  if (!chapter || chapter.content.length === 0) {
+    return null;
+  }
+  const segmentIndex = chapter.content.length - 1;
+  return {
+    chapterIndex: chapter.index,
+    segmentIndex,
+    text: chapter.content[segmentIndex] ?? '',
+  };
 });
 
 const refreshNoNameMode = async () => {

@@ -1,12 +1,14 @@
 use crate::event_log::{EventImportance, EventLog};
 use crate::game_state::{Character, GameState, GameTime, WorldState};
 use crate::models::{CharacterStats, Element, Grade, Lifespan, SpiritualRoot};
+use crate::noname_types::NoNameMode;
 use crate::npc::{CoreValue, Goal, NPCMemory, Personality, PersonalityTrait, NPC};
 use crate::npc_engine::{NPCDecision, NPCEngine, NPCEvent};
 use crate::numerical_system::NumericalSystem;
-use crate::noname_types::NoNameMode;
 use crate::plot_engine::{PlotEngine, PlotState, Scene};
-use crate::save_load::{MigrationBatchReport, NoNameSaveSettings, SaveData, SaveInfo, SaveLoadSystem};
+use crate::save_load::{
+    MigrationBatchReport, NoNameSaveSettings, SaveData, SaveInfo, SaveLoadSystem,
+};
 use crate::script::{Script, ScriptType};
 use crate::script_manager::ScriptManager;
 use crate::world_registry::WorldRegistry;
@@ -390,12 +392,11 @@ impl GameEngine {
             let registry_lock = self.world_registry.lock().unwrap();
             registry_lock.clone()
         };
-        let save_data = SaveData::from_game_state_with_plot(
-            save_state,
-            plot_snapshot,
-            registry_snapshot,
-        )
-        .with_noname_settings(NoNameSaveSettings { mode: self.noname_mode() });
+        let save_data =
+            SaveData::from_game_state_with_plot(save_state, plot_snapshot, registry_snapshot)
+                .with_noname_settings(NoNameSaveSettings {
+                    mode: self.noname_mode(),
+                });
         self.save_load_system.save_game(slot_id, &save_data)?;
 
         Ok(())

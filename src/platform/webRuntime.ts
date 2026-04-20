@@ -9,7 +9,9 @@ import {
   type GameState,
   type MapLocationOverview,
   type NoNameApplyScope,
+  type NoNameHumanReviewMarkPayload,
   type NoNameMode,
+  type NoNameSecondGuardrailResolvePayload,
   type NoNameTargetSegment,
   type NoNameTrace,
   type PlayerAction,
@@ -328,14 +330,6 @@ function deriveWebNoNameApplyScopes(targetSegment: NoNameTargetSegment): NoNameA
   return baseScopes;
 }
 
-function applyWebNoNamePlotHint(paragraph: string, focus: string, targetSegment: NoNameTargetSegment): string {
-  const hint = `【NoName】重点关注：${focus}`;
-  if (targetSegment === 'current_turn_head') {
-    return `${hint}\n\n${paragraph}`;
-  }
-  return `${paragraph}\n\n${hint}`;
-}
-
 function applyWebNoNameSummaryHint(summary: string, focus: string, targetSegment: NoNameTargetSegment): string {
   const hint = `NoName提示：后续重点关注${focus}`;
   if (!summary.trim()) {
@@ -399,35 +393,65 @@ function appendWebNoNameTrace(
       proposalTransitionLog: [
         `${proposalId}:ready`,
         `${proposalId}:apply_preflight:ready`,
-        ...applyScopes.map((scope) => `${proposalId}:applied:${scope}`),
+        ...applyScopes
+          .filter((scope) => scope !== 'plotTextHint')
+          .map((scope) => `${proposalId}:applied:${scope}`),
+        ...(applyScopes.includes('plotTextHint')
+          ? [`${proposalId}:controlled_output:plot_text_hint:needs_review`]
+          : []),
       ],
       applyPlanLog: applyScopes
         .map((scope) => ({
         target: scope,
-        decision: 'apply',
+        decision: scope === 'plotTextHint' ? 'needs_review' : 'apply',
         priority: scope === 'plotTextHint' ? 300 : scope === 'chapterSummaryHint' ? 200 : scope === 'optionBiasHint' ? 100 : 50,
-        note: `web mock 允许执行 ${scope}`,
+        note: scope === 'plotTextHint'
+          ? 'web mock plotTextHint 需要人工复核'
+          : `web mock 允许执行 ${scope}`,
       }))
         .sort((left, right) => right.priority - left.priority)
         .map((item, index) => ({ ...item, order: index + 1 })),
-      applyExecutionLog: applyScopes.map((scope) => ({
+      applyExecutionLog: applyScopes
+        .filter((scope) => scope !== 'plotTextHint')
+        .map((scope) => ({
         target: scope,
         outcome: 'applied',
-        note: scope === 'plotTextHint'
-          ? `已将提案提示写入正文，聚焦“${text}”`
-          : scope === 'chapterSummaryHint'
+        note: scope === 'chapterSummaryHint'
             ? `已补充章节摘要提示，聚焦“${text}”`
             : scope === 'optionBiasHint'
               ? `已补充下轮选项偏置提示，聚焦“${text}”`
               : `已补充诊断提示，聚焦“${text}”`,
       })),
+      controlledOutputReviews: applyScopes.map((scope) => ({
+        requestId: `controlled-output-${proposalId}-${scope === 'plotTextHint' ? 'plot_text_hint' : scope}`,
+        proposalId,
+        requestedKind: scope === 'plotTextHint'
+          ? 'sceneAugmentation'
+          : scope === 'chapterSummaryHint'
+            ? 'recapNote'
+            : scope === 'optionBiasHint'
+              ? 'intermediateNarrativeHint'
+              : 'narrativeNote',
+        decision: scope === 'plotTextHint' ? 'needsReview' : 'allow',
+        reason: scope === 'plotTextHint'
+          ? 'plot text hint requires human review before higher-layer apply'
+          : 'controlled output stays within allowed boundary',
+        normalizedKind: scope === 'plotTextHint'
+          ? 'sceneAugmentation'
+          : scope === 'chapterSummaryHint'
+            ? 'recapNote'
+            : scope === 'optionBiasHint'
+              ? 'intermediateNarrativeHint'
+              : 'narrativeNote',
+        safeApplyScope: scope,
+        policyForbiddenScopes: ['finalPlotState', 'canonWorldFact'],
+        requiresHumanReview: scope === 'plotTextHint',
+      })),
       guardrailResult: { outcome: 'accept' },
       applyResult: {
         attempted: true,
-        outcome: applyScopes.includes('plotTextHint')
-          ? 'applied_summary_option_bias_and_plot_text'
-          : 'applied_summary_and_option_bias',
-        reason: `web mock 已将提案应用到低风险输出层，target=${targetSegment}，scopes=${applyScopes.join(',')}，正文为：${paragraph}`,
+        outcome: 'applied_summary_and_option_bias',
+        reason: `web mock 已将提案应用到低风险输出层，plotTextHint 等待人工复核，target=${targetSegment}，scopes=${applyScopes.join(',')}，正文为：${paragraph}`,
       },
       fallbackUsed: false,
       elapsedMs: 0,
@@ -481,6 +505,540 @@ function appendWebNoNameTrace(
   }
 }
 
+function markWebNoNameControlledOutputReview(payload: NoNameHumanReviewMarkPayload): NoNameTrace {
+  const trace = runtimeState.noNameTraces.find((item) => item.traceId === payload.traceId);
+  if (!trace) {
+    throw new Error(`NoName trace not found: ${payload.traceId}`);
+  }
+  const review = (trace.controlledOutputReviews ?? [])
+    .find((item) => item.requestId === payload.requestId);
+  if (!review) {
+    throw new Error(`NoName controlled output review not found: ${payload.requestId}`);
+  }
+  if (review.decision !== 'needsReview' || !review.requiresHumanReview) {
+    throw new Error(`NoName controlled output review does not require human review: ${payload.requestId}`);
+  }
+
+  review.humanReviewDecision = payload.decision;
+  review.humanReviewedAt = Math.floor(Date.now() / 1000);
+  review.humanReviewNote = payload.decision === 'approvedForHigherApply'
+    ? '人工确认可进入高层 apply 设计，仍需后端二次 guardrail'
+    : payload.decision === 'rejectedForHigherApply'
+      ? '人工确认暂不应用，保持当前安全边界'
+      : '人工复核已重置为待确认，未触发高层 apply';
+  trace.proposalTransitionLog = [
+    ...(trace.proposalTransitionLog ?? []),
+    `${payload.requestId}:human_review:${payload.decision}`,
+  ];
+  const target = review.safeApplyScope ?? 'controlled_output';
+  const nextOrder = Math.max(0, ...(trace.applyPlanLog ?? []).map((item) => item.order)) + 1;
+  const priority = review.safeApplyScope === 'plotTextHint'
+    ? 325
+    : review.safeApplyScope === 'chapterSummaryHint'
+      ? 225
+      : review.safeApplyScope === 'optionBiasHint'
+        ? 125
+        : 35;
+
+  if (payload.decision === 'pending') {
+    trace.applyPlanLog = [
+      ...(trace.applyPlanLog ?? []),
+      {
+        order: nextOrder,
+        target,
+        decision: 'review_intent_pending',
+        priority,
+        note: '人工复核已重置为待确认，未进入二次 guardrail',
+      },
+    ];
+    trace.applyExecutionLog = [
+      ...(trace.applyExecutionLog ?? []),
+      {
+        target,
+        outcome: 'human_review_pending',
+        note: '等待人工确认，不触发高层 apply',
+      },
+    ];
+    trace.proposalTransitionLog.push(`${payload.requestId}:apply_intent:pending`);
+    return trace;
+  }
+
+  if (payload.decision === 'rejectedForHigherApply') {
+    trace.applyPlanLog = [
+      ...(trace.applyPlanLog ?? []),
+      {
+        order: nextOrder,
+        target,
+        decision: 'reject',
+        priority,
+        note: '人工复核拒绝进入高层 apply，保持安全边界',
+      },
+    ];
+    trace.applyExecutionLog = [
+      ...(trace.applyExecutionLog ?? []),
+      {
+        target,
+        outcome: 'rejected_by_human_review',
+        note: '开发者选择暂不应用，未触发二次 guardrail',
+      },
+    ];
+    trace.proposalTransitionLog.push(`${payload.requestId}:apply_intent:rejected_by_human_review`);
+    return trace;
+  }
+
+  const proposal = trace.proposals
+    .slice()
+    .reverse()
+    .find((item) => payload.requestId.includes(item.proposalId))
+    ?? trace.proposals[trace.proposals.length - 1];
+  const secondGuardrailRejected = trace.mode !== 'assisted'
+    || review.safeApplyScope !== 'plotTextHint'
+    || !proposal
+    || proposal.status !== 'applied'
+    || !proposal.applyable
+    || !['current_turn_head', 'current_turn_tail'].includes(proposal.targetSegment);
+  if (secondGuardrailRejected) {
+    trace.applyPlanLog = [
+      ...(trace.applyPlanLog ?? []),
+      {
+        order: nextOrder,
+        target,
+        decision: 'second_guardrail_reject',
+        priority,
+        note: 'web mock 二次 guardrail 拒绝高层 apply intent',
+      },
+    ];
+    trace.applyExecutionLog = [
+      ...(trace.applyExecutionLog ?? []),
+      {
+        target,
+        outcome: 'second_guardrail_rejected',
+        note: 'web mock 未满足高层 apply intent 条件',
+      },
+    ];
+    trace.proposalTransitionLog.push(`${payload.requestId}:apply_intent:second_guardrail_rejected`);
+    return trace;
+  }
+
+  trace.applyPlanLog = [
+    ...(trace.applyPlanLog ?? []),
+    {
+      order: nextOrder,
+      target,
+      decision: 'review_intent_ready',
+      priority,
+      note: '人工确认已通过，已排入二次 guardrail / apply planner，未写入正文',
+    },
+  ];
+  trace.applyExecutionLog = [
+    ...(trace.applyExecutionLog ?? []),
+    {
+      target,
+      outcome: 'awaiting_second_guardrail',
+      note: '高层 apply intent 已记录，等待后续二次 guardrail 决策',
+    },
+  ];
+  trace.proposalTransitionLog.push(`${payload.requestId}:apply_intent:awaiting_second_guardrail`);
+  return trace;
+}
+
+function resolveWebNoNameSecondGuardrail(payload: NoNameSecondGuardrailResolvePayload): NoNameTrace {
+  const trace = runtimeState.noNameTraces.find((item) => item.traceId === payload.traceId);
+  if (!trace) {
+    throw new Error(`NoName trace not found: ${payload.traceId}`);
+  }
+  const review = (trace.controlledOutputReviews ?? [])
+    .find((item) => item.requestId === payload.requestId);
+  if (!review) {
+    throw new Error(`NoName controlled output review not found: ${payload.requestId}`);
+  }
+  if (review.humanReviewDecision !== 'approvedForHigherApply') {
+    throw new Error(`NoName controlled output review is not approved for second guardrail: ${payload.requestId}`);
+  }
+
+  const target = review.safeApplyScope ?? 'controlled_output';
+  const nextOrder = Math.max(0, ...(trace.applyPlanLog ?? []).map((item) => item.order)) + 1;
+  const priority = review.safeApplyScope === 'plotTextHint'
+    ? 350
+    : review.safeApplyScope === 'chapterSummaryHint'
+      ? 250
+      : review.safeApplyScope === 'optionBiasHint'
+        ? 150
+        : 60;
+  const isWaiting = (trace.proposalTransitionLog ?? [])
+    .includes(`${payload.requestId}:apply_intent:awaiting_second_guardrail`)
+    || (trace.applyExecutionLog ?? []).some((item) => item.outcome === 'awaiting_second_guardrail');
+  const proposal = trace.proposals
+    .slice()
+    .reverse()
+    .find((item) => payload.requestId.includes(item.proposalId))
+    ?? trace.proposals[trace.proposals.length - 1];
+  const revalidateRejected = !isWaiting
+    || trace.mode !== 'assisted'
+    || review.safeApplyScope !== 'plotTextHint'
+    || !proposal
+    || proposal.status !== 'applied'
+    || !proposal.applyable
+    || !['current_turn_head', 'current_turn_tail'].includes(proposal.targetSegment);
+
+  const finalDecision = revalidateRejected ? 'reject' : payload.decision;
+  const planDecision = finalDecision === 'allow'
+    ? 'second_guardrail_allow'
+    : finalDecision === 'fallback'
+      ? 'second_guardrail_fallback'
+      : 'second_guardrail_reject';
+  const outcome = finalDecision === 'allow'
+    ? 'second_guardrail_allowed'
+    : finalDecision === 'fallback'
+      ? 'second_guardrail_fallback'
+      : 'second_guardrail_rejected';
+  const note = revalidateRejected
+    ? 'web mock 二次 guardrail 复核未通过'
+    : finalDecision === 'allow'
+      ? '二次 guardrail 允许进入后续人工 apply 命令；当前不写正文'
+      : finalDecision === 'fallback'
+        ? '二次 guardrail 要求回退经典链路'
+        : '二次 guardrail 人工拒绝高层 apply';
+
+  trace.applyPlanLog = [
+    ...(trace.applyPlanLog ?? []),
+    {
+      order: nextOrder,
+      target,
+      decision: planDecision,
+      priority,
+      note,
+    },
+  ];
+  trace.applyExecutionLog = [
+    ...(trace.applyExecutionLog ?? []),
+    {
+      target,
+      outcome,
+      note: finalDecision === 'allow'
+        ? '已允许进入下一步人工 apply，但未改写剧情正文'
+        : note,
+    },
+  ];
+  trace.proposalTransitionLog = [
+    ...(trace.proposalTransitionLog ?? []),
+    `${payload.requestId}:second_guardrail:${finalDecision}`,
+  ];
+  trace.applyResult = {
+    attempted: true,
+    outcome: planDecision,
+    reason: note,
+  };
+  if (finalDecision === 'fallback') {
+    trace.fallbackUsed = true;
+    trace.graphPath = [...trace.graphPath, 'ApplyFallback'];
+  }
+  return trace;
+}
+
+function applyWebNoNameManualPlotTextHint(args: {
+  traceId?: unknown;
+  requestId?: unknown;
+  chapterIndex?: unknown;
+  segmentIndex?: unknown;
+  expectedSegmentText?: unknown;
+}) {
+  const traceId = String(args.traceId ?? '');
+  const requestId = String(args.requestId ?? '');
+  const chapterIndex = Number(args.chapterIndex);
+  const segmentIndex = Number(args.segmentIndex);
+  const expectedSegmentText = String(args.expectedSegmentText ?? '');
+  const trace = runtimeState.noNameTraces.find((item) => item.traceId === traceId);
+  if (!trace) {
+    throw new Error(`NoName trace not found: ${traceId}`);
+  }
+  const review = (trace.controlledOutputReviews ?? []).find((item) => item.requestId === requestId);
+  if (!review) {
+    throw new Error(`NoName controlled output review not found: ${requestId}`);
+  }
+  if (review.humanReviewDecision !== 'approvedForHigherApply') {
+    throw new Error(`NoName controlled output review is not approved for manual apply: ${requestId}`);
+  }
+  if (review.safeApplyScope !== 'plotTextHint') {
+    throw new Error('manual apply currently only supports plotTextHint');
+  }
+  const hasSecondGuardrailAllow = (trace.proposalTransitionLog ?? [])
+    .includes(`${requestId}:second_guardrail:allow`)
+    || (trace.applyExecutionLog ?? []).some((item) => (
+      item.target === 'plotTextHint' && item.outcome === 'second_guardrail_allowed'
+    ));
+  if (!hasSecondGuardrailAllow) {
+    throw new Error('second guardrail has not allowed this review');
+  }
+  const plotState = runtimeState.plotState;
+  if (!plotState) {
+    throw new Error('Web 模式下剧情未初始化。');
+  }
+  if (plotState.current_chapter.index !== chapterIndex) {
+    throw new Error(`chapter mismatch: expected ${chapterIndex}, current ${plotState.current_chapter.index}`);
+  }
+  if (plotState.current_chapter.content[segmentIndex] !== expectedSegmentText) {
+    throw new Error('segment snapshot mismatch; refusing stale manual apply');
+  }
+  if (expectedSegmentText.includes('【NoName】') || expectedSegmentText.includes('NoName提示')) {
+    throw new Error('segment already contains a NoName marker');
+  }
+  const proposal = trace.proposals
+    .slice()
+    .reverse()
+    .find((item) => requestId.includes(item.proposalId))
+    ?? trace.proposals[trace.proposals.length - 1];
+  if (!proposal) {
+    throw new Error('NoName proposal not found for manual apply');
+  }
+  const hint = `【NoName】重点关注：${proposal.focus}`;
+  const updatedSegment = proposal.targetSegment === 'current_turn_head'
+    ? `${hint}\n\n${expectedSegmentText.trim()}`
+    : `${expectedSegmentText.trim()}\n\n${hint}`;
+  plotState.current_chapter.content[segmentIndex] = updatedSegment;
+  const historyIndex = plotState.plot_history.lastIndexOf(expectedSegmentText);
+  if (historyIndex < 0) {
+    throw new Error('plot history snapshot mismatch; refusing partial manual apply');
+  }
+  plotState.plot_history[historyIndex] = updatedSegment;
+  plotState.current_scene.description = plotState.current_chapter.content.join('\n\n');
+  if (plotState.last_action_result?.description === expectedSegmentText) {
+    plotState.last_action_result.description = updatedSegment;
+  }
+
+  const nextOrder = Math.max(0, ...(trace.applyPlanLog ?? []).map((item) => item.order)) + 1;
+  trace.applyPlanLog = [
+    ...(trace.applyPlanLog ?? []),
+    {
+      order: nextOrder,
+      target: 'plotTextHint',
+      decision: 'manual_apply',
+      priority: 375,
+      note: `显式人工 apply 已确认 chapter=${chapterIndex} segment=${segmentIndex}`,
+    },
+  ];
+  trace.applyExecutionLog = [
+    ...(trace.applyExecutionLog ?? []),
+    {
+      target: 'plotTextHint',
+      outcome: 'manual_plot_text_applied',
+      note: `已由显式人工命令写入正文提示，聚焦“${proposal.focus}”`,
+    },
+  ];
+  trace.proposalTransitionLog = [
+    ...(trace.proposalTransitionLog ?? []),
+    `${requestId}:manual_apply:plot_text_hint`,
+  ];
+  trace.applyResult = {
+    attempted: true,
+    outcome: 'manual_plot_text_applied',
+    reason: '显式人工 apply 已写入正文提示',
+  };
+  return { trace, plotState };
+}
+
+function applyWebNoNameManualChapterSummaryHint(args: {
+  traceId?: unknown;
+  requestId?: unknown;
+  chapterIndex?: unknown;
+  expectedSummary?: unknown;
+}) {
+  const traceId = String(args.traceId ?? '');
+  const requestId = String(args.requestId ?? '');
+  const chapterIndex = Number(args.chapterIndex);
+  const expectedSummary = String(args.expectedSummary ?? '');
+  const trace = runtimeState.noNameTraces.find((item) => item.traceId === traceId);
+  if (!trace) {
+    throw new Error(`NoName trace not found: ${traceId}`);
+  }
+  const review = (trace.controlledOutputReviews ?? []).find((item) => item.requestId === requestId);
+  if (!review) {
+    throw new Error(`NoName controlled output review not found: ${requestId}`);
+  }
+  if (review.humanReviewDecision !== 'approvedForHigherApply') {
+    throw new Error(`NoName controlled output review is not approved for manual apply: ${requestId}`);
+  }
+  if (review.safeApplyScope !== 'chapterSummaryHint') {
+    throw new Error('manual apply scope mismatch: expected chapterSummaryHint');
+  }
+  const hasSecondGuardrailAllow = (trace.proposalTransitionLog ?? [])
+    .includes(`${requestId}:second_guardrail:allow`)
+    || (trace.applyExecutionLog ?? []).some((item) => (
+      item.target === 'chapterSummaryHint' && item.outcome === 'second_guardrail_allowed'
+    ));
+  if (!hasSecondGuardrailAllow) {
+    throw new Error('second guardrail has not allowed this review');
+  }
+  if ((trace.applyExecutionLog ?? []).some((item) => (
+    item.target === 'chapterSummaryHint' && item.outcome === 'manual_chapter_summary_hint_applied'
+  ))) {
+    throw new Error('manual chapterSummaryHint has already been applied for this trace');
+  }
+  const plotState = runtimeState.plotState;
+  if (!plotState) {
+    throw new Error('Web runtime plot state is not initialized');
+  }
+  if (plotState.current_chapter.index !== chapterIndex) {
+    throw new Error(`chapter mismatch: expected ${chapterIndex}, current ${plotState.current_chapter.index}`);
+  }
+  if (plotState.current_chapter.summary !== expectedSummary) {
+    throw new Error('summary snapshot mismatch; refusing stale manual apply');
+  }
+  const proposal = trace.proposals
+    .slice()
+    .reverse()
+    .find((item) => requestId.includes(item.proposalId))
+    ?? trace.proposals[trace.proposals.length - 1];
+  if (!proposal) {
+    throw new Error('NoName proposal not found for manual apply');
+  }
+  const focus = proposal.focus.trim();
+  const hint = `NoName summary hint: ${focus}`;
+  if (focus && (expectedSummary.includes(focus) || expectedSummary.includes(hint))) {
+    throw new Error('chapter summary already contains this NoName hint');
+  }
+  const currentSummary = expectedSummary.trim();
+  const updatedSummary = !currentSummary
+    ? hint
+    : proposal.targetSegment === 'chapter_summary_head'
+      ? `${hint}; ${currentSummary}`
+      : `${currentSummary}; ${hint}`;
+
+  plotState.current_chapter.summary = updatedSummary;
+  const chapter = plotState.chapters.find((item) => item.index === chapterIndex);
+  if (chapter) {
+    chapter.summary = updatedSummary;
+  }
+
+  const nextOrder = Math.max(0, ...(trace.applyPlanLog ?? []).map((item) => item.order)) + 1;
+  trace.applyPlanLog = [
+    ...(trace.applyPlanLog ?? []),
+    {
+      order: nextOrder,
+      target: 'chapterSummaryHint',
+      decision: 'manual_apply',
+      priority: 275,
+      note: `manual apply confirmed for chapter=${chapterIndex} scope=chapterSummaryHint`,
+    },
+  ];
+  trace.applyExecutionLog = [
+    ...(trace.applyExecutionLog ?? []),
+    {
+      target: 'chapterSummaryHint',
+      outcome: 'manual_chapter_summary_hint_applied',
+      note: `manual chapter summary hint applied for focus=${proposal.focus}`,
+    },
+  ];
+  trace.proposalTransitionLog = [
+    ...(trace.proposalTransitionLog ?? []),
+    `${requestId}:manual_apply:chapter_summary_hint`,
+  ];
+  trace.applyResult = {
+    attempted: true,
+    outcome: 'manual_chapter_summary_hint_applied',
+    reason: 'manual chapter summary hint applied',
+  };
+  return { trace, plotState };
+}
+
+function applyWebNoNameManualOptionBiasHint(args: {
+  traceId?: unknown;
+  requestId?: unknown;
+  chapterIndex?: unknown;
+  expectedGenerationDiagnostics?: unknown;
+}) {
+  const traceId = String(args.traceId ?? '');
+  const requestId = String(args.requestId ?? '');
+  const chapterIndex = Number(args.chapterIndex);
+  const expectedGenerationDiagnostics = String(args.expectedGenerationDiagnostics ?? '');
+  const trace = runtimeState.noNameTraces.find((item) => item.traceId === traceId);
+  if (!trace) {
+    throw new Error(`NoName trace not found: ${traceId}`);
+  }
+  const review = (trace.controlledOutputReviews ?? []).find((item) => item.requestId === requestId);
+  if (!review) {
+    throw new Error(`NoName controlled output review not found: ${requestId}`);
+  }
+  if (review.humanReviewDecision !== 'approvedForHigherApply') {
+    throw new Error(`NoName controlled output review is not approved for manual apply: ${requestId}`);
+  }
+  if (review.safeApplyScope !== 'optionBiasHint') {
+    throw new Error('manual apply scope mismatch: expected optionBiasHint');
+  }
+  const hasSecondGuardrailAllow = (trace.proposalTransitionLog ?? [])
+    .includes(`${requestId}:second_guardrail:allow`)
+    || (trace.applyExecutionLog ?? []).some((item) => (
+      item.target === 'optionBiasHint' && item.outcome === 'second_guardrail_allowed'
+    ));
+  if (!hasSecondGuardrailAllow) {
+    throw new Error('second guardrail has not allowed this review');
+  }
+  if ((trace.applyExecutionLog ?? []).some((item) => (
+    item.target === 'optionBiasHint' && item.outcome === 'manual_option_bias_hint_applied'
+  ))) {
+    throw new Error('manual optionBiasHint has already been applied for this trace');
+  }
+  const plotState = runtimeState.plotState;
+  if (!plotState) {
+    throw new Error('Web runtime plot state is not initialized');
+  }
+  if (plotState.current_chapter.index !== chapterIndex) {
+    throw new Error(`chapter mismatch: expected ${chapterIndex}, current ${plotState.current_chapter.index}`);
+  }
+  if (!plotState.is_waiting_for_input) {
+    throw new Error('optionBiasHint manual apply requires waiting-for-input state');
+  }
+  const currentDiagnostics = plotState.last_generation_diagnostics ?? '';
+  if (currentDiagnostics !== expectedGenerationDiagnostics) {
+    throw new Error('diagnostics snapshot mismatch; refusing stale manual apply');
+  }
+  const proposal = trace.proposals
+    .slice()
+    .reverse()
+    .find((item) => requestId.includes(item.proposalId))
+    ?? trace.proposals[trace.proposals.length - 1];
+  if (!proposal) {
+    throw new Error('NoName proposal not found for manual apply');
+  }
+  const hint = `NoName option bias: next turn should prioritize actions around ${proposal.focus.trim()}`;
+  if (currentDiagnostics.includes(hint)) {
+    throw new Error('diagnostics already contains this NoName option bias hint');
+  }
+  plotState.last_generation_diagnostics = currentDiagnostics.trim()
+    ? `${currentDiagnostics}; ${hint}`
+    : hint;
+
+  const nextOrder = Math.max(0, ...(trace.applyPlanLog ?? []).map((item) => item.order)) + 1;
+  trace.applyPlanLog = [
+    ...(trace.applyPlanLog ?? []),
+    {
+      order: nextOrder,
+      target: 'optionBiasHint',
+      decision: 'manual_apply',
+      priority: 175,
+      note: `manual apply confirmed for chapter=${chapterIndex} scope=optionBiasHint`,
+    },
+  ];
+  trace.applyExecutionLog = [
+    ...(trace.applyExecutionLog ?? []),
+    {
+      target: 'optionBiasHint',
+      outcome: 'manual_option_bias_hint_applied',
+      note: `manual option bias hint applied for focus=${proposal.focus}`,
+    },
+  ];
+  trace.proposalTransitionLog = [
+    ...(trace.proposalTransitionLog ?? []),
+    `${requestId}:manual_apply:option_bias_hint`,
+  ];
+  trace.applyResult = {
+    attempted: true,
+    outcome: 'manual_option_bias_hint_applied',
+    reason: 'manual option bias hint applied',
+  };
+  return { trace, plotState };
+}
+
 function resolveActionText(action: PlayerAction, options: PlayerOption[]): string {
   if (action.action_type === ActionType.FreeText) {
     return action.content.trim() || '你静静观察局势变化。';
@@ -499,9 +1057,7 @@ function updateAfterAction(action: PlayerAction, quickMode: boolean) {
   const baseParagraph = quickMode
     ? `你迅速执行“${text}”，局势发生了可控变化。`
     : `你选择“${text}”，新的线索逐渐浮现。`;
-  const paragraph = runtimeState.noNameMode === 'assisted' && applyScopes.includes('plotTextHint')
-    ? applyWebNoNamePlotHint(baseParagraph, text, targetSegment)
-    : baseParagraph;
+  const paragraph = baseParagraph;
 
   plotState.current_chapter.content.push(paragraph);
   plotState.plot_history.push(paragraph);
@@ -513,9 +1069,7 @@ function updateAfterAction(action: PlayerAction, quickMode: boolean) {
     plotState.last_generation_diagnostics += `；NoName.observeOnly：focus=${text}；target_segment=${targetSegment}；apply=skipped_observe_only`;
   }
   if (runtimeState.noNameMode === 'assisted') {
-    const applyOutcome = applyScopes.includes('plotTextHint')
-      ? 'applied_summary_option_bias_and_plot_text'
-      : 'applied_summary_and_option_bias';
+    const applyOutcome = 'applied_summary_and_option_bias';
     plotState.last_generation_diagnostics += `；NoName.assisted：focus=${text}；target_segment=${targetSegment}；scopes=${applyScopes.join(',')}；apply=${applyOutcome}`;
     if (applyScopes.includes('chapterSummaryHint')) {
       plotState.current_chapter.summary = applyWebNoNameSummaryHint(
@@ -730,6 +1284,34 @@ export async function invokeWebRuntime<T>(
       runtimeState.noNameTraces = [];
       persistState();
       return undefined as T;
+    case 'mark_noname_controlled_output_review': {
+      const trace = markWebNoNameControlledOutputReview(args as unknown as NoNameHumanReviewMarkPayload);
+      persistState();
+      return trace as T;
+    }
+    case 'resolve_noname_second_guardrail': {
+      const trace = resolveWebNoNameSecondGuardrail(args as unknown as NoNameSecondGuardrailResolvePayload);
+      persistState();
+      return trace as T;
+    }
+    case 'apply_noname_manual_plot_text_hint': {
+      const result = applyWebNoNameManualPlotTextHint(args);
+      persistState();
+      return result as T;
+    }
+    case 'apply_noname_reviewed_output': {
+      const result = args.scope === 'chapterSummaryHint'
+        ? applyWebNoNameManualChapterSummaryHint(args)
+        : args.scope === 'optionBiasHint'
+          ? applyWebNoNameManualOptionBiasHint(args)
+          : args.scope === 'plotTextHint'
+            ? applyWebNoNameManualPlotTextHint(args)
+            : (() => {
+              throw new Error(`Web mock reviewed apply currently does not support ${String(args.scope)}`);
+            })();
+      persistState();
+      return result as T;
+    }
     case 'get_noname_mode':
       return runtimeState.noNameMode as T;
     case 'set_noname_mode':

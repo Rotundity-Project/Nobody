@@ -40,28 +40,32 @@ impl NoNameAgentRegistry {
                     responsibility: "统筹当前回合的剧情观察焦点与低风险推进方向",
                     primary_inputs: &["narrative_notes", "episodic_memory", "chapter_summaries"],
                     output_kind: NoNameProposalKind::PlotCandidate,
-                    boundary_with_director: "Director 负责统筹，不负责直接补全世界事实或 NPC/战斗细节。",
+                    boundary_with_director:
+                        "Director 负责统筹，不负责直接补全世界事实或 NPC/战斗细节。",
                 },
                 NoNameRoleProfile {
                     role: NoNameRole::WorldCurator,
                     responsibility: "补全世界事实、场景约束和设定锚点，维持世界一致性",
                     primary_inputs: &["hard_facts", "chapter_summaries", "referenced_entities"],
                     output_kind: NoNameProposalKind::WorldPatchProposal,
-                    boundary_with_director: "WorldCurator 不负责决定剧情主冲突，只负责提供世界层约束与补丁候选。",
+                    boundary_with_director:
+                        "WorldCurator 不负责决定剧情主冲突，只负责提供世界层约束与补丁候选。",
                 },
                 NoNameRoleProfile {
                     role: NoNameRole::NpcIntent,
                     responsibility: "推断 NPC 动机、立场变化和关系反应",
                     primary_inputs: &["referenced_entities", "recent_context", "episodic_memory"],
                     output_kind: NoNameProposalKind::NpcIntentProposal,
-                    boundary_with_director: "NpcIntent 不负责编排整段剧情，只补足角色行为动机与反应。",
+                    boundary_with_director:
+                        "NpcIntent 不负责编排整段剧情，只补足角色行为动机与反应。",
                 },
                 NoNameRoleProfile {
                     role: NoNameRole::CombatNarrator,
                     responsibility: "观察冲突节奏、动作反馈与战斗描写锚点",
                     primary_inputs: &["recent_context", "episodic_memory", "action_summary"],
                     output_kind: NoNameProposalKind::CombatNarration,
-                    boundary_with_director: "CombatNarrator 不负责世界规则或人物动机，只服务于冲突表现层。",
+                    boundary_with_director:
+                        "CombatNarrator 不负责世界规则或人物动机，只服务于冲突表现层。",
                 },
             ],
         }
@@ -192,7 +196,10 @@ mod tests {
                 .expect("npc intent dispatch should work"),
         ];
 
-        assert_eq!(observations[0].proposal.kind, NoNameProposalKind::PlotCandidate);
+        assert_eq!(
+            observations[0].proposal.kind,
+            NoNameProposalKind::PlotCandidate
+        );
         assert_eq!(
             observations[1].proposal.kind,
             NoNameProposalKind::WorldPatchProposal

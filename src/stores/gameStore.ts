@@ -1,5 +1,6 @@
 ﻿import { defineStore } from 'pinia';
 import { invokeRuntime, invokeWithTimeout } from '../utils/tauriInvoke';
+import { summarizeNoNameApplyLifecycle } from '../utils/noNameApplyLifecycle';
 import type {
   Script,
   GameState,
@@ -11,6 +12,10 @@ import type {
   WorldRegistry,
   GenerationTimingSummary,
   GenerationFailureSummary,
+  NoNameHumanReviewMarkPayload,
+  NoNameManualPlotTextApplyPayload,
+  NoNameManualPlotTextApplyResult,
+  NoNameSecondGuardrailResolvePayload,
   NoNameTrace,
 } from '../types/game';
 
@@ -34,6 +39,26 @@ interface GameStoreState {
 const LLM_TIMEOUT_MS = 60 * 1000;
 const OPTION_LLM_STORY_BLOCKED_MARKER = '本轮为选项续写：未获得可用 LLM 剧情文本';
 const MAX_GENERATION_DIAGNOSTICS = 40;
+
+function humanizeNoNameManualApplyError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  if (message.includes('segment snapshot mismatch')) {
+    return 'NoName 人工写入已取消：当前剧情段落已变化，请重新打开调试台确认差异预览。';
+  }
+  if (message.includes('segment already contains a NoName marker')) {
+    return 'NoName 人工写入已取消：当前段落已经包含 NoName 标记，避免重复写入。';
+  }
+  if (message.includes('manual plot text hint has already been applied')) {
+    return 'NoName 人工写入已取消：这条提示已经应用过了。';
+  }
+  if (message.includes('second guardrail has not allowed')) {
+    return 'NoName 人工写入已取消：二次护栏尚未允许该复核项。';
+  }
+  if (message.includes('chapter mismatch')) {
+    return 'NoName 人工写入已取消：当前章节已变化，请重新确认目标段落。';
+  }
+  return message;
+}
 
 export const useGameStore = defineStore('game', {
   state: (): GameStoreState => ({
@@ -176,6 +201,98 @@ export const useGameStore = defineStore('game', {
       }
     },
 
+    async markNoNameControlledOutputReview(payload: NoNameHumanReviewMarkPayload) {
+      try {
+        const updatedTrace = await invokeRuntime<NoNameTrace>(
+          'mark_noname_controlled_output_review',
+          {
+            traceId: payload.traceId,
+            requestId: payload.requestId,
+            decision: payload.decision,
+          },
+        );
+        const index = this.noNameTraces.findIndex((trace) => trace.traceId === updatedTrace.traceId);
+        if (index >= 0) {
+          this.noNameTraces = [
+            ...this.noNameTraces.slice(0, index),
+            updatedTrace,
+            ...this.noNameTraces.slice(index + 1),
+          ];
+        } else {
+          this.noNameTraces = [...this.noNameTraces, updatedTrace];
+        }
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : String(error);
+        throw error;
+      }
+    },
+
+    async resolveNoNameSecondGuardrail(payload: NoNameSecondGuardrailResolvePayload) {
+      try {
+        const updatedTrace = await invokeRuntime<NoNameTrace>(
+          'resolve_noname_second_guardrail',
+          {
+            traceId: payload.traceId,
+            requestId: payload.requestId,
+            decision: payload.decision,
+          },
+        );
+        const index = this.noNameTraces.findIndex((trace) => trace.traceId === updatedTrace.traceId);
+        if (index >= 0) {
+          this.noNameTraces = [
+            ...this.noNameTraces.slice(0, index),
+            updatedTrace,
+            ...this.noNameTraces.slice(index + 1),
+          ];
+        } else {
+          this.noNameTraces = [...this.noNameTraces, updatedTrace];
+        }
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : String(error);
+        throw error;
+      }
+    },
+
+    async applyNoNameManualPlotTextHint(payload: NoNameManualPlotTextApplyPayload) {
+      const chapterIndex = this.plotState?.current_chapter.index;
+      const segmentIndex = (this.plotState?.current_chapter.content.length ?? 0) - 1;
+      const expectedSegmentText = segmentIndex >= 0
+        ? this.plotState?.current_chapter.content[segmentIndex]
+        : undefined;
+      if (typeof chapterIndex !== 'number' || segmentIndex < 0 || !expectedSegmentText) {
+        this.error = '无法执行 NoName 人工写入：当前剧情段落为空。';
+        throw new Error(this.error);
+      }
+
+      try {
+        const result = await invokeRuntime<NoNameManualPlotTextApplyResult>(
+          'apply_noname_reviewed_output',
+          {
+            traceId: payload.traceId,
+            requestId: payload.requestId,
+            scope: 'plotTextHint',
+            chapterIndex,
+            segmentIndex,
+            expectedSegmentText,
+          },
+        );
+        this.plotState = result.plotState;
+        const index = this.noNameTraces.findIndex((trace) => trace.traceId === result.trace.traceId);
+        if (index >= 0) {
+          this.noNameTraces = [
+            ...this.noNameTraces.slice(0, index),
+            result.trace,
+            ...this.noNameTraces.slice(index + 1),
+          ];
+        } else {
+          this.noNameTraces = [...this.noNameTraces, result.trace];
+        }
+      } catch (error) {
+        this.error = humanizeNoNameManualApplyError(error);
+        throw new Error(this.error);
+      }
+    },
+
     getGenerationDiagnosticsText() {
       if (this.generationDiagnostics.length === 0) {
         return '暂无诊断数据。';
@@ -230,10 +347,14 @@ export const useGameStore = defineStore('game', {
             const policyScopes = item.policyForbiddenScopes?.length
               ? `[禁区=${item.policyForbiddenScopes.join('/')}]`
               : '';
-            return `${item.requestedKind}:${item.safeApplyScope ?? 'none'}:${item.decision}${item.requiresHumanReview ? ':human' : ''}${policyScopes}`;
+            const humanDecision = item.humanReviewDecision
+              ? `[人工=${item.humanReviewDecision}]`
+              : '';
+            return `${item.requestedKind}:${item.safeApplyScope ?? 'none'}:${item.decision}${item.requiresHumanReview ? ':human' : ''}${policyScopes}${humanDecision}`;
           })
           .join(', ')
         : '无';
+      const applyLifecycle = summarizeNoNameApplyLifecycle(latest);
       return [
         `最近 Trace：${latest.traceId}`,
         `模式：${latest.mode}`,
@@ -247,6 +368,7 @@ export const useGameStore = defineStore('game', {
         `预期效果：${proposal?.intendedEffect || '无'}`,
         `作用域：${proposalScopes}`,
         `预检：${latest.applyResult ? `${latest.applyResult.outcome}${latest.applyResult.reason ? ` (${latest.applyResult.reason})` : ''}` : '无'}`,
+        `应用生命周期：${applyLifecycle}`,
         `应用计划：${applyPlans}`,
         `应用执行：${applyExecutions}`,
         `状态迁移：${latest.proposalTransitionLog && latest.proposalTransitionLog.length > 0 ? latest.proposalTransitionLog.join(', ') : '无'}`,

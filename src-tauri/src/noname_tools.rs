@@ -4,13 +4,13 @@ use crate::noname_capability_base::{
 };
 use crate::noname_capability_registry::NoNameCapabilityRegistry;
 use crate::noname_context_types::NoNameContextPacket;
+use crate::noname_prompt_catalog::NoNamePromptTemplate;
 use crate::noname_prompts::{
     combat_narrator_observe_prompt_template, director_observe_prompt_template,
     npc_intent_observe_prompt_template, world_curator_observe_prompt_template,
-    COMBAT_NARRATOR_OBSERVE_PROMPT_ID, DIRECTOR_OBSERVE_PROMPT_ID,
-    NPC_INTENT_OBSERVE_PROMPT_ID, WORLD_CURATOR_OBSERVE_PROMPT_ID,
+    COMBAT_NARRATOR_OBSERVE_PROMPT_ID, DIRECTOR_OBSERVE_PROMPT_ID, NPC_INTENT_OBSERVE_PROMPT_ID,
+    WORLD_CURATOR_OBSERVE_PROMPT_ID,
 };
-use crate::noname_prompt_catalog::NoNamePromptTemplate;
 use crate::noname_resources::NoNameResourceDocument;
 use serde_json::json;
 

@@ -52,6 +52,8 @@ pub struct NoNameApplyPlanRecord {
 #[serde(rename_all = "camelCase")]
 pub struct NoNameControlledOutputReviewRecord {
     pub request_id: String,
+    #[serde(default)]
+    pub proposal_id: Option<String>,
     pub requested_kind: NoNameControlledOutputKind,
     pub decision: NoNameControlledOutputDecision,
     pub reason: String,
@@ -60,6 +62,56 @@ pub struct NoNameControlledOutputReviewRecord {
     #[serde(default)]
     pub policy_forbidden_scopes: Vec<NoNameForbiddenOutputScope>,
     pub requires_human_review: bool,
+    #[serde(default)]
+    pub human_review_decision: Option<NoNameHumanReviewDecision>,
+    #[serde(default)]
+    pub human_reviewed_at: Option<u64>,
+    #[serde(default)]
+    pub human_review_note: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum NoNameHumanReviewDecision {
+    Pending,
+    ApprovedForHigherApply,
+    RejectedForHigherApply,
+}
+
+impl NoNameHumanReviewDecision {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Pending => "pending",
+            Self::ApprovedForHigherApply => "approved_for_higher_apply",
+            Self::RejectedForHigherApply => "rejected_for_higher_apply",
+        }
+    }
+
+    pub fn note(self) -> &'static str {
+        match self {
+            Self::Pending => "人工复核已重置为待确认，未触发高层 apply",
+            Self::ApprovedForHigherApply => "人工确认可进入高层 apply 设计，仍需后端二次 guardrail",
+            Self::RejectedForHigherApply => "人工确认暂不应用，保持当前安全边界",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum NoNameSecondGuardrailDecision {
+    Allow,
+    Reject,
+    Fallback,
+}
+
+impl NoNameSecondGuardrailDecision {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Allow => "allow",
+            Self::Reject => "reject",
+            Self::Fallback => "fallback",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -227,6 +279,7 @@ impl NoNameTrace {
 
     pub fn record_controlled_output_review(
         &mut self,
+        proposal_id: Option<String>,
         requested_kind: NoNameControlledOutputKind,
         policy_forbidden_scopes: Vec<NoNameForbiddenOutputScope>,
         review: NoNameControlledOutputReview,
@@ -234,6 +287,7 @@ impl NoNameTrace {
         self.controlled_output_reviews
             .push(NoNameControlledOutputReviewRecord {
                 request_id: review.request_id,
+                proposal_id,
                 requested_kind,
                 decision: review.decision,
                 reason: review.reason,
@@ -241,6 +295,9 @@ impl NoNameTrace {
                 safe_apply_scope: review.safe_apply_scope,
                 policy_forbidden_scopes,
                 requires_human_review: review.requires_human_review,
+                human_review_decision: None,
+                human_reviewed_at: None,
+                human_review_note: None,
             });
     }
 
@@ -446,6 +503,7 @@ mod tests {
     fn controlled_output_review_can_be_recorded() {
         let mut trace = NoNameTrace::empty("trace-1", "session-1", "turn-1", NoNameMode::Assisted);
         trace.record_controlled_output_review(
+            Some("proposal-1".to_string()),
             NoNameControlledOutputKind::SceneAugmentation,
             vec![NoNameForbiddenOutputScope::CombatOutcome],
             NoNameControlledOutputReview {
@@ -459,6 +517,10 @@ mod tests {
         );
 
         assert_eq!(trace.controlled_output_reviews.len(), 1);
+        assert_eq!(
+            trace.controlled_output_reviews[0].proposal_id.as_deref(),
+            Some("proposal-1")
+        );
         assert_eq!(
             trace.controlled_output_reviews[0].decision,
             NoNameControlledOutputDecision::NeedsReview
