@@ -1,60 +1,18 @@
-# Nobody 文档导航
+# Nobody 文档入口
 
-`docs/` 用于保存仓库内正式文档，面向产品、架构、QA、发布和长期维护。
+`docs/` 现在只保留一套正式中文文档，统一存放在 [项目文档](./项目文档/README.md)。
 
-## 与 `.kiro/` 的职责边界
+## 使用说明
 
-- `docs/`：正式文档，适合长期保留、代码评审、团队协作、发布与回归。
-- `.kiro/`：本地规格、工作草稿、阶段性计划、交接记录，不作为运行时依赖。
+- 想快速理解项目：先读 [项目文档总览](./项目文档/README.md)
+- 想了解当前架构：读 [系统架构总览](./项目文档/02-架构/01-系统架构总览.md)
+- 想了解 `NoName` 当前实现与后续计划：读 [NoName 代理系统](./项目文档/02-架构/02-NoName-代理系统.md) 和 [后续路线图](./项目文档/03-规划/02-后续路线图.md)
+- 想参与开发：读 [运行与开发](./项目文档/01-总览/02-运行与开发.md) 和 [协作任务清单](./项目文档/03-规划/03-协作任务清单.md)
+- 想做验证或发布：读 [测试与验证](./项目文档/04-质量与发布/01-测试与验证.md) 与 [发布与维护](./项目文档/04-质量与发布/02-发布与维护.md)
 
-如果你要了解项目现状，优先看 `docs/`。
-如果你要追溯本地思路演进、任务拆解和历史 handoff，再看 `.kiro/`。
+## 文档边界
 
-## 推荐阅读顺序
+- `docs/`：正式文档，作为项目当前唯一有效的长期文档入口
+- `.kiro/`：历史规格、草稿、交接记录与参考资料，不再作为正式实现基线
 
-1. `ARCHITECTURE.md`
-2. `USER_MANUAL.md`
-3. `API.md`
-4. `architecture/README.md`
-5. `qa/` 与 `release/` 下的专题文档
-
-## 目录说明
-
-### `architecture/`
-
-系统设计与领域建模文档。
-
-重点文件：
-
-- `architecture/domain-model-v2.md`
-- `architecture/noname-agent-v1.md`
-- `architecture/noname-memory-context-v1.md`
-- `architecture/noname-framework-protocol-v1.md`
-- `architecture/noname-v1-blueprint.md`
-
-### `qa/`
-
-测试报告、属性测试矩阵、性能报告、手工验证记录。
-
-### `release/`
-
-版本说明、上线检查、迁移说明、发布模板。
-
-### `ui/`
-
-界面规范、文案词汇、视觉审计、主题约束。
-
-## NoName Agent 文档入口
-
-如果你要了解 `Nobody` 的 Agent 设计，请按这个顺序读：
-
-1. `architecture/noname-agent-v1.md`
-2. `architecture/noname-memory-context-v1.md`
-3. `architecture/noname-framework-protocol-v1.md`
-4. `architecture/noname-v1-blueprint.md`
-
-## 维护规则
-
-- 新的正式设计文档优先写入 `docs/`。
-- 草稿、手记、对话式规划优先写入 `.kiro/`。
-- 当 `.kiro/` 中的内容已经稳定，可提炼后迁移为 `docs/` 中的正式文档。
+如果 `.kiro/` 与 `docs/项目文档/` 存在冲突，以 `docs/项目文档/` 为准。
