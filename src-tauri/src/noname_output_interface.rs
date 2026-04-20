@@ -245,8 +245,8 @@ pub fn controlled_output_policy_from_role_context(
 ) -> NoNameControlledOutputPolicy {
     let mut policy = NoNameControlledOutputPolicy::default();
     let mapped = forbidden_output_scopes_from_role_constraints(&context.forbidden_scopes);
-    if !mapped.is_empty() {
-        policy.forbidden_scopes = mapped;
+    for scope in mapped {
+        push_unique(&mut policy.forbidden_scopes, scope);
     }
     policy
 }
@@ -441,5 +441,11 @@ mod tests {
         assert!(policy
             .forbidden_scopes
             .contains(&NoNameForbiddenOutputScope::CanonWorldFact));
+        assert!(policy
+            .forbidden_scopes
+            .contains(&NoNameForbiddenOutputScope::FinalPlotState));
+        assert!(policy
+            .forbidden_scopes
+            .contains(&NoNameForbiddenOutputScope::CharacterStats));
     }
 }
