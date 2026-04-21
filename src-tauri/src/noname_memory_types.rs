@@ -27,6 +27,33 @@ pub enum NoNameNarrativeStatus {
     Archived,
 }
 
+impl NoNameNarrativeStatus {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Active => "active",
+            Self::Resolved => "resolved",
+            Self::Archived => "archived",
+        }
+    }
+
+    pub fn can_transition_to(self, next: Self) -> bool {
+        matches!(
+            (self, next),
+            (Self::Active, Self::Active)
+                | (Self::Active, Self::Resolved)
+                | (Self::Active, Self::Archived)
+                | (Self::Resolved, Self::Resolved)
+                | (Self::Resolved, Self::Active)
+                | (Self::Resolved, Self::Archived)
+                | (Self::Archived, Self::Archived)
+        )
+    }
+
+    pub fn is_terminal(self) -> bool {
+        self == Self::Archived
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NoNameWorkingMemoryItem {

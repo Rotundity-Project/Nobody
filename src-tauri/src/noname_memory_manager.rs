@@ -3,18 +3,39 @@ use crate::noname_memory_compaction::{
     NoNameChapterCompactionInput, NoNameCompactionSummary, NoNameMemoryCompactionService,
     NoNameTraceCompactionInput, NoNameTurnCompactionInput,
 };
-use crate::noname_memory_retrieval::{NoNameMemoryQuery, NoNameRetrievedMemories};
+use crate::noname_memory_retrieval::{
+    NoNameMemoryQuery, NoNameMemorySection, NoNameRetrievedMemories, NoNameRetrievedMemoryReport,
+};
 use crate::noname_memory_store::NoNameMemoryStore;
 use crate::noname_memory_types::{
     NoNameEpisodicMemoryItem, NoNameNarrativeMemoryItem, NoNameSemanticMemoryItem,
     NoNameWorkingMemoryItem,
 };
-use crate::noname_note_store::{NoNameChapterNoteReview, NoNameNoteStore, NoNameNoteUpdate};
+use crate::noname_note_store::{
+    NoNameChapterNoteReview, NoNameNoteLifecycleAction, NoNameNoteLifecycleResult, NoNameNoteStore,
+    NoNameNoteUpdate,
+};
 
 #[derive(Debug, Clone)]
 pub struct NoNameMemoryManager {
     store: NoNameMemoryStore,
     notes: NoNameNoteStore,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NoNameNoteRetrievalContext {
+    pub note_id: String,
+    pub title: String,
+    pub related_entities: Vec<String>,
+    pub derived_actor: Option<String>,
+    pub derived_keyword: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NoNameNoteAugmentedRetrievalReport {
+    pub memories: NoNameRetrievedMemories,
+    pub note_contexts: Vec<NoNameNoteRetrievalContext>,
+    pub explanations: Vec<crate::noname_memory_retrieval::NoNameRetrievalExplanation>,
 }
 
 impl Default for NoNameMemoryManager {
@@ -92,6 +113,29 @@ impl NoNameMemoryManager {
         Some(updated)
     }
 
+    pub fn reopen_note(
+        &mut self,
+        note_id: &str,
+        updated_at: u64,
+    ) -> Option<NoNameNarrativeMemoryItem> {
+        let updated = self.notes.reopen(note_id, updated_at)?;
+        self.store.upsert_narrative(updated.clone());
+        Some(updated)
+    }
+
+    pub fn apply_note_lifecycle_action(
+        &mut self,
+        note_id: &str,
+        action: NoNameNoteLifecycleAction,
+        updated_at: u64,
+    ) -> Option<NoNameNoteLifecycleResult> {
+        let result = self
+            .notes
+            .apply_lifecycle_action(note_id, action, updated_at)?;
+        self.store.upsert_narrative(result.note.clone());
+        Some(result)
+    }
+
     pub fn organize_chapter_notes(
         &mut self,
         chapter_index: u32,
@@ -106,6 +150,26 @@ impl NoNameMemoryManager {
 
     pub fn retrieve(&self, query: &NoNameMemoryQuery) -> NoNameRetrievedMemories {
         self.store.retrieve(query)
+    }
+
+    pub fn retrieve_with_active_note_context(
+        &self,
+        query: &NoNameMemoryQuery,
+    ) -> NoNameNoteAugmentedRetrievalReport {
+        let mut report = self.store.retrieve_with_explanations(query);
+        let note_contexts = self.matching_note_contexts(query);
+
+        for context in &note_contexts {
+            let augmented_query = context.augment_query(query);
+            let augmented_report = self.store.retrieve_with_explanations(&augmented_query);
+            merge_note_augmented_report(&mut report, augmented_report, context, query);
+        }
+
+        NoNameNoteAugmentedRetrievalReport {
+            memories: report.memories,
+            note_contexts,
+            explanations: report.explanations,
+        }
     }
 
     pub fn compact_turn_memory(&self, input: NoNameTurnCompactionInput) -> NoNameCompactionSummary {
@@ -137,6 +201,185 @@ impl NoNameMemoryManager {
     pub fn notes_by_chapter(&self, chapter_index: u32) -> Vec<NoNameNarrativeMemoryItem> {
         self.notes.list_by_chapter(chapter_index)
     }
+
+    fn matching_note_contexts(&self, query: &NoNameMemoryQuery) -> Vec<NoNameNoteRetrievalContext> {
+        if !query.has_structured_filters() {
+            return Vec::new();
+        }
+
+        self.notes
+            .list_active()
+            .into_iter()
+            .filter(|note| note_matches_query(note, query))
+            .take(query.per_section_limit)
+            .map(NoNameNoteRetrievalContext::from_note)
+            .collect()
+    }
+}
+
+impl NoNameNoteRetrievalContext {
+    fn from_note(note: NoNameNarrativeMemoryItem) -> Self {
+        let derived_actor = note.related_entities.first().cloned();
+        let derived_keyword = first_non_empty(&[note.title.as_str(), note.summary.as_str()]);
+
+        Self {
+            note_id: note.note_id,
+            title: note.title,
+            related_entities: note.related_entities,
+            derived_actor,
+            derived_keyword,
+        }
+    }
+
+    fn augment_query(&self, query: &NoNameMemoryQuery) -> NoNameMemoryQuery {
+        let mut augmented = query.clone();
+        if augmented.actor.is_none() {
+            augmented.actor = self.derived_actor.clone();
+        }
+        if augmented.keyword.is_none() && augmented.search_term.is_none() {
+            augmented.keyword = self.derived_keyword.clone();
+        }
+        if augmented.goal.is_none() {
+            augmented.goal = self.derived_keyword.clone();
+        }
+        augmented
+    }
+}
+
+fn merge_note_augmented_report(
+    target: &mut NoNameRetrievedMemoryReport,
+    incoming: NoNameRetrievedMemoryReport,
+    context: &NoNameNoteRetrievalContext,
+    query: &NoNameMemoryQuery,
+) {
+    merge_unique_by_id(
+        &mut target.memories.working,
+        incoming.memories.working,
+        query.per_section_limit,
+        |item| item.memory_id.clone(),
+    );
+    merge_unique_by_id(
+        &mut target.memories.episodic,
+        incoming.memories.episodic,
+        query.per_section_limit,
+        |item| item.memory_id.clone(),
+    );
+    merge_unique_by_id(
+        &mut target.memories.semantic,
+        incoming.memories.semantic,
+        query.per_section_limit,
+        |item| item.fact_id.clone(),
+    );
+    merge_unique_by_id(
+        &mut target.memories.narrative,
+        incoming.memories.narrative,
+        query.per_section_limit,
+        |item| item.note_id.clone(),
+    );
+
+    for mut explanation in incoming.explanations {
+        if target.explanations.iter().any(|existing| {
+            existing.section == explanation.section && existing.item_id == explanation.item_id
+        }) {
+            continue;
+        }
+        if !contains_report_memory(&target.memories, explanation.section, &explanation.item_id) {
+            continue;
+        }
+        explanation
+            .reasons
+            .push(format!("note_context={}", context.note_id));
+        target.explanations.push(explanation);
+    }
+}
+
+fn contains_report_memory(
+    memories: &NoNameRetrievedMemories,
+    section: NoNameMemorySection,
+    item_id: &str,
+) -> bool {
+    match section {
+        NoNameMemorySection::Working => memories
+            .working
+            .iter()
+            .any(|item| item.memory_id == item_id),
+        NoNameMemorySection::Episodic => memories
+            .episodic
+            .iter()
+            .any(|item| item.memory_id == item_id),
+        NoNameMemorySection::Semantic => {
+            memories.semantic.iter().any(|item| item.fact_id == item_id)
+        }
+        NoNameMemorySection::Narrative => memories
+            .narrative
+            .iter()
+            .any(|item| item.note_id == item_id),
+    }
+}
+
+fn merge_unique_by_id<T, F>(target: &mut Vec<T>, incoming: Vec<T>, limit: usize, item_id: F)
+where
+    F: Fn(&T) -> String,
+{
+    for item in incoming {
+        if target.len() >= limit {
+            break;
+        }
+        let incoming_id = item_id(&item);
+        if !target
+            .iter()
+            .any(|existing| item_id(existing) == incoming_id)
+        {
+            target.push(item);
+        }
+    }
+}
+
+fn note_matches_query(note: &NoNameNarrativeMemoryItem, query: &NoNameMemoryQuery) -> bool {
+    let fields = [
+        note.title.as_str(),
+        note.summary.as_str(),
+        note.arc_id.as_deref().unwrap_or(""),
+    ];
+
+    query
+        .search_term
+        .as_deref()
+        .is_some_and(|term| note_contains(&fields, &note.related_entities, term))
+        || query
+            .keyword
+            .as_deref()
+            .is_some_and(|term| note_contains(&fields, &note.related_entities, term))
+        || query
+            .goal
+            .as_deref()
+            .is_some_and(|term| note_contains(&fields, &note.related_entities, term))
+        || query
+            .actor
+            .as_deref()
+            .is_some_and(|term| note_contains(&fields, &note.related_entities, term))
+        || query
+            .location
+            .as_deref()
+            .is_some_and(|term| note_contains(&fields, &note.related_entities, term))
+}
+
+fn note_contains(fields: &[&str], related_entities: &[String], term: &str) -> bool {
+    let normalized_term = term.to_lowercase();
+    fields
+        .iter()
+        .any(|field| field.to_lowercase().contains(&normalized_term))
+        || related_entities
+            .iter()
+            .any(|entity| entity.to_lowercase().contains(&normalized_term))
+}
+
+fn first_non_empty(values: &[&str]) -> Option<String> {
+    values
+        .iter()
+        .map(|value| value.trim())
+        .find(|value| !value.is_empty())
+        .map(str::to_string)
 }
 
 #[cfg(test)]
@@ -236,5 +479,205 @@ mod tests {
         let chapter_notes = manager.notes_by_chapter(1);
         assert_eq!(chapter_notes.len(), 1);
         assert_eq!(chapter_notes[0].status, NoNameNarrativeStatus::Archived);
+    }
+
+    #[test]
+    fn manager_applies_note_lifecycle_actions_and_syncs_store() {
+        let mut manager = NoNameMemoryManager::new();
+        manager.upsert_narrative_memory(NoNameNarrativeMemoryItem {
+            note_id: "note-1".to_string(),
+            chapter_index: 1,
+            arc_id: None,
+            note_type: NoNameNarrativeNoteType::UnresolvedThread,
+            title: "Broken Ward".to_string(),
+            summary: "Find who broke the mountain gate ward.".to_string(),
+            status: NoNameNarrativeStatus::Active,
+            related_entities: vec!["player".to_string()],
+            updated_at: 1,
+        });
+
+        let resolved = manager
+            .apply_note_lifecycle_action("note-1", NoNameNoteLifecycleAction::Resolve, 2)
+            .expect("manager should resolve note");
+        assert_eq!(resolved.next_status, NoNameNarrativeStatus::Resolved);
+
+        manager.reopen_note("note-1", 3);
+        let reopened_notes = manager.retrieve(&NoNameMemoryQuery {
+            role: NoNameRole::Director,
+            search_term: Some("Broken Ward".to_string()),
+            actor: None,
+            location: None,
+            goal: None,
+            keyword: None,
+            token_budget: 200,
+            per_section_limit: 2,
+        });
+
+        assert_eq!(reopened_notes.narrative.len(), 1);
+        assert_eq!(
+            reopened_notes.narrative[0].status,
+            NoNameNarrativeStatus::Active
+        );
+    }
+
+    #[test]
+    fn active_notes_can_expand_retrieval_recall() {
+        let mut manager = NoNameMemoryManager::new();
+        manager.push_episodic_memory(NoNameEpisodicMemoryItem {
+            memory_id: "event-qinghe".to_string(),
+            event_type: "dialogue".to_string(),
+            timestamp: 4,
+            chapter_index: 1,
+            location_id: Some("mountain_gate".to_string()),
+            actors: vec!["Elder Qinghe".to_string()],
+            summary: "Elder Qinghe hesitated before naming the saboteur.".to_string(),
+            detail_ref: None,
+            importance: crate::noname_memory_types::NoNameMemoryImportance::High,
+        });
+        manager.upsert_narrative_memory(NoNameNarrativeMemoryItem {
+            note_id: "note-ward".to_string(),
+            chapter_index: 1,
+            arc_id: None,
+            note_type: NoNameNarrativeNoteType::UnresolvedThread,
+            title: "Broken Ward".to_string(),
+            summary: "The saboteur clue points back to Elder Qinghe.".to_string(),
+            status: NoNameNarrativeStatus::Active,
+            related_entities: vec!["Elder Qinghe".to_string()],
+            updated_at: 5,
+        });
+
+        let query = NoNameMemoryQuery {
+            role: NoNameRole::Director,
+            search_term: Some("ward".to_string()),
+            actor: None,
+            location: None,
+            goal: None,
+            keyword: None,
+            token_budget: 200,
+            per_section_limit: 4,
+        };
+        let base = manager.retrieve(&query);
+        let expanded = manager.retrieve_with_active_note_context(&query);
+
+        assert!(base.episodic.is_empty());
+        assert_eq!(expanded.note_contexts.len(), 1);
+        assert_eq!(expanded.note_contexts[0].note_id, "note-ward");
+        assert_eq!(
+            expanded.note_contexts[0].derived_actor.as_deref(),
+            Some("Elder Qinghe")
+        );
+        assert_eq!(expanded.memories.episodic.len(), 1);
+        assert_eq!(expanded.memories.episodic[0].memory_id, "event-qinghe");
+        assert!(expanded.explanations.iter().any(|item| {
+            item.item_id == "event-qinghe"
+                && item
+                    .reasons
+                    .iter()
+                    .any(|reason| reason == "note_context=note-ward")
+        }));
+    }
+
+    #[test]
+    fn note_augmented_retrieval_drops_explanations_for_memories_skipped_by_limit() {
+        let mut manager = NoNameMemoryManager::new();
+        manager.push_episodic_memory(NoNameEpisodicMemoryItem {
+            memory_id: "event-ward".to_string(),
+            event_type: "scene".to_string(),
+            timestamp: 1,
+            chapter_index: 1,
+            location_id: Some("mountain_gate".to_string()),
+            actors: vec!["player".to_string()],
+            summary: "The mountain gate ward flickered before dawn.".to_string(),
+            detail_ref: None,
+            importance: crate::noname_memory_types::NoNameMemoryImportance::Low,
+        });
+        manager.push_episodic_memory(NoNameEpisodicMemoryItem {
+            memory_id: "event-qinghe".to_string(),
+            event_type: "dialogue".to_string(),
+            timestamp: 10,
+            chapter_index: 1,
+            location_id: Some("mountain_gate".to_string()),
+            actors: vec!["Elder Qinghe".to_string()],
+            summary: "Elder Qinghe hesitated before naming the saboteur.".to_string(),
+            detail_ref: None,
+            importance: crate::noname_memory_types::NoNameMemoryImportance::High,
+        });
+        manager.upsert_narrative_memory(NoNameNarrativeMemoryItem {
+            note_id: "note-ward".to_string(),
+            chapter_index: 1,
+            arc_id: None,
+            note_type: NoNameNarrativeNoteType::UnresolvedThread,
+            title: "Broken Ward".to_string(),
+            summary: "The saboteur clue points back to Elder Qinghe.".to_string(),
+            status: NoNameNarrativeStatus::Active,
+            related_entities: vec!["Elder Qinghe".to_string()],
+            updated_at: 5,
+        });
+
+        let expanded = manager.retrieve_with_active_note_context(&NoNameMemoryQuery {
+            role: NoNameRole::Director,
+            search_term: Some("ward".to_string()),
+            actor: None,
+            location: None,
+            goal: None,
+            keyword: None,
+            token_budget: 200,
+            per_section_limit: 1,
+        });
+
+        assert_eq!(expanded.memories.episodic.len(), 1);
+        assert_eq!(expanded.memories.episodic[0].memory_id, "event-ward");
+        assert!(expanded.explanations.iter().all(|explanation| {
+            contains_report_memory(
+                &expanded.memories,
+                explanation.section,
+                &explanation.item_id,
+            )
+        }));
+        assert!(!expanded.explanations.iter().any(|explanation| {
+            explanation.section == NoNameMemorySection::Episodic
+                && explanation.item_id == "event-qinghe"
+        }));
+    }
+
+    #[test]
+    fn archived_notes_do_not_expand_retrieval_recall() {
+        let mut manager = NoNameMemoryManager::new();
+        manager.push_episodic_memory(NoNameEpisodicMemoryItem {
+            memory_id: "event-qinghe".to_string(),
+            event_type: "dialogue".to_string(),
+            timestamp: 4,
+            chapter_index: 1,
+            location_id: None,
+            actors: vec!["Elder Qinghe".to_string()],
+            summary: "Elder Qinghe mentioned a saboteur.".to_string(),
+            detail_ref: None,
+            importance: crate::noname_memory_types::NoNameMemoryImportance::High,
+        });
+        manager.upsert_narrative_memory(NoNameNarrativeMemoryItem {
+            note_id: "note-ward".to_string(),
+            chapter_index: 1,
+            arc_id: None,
+            note_type: NoNameNarrativeNoteType::UnresolvedThread,
+            title: "Broken Ward".to_string(),
+            summary: "The saboteur clue points back to Elder Qinghe.".to_string(),
+            status: NoNameNarrativeStatus::Archived,
+            related_entities: vec!["Elder Qinghe".to_string()],
+            updated_at: 5,
+        });
+
+        let expanded = manager.retrieve_with_active_note_context(&NoNameMemoryQuery {
+            role: NoNameRole::Director,
+            search_term: Some("ward".to_string()),
+            actor: None,
+            location: None,
+            goal: None,
+            keyword: None,
+            token_budget: 200,
+            per_section_limit: 4,
+        });
+
+        assert!(expanded.note_contexts.is_empty());
+        assert!(expanded.memories.episodic.is_empty());
     }
 }

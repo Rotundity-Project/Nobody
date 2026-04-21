@@ -1,5 +1,6 @@
 use crate::noname_memory_retrieval::{
-    retrieve_memories, NoNameMemoryQuery, NoNameRetrievedMemories,
+    retrieve_memories, retrieve_memories_with_explanations, NoNameMemoryQuery,
+    NoNameRetrievedMemories, NoNameRetrievedMemoryReport,
 };
 use crate::noname_memory_types::{
     NoNameEpisodicMemoryItem, NoNameNarrativeMemoryItem, NoNameSemanticMemoryItem,
@@ -73,6 +74,19 @@ impl NoNameMemoryStore {
 
     pub fn retrieve(&self, query: &NoNameMemoryQuery) -> NoNameRetrievedMemories {
         retrieve_memories(
+            query,
+            self.working(),
+            self.episodic(),
+            self.semantic(),
+            self.narrative(),
+        )
+    }
+
+    pub fn retrieve_with_explanations(
+        &self,
+        query: &NoNameMemoryQuery,
+    ) -> NoNameRetrievedMemoryReport {
+        retrieve_memories_with_explanations(
             query,
             self.working(),
             self.episodic(),
@@ -191,5 +205,36 @@ mod tests {
 
         assert_eq!(result.episodic.len(), 1);
         assert_eq!(result.episodic[0].memory_id, "event-1");
+    }
+
+    #[test]
+    fn store_can_delegate_explainable_retrieval() {
+        let mut store = NoNameMemoryStore::new();
+        store.push_episodic(NoNameEpisodicMemoryItem {
+            memory_id: "event-1".to_string(),
+            event_type: "battle".to_string(),
+            timestamp: 3,
+            chapter_index: 1,
+            location_id: Some("山门".to_string()),
+            actors: vec!["青河长老".to_string()],
+            summary: "青河长老在山门布阵".to_string(),
+            detail_ref: None,
+            importance: NoNameMemoryImportance::High,
+        });
+
+        let report = store.retrieve_with_explanations(&NoNameMemoryQuery {
+            role: NoNameRole::NpcIntent,
+            search_term: None,
+            actor: Some("青河长老".to_string()),
+            location: Some("山门".to_string()),
+            goal: None,
+            keyword: Some("布阵".to_string()),
+            token_budget: 200,
+            per_section_limit: 2,
+        });
+
+        assert_eq!(report.memories.episodic[0].memory_id, "event-1");
+        assert_eq!(report.explanations[0].item_id, "event-1");
+        assert_eq!(report.explanations[0].rank, 1);
     }
 }
