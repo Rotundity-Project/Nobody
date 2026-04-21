@@ -330,7 +330,7 @@
               :class="manualApplyPreview(review).toneClass"
             >
               <p class="agent-trace-main-line">
-                人工写入预览：{{ manualApplyPreview(review.requestId).statusLabel }}
+                人工写入预览：{{ manualApplyPreview(review).statusLabel }}
               </p>
               <p class="agent-trace-muted">
                 {{ manualApplyPreview(review).statusText }}

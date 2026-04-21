@@ -317,6 +317,7 @@ describe('AgentTracePanel', () => {
       },
     });
 
+    expect(wrapper.text()).toContain('人工写入预览：将写入第 1 章摘要');
     const summaryButtons = wrapper.findAll('.agent-trace-review-btn');
     await summaryButtons[summaryButtons.length - 1]?.trigger('click');
     expect(wrapper.emitted('apply-manual-chapter-summary-hint')?.[0]).toEqual([{
@@ -358,6 +359,7 @@ describe('AgentTracePanel', () => {
         diagnostics: 'base diagnostics',
       },
     });
+    expect(wrapper.text()).toContain('人工写入预览：将写入第 1 章诊断提示');
     const optionButtons = wrapper.findAll('.agent-trace-review-btn');
     await optionButtons[optionButtons.length - 1]?.trigger('click');
     expect(wrapper.emitted('apply-manual-option-bias-hint')?.[0]).toEqual([{
