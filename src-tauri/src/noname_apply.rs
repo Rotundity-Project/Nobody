@@ -1,5 +1,8 @@
-use crate::noname_trace::{NoNameHumanReviewDecision, NoNameTrace};
-use crate::noname_types::{NoNameApplyScope, NoNameProposal, NoNameTargetSegment};
+use crate::noname_trace::{NoNameHumanReviewDecision, NoNameSecondGuardrailDecision, NoNameTrace};
+use crate::noname_types::{
+    NoNameApplyScope, NoNameMode, NoNameProposal, NoNameProposalStatus, NoNameTargetSegment,
+    NoNameTraceStage,
+};
 use crate::plot_engine::PlotState;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -155,6 +158,291 @@ fn target_segment_supports_apply_scope(
         ),
         _ => true,
     }
+}
+
+fn review_is_waiting_for_second_guardrail(trace: &NoNameTrace, request_id: &str) -> bool {
+    let transition = format!("{}:apply_intent:awaiting_second_guardrail", request_id);
+    trace
+        .proposal_transition_log
+        .iter()
+        .any(|entry| entry == &transition)
+        || trace.apply_execution_log.iter().any(|entry| {
+            entry.outcome == "awaiting_second_guardrail"
+                && entry.target == NoNameApplyScope::PlotTextHint.as_str()
+        })
+}
+
+fn second_guardrail_revalidation_reason(
+    trace: &NoNameTrace,
+    request_id: &str,
+    safe_apply_scope: Option<NoNameApplyScope>,
+) -> Option<String> {
+    if trace.mode != NoNameMode::Assisted {
+        return Some("当前 trace 不是 assisted 模式，二次 guardrail 拒绝".to_string());
+    }
+    if safe_apply_scope != Some(NoNameApplyScope::PlotTextHint) {
+        return Some("当前二次 guardrail 只允许处理 plot_text_hint".to_string());
+    }
+    if !review_is_waiting_for_second_guardrail(trace, request_id) {
+        return Some("review 尚未进入 awaiting_second_guardrail 队列".to_string());
+    }
+
+    match find_review_proposal(trace, request_id) {
+        Some(proposal)
+            if proposal.status == NoNameProposalStatus::Applied
+                && proposal.applyable
+                && target_segment_supports_apply_scope(
+                    proposal.target_segment,
+                    NoNameApplyScope::PlotTextHint,
+                ) =>
+        {
+            None
+        }
+        Some(proposal)
+            if proposal.status != NoNameProposalStatus::Applied || !proposal.applyable =>
+        {
+            Some(format!(
+                "proposal 状态为 {} / applyable={}，二次 guardrail 拒绝",
+                proposal.status.as_str(),
+                proposal.applyable
+            ))
+        }
+        Some(proposal) => Some(format!(
+            "target_segment={} 不支持 plot_text_hint 二次 guardrail",
+            proposal.target_segment.as_str()
+        )),
+        None => Some("未找到 review 对应 proposal，二次 guardrail 拒绝".to_string()),
+    }
+}
+
+fn human_review_apply_intent_rejection_reason(
+    trace: &NoNameTrace,
+    request_id: &str,
+    safe_apply_scope: Option<NoNameApplyScope>,
+    target: &str,
+) -> Option<String> {
+    if trace.mode != NoNameMode::Assisted {
+        return Some("当前 trace 不是 assisted 模式，拒绝进入高层 apply intent".to_string());
+    }
+    if safe_apply_scope != Some(NoNameApplyScope::PlotTextHint) {
+        return Some(format!(
+            "当前仅允许 plot_text_hint 进入人工确认后的二次 guardrail，实际作用域为 {}",
+            target
+        ));
+    }
+
+    match find_review_proposal(trace, request_id) {
+        Some(proposal)
+            if proposal.status == NoNameProposalStatus::Applied
+                && proposal.applyable
+                && target_segment_supports_apply_scope(
+                    proposal.target_segment,
+                    NoNameApplyScope::PlotTextHint,
+                ) =>
+        {
+            None
+        }
+        Some(proposal)
+            if proposal.status != NoNameProposalStatus::Applied || !proposal.applyable =>
+        {
+            Some(format!(
+                "proposal 状态为 {} / applyable={}，拒绝进入高层 apply intent",
+                proposal.status.as_str(),
+                proposal.applyable
+            ))
+        }
+        Some(proposal) => Some(format!(
+            "target_segment={} 不支持 plot_text_hint 二次 apply",
+            proposal.target_segment.as_str()
+        )),
+        None => Some("未找到 review 对应 proposal，拒绝进入高层 apply intent".to_string()),
+    }
+}
+
+pub fn record_human_review_apply_intent(
+    trace: &mut NoNameTrace,
+    request_id: &str,
+    decision: NoNameHumanReviewDecision,
+    safe_apply_scope: Option<NoNameApplyScope>,
+) {
+    let target = safe_apply_scope
+        .map(|scope| scope.as_str())
+        .unwrap_or("controlled_output");
+    let order = next_apply_plan_order(trace);
+    let priority = safe_apply_scope.map(priority_for_apply_scope).unwrap_or(10) + 25;
+
+    match decision {
+        NoNameHumanReviewDecision::Pending => {
+            trace.record_apply_plan(
+                order,
+                target,
+                "review_intent_pending",
+                priority,
+                Some("人工复核已重置为待确认，未进入二次 guardrail".to_string()),
+            );
+            trace.record_apply_execution(
+                target,
+                "human_review_pending",
+                Some("等待人工确认，不触发高层 apply".to_string()),
+            );
+            trace.record_proposal_transition(format!("{}:apply_intent:pending", request_id));
+        }
+        NoNameHumanReviewDecision::RejectedForHigherApply => {
+            trace.record_apply_plan(
+                order,
+                target,
+                "reject",
+                priority,
+                Some("人工复核拒绝进入高层 apply，保持安全边界".to_string()),
+            );
+            trace.record_apply_execution(
+                target,
+                "rejected_by_human_review",
+                Some("开发者选择暂不应用，未触发二次 guardrail".to_string()),
+            );
+            trace.record_proposal_transition(format!(
+                "{}:apply_intent:rejected_by_human_review",
+                request_id
+            ));
+        }
+        NoNameHumanReviewDecision::ApprovedForHigherApply => {
+            if let Some(reason) = human_review_apply_intent_rejection_reason(
+                trace,
+                request_id,
+                safe_apply_scope,
+                target,
+            ) {
+                trace.record_apply_plan(
+                    order,
+                    target,
+                    "second_guardrail_reject",
+                    priority,
+                    Some(reason.clone()),
+                );
+                trace.record_apply_execution(target, "second_guardrail_rejected", Some(reason));
+                trace.record_proposal_transition(format!(
+                    "{}:apply_intent:second_guardrail_rejected",
+                    request_id
+                ));
+                return;
+            }
+
+            trace.record_apply_plan(
+                order,
+                target,
+                "review_intent_ready",
+                priority,
+                Some(
+                    "人工确认已通过，已排入二次 guardrail / apply planner，未写入正文".to_string(),
+                ),
+            );
+            trace.record_apply_execution(
+                target,
+                "awaiting_second_guardrail",
+                Some("高层 apply intent 已记录，等待后续二次 guardrail 决策".to_string()),
+            );
+            trace.record_proposal_transition(format!(
+                "{}:apply_intent:awaiting_second_guardrail",
+                request_id
+            ));
+        }
+    }
+}
+
+pub fn record_second_guardrail_decision(
+    trace: &mut NoNameTrace,
+    request_id: &str,
+    decision: NoNameSecondGuardrailDecision,
+    safe_apply_scope: Option<NoNameApplyScope>,
+) -> Result<(), String> {
+    let target = safe_apply_scope
+        .map(|scope| scope.as_str())
+        .unwrap_or("controlled_output");
+    let order = next_apply_plan_order(trace);
+    let priority = safe_apply_scope.map(priority_for_apply_scope).unwrap_or(10) + 50;
+    let revalidation_reason =
+        second_guardrail_revalidation_reason(trace, request_id, safe_apply_scope);
+
+    if let Some(reason) = revalidation_reason {
+        trace.record_apply_plan(
+            order,
+            target,
+            "second_guardrail_reject",
+            priority,
+            Some(reason.clone()),
+        );
+        trace.record_apply_execution(target, "second_guardrail_rejected", Some(reason.clone()));
+        trace.record_proposal_transition(format!("{}:second_guardrail:reject", request_id));
+        trace.set_apply_result(true, "second_guardrail_reject", Some(reason));
+        return Ok(());
+    }
+
+    match decision {
+        NoNameSecondGuardrailDecision::Allow => {
+            trace.record_apply_plan(
+                order,
+                target,
+                "second_guardrail_allow",
+                priority,
+                Some("二次 guardrail 允许进入后续人工 apply 命令；当前不写正文".to_string()),
+            );
+            trace.record_apply_execution(
+                target,
+                "second_guardrail_allowed",
+                Some("已允许进入下一步人工 apply，但未改写剧情正文".to_string()),
+            );
+            trace.record_proposal_transition(format!("{}:second_guardrail:allow", request_id));
+            trace.set_apply_result(
+                true,
+                "second_guardrail_allow",
+                Some("二次 guardrail 已允许；等待显式人工 apply 命令".to_string()),
+            );
+        }
+        NoNameSecondGuardrailDecision::Reject => {
+            trace.record_apply_plan(
+                order,
+                target,
+                "second_guardrail_reject",
+                priority,
+                Some("二次 guardrail 人工拒绝高层 apply".to_string()),
+            );
+            trace.record_apply_execution(
+                target,
+                "second_guardrail_rejected",
+                Some("二次 guardrail 决策为拒绝，未改写剧情正文".to_string()),
+            );
+            trace.record_proposal_transition(format!("{}:second_guardrail:reject", request_id));
+            trace.set_apply_result(
+                true,
+                "second_guardrail_reject",
+                Some("二次 guardrail 已拒绝高层 apply".to_string()),
+            );
+        }
+        NoNameSecondGuardrailDecision::Fallback => {
+            trace.push_stage(NoNameTraceStage::ApplyFallback);
+            trace.fallback_used = true;
+            trace.record_apply_plan(
+                order,
+                target,
+                "second_guardrail_fallback",
+                priority,
+                Some("二次 guardrail 要求回退经典链路".to_string()),
+            );
+            trace.record_apply_execution(
+                target,
+                "second_guardrail_fallback",
+                Some("已记录回退决策，未改写剧情正文".to_string()),
+            );
+            trace.record_proposal_transition(format!("{}:second_guardrail:fallback", request_id));
+            trace.set_apply_result(
+                true,
+                "second_guardrail_fallback",
+                Some("二次 guardrail 决策为 fallback，继续依赖经典链路".to_string()),
+            );
+        }
+    }
+
+    Ok(())
 }
 
 fn trace_has_second_guardrail_allow(
@@ -643,6 +931,145 @@ mod tests {
             None,
         );
         (trace, request_id)
+    }
+
+    fn make_trace_for_plot_text_review() -> (NoNameTrace, String) {
+        let proposal_id = "proposal-plot-text".to_string();
+        let request_id = "controlled-output-proposal-plot-text-plot_text_hint".to_string();
+        let mut trace = NoNameTrace::empty("trace-3", "session-1", "turn-3", NoNameMode::Assisted);
+        trace.record_proposal(NoNameProposal {
+            proposal_id,
+            kind: NoNameProposalKind::PlotCandidate,
+            producer_role: NoNameRole::Director,
+            title: "plot text hint".to_string(),
+            summary: "suggest plot text hint".to_string(),
+            focus: "mountain gate".to_string(),
+            target_segment: NoNameTargetSegment::CurrentTurnTail,
+            intended_effect: "append a reviewed narrative hint".to_string(),
+            rationale: "keep the next beat focused".to_string(),
+            suggested_action: Some("manual apply".to_string()),
+            labels: vec!["test".to_string()],
+            apply_scopes: vec![NoNameApplyScope::PlotTextHint],
+            status: NoNameProposalStatus::Applied,
+            applyable: true,
+        });
+        trace.record_controlled_output_review(
+            Some("proposal-plot-text".to_string()),
+            NoNameControlledOutputKind::SceneAugmentation,
+            Vec::new(),
+            NoNameControlledOutputReview {
+                request_id: request_id.clone(),
+                decision: NoNameControlledOutputDecision::NeedsReview,
+                reason: "plot text hint requires human review".to_string(),
+                normalized_kind: Some(NoNameControlledOutputKind::SceneAugmentation),
+                safe_apply_scope: Some(NoNameApplyScope::PlotTextHint),
+                requires_human_review: true,
+            },
+        );
+        (trace, request_id)
+    }
+
+    #[test]
+    fn human_review_apply_intent_records_ready_for_plot_text() {
+        let (mut trace, request_id) = make_trace_for_plot_text_review();
+
+        record_human_review_apply_intent(
+            &mut trace,
+            &request_id,
+            NoNameHumanReviewDecision::ApprovedForHigherApply,
+            Some(NoNameApplyScope::PlotTextHint),
+        );
+
+        assert!(trace.apply_plan_log.iter().any(|entry| {
+            entry.target == "plot_text_hint" && entry.decision == "review_intent_ready"
+        }));
+        assert!(trace.apply_execution_log.iter().any(|entry| {
+            entry.target == "plot_text_hint" && entry.outcome == "awaiting_second_guardrail"
+        }));
+        assert!(trace
+            .proposal_transition_log
+            .iter()
+            .any(|entry| entry.ends_with(":apply_intent:awaiting_second_guardrail")));
+    }
+
+    #[test]
+    fn human_review_apply_intent_rejects_non_plot_text_scope() {
+        let (mut trace, request_id) = make_trace_for_summary_apply();
+
+        record_human_review_apply_intent(
+            &mut trace,
+            &request_id,
+            NoNameHumanReviewDecision::ApprovedForHigherApply,
+            Some(NoNameApplyScope::ChapterSummaryHint),
+        );
+
+        assert!(trace.apply_execution_log.iter().any(|entry| {
+            entry.target == "chapter_summary_hint"
+                && entry.outcome == "second_guardrail_rejected"
+                && entry
+                    .note
+                    .as_deref()
+                    .is_some_and(|note| note.contains("当前仅允许 plot_text_hint"))
+        }));
+    }
+
+    #[test]
+    fn second_guardrail_allow_records_reviewed_apply_gate() {
+        let (mut trace, request_id) = make_trace_for_plot_text_review();
+        record_human_review_apply_intent(
+            &mut trace,
+            &request_id,
+            NoNameHumanReviewDecision::ApprovedForHigherApply,
+            Some(NoNameApplyScope::PlotTextHint),
+        );
+
+        record_second_guardrail_decision(
+            &mut trace,
+            &request_id,
+            NoNameSecondGuardrailDecision::Allow,
+            Some(NoNameApplyScope::PlotTextHint),
+        )
+        .expect("second guardrail allow should be recorded");
+
+        assert!(trace.apply_execution_log.iter().any(|entry| {
+            entry.target == "plot_text_hint" && entry.outcome == "second_guardrail_allowed"
+        }));
+        assert_eq!(
+            trace
+                .apply_result
+                .as_ref()
+                .map(|item| item.outcome.as_str()),
+            Some("second_guardrail_allow")
+        );
+    }
+
+    #[test]
+    fn second_guardrail_rejects_review_that_is_not_waiting() {
+        let (mut trace, request_id) = make_trace_for_plot_text_review();
+
+        record_second_guardrail_decision(
+            &mut trace,
+            &request_id,
+            NoNameSecondGuardrailDecision::Allow,
+            Some(NoNameApplyScope::PlotTextHint),
+        )
+        .expect("second guardrail rejection should be recorded as trace outcome");
+
+        assert!(trace.apply_execution_log.iter().any(|entry| {
+            entry.target == "plot_text_hint"
+                && entry.outcome == "second_guardrail_rejected"
+                && entry
+                    .note
+                    .as_deref()
+                    .is_some_and(|note| note.contains("awaiting_second_guardrail"))
+        }));
+        assert_eq!(
+            trace
+                .apply_result
+                .as_ref()
+                .map(|item| item.outcome.as_str()),
+            Some("second_guardrail_reject")
+        );
     }
 
     #[test]
