@@ -4,7 +4,7 @@ use crate::noname_memory_compaction::{
     NoNameTraceCompactionInput, NoNameTurnCompactionInput,
 };
 use crate::noname_memory_retrieval::{
-    NoNameMemoryQuery, NoNameRetrievedMemories, NoNameRetrievedMemoryReport,
+    NoNameMemoryQuery, NoNameMemorySection, NoNameRetrievedMemories, NoNameRetrievedMemoryReport,
 };
 use crate::noname_memory_store::NoNameMemoryStore;
 use crate::noname_memory_types::{
@@ -283,10 +283,37 @@ fn merge_note_augmented_report(
         }) {
             continue;
         }
+        if !contains_report_memory(&target.memories, explanation.section, &explanation.item_id) {
+            continue;
+        }
         explanation
             .reasons
             .push(format!("note_context={}", context.note_id));
         target.explanations.push(explanation);
+    }
+}
+
+fn contains_report_memory(
+    memories: &NoNameRetrievedMemories,
+    section: NoNameMemorySection,
+    item_id: &str,
+) -> bool {
+    match section {
+        NoNameMemorySection::Working => memories
+            .working
+            .iter()
+            .any(|item| item.memory_id == item_id),
+        NoNameMemorySection::Episodic => memories
+            .episodic
+            .iter()
+            .any(|item| item.memory_id == item_id),
+        NoNameMemorySection::Semantic => {
+            memories.semantic.iter().any(|item| item.fact_id == item_id)
+        }
+        NoNameMemorySection::Narrative => memories
+            .narrative
+            .iter()
+            .any(|item| item.note_id == item_id),
     }
 }
 
@@ -547,6 +574,69 @@ mod tests {
                     .reasons
                     .iter()
                     .any(|reason| reason == "note_context=note-ward")
+        }));
+    }
+
+    #[test]
+    fn note_augmented_retrieval_drops_explanations_for_memories_skipped_by_limit() {
+        let mut manager = NoNameMemoryManager::new();
+        manager.push_episodic_memory(NoNameEpisodicMemoryItem {
+            memory_id: "event-ward".to_string(),
+            event_type: "scene".to_string(),
+            timestamp: 1,
+            chapter_index: 1,
+            location_id: Some("mountain_gate".to_string()),
+            actors: vec!["player".to_string()],
+            summary: "The mountain gate ward flickered before dawn.".to_string(),
+            detail_ref: None,
+            importance: crate::noname_memory_types::NoNameMemoryImportance::Low,
+        });
+        manager.push_episodic_memory(NoNameEpisodicMemoryItem {
+            memory_id: "event-qinghe".to_string(),
+            event_type: "dialogue".to_string(),
+            timestamp: 10,
+            chapter_index: 1,
+            location_id: Some("mountain_gate".to_string()),
+            actors: vec!["Elder Qinghe".to_string()],
+            summary: "Elder Qinghe hesitated before naming the saboteur.".to_string(),
+            detail_ref: None,
+            importance: crate::noname_memory_types::NoNameMemoryImportance::High,
+        });
+        manager.upsert_narrative_memory(NoNameNarrativeMemoryItem {
+            note_id: "note-ward".to_string(),
+            chapter_index: 1,
+            arc_id: None,
+            note_type: NoNameNarrativeNoteType::UnresolvedThread,
+            title: "Broken Ward".to_string(),
+            summary: "The saboteur clue points back to Elder Qinghe.".to_string(),
+            status: NoNameNarrativeStatus::Active,
+            related_entities: vec!["Elder Qinghe".to_string()],
+            updated_at: 5,
+        });
+
+        let expanded = manager.retrieve_with_active_note_context(&NoNameMemoryQuery {
+            role: NoNameRole::Director,
+            search_term: Some("ward".to_string()),
+            actor: None,
+            location: None,
+            goal: None,
+            keyword: None,
+            token_budget: 200,
+            per_section_limit: 1,
+        });
+
+        assert_eq!(expanded.memories.episodic.len(), 1);
+        assert_eq!(expanded.memories.episodic[0].memory_id, "event-ward");
+        assert!(expanded.explanations.iter().all(|explanation| {
+            contains_report_memory(
+                &expanded.memories,
+                explanation.section,
+                &explanation.item_id,
+            )
+        }));
+        assert!(!expanded.explanations.iter().any(|explanation| {
+            explanation.section == NoNameMemorySection::Episodic
+                && explanation.item_id == "event-qinghe"
         }));
     }
 

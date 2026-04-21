@@ -243,7 +243,10 @@ fn apply_noname_outcome_with_engine<F>(
     apply: F,
 ) -> Result<NoNameManualPlotTextApplyResult, String>
 where
-    F: FnOnce(NoNameTrace, PlotState) -> Result<crate::noname_apply::NoNameReviewedApplyOutcome, String>,
+    F: FnOnce(
+        NoNameTrace,
+        PlotState,
+    ) -> Result<crate::noname_apply::NoNameReviewedApplyOutcome, String>,
 {
     let trace = load_noname_trace(trace_id)?;
     let result = {
