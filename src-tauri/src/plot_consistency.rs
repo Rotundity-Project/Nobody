@@ -593,6 +593,7 @@ mod tests {
             last_generation_diagnostics: None,
             last_option_generation_source: None,
             last_consistency_risk_score: None,
+            pending_plot_augmentation_hints: Vec::new(),
         }
     }
 

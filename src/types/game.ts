@@ -175,6 +175,7 @@ export interface PlotState {
   last_generation_diagnostics?: string | null;
   last_option_generation_source?: string | null;
   last_consistency_risk_score?: number | null;
+  pending_plot_augmentation_hints?: string[];
   settings: PlotSettings;
   current_chapter: ChapterState;
   chapters: ChapterState[];
@@ -328,6 +329,7 @@ export type NoNameControlledOutputDecision = 'allow' | 'reject' | 'needsReview';
 export type NoNameControlledOutputKind =
   | 'recapNote'
   | 'sceneAugmentation'
+  | 'nonFinalPlotAugmentation'
   | 'narrativeNote'
   | 'intermediateNarrativeHint';
 export type NoNameForbiddenOutputScope =
@@ -379,10 +381,40 @@ export interface NoNameManualPlotTextApplyPayload {
   requestId: string;
 }
 
+export interface NoNameManualChapterSummaryHintApplyPayload {
+  traceId: string;
+  requestId: string;
+}
+
+export interface NoNameManualOptionBiasHintApplyPayload {
+  traceId: string;
+  requestId: string;
+}
+
+export interface NoNameManualPlotAugmentationHintApplyPayload {
+  traceId: string;
+  requestId: string;
+}
+
 export interface NoNameManualApplySegmentSnapshot {
   chapterIndex: number;
   segmentIndex: number;
   text: string;
+}
+
+export interface NoNameManualApplySummarySnapshot {
+  chapterIndex: number;
+  summary: string;
+}
+
+export interface NoNameManualApplyDiagnosticsSnapshot {
+  chapterIndex: number;
+  diagnostics: string;
+}
+
+export interface NoNameManualApplyPlotAugmentationSnapshot {
+  chapterIndex: number;
+  hints: string[];
 }
 
 export interface NoNameManualPlotTextApplyResult {
@@ -395,6 +427,7 @@ export type NoNameApplyScope =
   | 'diagnostics'
   | 'chapterSummaryHint'
   | 'optionBiasHint'
+  | 'plotAugmentationHint'
   | 'plotTextHint';
 export type NoNameTargetSegment =
   | 'current_turn_head'
@@ -419,11 +452,29 @@ export interface NoNameProposal {
   applyable: boolean;
 }
 
+export interface NoNameContextSourceStat {
+  source: string;
+  count: number;
+}
+
+export interface NoNameRoleContextSliceStat {
+  section: string;
+  sourceCount: number;
+  visibleCount: number;
+}
+
 export interface NoNameRelatedObservation {
   role: string;
   actionSummary: string;
   focus: string;
   rationale: string;
+  roleGoal?: string | null;
+  sceneFocus?: string | null;
+  forbiddenScopes?: string[];
+  noteTypeHits?: string[];
+  sourceStats?: NoNameContextSourceStat[];
+  contextTokenBudgetUsed?: number | null;
+  contextSliceStats?: NoNameRoleContextSliceStat[];
   proposal: NoNameProposal;
 }
 

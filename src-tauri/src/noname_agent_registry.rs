@@ -1,4 +1,5 @@
-use crate::noname_context_types::NoNameContextPacket;
+use crate::noname_context_builder::flatten_role_context_packet;
+use crate::noname_context_types::{NoNameContextPacket, NoNameRoleContextPacket};
 use crate::noname_errors::NoNameError;
 use crate::noname_roles::{
     unsupported_role_error, CombatNarratorAgent, DirectorAgent, NoNameRoleObservation,
@@ -118,11 +119,35 @@ impl NoNameAgentRegistry {
             NoNameRole::System => Err(unsupported_role_error(role)),
         }
     }
+
+    pub fn dispatch_role_context_observe_turn(
+        &self,
+        trace: &mut NoNameTrace,
+        context_packet: &NoNameRoleContextPacket,
+        action_summary: &str,
+    ) -> Result<NoNameRoleObservation, NoNameError> {
+        let flattened_context = flatten_role_context_packet(context_packet);
+        let mut observation = self.dispatch_observe_turn(
+            context_packet.role,
+            trace,
+            &flattened_context,
+            action_summary,
+        )?;
+        observation.role_goal = Some(context_packet.role_goal.clone());
+        observation.scene_focus = Some(context_packet.scene_focus.clone());
+        observation.forbidden_scopes = context_packet.forbidden_scopes.clone();
+        observation.note_type_hits = context_packet.note_type_hits.clone();
+        observation.source_stats = context_packet.source_stats.clone();
+        observation.context_token_budget_used = Some(context_packet.token_budget_used);
+        observation.context_slice_stats = context_packet.context_slice_stats.clone();
+        Ok(observation)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::noname_context_builder::specialize_context_packet;
     use crate::noname_context_types::{NoNameContextPacket, NoNameContextSourceStat};
     use crate::noname_types::NoNameMode;
 
@@ -225,5 +250,46 @@ mod tests {
             .expect_err("system should not dispatch");
 
         assert_eq!(err.code, "noname.agent.unsupported_role");
+    }
+
+    #[test]
+    fn registry_can_dispatch_role_context_packet_directly() {
+        let registry = NoNameAgentRegistry::new_default();
+        let mut trace =
+            NoNameTrace::empty("trace-3", "session-3", "turn-3", NoNameMode::ObserveOnly);
+        let role_context = specialize_context_packet(&sample_packet(NoNameRole::WorldCurator));
+
+        let observation = registry
+            .dispatch_role_context_observe_turn(&mut trace, &role_context, "检查护山法阵")
+            .expect("role context dispatch should work");
+
+        assert_eq!(observation.role, NoNameRole::WorldCurator);
+        assert_eq!(
+            observation.proposal.kind,
+            NoNameProposalKind::WorldPatchProposal
+        );
+        assert!(observation.prompt_preview.contains(&role_context.role_goal));
+        assert!(observation
+            .prompt_preview
+            .contains(&role_context.forbidden_scopes[0]));
+        assert_eq!(
+            observation.role_goal.as_deref(),
+            Some(role_context.role_goal.as_str())
+        );
+        assert_eq!(
+            observation.scene_focus.as_deref(),
+            Some(role_context.scene_focus.as_str())
+        );
+        assert_eq!(observation.forbidden_scopes, role_context.forbidden_scopes);
+        assert_eq!(observation.note_type_hits, role_context.note_type_hits);
+        assert_eq!(observation.source_stats, role_context.source_stats);
+        assert_eq!(
+            observation.context_token_budget_used,
+            Some(role_context.token_budget_used)
+        );
+        assert_eq!(
+            observation.context_slice_stats,
+            role_context.context_slice_stats
+        );
     }
 }

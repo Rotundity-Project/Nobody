@@ -85,6 +85,7 @@ pub enum NoNameApplyScope {
     Diagnostics,
     ChapterSummaryHint,
     OptionBiasHint,
+    PlotAugmentationHint,
     PlotTextHint,
 }
 
@@ -94,6 +95,7 @@ impl NoNameApplyScope {
             Self::Diagnostics => "diagnostics",
             Self::ChapterSummaryHint => "chapter_summary_hint",
             Self::OptionBiasHint => "option_bias_hint",
+            Self::PlotAugmentationHint => "plot_augmentation_hint",
             Self::PlotTextHint => "plot_text_hint",
         }
     }
@@ -325,6 +327,10 @@ mod tests {
         assert_eq!(
             NoNameApplyScope::ChapterSummaryHint.as_str(),
             "chapter_summary_hint"
+        );
+        assert_eq!(
+            NoNameApplyScope::PlotAugmentationHint.as_str(),
+            "plot_augmentation_hint"
         );
     }
 

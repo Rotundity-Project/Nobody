@@ -154,8 +154,15 @@ describe('webRuntime', () => {
     const expectedSegmentText = beforeContent[segmentIndex];
     const traces = await invokeWebRuntime<NoNameTrace[]>('get_noname_recent_traces');
     const latestTrace = traces[traces.length - 1];
-    const review = latestTrace.controlledOutputReviews?.find((item) => item.requiresHumanReview);
+    const review = latestTrace.controlledOutputReviews?.find((item) => (
+      item.safeApplyScope === 'plotTextHint' && item.requiresHumanReview
+    ));
     expect(review?.decision).toBe('needsReview');
+    expect(latestTrace.controlledOutputReviews?.some((item) => (
+      item.safeApplyScope === 'plotAugmentationHint'
+      && item.requestedKind === 'nonFinalPlotAugmentation'
+      && item.requiresHumanReview
+    ))).toBe(true);
 
     const updatedTrace = await invokeWebRuntime<NoNameTrace>('mark_noname_controlled_output_review', {
       traceId: latestTrace.traceId,
@@ -165,7 +172,9 @@ describe('webRuntime', () => {
 
     const afterPlotState = await invokeWebRuntime<PlotState>('get_plot_state');
     expect(afterPlotState.current_chapter.content).toEqual(beforeContent);
-    expect(updatedTrace.controlledOutputReviews?.[3]?.humanReviewDecision).toBe('approvedForHigherApply');
+    expect(updatedTrace.controlledOutputReviews?.find((item) => (
+      item.safeApplyScope === 'plotTextHint'
+    ))?.humanReviewDecision).toBe('approvedForHigherApply');
     expect(updatedTrace.applyPlanLog?.some((item) => (
       item.target === 'plotTextHint' && item.decision === 'review_intent_ready'
     ))).toBe(true);
@@ -198,6 +207,70 @@ describe('webRuntime', () => {
     expect(applied.plotState.current_chapter.content[segmentIndex]).toContain('【NoName】重点关注：观察灵脉回响');
     expect(applied.trace.applyExecutionLog?.some((item) => (
       item.target === 'plotTextHint' && item.outcome === 'manual_plot_text_applied'
+    ))).toBe(true);
+  });
+
+  it('consumes reviewed plot augmentation hints on the next assisted generation', async () => {
+    const script = await invokeWebRuntime<Script>('generate_random_script');
+    await invokeWebRuntime('initialize_game', { script });
+    await invokeWebRuntime('initialize_plot');
+    await invokeWebRuntime('set_noname_mode', { mode: 'assisted' });
+
+    await invokeWebRuntime('execute_player_action', {
+      action: {
+        action_type: ActionType.FreeText,
+        content: '追踪洞府残响',
+        selected_option_id: null,
+      },
+    });
+
+    const traces = await invokeWebRuntime<NoNameTrace[]>('get_noname_recent_traces');
+    const firstTrace = traces[traces.length - 1];
+    const review = firstTrace.controlledOutputReviews?.find((item) => (
+      item.safeApplyScope === 'plotAugmentationHint' && item.requiresHumanReview
+    ));
+    expect(review?.decision).toBe('needsReview');
+
+    await invokeWebRuntime<NoNameTrace>('mark_noname_controlled_output_review', {
+      traceId: firstTrace.traceId,
+      requestId: review?.requestId,
+      decision: 'approvedForHigherApply',
+    });
+    await invokeWebRuntime<NoNameTrace>('resolve_noname_second_guardrail', {
+      traceId: firstTrace.traceId,
+      requestId: review?.requestId,
+      decision: 'allow',
+    });
+
+    const beforeApply = await invokeWebRuntime<PlotState>('get_plot_state');
+    const applied = await invokeWebRuntime<{ trace: NoNameTrace; plotState: PlotState }>('apply_noname_reviewed_output', {
+      traceId: firstTrace.traceId,
+      requestId: review?.requestId,
+      scope: 'plotAugmentationHint',
+      chapterIndex: beforeApply.current_chapter.index,
+      expectedPlotAugmentationHints: beforeApply.pending_plot_augmentation_hints ?? [],
+    });
+    expect(applied.plotState.pending_plot_augmentation_hints).toHaveLength(1);
+
+    await invokeWebRuntime('execute_player_action', {
+      action: {
+        action_type: ActionType.FreeText,
+        content: '沿着残响前进',
+        selected_option_id: null,
+      },
+      quickMode: false,
+    });
+
+    const afterConsume = await invokeWebRuntime<PlotState>('get_plot_state');
+    const afterTraces = await invokeWebRuntime<NoNameTrace[]>('get_noname_recent_traces');
+    const latestTrace = afterTraces[afterTraces.length - 1];
+
+    expect(afterConsume.pending_plot_augmentation_hints).toHaveLength(0);
+    expect(afterConsume.last_generation_diagnostics).toContain('NoName pending plot augmentation consumed=1');
+    expect(latestTrace.applyExecutionLog?.some((item) => (
+      item.target === 'plotAugmentationHint'
+      && item.outcome === 'pending_plot_augmentation_consumed'
+      && item.note?.includes('count=1')
     ))).toBe(true);
   });
 

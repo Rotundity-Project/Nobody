@@ -1,6 +1,10 @@
 ﻿import { defineStore } from 'pinia';
 import { invokeRuntime, invokeWithTimeout } from '../utils/tauriInvoke';
-import { summarizeNoNameApplyLifecycle } from '../utils/noNameApplyLifecycle';
+import {
+  summarizeNoNameApplyExecutions,
+  summarizeNoNameApplyLifecycle,
+  summarizeNoNamePendingPlotAugmentation,
+} from '../utils/noNameApplyLifecycle';
 import type {
   Script,
   GameState,
@@ -13,6 +17,9 @@ import type {
   GenerationTimingSummary,
   GenerationFailureSummary,
   NoNameHumanReviewMarkPayload,
+  NoNameManualChapterSummaryHintApplyPayload,
+  NoNameManualOptionBiasHintApplyPayload,
+  NoNameManualPlotAugmentationHintApplyPayload,
   NoNameManualPlotTextApplyPayload,
   NoNameManualPlotTextApplyResult,
   NoNameSecondGuardrailResolvePayload,
@@ -45,10 +52,22 @@ function humanizeNoNameManualApplyError(error: unknown) {
   if (message.includes('segment snapshot mismatch')) {
     return 'NoName 人工写入已取消：当前剧情段落已变化，请重新打开调试台确认差异预览。';
   }
+  if (message.includes('summary snapshot mismatch')) {
+    return 'NoName 人工写入已取消：当前章节摘要已变化，请重新打开调试台确认差异预览。';
+  }
+  if (message.includes('diagnostics snapshot mismatch')) {
+    return 'NoName 人工写入已取消：当前诊断提示已变化，请重新打开调试台确认差异预览。';
+  }
+  if (message.includes('plot augmentation snapshot mismatch')) {
+    return 'NoName 人工写入已取消：当前剧情增强提示列表已变化，请重新打开调试台确认差异预览。';
+  }
   if (message.includes('segment already contains a NoName marker')) {
     return 'NoName 人工写入已取消：当前段落已经包含 NoName 标记，避免重复写入。';
   }
-  if (message.includes('manual plot text hint has already been applied')) {
+  if (
+    message.includes('manual plot text hint has already been applied')
+    || message.includes('has already been applied for this trace')
+  ) {
     return 'NoName 人工写入已取消：这条提示已经应用过了。';
   }
   if (message.includes('second guardrail has not allowed')) {
@@ -58,6 +77,18 @@ function humanizeNoNameManualApplyError(error: unknown) {
     return 'NoName 人工写入已取消：当前章节已变化，请重新确认目标段落。';
   }
   return message;
+}
+
+function replaceNoNameTrace(traces: NoNameTrace[], trace: NoNameTrace) {
+  const index = traces.findIndex((item) => item.traceId === trace.traceId);
+  if (index < 0) {
+    return [...traces, trace];
+  }
+  return [
+    ...traces.slice(0, index),
+    trace,
+    ...traces.slice(index + 1),
+  ];
 }
 
 export const useGameStore = defineStore('game', {
@@ -277,16 +308,88 @@ export const useGameStore = defineStore('game', {
           },
         );
         this.plotState = result.plotState;
-        const index = this.noNameTraces.findIndex((trace) => trace.traceId === result.trace.traceId);
-        if (index >= 0) {
-          this.noNameTraces = [
-            ...this.noNameTraces.slice(0, index),
-            result.trace,
-            ...this.noNameTraces.slice(index + 1),
-          ];
-        } else {
-          this.noNameTraces = [...this.noNameTraces, result.trace];
-        }
+        this.noNameTraces = replaceNoNameTrace(this.noNameTraces, result.trace);
+      } catch (error) {
+        this.error = humanizeNoNameManualApplyError(error);
+        throw new Error(this.error);
+      }
+    },
+
+    async applyNoNameManualChapterSummaryHint(payload: NoNameManualChapterSummaryHintApplyPayload) {
+      const chapterIndex = this.plotState?.current_chapter.index;
+      const expectedSummary = this.plotState?.current_chapter.summary;
+      if (typeof chapterIndex !== 'number' || typeof expectedSummary !== 'string') {
+        this.error = '无法执行 NoName 人工写入：当前章节摘要不可用。';
+        throw new Error(this.error);
+      }
+
+      try {
+        const result = await invokeRuntime<NoNameManualPlotTextApplyResult>(
+          'apply_noname_reviewed_output',
+          {
+            traceId: payload.traceId,
+            requestId: payload.requestId,
+            scope: 'chapterSummaryHint',
+            chapterIndex,
+            expectedSummary,
+          },
+        );
+        this.plotState = result.plotState;
+        this.noNameTraces = replaceNoNameTrace(this.noNameTraces, result.trace);
+      } catch (error) {
+        this.error = humanizeNoNameManualApplyError(error);
+        throw new Error(this.error);
+      }
+    },
+
+    async applyNoNameManualOptionBiasHint(payload: NoNameManualOptionBiasHintApplyPayload) {
+      const chapterIndex = this.plotState?.current_chapter.index;
+      const expectedGenerationDiagnostics = this.plotState?.last_generation_diagnostics ?? '';
+      if (typeof chapterIndex !== 'number') {
+        this.error = '无法执行 NoName 人工写入：当前章节不可用。';
+        throw new Error(this.error);
+      }
+
+      try {
+        const result = await invokeRuntime<NoNameManualPlotTextApplyResult>(
+          'apply_noname_reviewed_output',
+          {
+            traceId: payload.traceId,
+            requestId: payload.requestId,
+            scope: 'optionBiasHint',
+            chapterIndex,
+            expectedGenerationDiagnostics,
+          },
+        );
+        this.plotState = result.plotState;
+        this.noNameTraces = replaceNoNameTrace(this.noNameTraces, result.trace);
+      } catch (error) {
+        this.error = humanizeNoNameManualApplyError(error);
+        throw new Error(this.error);
+      }
+    },
+
+    async applyNoNameManualPlotAugmentationHint(payload: NoNameManualPlotAugmentationHintApplyPayload) {
+      const chapterIndex = this.plotState?.current_chapter.index;
+      const expectedPlotAugmentationHints = [...(this.plotState?.pending_plot_augmentation_hints ?? [])];
+      if (typeof chapterIndex !== 'number') {
+        this.error = '无法执行 NoName 人工写入：当前章节不可用。';
+        throw new Error(this.error);
+      }
+
+      try {
+        const result = await invokeRuntime<NoNameManualPlotTextApplyResult>(
+          'apply_noname_reviewed_output',
+          {
+            traceId: payload.traceId,
+            requestId: payload.requestId,
+            scope: 'plotAugmentationHint',
+            chapterIndex,
+            expectedPlotAugmentationHints,
+          },
+        );
+        this.plotState = result.plotState;
+        this.noNameTraces = replaceNoNameTrace(this.noNameTraces, result.trace);
       } catch (error) {
         this.error = humanizeNoNameManualApplyError(error);
         throw new Error(this.error);
@@ -320,11 +423,7 @@ export const useGameStore = defineStore('game', {
       const proposalScopes = proposal?.applyScopes && proposal.applyScopes.length > 0
         ? proposal.applyScopes.join(', ')
         : '无';
-      const applyExecutions = latest.applyExecutionLog && latest.applyExecutionLog.length > 0
-        ? latest.applyExecutionLog
-          .map((item) => `${item.target}:${item.outcome}${item.note ? `(${item.note})` : ''}`)
-          .join(', ')
-        : '无';
+      const applyExecutions = summarizeNoNameApplyExecutions(latest);
       const applyPlans = latest.applyPlanLog && latest.applyPlanLog.length > 0
         ? latest.applyPlanLog
           .map((item) => `#${item.order}:${item.target}:${item.decision}@${item.priority}${item.note ? `(${item.note})` : ''}`)
@@ -332,7 +431,27 @@ export const useGameStore = defineStore('game', {
         : '无';
       const relatedObservations = latest.relatedObservations && latest.relatedObservations.length > 0
         ? latest.relatedObservations
-          .map((item) => `${item.role}:${item.focus}`)
+          .map((item) => {
+            const roleContext = item.roleGoal || item.sceneFocus
+              ? `[上下文=${item.roleGoal || '无角色目标'} / ${item.sceneFocus || '无场景焦点'}]`
+              : '';
+            const forbiddenScopes = item.forbiddenScopes?.length
+              ? `[禁区=${item.forbiddenScopes.join('/')}]`
+              : '';
+            const noteTypeHits = item.noteTypeHits?.length
+              ? `[笔记=${item.noteTypeHits.join('/')}]`
+              : '';
+            const sourceStats = item.sourceStats?.length
+              ? `[来源=${item.sourceStats.map((source) => `${source.source}:${source.count}`).join('/')}]`
+              : '';
+            const tokenBudgetUsed = item.contextTokenBudgetUsed
+              ? `[token=${item.contextTokenBudgetUsed}]`
+              : '';
+            const contextSliceStats = item.contextSliceStats?.length
+              ? `[裁剪=${item.contextSliceStats.map((stat) => `${stat.section}:${stat.sourceCount}->${stat.visibleCount}`).join('/')}]`
+              : '';
+            return `${item.role}:${item.focus}${roleContext}${forbiddenScopes}${noteTypeHits}${sourceStats}${tokenBudgetUsed}${contextSliceStats}`;
+          })
           .join(', ')
         : '无';
       const protocolEvents = latest.protocolEvents && latest.protocolEvents.length > 0
@@ -355,6 +474,7 @@ export const useGameStore = defineStore('game', {
           .join(', ')
         : '无';
       const applyLifecycle = summarizeNoNameApplyLifecycle(latest);
+      const pendingPlotAugmentation = summarizeNoNamePendingPlotAugmentation(latest);
       return [
         `最近 Trace：${latest.traceId}`,
         `模式：${latest.mode}`,
@@ -369,6 +489,7 @@ export const useGameStore = defineStore('game', {
         `作用域：${proposalScopes}`,
         `预检：${latest.applyResult ? `${latest.applyResult.outcome}${latest.applyResult.reason ? ` (${latest.applyResult.reason})` : ''}` : '无'}`,
         `应用生命周期：${applyLifecycle}`,
+        `剧情增强提示：${pendingPlotAugmentation}`,
         `应用计划：${applyPlans}`,
         `应用执行：${applyExecutions}`,
         `状态迁移：${latest.proposalTransitionLog && latest.proposalTransitionLog.length > 0 ? latest.proposalTransitionLog.join(', ') : '无'}`,

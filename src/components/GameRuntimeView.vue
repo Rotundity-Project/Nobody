@@ -125,12 +125,18 @@
       :no-name-mode="noNameMode"
       :is-dev-mode="isDevMode"
       :manual-apply-segment="manualApplySegment"
+      :manual-apply-summary="manualApplySummary"
+      :manual-apply-diagnostics="manualApplyDiagnostics"
+      :manual-apply-plot-augmentations="manualApplyPlotAugmentations"
       @close="showNoNameDebugConsole = false"
       @clear-traces="gameStore.clearNoNameTraces()"
       @set-no-name-mode="setNoNameMode"
       @mark-controlled-output-review="gameStore.markNoNameControlledOutputReview"
       @resolve-second-guardrail="gameStore.resolveNoNameSecondGuardrail"
       @apply-manual-plot-text-hint="gameStore.applyNoNameManualPlotTextHint"
+      @apply-manual-chapter-summary-hint="gameStore.applyNoNameManualChapterSummaryHint"
+      @apply-manual-option-bias-hint="gameStore.applyNoNameManualOptionBiasHint"
+      @apply-manual-plot-augmentation-hint="gameStore.applyNoNameManualPlotAugmentationHint"
     />
     <NotificationCenter
       v-if="runtimeNotifications.length > 0"
@@ -157,7 +163,14 @@ import NotificationCenter from './NotificationCenter.vue';
 import NoNameDebugConsole from './NoNameDebugConsole.vue';
 import RuntimeQuickPanelsDialog from './RuntimeQuickPanelsDialog.vue';
 import StoryViewport from './StoryViewport.vue';
-import type { ConsistencyPolicy, NoNameManualApplySegmentSnapshot, NoNameMode } from '../types/game';
+import type {
+  ConsistencyPolicy,
+  NoNameManualApplyDiagnosticsSnapshot,
+  NoNameManualApplyPlotAugmentationSnapshot,
+  NoNameManualApplySegmentSnapshot,
+  NoNameManualApplySummarySnapshot,
+  NoNameMode,
+} from '../types/game';
 import { invokeRuntime } from '../utils/tauriInvoke';
 import {
   createFreeTextAction,
@@ -239,6 +252,36 @@ const manualApplySegment = computed<NoNameManualApplySegmentSnapshot | null>(() 
     chapterIndex: chapter.index,
     segmentIndex,
     text: chapter.content[segmentIndex] ?? '',
+  };
+});
+const manualApplySummary = computed<NoNameManualApplySummarySnapshot | null>(() => {
+  const chapter = gameStore.plotState?.current_chapter;
+  if (!chapter) {
+    return null;
+  }
+  return {
+    chapterIndex: chapter.index,
+    summary: chapter.summary ?? '',
+  };
+});
+const manualApplyDiagnostics = computed<NoNameManualApplyDiagnosticsSnapshot | null>(() => {
+  const chapter = gameStore.plotState?.current_chapter;
+  if (!chapter) {
+    return null;
+  }
+  return {
+    chapterIndex: chapter.index,
+    diagnostics: gameStore.plotState?.last_generation_diagnostics ?? '',
+  };
+});
+const manualApplyPlotAugmentations = computed<NoNameManualApplyPlotAugmentationSnapshot | null>(() => {
+  const chapter = gameStore.plotState?.current_chapter;
+  if (!chapter) {
+    return null;
+  }
+  return {
+    chapterIndex: chapter.index,
+    hints: [...(gameStore.plotState?.pending_plot_augmentation_hints ?? [])],
   };
 });
 

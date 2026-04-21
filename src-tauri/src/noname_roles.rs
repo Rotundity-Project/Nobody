@@ -1,5 +1,7 @@
 use crate::noname_capability_registry::NoNameCapabilityRegistry;
-use crate::noname_context_types::NoNameContextPacket;
+use crate::noname_context_types::{
+    NoNameContextPacket, NoNameContextSourceStat, NoNameRoleContextSliceStat,
+};
 use crate::noname_errors::{NoNameError, NoNameErrorKind};
 use crate::noname_prompts::{
     COMBAT_NARRATOR_OBSERVE_PROMPT_ID, DIRECTOR_OBSERVE_PROMPT_ID, NPC_INTENT_OBSERVE_PROMPT_ID,
@@ -30,6 +32,20 @@ pub struct NoNameRoleObservation {
     pub focus: String,
     pub rationale: String,
     pub prompt_preview: String,
+    #[serde(default)]
+    pub role_goal: Option<String>,
+    #[serde(default)]
+    pub scene_focus: Option<String>,
+    #[serde(default)]
+    pub forbidden_scopes: Vec<String>,
+    #[serde(default)]
+    pub note_type_hits: Vec<String>,
+    #[serde(default)]
+    pub source_stats: Vec<NoNameContextSourceStat>,
+    #[serde(default)]
+    pub context_token_budget_used: Option<usize>,
+    #[serde(default)]
+    pub context_slice_stats: Vec<NoNameRoleContextSliceStat>,
     pub proposal: NoNameProposal,
 }
 
@@ -103,6 +119,7 @@ impl DirectorAgent {
                 NoNameApplyScope::Diagnostics,
                 NoNameApplyScope::ChapterSummaryHint,
                 NoNameApplyScope::OptionBiasHint,
+                NoNameApplyScope::PlotAugmentationHint,
                 NoNameApplyScope::PlotTextHint,
             ],
             status: NoNameProposalStatus::Observed,
@@ -117,6 +134,13 @@ impl DirectorAgent {
             focus,
             rationale,
             prompt_preview: artifacts.prompt_preview,
+            role_goal: None,
+            scene_focus: None,
+            forbidden_scopes: Vec::new(),
+            note_type_hits: Vec::new(),
+            source_stats: Vec::new(),
+            context_token_budget_used: None,
+            context_slice_stats: Vec::new(),
             proposal,
         })
     }
@@ -205,6 +229,13 @@ impl WorldCuratorAgent {
             focus,
             rationale,
             prompt_preview: artifacts.prompt_preview,
+            role_goal: None,
+            scene_focus: None,
+            forbidden_scopes: Vec::new(),
+            note_type_hits: Vec::new(),
+            source_stats: Vec::new(),
+            context_token_budget_used: None,
+            context_slice_stats: Vec::new(),
             proposal,
         })
     }
@@ -279,6 +310,7 @@ impl NpcIntentAgent {
             apply_scopes: vec![
                 NoNameApplyScope::Diagnostics,
                 NoNameApplyScope::OptionBiasHint,
+                NoNameApplyScope::PlotAugmentationHint,
                 NoNameApplyScope::PlotTextHint,
             ],
             status: NoNameProposalStatus::Observed,
@@ -293,6 +325,13 @@ impl NpcIntentAgent {
             focus,
             rationale,
             prompt_preview: artifacts.prompt_preview,
+            role_goal: None,
+            scene_focus: None,
+            forbidden_scopes: Vec::new(),
+            note_type_hits: Vec::new(),
+            source_stats: Vec::new(),
+            context_token_budget_used: None,
+            context_slice_stats: Vec::new(),
             proposal,
         })
     }
@@ -360,6 +399,7 @@ impl CombatNarratorAgent {
             ],
             apply_scopes: vec![
                 NoNameApplyScope::Diagnostics,
+                NoNameApplyScope::PlotAugmentationHint,
                 NoNameApplyScope::PlotTextHint,
             ],
             status: NoNameProposalStatus::Observed,
@@ -374,6 +414,13 @@ impl CombatNarratorAgent {
             focus,
             rationale,
             prompt_preview: artifacts.prompt_preview,
+            role_goal: None,
+            scene_focus: None,
+            forbidden_scopes: Vec::new(),
+            note_type_hits: Vec::new(),
+            source_stats: Vec::new(),
+            context_token_budget_used: None,
+            context_slice_stats: Vec::new(),
             proposal,
         })
     }
@@ -425,8 +472,16 @@ fn run_observe_capability_pipeline(
 
     let mut variables = BTreeMap::new();
     variables.insert("goal".to_string(), goal);
+    variables.insert(
+        "roleGoal".to_string(),
+        role_goal_from_context(context_packet),
+    );
     variables.insert("action".to_string(), action_summary.to_string());
     variables.insert("scene".to_string(), scene_from_context(context_packet));
+    variables.insert(
+        "forbiddenScopes".to_string(),
+        forbidden_scopes_from_context(context_packet),
+    );
 
     let prompt_resolve = NoNamePromptResolve {
         header: header.clone(),
@@ -442,6 +497,8 @@ fn run_observe_capability_pipeline(
         args: json!({
             "actionSummary": action_summary,
             "contextTokenBudgetUsed": context_packet.token_budget_used,
+            "roleGoal": role_goal_from_context(context_packet),
+            "forbiddenScopes": forbidden_scopes_from_context(context_packet),
         }),
     };
     let tool_result = registry.invoke_tool(&tool_call)?;
@@ -459,6 +516,31 @@ fn scene_from_context(context_packet: &NoNameContextPacket) -> String {
         .first()
         .cloned()
         .unwrap_or_else(|| "当前场景".to_string())
+}
+
+fn role_goal_from_context(context_packet: &NoNameContextPacket) -> String {
+    metadata_value_from_context(context_packet, "roleGoal").unwrap_or_else(|| {
+        "Follow the current role responsibility without expanding authority.".to_string()
+    })
+}
+
+fn forbidden_scopes_from_context(context_packet: &NoNameContextPacket) -> String {
+    metadata_value_from_context(context_packet, "forbiddenScopes")
+        .unwrap_or_else(|| "Must not directly mutate final plot state.".to_string())
+}
+
+fn metadata_value_from_context(context_packet: &NoNameContextPacket, key: &str) -> Option<String> {
+    let summary = context_packet.compressed_summary.as_ref()?;
+    let marker = format!("{key}: ");
+    let start = summary.find(&marker)? + marker.len();
+    let tail = &summary[start..];
+    let end = tail.find(';').unwrap_or(tail.len());
+    let value = tail[..end].trim();
+    if value.is_empty() {
+        None
+    } else {
+        Some(value.to_string())
+    }
 }
 
 fn read_tool_field<'a>(content: &'a Value, field: &str, fallback: &'a str) -> &'a str {
@@ -496,6 +578,7 @@ pub fn unsupported_role_error(role: NoNameRole) -> NoNameError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::noname_context_builder::{flatten_role_context_packet, specialize_context_packet};
     use crate::noname_context_types::{NoNameContextPacket, NoNameContextSourceStat};
     use crate::noname_tools::{
         build_combat_narrator_registry, build_director_registry, build_npc_intent_registry,
@@ -587,6 +670,28 @@ mod tests {
         assert_eq!(combat.proposal.kind, NoNameProposalKind::CombatNarration);
         assert_eq!(trace.proposals.len(), 3);
         assert_eq!(trace.capability_calls.len(), 9);
+    }
+
+    #[test]
+    fn role_prompt_reads_role_goal_and_forbidden_scopes_from_context() {
+        let mut base_packet = sample_packet(NoNameRole::WorldCurator);
+        base_packet.role = NoNameRole::WorldCurator;
+        let role_packet = specialize_context_packet(&base_packet);
+        let flattened = flatten_role_context_packet(&role_packet);
+        let registry = build_world_curator_registry(&flattened);
+        let mut trace =
+            NoNameTrace::empty("trace-3", "session-3", "turn-3", NoNameMode::ObserveOnly);
+
+        let observation = WorldCuratorAgent::new()
+            .observe_turn(&mut trace, &registry, &flattened, "检查山门法阵")
+            .expect("world curator observe should resolve role prompt");
+
+        assert!(observation.prompt_preview.contains("角色目标"));
+        assert!(observation.prompt_preview.contains(&role_packet.role_goal));
+        assert!(observation.prompt_preview.contains("禁止越权"));
+        assert!(observation
+            .prompt_preview
+            .contains(&role_packet.forbidden_scopes[0]));
     }
 
     #[test]

@@ -418,7 +418,13 @@
                   class="rounded border px-2 py-1"
                 >
                   <p class="info-text-body">
-                    {{ item.target }} · {{ item.outcome }}
+                    {{ applyExecutionDisplay(item).targetLabel }} · {{ applyExecutionDisplay(item).outcomeLabel }}
+                  </p>
+                  <p
+                    v-if="applyExecutionDisplay(item).targetLabel !== item.target || applyExecutionDisplay(item).outcomeLabel !== item.outcome"
+                    class="info-text-muted mt-1 whitespace-pre-wrap"
+                  >
+                    原始记录：{{ item.target }} / {{ item.outcome }}
                   </p>
                   <p
                     v-if="item.note"
@@ -475,6 +481,7 @@ import UiButton from '../shared/ui/UiButton.vue';
 import NovelExporter from './NovelExporter.vue';
 import StatusBanner from './StatusBanner.vue';
 import { formatLocationLabel } from '../shared/locationLabel';
+import { formatNoNameApplyExecutionRecord } from '../utils/noNameApplyLifecycle';
 
 type TabId = 'character' | 'progress' | 'map' | 'review' | 'export' | 'debug' | 'system';
 type RootElementKey = 'Fire' | 'Water' | 'Wood' | 'Metal' | 'Earth';
@@ -695,6 +702,10 @@ const debugNoNameTransitions = computed(() => props.debugNoNameTransitions ?? []
 const debugNoNamePlans = computed(() => props.debugNoNamePlans ?? []);
 const debugNoNameExecutions = computed(() => props.debugNoNameExecutions ?? []);
 const debugNoNameScopes = computed(() => props.debugNoNameScopes ?? []);
+
+function applyExecutionDisplay(item: NoNameExecutionView) {
+  return formatNoNameApplyExecutionRecord(item);
+}
 </script>
 
 <style scoped>
