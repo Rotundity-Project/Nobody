@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { NoNameTrace } from '../types/game';
 import {
+  buildNoNameApplyLifecycleCheckpoints,
   buildNoNameApplyLifecycle,
   formatNoNameApplyExecutionRecord,
+  summarizeNoNameApplyLifecycleCheckpoints,
   summarizeNoNameApplyExecutions,
   summarizeNoNameApplyLifecycle,
   summarizeNoNamePendingPlotAugmentation,
@@ -46,6 +48,112 @@ function buildTrace(outcome: string, note: string): NoNameTrace {
 }
 
 describe('buildNoNameApplyLifecycle', () => {
+  it('summarizes the human review, second guardrail, and manual apply order', () => {
+    const trace: NoNameTrace = {
+      ...buildTrace(
+        'manual_plot_augmentation_hint_applied',
+        'manual plot augmentation hint staged for focus=hidden cave clue',
+      ),
+      traceId: 'trace-manual-apply-order',
+      proposals: [{
+        ...buildTrace(
+          'manual_plot_augmentation_hint_applied',
+          'manual plot augmentation hint staged for focus=hidden cave clue',
+        ).proposals[0],
+        proposalId: 'proposal-manual-apply-order',
+        applyScopes: ['plotTextHint'],
+      }],
+      controlledOutputReviews: [{
+        requestId: 'review-plot-text',
+        proposalId: 'proposal-manual-apply-order',
+        requestedKind: 'sceneAugmentation',
+        decision: 'needsReview',
+        reason: 'plot text hint requires review',
+        normalizedKind: 'sceneAugmentation',
+        safeApplyScope: 'plotTextHint',
+        policyForbiddenScopes: ['finalPlotState'],
+        requiresHumanReview: true,
+        humanReviewDecision: 'approvedForHigherApply',
+      }],
+      proposalTransitionLog: [
+        'proposal-manual-apply-order:apply_intent:awaiting_second_guardrail',
+        'proposal-manual-apply-order:second_guardrail:allow',
+        'proposal-manual-apply-order:manual_apply:plot_text_hint',
+      ],
+      applyExecutionLog: [{
+        target: 'plot_text_hint',
+        outcome: 'awaiting_second_guardrail',
+      }, {
+        target: 'plot_text_hint',
+        outcome: 'second_guardrail_allowed',
+      }, {
+        target: 'plot_text_hint',
+        outcome: 'manual_plot_text_applied',
+      }],
+    };
+
+    const checkpoints = buildNoNameApplyLifecycleCheckpoints(trace);
+
+    expect(checkpoints.map((checkpoint) => checkpoint.key)).toEqual([
+      'human-review',
+      'second-guardrail',
+      'manual-apply',
+    ]);
+    expect(checkpoints.map((checkpoint) => checkpoint.state)).toEqual([
+      'approved',
+      'allowed',
+      'applied',
+    ]);
+    expect(summarizeNoNameApplyLifecycleCheckpoints(trace)).toBe(
+      '1.Human Review=approved -> 2.Second Guardrail=allowed -> 3.Manual Apply=applied',
+    );
+  });
+
+  it('keeps manual apply not ready while human review is pending', () => {
+    const trace: NoNameTrace = {
+      ...buildTrace(
+        'manual_plot_augmentation_hint_applied',
+        'manual plot augmentation hint staged for focus=hidden cave clue',
+      ),
+      controlledOutputReviews: [{
+        requestId: 'review-pending',
+        proposalId: 'proposal-1',
+        requestedKind: 'sceneAugmentation',
+        decision: 'needsReview',
+        reason: 'plot text hint requires review',
+        normalizedKind: 'sceneAugmentation',
+        safeApplyScope: 'plotTextHint',
+        policyForbiddenScopes: ['finalPlotState'],
+        requiresHumanReview: true,
+        humanReviewDecision: 'pending',
+      }],
+      proposalTransitionLog: ['proposal-1:apply_intent:awaiting_second_guardrail'],
+      applyExecutionLog: [{
+        target: 'plot_text_hint',
+        outcome: 'awaiting_second_guardrail',
+      }],
+    };
+
+    expect(buildNoNameApplyLifecycleCheckpoints(trace).map((checkpoint) => checkpoint.state)).toEqual([
+      'pending',
+      'waiting',
+      'not-ready',
+    ]);
+  });
+
+  it('does not treat ordinary pending hints as reviewed apply checkpoints', () => {
+    const trace = buildTrace(
+      'pending_plot_augmentation_retained',
+      'pending plot augmentation retained because quick_mode; count=1',
+    );
+
+    expect(buildNoNameApplyLifecycleCheckpoints(trace).map((checkpoint) => checkpoint.state)).toEqual([
+      'not-required',
+      'not-required',
+      'not-required',
+    ]);
+  });
+
   it('surfaces consumed pending plot augmentation hints', () => {
     const trace = buildTrace(
       'pending_plot_augmentation_consumed',

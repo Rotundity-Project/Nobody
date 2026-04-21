@@ -14,6 +14,20 @@ export interface NoNameApplyLifecycleStep {
   tone: NoNameApplyLifecycleTone;
 }
 
+export type NoNameApplyLifecycleCheckpointKey =
+  | 'human-review'
+  | 'second-guardrail'
+  | 'manual-apply';
+
+export interface NoNameApplyLifecycleCheckpoint {
+  key: NoNameApplyLifecycleCheckpointKey;
+  label: string;
+  order: number;
+  state: string;
+  detail: string;
+  tone: NoNameApplyLifecycleTone;
+}
+
 export interface NoNameApplyExecutionDisplay {
   targetLabel: string;
   outcomeLabel: string;
@@ -146,6 +160,233 @@ function lifecycleHumanDecision(
   return reviewDecisions[requestId]
     ?? trace.controlledOutputReviews?.find((item) => item.requestId === requestId)?.humanReviewDecision
     ?? 'pending';
+}
+
+function hasManualApplyEvidence(trace: NoNameTrace) {
+  return hasExecutionOutcome(trace, 'manual_plot_text_applied')
+    || hasExecutionOutcome(trace, 'manual_chapter_summary_hint_applied')
+    || hasExecutionOutcome(trace, 'manual_option_bias_hint_applied')
+    || hasExecutionOutcome(trace, 'manual_plot_augmentation_hint_applied')
+    || hasTransition(trace, ':manual_apply:plot_text_hint')
+    || hasTransition(trace, ':manual_apply:chapter_summary_hint')
+    || hasTransition(trace, ':manual_apply:option_bias_hint')
+    || hasTransition(trace, ':manual_apply:plot_augmentation_hint');
+}
+
+function hasSecondGuardrailAllowed(trace: NoNameTrace) {
+  return hasExecutionOutcome(trace, 'second_guardrail_allowed')
+    || hasTransition(trace, ':second_guardrail:allow');
+}
+
+function hasSecondGuardrailRejected(trace: NoNameTrace) {
+  return hasExecutionOutcome(trace, 'second_guardrail_rejected')
+    || hasTransition(trace, ':second_guardrail:reject');
+}
+
+function hasSecondGuardrailFallback(trace: NoNameTrace) {
+  return hasExecutionOutcome(trace, 'second_guardrail_fallback')
+    || hasTransition(trace, ':second_guardrail:fallback');
+}
+
+function hasAwaitingSecondGuardrail(trace: NoNameTrace) {
+  return hasExecutionOutcome(trace, 'awaiting_second_guardrail')
+    || hasTransition(trace, ':apply_intent:awaiting_second_guardrail');
+}
+
+export function buildNoNameApplyLifecycleCheckpoints(
+  trace: NoNameTrace,
+  reviewDecisions: Record<string, NoNameHumanReviewDecision> = {},
+): NoNameApplyLifecycleCheckpoint[] {
+  const controlledReviews = trace.controlledOutputReviews ?? [];
+  const humanReviews = controlledReviews.filter((item) => item.requiresHumanReview);
+  const decisionCounts = humanReviews.reduce(
+    (counts, review) => {
+      const decision = lifecycleHumanDecision(trace, review.requestId, reviewDecisions);
+      counts[decision] += 1;
+      return counts;
+    },
+    {
+      pending: 0,
+      approvedForHigherApply: 0,
+      rejectedForHigherApply: 0,
+    } satisfies Record<NoNameHumanReviewDecision, number>,
+  );
+  const secondGuardrailAllowed = hasSecondGuardrailAllowed(trace);
+  const secondGuardrailRejected = hasSecondGuardrailRejected(trace);
+  const secondGuardrailFallback = hasSecondGuardrailFallback(trace);
+  const awaitingSecondGuardrail = hasAwaitingSecondGuardrail(trace);
+  const manualApplied = hasManualApplyEvidence(trace);
+  const needsManualApplyPath = humanReviews.length > 0
+    || awaitingSecondGuardrail
+    || secondGuardrailAllowed
+    || secondGuardrailRejected
+    || secondGuardrailFallback
+    || manualApplied;
+
+  const reviewCheckpoint: NoNameApplyLifecycleCheckpoint = humanReviews.length === 0
+    ? {
+      key: 'human-review',
+      label: 'Human Review',
+      order: 1,
+      state: 'not-required',
+      detail: 'No controlled output currently requires human review.',
+      tone: 'info',
+    }
+    : decisionCounts.rejectedForHigherApply > 0
+      ? {
+        key: 'human-review',
+        label: 'Human Review',
+        order: 1,
+        state: 'rejected',
+        detail: `${decisionCounts.rejectedForHigherApply}/${humanReviews.length} review item(s) rejected for higher apply.`,
+        tone: 'blocked',
+      }
+      : decisionCounts.pending > 0
+        ? {
+          key: 'human-review',
+          label: 'Human Review',
+          order: 1,
+          state: 'pending',
+          detail: `${decisionCounts.pending}/${humanReviews.length} review item(s) still waiting for explicit confirmation.`,
+          tone: 'pending',
+        }
+        : {
+          key: 'human-review',
+          label: 'Human Review',
+          order: 1,
+          state: 'approved',
+          detail: `${decisionCounts.approvedForHigherApply}/${humanReviews.length} review item(s) approved for the next guardrail.`,
+          tone: 'done',
+        };
+
+  let secondGuardrailCheckpoint: NoNameApplyLifecycleCheckpoint;
+  if (!needsManualApplyPath) {
+    secondGuardrailCheckpoint = {
+      key: 'second-guardrail',
+      label: 'Second Guardrail',
+      order: 2,
+      state: 'not-required',
+      detail: 'No higher-layer apply path is currently staged.',
+      tone: 'info',
+    };
+  } else if (secondGuardrailFallback) {
+    secondGuardrailCheckpoint = {
+      key: 'second-guardrail',
+      label: 'Second Guardrail',
+      order: 2,
+      state: 'fallback',
+      detail: 'The second guardrail requested fallback to the classic path.',
+      tone: 'fallback',
+    };
+  } else if (secondGuardrailRejected) {
+    secondGuardrailCheckpoint = {
+      key: 'second-guardrail',
+      label: 'Second Guardrail',
+      order: 2,
+      state: 'rejected',
+      detail: 'The second guardrail rejected the higher-layer apply.',
+      tone: 'blocked',
+    };
+  } else if (secondGuardrailAllowed) {
+    secondGuardrailCheckpoint = {
+      key: 'second-guardrail',
+      label: 'Second Guardrail',
+      order: 2,
+      state: 'allowed',
+      detail: 'The second guardrail allows explicit manual apply only.',
+      tone: 'done',
+    };
+  } else if (decisionCounts.rejectedForHigherApply > 0) {
+    secondGuardrailCheckpoint = {
+      key: 'second-guardrail',
+      label: 'Second Guardrail',
+      order: 2,
+      state: 'blocked-by-review',
+      detail: 'Human review rejection blocks the second guardrail path.',
+      tone: 'blocked',
+    };
+  } else if (decisionCounts.pending > 0 || awaitingSecondGuardrail) {
+    secondGuardrailCheckpoint = {
+      key: 'second-guardrail',
+      label: 'Second Guardrail',
+      order: 2,
+      state: 'waiting',
+      detail: 'Waiting for approved review evidence before resolving the second guardrail.',
+      tone: 'pending',
+    };
+  } else {
+    secondGuardrailCheckpoint = {
+      key: 'second-guardrail',
+      label: 'Second Guardrail',
+      order: 2,
+      state: 'not-entered',
+      detail: 'No second guardrail resolution has been recorded yet.',
+      tone: 'pending',
+    };
+  }
+
+  let manualApplyCheckpoint: NoNameApplyLifecycleCheckpoint;
+  if (manualApplied) {
+    manualApplyCheckpoint = {
+      key: 'manual-apply',
+      label: 'Manual Apply',
+      order: 3,
+      state: 'applied',
+      detail: 'An explicit manual apply execution is recorded.',
+      tone: 'done',
+    };
+  } else if (!needsManualApplyPath) {
+    manualApplyCheckpoint = {
+      key: 'manual-apply',
+      label: 'Manual Apply',
+      order: 3,
+      state: 'not-required',
+      detail: 'No manual apply scope is currently staged.',
+      tone: 'info',
+    };
+  } else if (secondGuardrailAllowed) {
+    manualApplyCheckpoint = {
+      key: 'manual-apply',
+      label: 'Manual Apply',
+      order: 3,
+      state: 'awaiting-command',
+      detail: 'Ready for an explicit developer-triggered apply command.',
+      tone: 'pending',
+    };
+  } else if (secondGuardrailRejected || secondGuardrailFallback || decisionCounts.rejectedForHigherApply > 0) {
+    manualApplyCheckpoint = {
+      key: 'manual-apply',
+      label: 'Manual Apply',
+      order: 3,
+      state: 'blocked',
+      detail: 'Manual apply is blocked by review or second guardrail result.',
+      tone: secondGuardrailFallback ? 'fallback' : 'blocked',
+    };
+  } else {
+    manualApplyCheckpoint = {
+      key: 'manual-apply',
+      label: 'Manual Apply',
+      order: 3,
+      state: 'not-ready',
+      detail: 'Manual apply is waiting for review and second guardrail evidence.',
+      tone: 'pending',
+    };
+  }
+
+  return [
+    reviewCheckpoint,
+    secondGuardrailCheckpoint,
+    manualApplyCheckpoint,
+  ];
+}
+
+export function summarizeNoNameApplyLifecycleCheckpoints(
+  trace: NoNameTrace,
+  reviewDecisions: Record<string, NoNameHumanReviewDecision> = {},
+) {
+  return buildNoNameApplyLifecycleCheckpoints(trace, reviewDecisions)
+    .map((checkpoint) => `${checkpoint.order}.${checkpoint.label}=${checkpoint.state}`)
+    .join(' -> ');
 }
 
 export function summarizeNoNamePendingPlotAugmentation(trace: NoNameTrace): string {

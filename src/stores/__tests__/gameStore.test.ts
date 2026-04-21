@@ -426,6 +426,7 @@ describe('gameStore', () => {
     const text = store.getNoNameTraceDebugText();
     expect(text).toContain('预检：preflight_ready');
     expect(text).toContain('应用生命周期：提案阶段:ready');
+    expect(text).toContain('应用阶段核对：1.Human Review=approved');
     expect(text).toContain('应用计划：#1:chapter_summary_hint:apply@200');
     expect(text).toContain('应用执行：chapter_summary_hint:applied');
     expect(text).toContain('剧情增强提示:已消费[raw=plot_augmentation_hint:pending_plot_augmentation_consumed]');

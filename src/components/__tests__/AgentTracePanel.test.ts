@@ -126,6 +126,7 @@ describe('AgentTracePanel', () => {
     expect(wrapper.text()).toContain('未回退');
     expect(wrapper.text()).toContain('ApplyProposal');
     expect(wrapper.text()).toContain('应用生命周期');
+    expect(wrapper.text()).toContain('Lifecycle Checkpoints: 1.Human Review=pending');
     expect(wrapper.text()).toContain('提案阶段');
     expect(wrapper.text()).toContain('低风险输出');
     expect(wrapper.text()).toContain('协作观察');

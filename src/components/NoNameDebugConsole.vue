@@ -151,6 +151,7 @@ import type {
 import {
   summarizeNoNameApplyExecutions,
   summarizeNoNameApplyLifecycle,
+  summarizeNoNameApplyLifecycleCheckpoints,
   summarizeNoNamePendingPlotAugmentation,
 } from '../utils/noNameApplyLifecycle';
 
@@ -352,6 +353,7 @@ function buildTraceReport(
     ? `${trace.applyResult.outcome}${trace.applyResult.reason ? ` (${trace.applyResult.reason})` : ''}`
     : '无';
   const lifecycle = summarizeNoNameApplyLifecycle(trace, reviewDecisions);
+  const lifecycleCheckpoints = summarizeNoNameApplyLifecycleCheckpoints(trace, reviewDecisions);
   const pendingPlotAugmentation = summarizeNoNamePendingPlotAugmentation(trace);
   const applyExecutions = summarizeNoNameApplyExecutions(trace, {
     emptyLabel: 'none',
@@ -374,6 +376,7 @@ function buildTraceReport(
     `Guardrail: ${guardrail}`,
     `Apply Result: ${applyResult}`,
     `Apply Lifecycle: ${lifecycle}`,
+    `Lifecycle Checkpoints: ${lifecycleCheckpoints}`,
     `Apply Executions: ${applyExecutions}`,
     `Plot Augmentation: ${pendingPlotAugmentation}`,
     `Fallback: ${trace.fallbackUsed ? 'yes' : 'no'}`,
