@@ -68,11 +68,47 @@ pub struct NoNameRetrievedMemories {
     pub narrative: Vec<NoNameNarrativeMemoryItem>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NoNameMemorySection {
+    Working,
+    Episodic,
+    Semantic,
+    Narrative,
+}
+
+impl NoNameMemorySection {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Working => "working",
+            Self::Episodic => "episodic",
+            Self::Semantic => "semantic",
+            Self::Narrative => "narrative",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
-struct RetrievalScore {
-    relevance: u32,
-    recency: u64,
-    importance: u32,
+pub struct NoNameRetrievalScore {
+    pub relevance: u32,
+    pub recency: u64,
+    pub importance: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NoNameRetrievalExplanation {
+    pub section: NoNameMemorySection,
+    pub item_id: String,
+    pub rank: usize,
+    pub raw_match: u32,
+    pub role_boost: u32,
+    pub score: NoNameRetrievalScore,
+    pub reasons: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct NoNameRetrievedMemoryReport {
+    pub memories: NoNameRetrievedMemories,
+    pub explanations: Vec<NoNameRetrievalExplanation>,
 }
 
 pub fn retrieve_memories(
@@ -82,29 +118,59 @@ pub fn retrieve_memories(
     semantic: &[NoNameSemanticMemoryItem],
     narrative: &[NoNameNarrativeMemoryItem],
 ) -> NoNameRetrievedMemories {
+    retrieve_memories_with_explanations(query, working, episodic, semantic, narrative).memories
+}
+
+pub fn retrieve_memories_with_explanations(
+    query: &NoNameMemoryQuery,
+    working: &[NoNameWorkingMemoryItem],
+    episodic: &[NoNameEpisodicMemoryItem],
+    semantic: &[NoNameSemanticMemoryItem],
+    narrative: &[NoNameNarrativeMemoryItem],
+) -> NoNameRetrievedMemoryReport {
     let working_items = rank_working(query, working);
     let episodic_items = rank_episodic(query, episodic);
     let semantic_items = rank_semantic(query, semantic);
     let narrative_items = rank_narrative(query, narrative);
 
-    NoNameRetrievedMemories {
-        working: working_items,
-        episodic: episodic_items,
-        semantic: semantic_items,
-        narrative: narrative_items,
+    let explanations = working_items
+        .explanations
+        .iter()
+        .chain(episodic_items.explanations.iter())
+        .chain(semantic_items.explanations.iter())
+        .chain(narrative_items.explanations.iter())
+        .cloned()
+        .collect();
+
+    NoNameRetrievedMemoryReport {
+        memories: NoNameRetrievedMemories {
+            working: working_items.items,
+            episodic: episodic_items.items,
+            semantic: semantic_items.items,
+            narrative: narrative_items.items,
+        },
+        explanations,
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RankedSection<T> {
+    items: Vec<T>,
+    explanations: Vec<NoNameRetrievalExplanation>,
 }
 
 fn rank_working(
     query: &NoNameMemoryQuery,
     working: &[NoNameWorkingMemoryItem],
-) -> Vec<NoNameWorkingMemoryItem> {
+) -> RankedSection<NoNameWorkingMemoryItem> {
     rank_items(
+        NoNameMemorySection::Working,
         working.iter().enumerate(),
         query,
+        |(_, item)| item.memory_id.clone(),
         |(_, item)| working_match_score(query, item),
-        |(index, item)| RetrievalScore {
-            relevance: working_match_score(query, item) + role_section_boost(query.role, "working"),
+        |(index, item), raw_match| NoNameRetrievalScore {
+            relevance: raw_match + role_section_boost(query.role, "working"),
             recency: (*index + 1) as u64,
             importance: item.priority as u32,
         },
@@ -115,14 +181,15 @@ fn rank_working(
 fn rank_episodic(
     query: &NoNameMemoryQuery,
     episodic: &[NoNameEpisodicMemoryItem],
-) -> Vec<NoNameEpisodicMemoryItem> {
+) -> RankedSection<NoNameEpisodicMemoryItem> {
     rank_items(
+        NoNameMemorySection::Episodic,
         episodic.iter(),
         query,
+        |item| item.memory_id.clone(),
         |item| episodic_match_score(query, item),
-        |item| RetrievalScore {
-            relevance: episodic_match_score(query, item)
-                + role_section_boost(query.role, "episodic"),
+        |item, raw_match| NoNameRetrievalScore {
+            relevance: raw_match + role_section_boost(query.role, "episodic"),
             recency: item.timestamp,
             importance: importance_weight(item.importance),
         },
@@ -133,14 +200,15 @@ fn rank_episodic(
 fn rank_semantic(
     query: &NoNameMemoryQuery,
     semantic: &[NoNameSemanticMemoryItem],
-) -> Vec<NoNameSemanticMemoryItem> {
+) -> RankedSection<NoNameSemanticMemoryItem> {
     rank_items(
+        NoNameMemorySection::Semantic,
         semantic.iter(),
         query,
+        |item| item.fact_id.clone(),
         |item| semantic_match_score(query, item),
-        |item| RetrievalScore {
-            relevance: semantic_match_score(query, item)
-                + role_section_boost(query.role, "semantic"),
+        |item, raw_match| NoNameRetrievalScore {
+            relevance: raw_match + role_section_boost(query.role, "semantic"),
             recency: item.updated_at,
             importance: item.confidence as u32,
         },
@@ -151,16 +219,17 @@ fn rank_semantic(
 fn rank_narrative(
     query: &NoNameMemoryQuery,
     narrative: &[NoNameNarrativeMemoryItem],
-) -> Vec<NoNameNarrativeMemoryItem> {
+) -> RankedSection<NoNameNarrativeMemoryItem> {
     rank_items(
+        NoNameMemorySection::Narrative,
         narrative
             .iter()
             .filter(|item| item.status == NoNameNarrativeStatus::Active),
         query,
+        |item| item.note_id.clone(),
         |item| narrative_match_score(query, item),
-        |item| RetrievalScore {
-            relevance: narrative_match_score(query, item)
-                + role_section_boost(query.role, "narrative"),
+        |item, raw_match| NoNameRetrievalScore {
+            relevance: raw_match + role_section_boost(query.role, "narrative"),
             recency: item.updated_at,
             importance: narrative_importance_weight(item.note_type),
         },
@@ -168,17 +237,20 @@ fn rank_narrative(
     )
 }
 
-fn rank_items<I, T, U, FMatch, FScore, FClone>(
+fn rank_items<I, T, U, FId, FMatch, FScore, FClone>(
+    section: NoNameMemorySection,
     items: I,
     query: &NoNameMemoryQuery,
+    item_id: FId,
     match_score: FMatch,
     score: FScore,
     clone_item: FClone,
-) -> Vec<U>
+) -> RankedSection<U>
 where
     I: IntoIterator<Item = T>,
+    FId: Fn(&T) -> String,
     FMatch: Fn(&T) -> u32,
-    FScore: Fn(&T) -> RetrievalScore,
+    FScore: Fn(&T, u32) -> NoNameRetrievalScore,
     FClone: Fn(&T) -> U,
 {
     let mut ranked = items
@@ -188,13 +260,71 @@ where
             if query.has_structured_filters() && raw_match == 0 {
                 return None;
             }
-            Some((score(&item), clone_item(&item)))
+            let score = score(&item, raw_match);
+            let role_boost = score.relevance.saturating_sub(raw_match);
+            let explanation = build_retrieval_explanation(
+                section,
+                item_id(&item),
+                raw_match,
+                role_boost,
+                score,
+                query,
+            );
+            Some((score, clone_item(&item), explanation))
         })
         .collect::<Vec<_>>();
 
     ranked.sort_by_key(|item| std::cmp::Reverse(item.0));
     ranked.truncate(query.per_section_limit);
-    ranked.into_iter().map(|(_, item)| item).collect()
+
+    let mut items = Vec::with_capacity(ranked.len());
+    let mut explanations = Vec::with_capacity(ranked.len());
+    for (index, (_, item, mut explanation)) in ranked.into_iter().enumerate() {
+        explanation.rank = index + 1;
+        items.push(item);
+        explanations.push(explanation);
+    }
+
+    RankedSection {
+        items,
+        explanations,
+    }
+}
+
+fn build_retrieval_explanation(
+    section: NoNameMemorySection,
+    item_id: String,
+    raw_match: u32,
+    role_boost: u32,
+    score: NoNameRetrievalScore,
+    query: &NoNameMemoryQuery,
+) -> NoNameRetrievalExplanation {
+    let mut reasons = vec![
+        "sort=relevance_desc,recency_desc,importance_desc".to_string(),
+        format!("section={}", section.as_str()),
+        format!("relevance={raw_match}+{role_boost}"),
+        format!("recency={}", score.recency),
+        format!("importance={}", score.importance),
+    ];
+
+    if query.has_structured_filters() {
+        reasons.push(format!("matched_filters_score={raw_match}"));
+    } else {
+        reasons.push("default_query_keeps_recent_memory_visible".to_string());
+    }
+    if role_boost > 0 {
+        reasons.push(format!("role_boost={role_boost}"));
+    }
+
+    NoNameRetrievalExplanation {
+        section,
+        item_id,
+        rank: 0,
+        raw_match,
+        role_boost,
+        score,
+        reasons,
+    }
 }
 
 fn working_match_score(query: &NoNameMemoryQuery, item: &NoNameWorkingMemoryItem) -> u32 {
@@ -510,6 +640,103 @@ mod tests {
         assert_eq!(result.episodic.len(), 2);
         assert_eq!(result.episodic[0].memory_id, "episode-new");
         assert_eq!(result.working[0].summary, "敌修与玩家激烈交锋");
+    }
+
+    #[test]
+    fn retrieval_report_explains_rank_score_components() {
+        let report = retrieve_memories_with_explanations(
+            &NoNameMemoryQuery::by_keyword(NoNameRole::CombatNarrator, "交锋", 200, 2),
+            &[],
+            &[
+                sample_episodic(
+                    "episode-old",
+                    vec!["玩家"],
+                    Some("山门"),
+                    "敌修与玩家交锋，火花四溅",
+                    1,
+                    NoNameMemoryImportance::High,
+                ),
+                sample_episodic(
+                    "episode-new",
+                    vec!["玩家"],
+                    Some("山门"),
+                    "敌修再次与玩家交锋，剑气更盛",
+                    5,
+                    NoNameMemoryImportance::Medium,
+                ),
+            ],
+            &[],
+            &[],
+        );
+
+        assert_eq!(report.memories.episodic[0].memory_id, "episode-new");
+        let new_explanation = report
+            .explanations
+            .iter()
+            .find(|item| item.item_id == "episode-new")
+            .expect("newer episodic memory should have an explanation");
+        assert_eq!(new_explanation.section, NoNameMemorySection::Episodic);
+        assert_eq!(new_explanation.rank, 1);
+        assert_eq!(new_explanation.raw_match, 3);
+        assert_eq!(new_explanation.role_boost, 4);
+        assert_eq!(new_explanation.score.relevance, 7);
+        assert_eq!(new_explanation.score.recency, 5);
+        assert_eq!(new_explanation.score.importance, 50);
+        assert!(new_explanation
+            .reasons
+            .iter()
+            .any(|item| item == "sort=relevance_desc,recency_desc,importance_desc"));
+    }
+
+    #[test]
+    fn retrieval_report_records_role_boost_for_world_curator_semantic_memory() {
+        let report = retrieve_memories_with_explanations(
+            &NoNameMemoryQuery::by_keyword(NoNameRole::WorldCurator, "山门", 200, 2),
+            &[],
+            &[],
+            &[sample_semantic(
+                "fact-1",
+                "青河长老",
+                "山门",
+                88,
+                7,
+                vec!["地点"],
+            )],
+            &[],
+        );
+
+        assert_eq!(report.memories.semantic[0].fact_id, "fact-1");
+        let explanation = report
+            .explanations
+            .iter()
+            .find(|item| item.item_id == "fact-1")
+            .expect("semantic memory should have an explanation");
+        assert_eq!(explanation.section, NoNameMemorySection::Semantic);
+        assert_eq!(explanation.raw_match, 3);
+        assert_eq!(explanation.role_boost, 5);
+        assert_eq!(explanation.score.relevance, 8);
+        assert!(explanation
+            .reasons
+            .iter()
+            .any(|item| item == "role_boost=5"));
+    }
+
+    #[test]
+    fn retrieval_report_excludes_filtered_out_items_from_explanations() {
+        let report = retrieve_memories_with_explanations(
+            &NoNameMemoryQuery::by_keyword(NoNameRole::Director, "山门", 200, 2),
+            &[
+                sample_working("青河长老要求死守山门", 8),
+                sample_working("普通巡山记录", 9),
+            ],
+            &[],
+            &[],
+            &[],
+        );
+
+        assert_eq!(report.memories.working.len(), 1);
+        assert_eq!(report.explanations.len(), 1);
+        assert_eq!(report.explanations[0].item_id, "work-8");
     }
 
     #[test]

@@ -29,6 +29,24 @@
         </div>
       </header>
 
+      <section
+        class="agent-trace-digest"
+        aria-label="Trace 快读"
+      >
+        <p class="agent-trace-digest-title">
+          Trace 快读
+        </p>
+        <div
+          v-for="item in traceDigestItems"
+          :key="item.label"
+          class="agent-trace-digest-item"
+          :class="`is-${item.tone}`"
+        >
+          <span class="agent-trace-digest-label">{{ item.label }}</span>
+          <span class="agent-trace-digest-value">{{ item.value }}</span>
+        </div>
+      </section>
+
       <div class="agent-trace-grid">
         <section class="agent-trace-card">
           <p class="agent-trace-card-title">
@@ -482,6 +500,47 @@ const controlledOutputReviews = computed(() => props.trace?.controlledOutputRevi
 const applyLifecycleSteps = computed(() => (
   props.trace ? buildNoNameApplyLifecycle(props.trace, props.reviewDecisions) : []
 ));
+const traceDigestItems = computed(() => {
+  if (!props.trace) {
+    return [];
+  }
+
+  const reviews = controlledOutputReviews.value;
+  const humanReviewCount = reviews.filter((review) => review.requiresHumanReview).length;
+  const approvedCount = reviews.filter((review) => (
+    humanReviewDecision(review.requestId) === 'approvedForHigherApply'
+  )).length;
+  const guardrailOutcome = props.trace.guardrailResult?.outcome ?? '无';
+  const applyExecutionCount = props.trace.applyExecutionLog?.length ?? 0;
+
+  return [
+    {
+      label: '提案',
+      value: `${props.trace.proposals.length}`,
+      tone: props.trace.proposals.length > 0 ? 'active' : 'quiet',
+    },
+    {
+      label: '复核',
+      value: `${reviews.length}`,
+      tone: reviews.length > 0 ? 'review' : 'quiet',
+    },
+    {
+      label: '人工',
+      value: `${approvedCount}/${humanReviewCount}`,
+      tone: approvedCount > 0 ? 'safe' : humanReviewCount > 0 ? 'review' : 'quiet',
+    },
+    {
+      label: '执行',
+      value: `${applyExecutionCount}`,
+      tone: applyExecutionCount > 0 ? 'safe' : 'quiet',
+    },
+    {
+      label: '护栏',
+      value: guardrailOutcome,
+      tone: guardrailOutcome === 'reject' || guardrailOutcome === 'fallback' ? 'warn' : 'safe',
+    },
+  ];
+});
 
 const guardrailLabel = computed(() => {
   const result = props.trace?.guardrailResult;
@@ -701,6 +760,57 @@ function applyManualPlotTextHint(requestId: string) {
   color: #9b4d2e;
 }
 
+.agent-trace-digest {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.agent-trace-digest-title {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--ink-text-muted);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.agent-trace-digest-item {
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--ink-border-soft) 72%, transparent);
+  background: color-mix(in srgb, var(--ink-card-bg) 90%, transparent);
+  padding: 10px 12px;
+}
+
+.agent-trace-digest-item.is-active {
+  border-color: color-mix(in srgb, var(--ink-accent-main) 48%, var(--ink-border-soft));
+}
+
+.agent-trace-digest-item.is-review {
+  border-color: color-mix(in srgb, #9b7b2e 48%, var(--ink-border-soft));
+}
+
+.agent-trace-digest-item.is-safe {
+  border-color: color-mix(in srgb, #2f6b4b 48%, var(--ink-border-soft));
+}
+
+.agent-trace-digest-item.is-warn {
+  border-color: color-mix(in srgb, #9b4d2e 54%, var(--ink-border-soft));
+}
+
+.agent-trace-digest-label {
+  display: block;
+  color: var(--ink-text-muted);
+  font-size: 12px;
+}
+
+.agent-trace-digest-value {
+  display: block;
+  margin-top: 5px;
+  color: var(--ink-text-primary);
+  font-size: 18px;
+}
+
 .agent-trace-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -895,6 +1005,10 @@ function applyManualPlotTextHint(requestId: string) {
 @media (max-width: 900px) {
   .agent-trace-grid {
     grid-template-columns: 1fr;
+  }
+
+  .agent-trace-digest {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .agent-trace-lifecycle {

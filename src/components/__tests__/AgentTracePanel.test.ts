@@ -106,6 +106,12 @@ describe('AgentTracePanel', () => {
     });
 
     expect(wrapper.text()).toContain('trace-2');
+    expect(wrapper.text()).toContain('Trace 快读');
+    expect(wrapper.text()).toContain('提案');
+    expect(wrapper.text()).toContain('复核');
+    expect(wrapper.text()).toContain('人工');
+    expect(wrapper.text()).toContain('执行');
+    expect(wrapper.text()).toContain('护栏');
     expect(wrapper.text()).toContain('Director提案：山门危机');
     expect(wrapper.text()).toContain('current_turn_tail');
     expect(wrapper.text()).toContain('plot_text_hint');
