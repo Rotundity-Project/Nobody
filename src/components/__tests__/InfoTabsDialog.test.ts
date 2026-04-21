@@ -87,6 +87,11 @@ describe('InfoTabsDialog', () => {
           { order: 1, target: 'plot_text_hint', decision: 'apply', priority: 300, note: '允许执行 plot_text_hint' },
         ],
         debugNoNameExecutions: [
+          {
+            target: 'plot_augmentation_hint',
+            outcome: 'pending_plot_augmentation_consumed',
+            note: 'pending plot augmentation consumed after plot_engine generation; count=1',
+          },
           { target: 'plot_text_hint', outcome: 'applied', note: '已将提案提示插入正文' },
         ],
         systemError: null,
@@ -109,5 +114,8 @@ describe('InfoTabsDialog', () => {
     expect(wrapper.text()).toContain('P300');
     expect(wrapper.text()).toContain('允许执行 plot_text_hint');
     expect(wrapper.text()).toContain('plot_text_hint');
+    expect(wrapper.text()).toContain('剧情增强提示');
+    expect(wrapper.text()).toContain('已消费');
+    expect(wrapper.text()).toContain('原始记录：plot_augmentation_hint / pending_plot_augmentation_consumed');
   });
 });

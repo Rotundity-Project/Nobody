@@ -46,6 +46,13 @@ const trace: NoNameTrace = {
     actionSummary: '玩家返回山门',
     focus: '山门法阵',
     rationale: '需要补齐世界设定锚点',
+    roleGoal: 'Maintain world facts, scene constraints, and canon anchors.',
+    sceneFocus: '山门法阵',
+    forbiddenScopes: ['Must not decide NPC private intent.', 'Must not choose the main plot beat alone.'],
+    noteTypeHits: ['goal: Hold Gate', 'foreshadowing: Broken Ward'],
+    sourceStats: [{ source: 'hard_facts', count: 2 }, { source: 'chapter_summaries', count: 1 }],
+    contextTokenBudgetUsed: 42,
+    contextSliceStats: [{ section: 'worldFacts', sourceCount: 4, visibleCount: 3 }],
     proposal: {
       proposalId: 'proposal-world-1',
       kind: 'worldPatchProposal',
@@ -117,6 +124,17 @@ describe('AgentTracePanel', () => {
     expect(wrapper.text()).toContain('低风险输出');
     expect(wrapper.text()).toContain('协作观察');
     expect(wrapper.text()).toContain('WorldCurator提案：山门法阵');
+    expect(wrapper.text()).toContain('角色上下文');
+    expect(wrapper.text()).toContain('Maintain world facts');
+    expect(wrapper.text()).toContain('角色禁区');
+    expect(wrapper.text()).toContain('Must not decide NPC private intent.');
+    expect(wrapper.text()).toContain('笔记命中');
+    expect(wrapper.text()).toContain('goal: Hold Gate');
+    expect(wrapper.text()).toContain('上下文来源');
+    expect(wrapper.text()).toContain('hard_facts:2');
+    expect(wrapper.text()).toContain('token=42');
+    expect(wrapper.text()).toContain('裁剪差异');
+    expect(wrapper.text()).toContain('worldFacts:4->3');
     expect(wrapper.text()).toContain('协议事件');
     expect(wrapper.text()).toContain('agent · delegation · running');
     expect(wrapper.text()).toContain('受控输出复核');
@@ -124,6 +142,33 @@ describe('AgentTracePanel', () => {
     expect(wrapper.text()).toContain('需要人工复核');
     expect(wrapper.text()).toContain('策略禁区：finalPlotState / canonWorldFact');
     expect(wrapper.text()).toContain('等待开发者确认');
+  });
+
+  it('shows pending plot augmentation summary in the overview', () => {
+    const wrapper = mount(AgentTracePanel, {
+      props: {
+        trace: {
+          ...trace,
+          proposals: [{
+            ...trace.proposals[0],
+            applyScopes: ['diagnostics', 'plotAugmentationHint'],
+          }],
+          applyExecutionLog: [
+            ...(trace.applyExecutionLog ?? []),
+            {
+              target: 'plot_augmentation_hint',
+              outcome: 'pending_plot_augmentation_consumed',
+              note: 'pending plot augmentation consumed after plot_engine generation; count=1',
+            },
+          ],
+        },
+      },
+    });
+
+    expect(wrapper.text()).toContain('剧情增强提示');
+    expect(wrapper.text()).toContain('已消费');
+    expect(wrapper.text()).toContain('count=1');
+    expect(wrapper.text()).toContain('原始记录：plot_augmentation_hint / pending_plot_augmentation_consumed');
   });
 
   it('emits a human review decision without applying plot text', async () => {
@@ -197,7 +242,7 @@ describe('AgentTracePanel', () => {
     expect(wrapper.text()).toContain('【NoName】重点关注：山门危机');
     await wrapper
       .findAll('.agent-trace-review-btn')
-      .find((button) => button.text() === '显式人工写入正文提示')
+      .find((button) => button.text().includes('显式人工写入正文提示'))
       ?.trigger('click');
     expect(wrapper.emitted('apply-manual-plot-text-hint')?.[0]).toEqual([{
       traceId: 'trace-2',
@@ -226,11 +271,99 @@ describe('AgentTracePanel', () => {
     expect(wrapper.text()).toContain('疑似已包含 NoName 标记');
     const button = wrapper
       .findAll('.agent-trace-review-btn')
-      .find((item) => item.text() === '显式人工写入正文提示');
+      .find((item) => item.text().includes('显式人工写入正文提示'));
     expect(button?.attributes('disabled')).toBeDefined();
 
     await button?.trigger('click');
     expect(wrapper.emitted('apply-manual-plot-text-hint')).toBeUndefined();
+  });
+
+  it('emits manual chapter summary and option bias apply events after second guardrail allow', async () => {
+    const chapterSummaryTrace: NoNameTrace = {
+      ...trace,
+      proposals: [{
+        ...trace.proposals[0],
+        proposalId: 'proposal-summary',
+        focus: '山门危机',
+        targetSegment: 'chapter_summary_tail',
+        applyScopes: ['chapterSummaryHint'],
+      }],
+      controlledOutputReviews: [{
+        requestId: 'controlled-output-proposal-summary-chapter_summary_hint',
+        requestedKind: 'recapNote',
+        decision: 'needsReview',
+        reason: 'summary hint requires review',
+        normalizedKind: 'recapNote',
+        safeApplyScope: 'chapterSummaryHint',
+        policyForbiddenScopes: ['finalPlotState'],
+        requiresHumanReview: true,
+      }],
+      proposalTransitionLog: [
+        'controlled-output-proposal-summary-chapter_summary_hint:second_guardrail:allow',
+      ],
+      applyExecutionLog: [{
+        target: 'chapterSummaryHint',
+        outcome: 'second_guardrail_allowed',
+        note: 'allowed',
+      }],
+    };
+    const wrapper = mount(AgentTracePanel, {
+      props: {
+        trace: chapterSummaryTrace,
+        manualApplySummary: {
+          chapterIndex: 1,
+          summary: '已有摘要',
+        },
+      },
+    });
+
+    const summaryButtons = wrapper.findAll('.agent-trace-review-btn');
+    await summaryButtons[summaryButtons.length - 1]?.trigger('click');
+    expect(wrapper.emitted('apply-manual-chapter-summary-hint')?.[0]).toEqual([{
+      traceId: 'trace-2',
+      requestId: 'controlled-output-proposal-summary-chapter_summary_hint',
+    }]);
+
+    await wrapper.setProps({
+      trace: {
+        ...chapterSummaryTrace,
+        proposals: [{
+          ...chapterSummaryTrace.proposals[0],
+          proposalId: 'proposal-option',
+          focus: '暗洞',
+          targetSegment: 'current_turn_tail',
+          applyScopes: ['optionBiasHint'],
+        }],
+        controlledOutputReviews: [{
+          requestId: 'controlled-output-proposal-option-option_bias_hint',
+          requestedKind: 'intermediateNarrativeHint',
+          decision: 'needsReview',
+          reason: 'option bias requires review',
+          normalizedKind: 'intermediateNarrativeHint',
+          safeApplyScope: 'optionBiasHint',
+          policyForbiddenScopes: ['finalPlotState'],
+          requiresHumanReview: true,
+        }],
+        proposalTransitionLog: [
+          'controlled-output-proposal-option-option_bias_hint:second_guardrail:allow',
+        ],
+        applyExecutionLog: [{
+          target: 'optionBiasHint',
+          outcome: 'second_guardrail_allowed',
+          note: 'allowed',
+        }],
+      },
+      manualApplyDiagnostics: {
+        chapterIndex: 1,
+        diagnostics: 'base diagnostics',
+      },
+    });
+    const optionButtons = wrapper.findAll('.agent-trace-review-btn');
+    await optionButtons[optionButtons.length - 1]?.trigger('click');
+    expect(wrapper.emitted('apply-manual-option-bias-hint')?.[0]).toEqual([{
+      traceId: 'trace-2',
+      requestId: 'controlled-output-proposal-option-option_bias_hint',
+    }]);
   });
 
   it('shows empty state when trace is missing', () => {

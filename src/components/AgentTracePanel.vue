@@ -40,6 +40,7 @@
             <li>elapsedMs：{{ trace.elapsedMs }} ms</li>
             <li>guardrail：{{ guardrailLabel }}</li>
             <li>applyResult：{{ applyResultLabel }}</li>
+            <li>剧情增强提示：{{ pendingPlotAugmentationSummary }}</li>
           </ul>
         </section>
 
@@ -155,6 +156,36 @@
             </p>
             <p class="agent-trace-muted">
               焦点：{{ item.focus }} · 目标段：{{ item.proposal.targetSegment }}
+            </p>
+            <p
+              v-if="item.roleGoal || item.sceneFocus"
+              class="agent-trace-muted"
+            >
+              角色上下文：{{ item.roleGoal || '无角色目标' }} · {{ item.sceneFocus || '无场景焦点' }}
+            </p>
+            <p
+              v-if="item.forbiddenScopes?.length"
+              class="agent-trace-muted"
+            >
+              角色禁区：{{ item.forbiddenScopes.join(' / ') }}
+            </p>
+            <p
+              v-if="item.noteTypeHits?.length"
+              class="agent-trace-muted"
+            >
+              笔记命中：{{ item.noteTypeHits.join(' / ') }}
+            </p>
+            <p
+              v-if="item.sourceStats?.length || item.contextTokenBudgetUsed"
+              class="agent-trace-muted"
+            >
+              上下文来源：{{ formatSourceStats(item.sourceStats) }} · token={{ item.contextTokenBudgetUsed ?? 0 }}
+            </p>
+            <p
+              v-if="item.contextSliceStats?.length"
+              class="agent-trace-muted"
+            >
+              裁剪差异：{{ formatContextSliceStats(item.contextSliceStats) }}
             </p>
             <p class="agent-trace-muted">
               状态：{{ item.proposal.status || (item.proposal.applyable ? 'ready' : 'observed') }}
@@ -294,45 +325,45 @@
               </button>
             </div>
             <div
-              v-if="hasSecondGuardrailAllow(review.requestId)"
+              v-if="hasSecondGuardrailAllow(review.requestId, review.safeApplyScope)"
               class="agent-trace-manual-preview"
-              :class="manualApplyPreview(review.requestId).toneClass"
+              :class="manualApplyPreview(review).toneClass"
             >
               <p class="agent-trace-main-line">
                 人工写入预览：{{ manualApplyPreview(review.requestId).statusLabel }}
               </p>
               <p class="agent-trace-muted">
-                {{ manualApplyPreview(review.requestId).statusText }}
+                {{ manualApplyPreview(review).statusText }}
               </p>
               <div
-                v-if="manualApplyPreview(review.requestId).before && manualApplyPreview(review.requestId).after"
+                v-if="manualApplyPreview(review).before !== undefined && manualApplyPreview(review).after !== undefined"
                 class="agent-trace-manual-preview-grid"
               >
                 <div>
                   <p class="agent-trace-preview-label">
                     写入前
                   </p>
-                  <pre class="agent-trace-preview-text">{{ manualApplyPreview(review.requestId).before }}</pre>
+                  <pre class="agent-trace-preview-text">{{ manualApplyPreview(review).before }}</pre>
                 </div>
                 <div>
                   <p class="agent-trace-preview-label">
                     写入后
                   </p>
-                  <pre class="agent-trace-preview-text">{{ manualApplyPreview(review.requestId).after }}</pre>
+                  <pre class="agent-trace-preview-text">{{ manualApplyPreview(review).after }}</pre>
                 </div>
               </div>
             </div>
             <div
-              v-if="hasSecondGuardrailAllow(review.requestId)"
+              v-if="hasSecondGuardrailAllow(review.requestId, review.safeApplyScope)"
               class="agent-trace-review-actions"
             >
               <button
                 type="button"
                 class="agent-trace-review-btn is-active"
-                :disabled="!manualApplyPreview(review.requestId).canApply"
-                @click="applyManualPlotTextHint(review.requestId)"
+                :disabled="!manualApplyPreview(review).canApply"
+                @click="applyManualReviewedOutput(review)"
               >
-                显式人工写入正文提示
+                {{ manualApplyButtonLabel(review) }}
               </button>
             </div>
           </li>
@@ -392,7 +423,13 @@
               class="agent-trace-row"
             >
               <p class="agent-trace-main-line">
-                {{ execution.target }} · {{ execution.outcome }}
+                {{ applyExecutionDisplay(execution).targetLabel }} · {{ applyExecutionDisplay(execution).outcomeLabel }}
+              </p>
+              <p
+                v-if="applyExecutionDisplay(execution).targetLabel !== execution.target || applyExecutionDisplay(execution).outcomeLabel !== execution.outcome"
+                class="agent-trace-muted"
+              >
+                原始记录：{{ execution.target }} / {{ execution.outcome }}
               </p>
               <p
                 v-if="execution.note"
@@ -437,16 +474,31 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type {
+  NoNameApplyExecutionRecord,
+  NoNameContextSourceStat,
   NoNameHumanReviewDecision,
   NoNameHumanReviewMarkPayload,
+  NoNameManualApplyDiagnosticsSnapshot,
+  NoNameManualApplyPlotAugmentationSnapshot,
   NoNameManualApplySegmentSnapshot,
+  NoNameManualApplySummarySnapshot,
+  NoNameManualChapterSummaryHintApplyPayload,
+  NoNameManualOptionBiasHintApplyPayload,
+  NoNameManualPlotAugmentationHintApplyPayload,
   NoNameManualPlotTextApplyPayload,
+  NoNameApplyScope,
+  NoNameControlledOutputReviewRecord,
   NoNameProposal,
+  NoNameRoleContextSliceStat,
   NoNameSecondGuardrailDecision,
   NoNameSecondGuardrailResolvePayload,
   NoNameTrace,
 } from '../types/game';
-import { buildNoNameApplyLifecycle } from '../utils/noNameApplyLifecycle';
+import {
+  buildNoNameApplyLifecycle,
+  formatNoNameApplyExecutionRecord,
+  summarizeNoNamePendingPlotAugmentation,
+} from '../utils/noNameApplyLifecycle';
 
 const props = withDefaults(defineProps<{
   trace: NoNameTrace | null;
@@ -455,18 +507,27 @@ const props = withDefaults(defineProps<{
   activeMode?: string;
   reviewDecisions?: Record<string, NoNameHumanReviewDecision>;
   manualApplySegment?: NoNameManualApplySegmentSnapshot | null;
+  manualApplySummary?: NoNameManualApplySummarySnapshot | null;
+  manualApplyDiagnostics?: NoNameManualApplyDiagnosticsSnapshot | null;
+  manualApplyPlotAugmentations?: NoNameManualApplyPlotAugmentationSnapshot | null;
 }>(), {
   selectedIndex: 0,
   totalCount: 0,
   activeMode: '',
   reviewDecisions: () => ({}),
   manualApplySegment: null,
+  manualApplySummary: null,
+  manualApplyDiagnostics: null,
+  manualApplyPlotAugmentations: null,
 });
 
 const emit = defineEmits<{
   (event: 'mark-controlled-output-review', payload: NoNameHumanReviewMarkPayload): void;
   (event: 'resolve-second-guardrail', payload: NoNameSecondGuardrailResolvePayload): void;
   (event: 'apply-manual-plot-text-hint', payload: NoNameManualPlotTextApplyPayload): void;
+  (event: 'apply-manual-chapter-summary-hint', payload: NoNameManualChapterSummaryHintApplyPayload): void;
+  (event: 'apply-manual-option-bias-hint', payload: NoNameManualOptionBiasHintApplyPayload): void;
+  (event: 'apply-manual-plot-augmentation-hint', payload: NoNameManualPlotAugmentationHintApplyPayload): void;
 }>();
 
 const latestProposal = computed(() => {
@@ -482,6 +543,27 @@ const controlledOutputReviews = computed(() => props.trace?.controlledOutputRevi
 const applyLifecycleSteps = computed(() => (
   props.trace ? buildNoNameApplyLifecycle(props.trace, props.reviewDecisions) : []
 ));
+const pendingPlotAugmentationSummary = computed(() => (
+  props.trace ? summarizeNoNamePendingPlotAugmentation(props.trace) : '无'
+));
+
+function applyExecutionDisplay(execution: NoNameApplyExecutionRecord) {
+  return formatNoNameApplyExecutionRecord(execution);
+}
+
+function formatSourceStats(sourceStats: NoNameContextSourceStat[] | undefined) {
+  if (!sourceStats || sourceStats.length === 0) {
+    return '无';
+  }
+  return sourceStats.map((item) => `${item.source}:${item.count}`).join(' / ');
+}
+
+function formatContextSliceStats(sliceStats: NoNameRoleContextSliceStat[] | undefined) {
+  if (!sliceStats || sliceStats.length === 0) {
+    return '无';
+  }
+  return sliceStats.map((item) => `${item.section}:${item.sourceCount}->${item.visibleCount}`).join(' / ');
+}
 
 const guardrailLabel = computed(() => {
   const result = props.trace?.guardrailResult;
@@ -536,21 +618,59 @@ function resolveSecondGuardrail(requestId: string, decision: NoNameSecondGuardra
   });
 }
 
-function hasSecondGuardrailAllow(requestId: string) {
+function normalizeApplyScope(value: string | null | undefined) {
+  return (value ?? '').replace(/_/g, '').toLowerCase();
+}
+
+function scopeToTransitionSuffix(scope: NoNameApplyScope | null | undefined) {
+  if (scope === 'chapterSummaryHint') {
+    return 'chapter_summary_hint';
+  }
+  if (scope === 'optionBiasHint') {
+    return 'option_bias_hint';
+  }
+  if (scope === 'plotAugmentationHint') {
+    return 'plot_augmentation_hint';
+  }
+  if (scope === 'plotTextHint') {
+    return 'plot_text_hint';
+  }
+  return normalizeApplyScope(scope);
+}
+
+function manualApplyOutcome(scope: NoNameApplyScope | null | undefined) {
+  if (scope === 'chapterSummaryHint') {
+    return 'manual_chapter_summary_hint_applied';
+  }
+  if (scope === 'optionBiasHint') {
+    return 'manual_option_bias_hint_applied';
+  }
+  if (scope === 'plotAugmentationHint') {
+    return 'manual_plot_augmentation_hint_applied';
+  }
+  return 'manual_plot_text_applied';
+}
+
+function hasSecondGuardrailAllow(requestId: string, scope: NoNameApplyScope | null | undefined = 'plotTextHint') {
   const transition = `${requestId}:second_guardrail:allow`;
+  const target = normalizeApplyScope(scope);
   return Boolean(props.trace?.proposalTransitionLog?.includes(transition))
     || Boolean(props.trace?.applyExecutionLog?.some((item) => (
-      (item.target === 'plot_text_hint' || item.target === 'plotTextHint')
+      normalizeApplyScope(item.target) === target
       && item.outcome === 'second_guardrail_allowed'
     )));
 }
 
-function hasManualPlotTextApplied(requestId: string) {
-  return Boolean(props.trace?.proposalTransitionLog?.includes(`${requestId}:manual_apply:plot_text_hint`))
+function hasManualReviewedApplyApplied(requestId: string, scope: NoNameApplyScope | null | undefined = 'plotTextHint') {
+  return Boolean(props.trace?.proposalTransitionLog?.includes(`${requestId}:manual_apply:${scopeToTransitionSuffix(scope)}`))
     || Boolean(props.trace?.applyExecutionLog?.some((item) => (
-      (item.target === 'plot_text_hint' || item.target === 'plotTextHint')
-      && item.outcome === 'manual_plot_text_applied'
+      normalizeApplyScope(item.target) === normalizeApplyScope(scope)
+      && item.outcome === manualApplyOutcome(scope)
     )));
+}
+
+function hasManualPlotTextApplied(requestId: string) {
+  return hasManualReviewedApplyApplied(requestId, 'plotTextHint');
 }
 
 function findProposalForReview(requestId: string): NoNameProposal | null {
@@ -568,7 +688,149 @@ function buildManualPlotText(proposal: NoNameProposal, segmentText: string) {
   return `${segmentText.trim()}\n\n${hint}`;
 }
 
-function manualApplyPreview(requestId: string) {
+function manualApplyPreview(input: string | NoNameControlledOutputReviewRecord) {
+  const requestId = typeof input === 'string' ? input : input.requestId;
+  const scope: NoNameApplyScope | null | undefined = typeof input === 'string'
+    ? 'plotTextHint'
+    : input.safeApplyScope;
+  if (scope === 'chapterSummaryHint') {
+    const proposal = findProposalForReview(requestId);
+    const snapshot = props.manualApplySummary;
+    if (hasManualReviewedApplyApplied(requestId, scope)) {
+      return {
+        canApply: false,
+        toneClass: 'is-safe',
+        statusLabel: '已写入章节摘要提示',
+        statusText: '这条 review 已记录 manual_chapter_summary_hint_applied，避免重复写入。',
+        before: undefined,
+        after: undefined,
+      };
+    }
+    if (!proposal || !snapshot) {
+      return {
+        canApply: false,
+        toneClass: 'is-warn',
+        statusLabel: '缺少章节摘要快照',
+        statusText: '当前章节摘要或关联 proposal 不可用，无法执行显式写入。',
+        before: undefined,
+        after: undefined,
+      };
+    }
+    const hint = `NoName summary hint: ${proposal.focus.trim()}`;
+    const before = snapshot.summary;
+    if (before.includes(hint) || (proposal.focus.trim() && before.includes(proposal.focus.trim()))) {
+      return {
+        canApply: false,
+        toneClass: 'is-warn',
+        statusLabel: '摘要疑似已包含提示',
+        statusText: '当前章节摘要已经包含这条 NoName 提示或焦点，避免重复写入。',
+        before,
+        after: undefined,
+      };
+    }
+    const after = before.trim()
+      ? proposal.targetSegment === 'chapter_summary_head'
+        ? `${hint}; ${before.trim()}`
+        : `${before.trim()}; ${hint}`
+      : hint;
+    return {
+      canApply: true,
+      toneClass: 'is-ready',
+      statusLabel: `将写入第 ${snapshot.chapterIndex} 章摘要`,
+      statusText: '后端会再次校验章节和摘要快照，避免陈旧写入。',
+      before,
+      after,
+    };
+  }
+  if (scope === 'optionBiasHint') {
+    const proposal = findProposalForReview(requestId);
+    const snapshot = props.manualApplyDiagnostics;
+    if (hasManualReviewedApplyApplied(requestId, scope)) {
+      return {
+        canApply: false,
+        toneClass: 'is-safe',
+        statusLabel: '已写入选项偏置提示',
+        statusText: '这条 review 已记录 manual_option_bias_hint_applied，避免重复写入。',
+        before: undefined,
+        after: undefined,
+      };
+    }
+    if (!proposal || !snapshot) {
+      return {
+        canApply: false,
+        toneClass: 'is-warn',
+        statusLabel: '缺少诊断提示快照',
+        statusText: '当前 diagnostics 或关联 proposal 不可用，无法执行显式写入。',
+        before: undefined,
+        after: undefined,
+      };
+    }
+    const hint = `NoName option bias: next turn should prioritize actions around ${proposal.focus.trim()}`;
+    const before = snapshot.diagnostics;
+    if (before.includes(hint)) {
+      return {
+        canApply: false,
+        toneClass: 'is-warn',
+        statusLabel: '诊断提示已包含该偏置',
+        statusText: '当前 generation diagnostics 已包含这条 NoName 选项偏置提示，避免重复写入。',
+        before,
+        after: undefined,
+      };
+    }
+    return {
+      canApply: true,
+      toneClass: 'is-ready',
+      statusLabel: `将写入第 ${snapshot.chapterIndex} 章诊断提示`,
+      statusText: '后端会再次校验章节和 diagnostics 快照，避免陈旧写入。',
+      before,
+      after: before.trim() ? `${before}; ${hint}` : hint,
+    };
+  }
+  if (scope === 'plotAugmentationHint') {
+    const proposal = findProposalForReview(requestId);
+    const snapshot = props.manualApplyPlotAugmentations;
+    if (hasManualReviewedApplyApplied(requestId, scope)) {
+      return {
+        canApply: false,
+        toneClass: 'is-safe',
+        statusLabel: '已暂存剧情增强提示',
+        statusText: '这条 review 已记录 manual_plot_augmentation_hint_applied，避免重复写入。',
+        before: undefined,
+        after: undefined,
+      };
+    }
+    if (!proposal || !snapshot) {
+      return {
+        canApply: false,
+        toneClass: 'is-warn',
+        statusLabel: '缺少剧情增强快照',
+        statusText: '当前 pending augmentation 列表或关联 proposal 不可用，无法执行显式写入。',
+        before: undefined,
+        after: undefined,
+      };
+    }
+    const hint = `NoName plot augmentation: focus=${proposal.focus.trim()} | effect=${proposal.intendedEffect.trim()}`;
+    const beforeItems = snapshot.hints;
+    const before = beforeItems.length > 0 ? beforeItems.join('\n') : '（暂无暂存剧情增强提示）';
+    if (beforeItems.includes(hint)) {
+      return {
+        canApply: false,
+        toneClass: 'is-warn',
+        statusLabel: '剧情增强提示已存在',
+        statusText: '当前 pending augmentation 列表已包含这条 NoName 提示，避免重复写入。',
+        before,
+        after: undefined,
+      };
+    }
+    return {
+      canApply: true,
+      toneClass: 'is-ready',
+      statusLabel: `将暂存第 ${snapshot.chapterIndex} 章剧情增强提示`,
+      statusText: '这只进入 pending augmentation 列表，不直接改写最终正文或剧情状态机。',
+      before,
+      after: [...beforeItems, hint].join('\n'),
+    };
+  }
   if (hasManualPlotTextApplied(requestId)) {
     return {
       canApply: false,
@@ -625,17 +887,43 @@ function manualApplyPreview(requestId: string) {
   };
 }
 
-function applyManualPlotTextHint(requestId: string) {
+function manualApplyButtonLabel(review: NoNameControlledOutputReviewRecord) {
+  if (review.safeApplyScope === 'chapterSummaryHint') {
+    return '显式人工写入章节摘要提示';
+  }
+  if (review.safeApplyScope === 'optionBiasHint') {
+    return '显式人工写入选项偏置提示';
+  }
+  if (review.safeApplyScope === 'plotAugmentationHint') {
+    return '显式人工暂存剧情增强提示';
+  }
+  return '显式人工写入正文提示';
+}
+
+function applyManualReviewedOutput(review: NoNameControlledOutputReviewRecord) {
   if (!props.trace) {
     return;
   }
-  if (!manualApplyPreview(requestId).canApply) {
+  if (!manualApplyPreview(review).canApply) {
     return;
   }
-  emit('apply-manual-plot-text-hint', {
+  const payload = {
     traceId: props.trace.traceId,
-    requestId,
-  });
+    requestId: review.requestId,
+  };
+  if (review.safeApplyScope === 'chapterSummaryHint') {
+    emit('apply-manual-chapter-summary-hint', payload);
+    return;
+  }
+  if (review.safeApplyScope === 'optionBiasHint') {
+    emit('apply-manual-option-bias-hint', payload);
+    return;
+  }
+  if (review.safeApplyScope === 'plotAugmentationHint') {
+    emit('apply-manual-plot-augmentation-hint', payload);
+    return;
+  }
+  emit('apply-manual-plot-text-hint', payload);
 }
 </script>
 

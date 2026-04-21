@@ -100,7 +100,9 @@
 
 ## 当前限制
 
-- 角色上下文包还没有接入 runtime fan-out，当前仍是独立 builder 能力。
+- 角色上下文包已接入 runtime fan-out：runtime 现在生成 `NoNameRoleContextPacket` 并直接交给 agent registry。
+- agent registry 当前内部仍通过 `flatten_role_context_packet` 兼容现有角色 agent，避免一次性重写全部 prompt/tool/resource pipeline。
+- prompt/tool pipeline 已开始读取 `roleGoal / forbiddenScopes`；但当前仍通过 flattened context metadata 传递，不是最终的原生角色上下文接口。
 - 当前差异化是规则式裁剪，不是 LLM 动态裁剪。
 - `forbiddenScopes` 已开始接入受控输出策略，用于生成 `policyForbiddenScopes` trace；`visibleConstraints` 仍先作为显式文本约束。
 
@@ -108,6 +110,51 @@
 
 下一步可以继续:
 
-1. 在 B4 observe fan-out 中改用 `build_role_context_packet` 或由基础包生成角色视图。
-2. 让每个角色 prompt 继续读取 `roleGoal / forbiddenScopes`，并与受控输出策略保持一致。
-3. 与 A2 structured notes 联动，让不同角色优先读取不同 note type。
+1. 逐步让具体角色 agent / registry builder 原生消费 `NoNameRoleContextPacket`，移除内部 flattened context 适配层。
+2. 继续细化 role context 摘要的 debug 体验，例如展示更细的裁剪原因或 token 预算分配依据。
+3. 继续细化 note type 命中统计的呈现粒度，例如展示更多来源统计或排序前后的裁剪差异。
+
+## 2026-04-19 T8-1 Update
+
+- 新增 `flatten_role_context_packet`，用于把角色专属视图安全压回现有 `NoNameContextPacket`，让当前 agent registry 无需大改即可消费 role context。
+- `NoNameRuntime` observe fan-out 已改为“基础 context -> role context specialization -> flattened agent context”的分发路径。
+- 当前仍不接入 assisted apply；多角色结果继续作为 observe-only 相关观察写入 trace。
+
+## 2026-04-19 T8-2 Update
+
+- role observe prompt templates now include `roleGoal` and `forbiddenScopes` variables.
+- `run_observe_capability_pipeline` fills those variables from flattened role context metadata and passes them into tool args as well.
+- This keeps the current adapter shape but makes each role's prompt/tool execution aware of its role-specific boundary.
+
+## 2026-04-19 T8-3 Update
+
+- `NoNameAgentRegistry` now exposes `dispatch_role_context_observe_turn`, accepting `NoNameRoleContextPacket` directly.
+- `NoNameRuntime` no longer calls `flatten_role_context_packet`; runtime fan-out only specializes context and delegates the compatibility adapter to the registry boundary.
+- The internal flatten adapter remains temporary until individual role agents and registry builders can consume role context natively.
+
+## 2026-04-19 T8-4 Update
+
+- fan-out related observations now carry `roleGoal / sceneFocus / forbiddenScopes` into `NoNameTrace`.
+- `AgentTracePanel`, copied debug-console reports, and `gameStore` debug text surface role context summaries so operators can compare what each role saw.
+- This remains observe-only debug visibility; it does not grant multi-role agents assisted apply authority.
+
+## 2026-04-19 T8-5 Update
+
+- Active structured notes are now ranked per role before entering `narrative_notes` and `chapter_summaries`.
+- Director prioritizes conflict/goal/thread notes, WorldCurator prioritizes goal/foreshadowing/thread notes, NpcIntent prioritizes character-arc/conflict/thread notes, and CombatNarrator prioritizes conflict/character-arc notes.
+- This is the first direct A2 -> A3/T8 integration point inside context construction.
+
+## 2026-04-19 T8-6 Update
+
+- `NoNameRoleContextPacket` now carries `note_type_hits`, summarizing the top structured note types selected for each role after ranking.
+- Observe fan-out copies those hit summaries into related observations and frontend debug surfaces, so operators can inspect why different roles received different note ordering.
+
+## 2026-04-19 T8-7 Update
+
+- Observe fan-out now also copies `source_stats` and `token_budget_used` into related observations.
+- Frontend trace/debug surfaces render compact source summaries such as `semantic:3 / narrative:2` plus token budget, making role-context slicing easier to audit.
+
+## 2026-04-20 T8-8 Update
+
+- `NoNameRoleContextPacket` now carries `context_slice_stats`, recording section-level `source_count -> visible_count` deltas for role-specific context slices.
+- Observe fan-out, trace records, and frontend debug summaries surface those deltas so operators can compare how much context each role retained per section.

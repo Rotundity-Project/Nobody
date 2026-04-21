@@ -8,7 +8,9 @@ import {
   type ConsistencyPolicy,
   type GameState,
   type MapLocationOverview,
+  type NoNameApplyExecutionRecord,
   type NoNameApplyScope,
+  type NoNameControlledOutputKind,
   type NoNameHumanReviewMarkPayload,
   type NoNameMode,
   type NoNameSecondGuardrailResolvePayload,
@@ -24,6 +26,7 @@ import {
 } from '../types/game';
 
 type WebNoNameMode = NoNameMode;
+type WebNoNamePendingAugmentationExecution = Pick<NoNameApplyExecutionRecord, 'target' | 'outcome' | 'note'>;
 
 type SaveSnapshot = {
   script: Script;
@@ -259,6 +262,7 @@ function buildPlotState(gameState: GameState): PlotState {
     last_generation_diagnostics: '链路：web_mock',
     last_option_generation_source: 'web_mock_rule',
     last_consistency_risk_score: 0,
+    pending_plot_augmentation_hints: [],
     settings: defaultPlotSettings(),
     current_chapter: {
       index: 1,
@@ -325,9 +329,53 @@ function deriveWebNoNameApplyScopes(targetSegment: NoNameTargetSegment): NoNameA
     targetSegment === 'current_turn_head' ||
     targetSegment === 'current_turn_tail'
   ) {
-    return [...baseScopes, 'plotTextHint'];
+    return [...baseScopes, 'plotAugmentationHint', 'plotTextHint'];
   }
   return baseScopes;
+}
+
+function webNoNameScopeTraceKey(scope: NoNameApplyScope) {
+  return scope === 'plotTextHint'
+    ? 'plot_text_hint'
+    : scope === 'plotAugmentationHint'
+      ? 'plot_augmentation_hint'
+      : scope;
+}
+
+function webNoNameScopePriority(scope: NoNameApplyScope) {
+  if (scope === 'plotTextHint') {
+    return 300;
+  }
+  if (scope === 'plotAugmentationHint') {
+    return 250;
+  }
+  if (scope === 'chapterSummaryHint') {
+    return 200;
+  }
+  if (scope === 'optionBiasHint') {
+    return 100;
+  }
+  return 50;
+}
+
+function webNoNameScopeKind(scope: NoNameApplyScope): NoNameControlledOutputKind {
+  if (scope === 'plotTextHint') {
+    return 'sceneAugmentation';
+  }
+  if (scope === 'plotAugmentationHint') {
+    return 'nonFinalPlotAugmentation';
+  }
+  if (scope === 'chapterSummaryHint') {
+    return 'recapNote';
+  }
+  if (scope === 'optionBiasHint') {
+    return 'intermediateNarrativeHint';
+  }
+  return 'narrativeNote';
+}
+
+function webNoNameScopeRequiresHumanReview(scope: NoNameApplyScope) {
+  return scope === 'plotTextHint' || scope === 'plotAugmentationHint';
 }
 
 function applyWebNoNameSummaryHint(summary: string, focus: string, targetSegment: NoNameTargetSegment): string {
@@ -349,6 +397,7 @@ function appendWebNoNameTrace(
   paragraph: string,
   targetSegment: NoNameTargetSegment,
   applyScopes: NoNameApplyScope[],
+  pendingAugmentationExecution: WebNoNamePendingAugmentationExecution | null = null,
 ) {
   const traceId = `web-trace-${Date.now()}`;
   const proposalId = `proposal-${traceId}`;
@@ -394,25 +443,26 @@ function appendWebNoNameTrace(
         `${proposalId}:ready`,
         `${proposalId}:apply_preflight:ready`,
         ...applyScopes
-          .filter((scope) => scope !== 'plotTextHint')
+          .filter((scope) => !webNoNameScopeRequiresHumanReview(scope))
           .map((scope) => `${proposalId}:applied:${scope}`),
-        ...(applyScopes.includes('plotTextHint')
-          ? [`${proposalId}:controlled_output:plot_text_hint:needs_review`]
-          : []),
+        ...applyScopes
+          .filter((scope) => webNoNameScopeRequiresHumanReview(scope))
+          .map((scope) => `${proposalId}:controlled_output:${webNoNameScopeTraceKey(scope)}:needs_review`),
       ],
       applyPlanLog: applyScopes
         .map((scope) => ({
         target: scope,
-        decision: scope === 'plotTextHint' ? 'needs_review' : 'apply',
-        priority: scope === 'plotTextHint' ? 300 : scope === 'chapterSummaryHint' ? 200 : scope === 'optionBiasHint' ? 100 : 50,
-        note: scope === 'plotTextHint'
-          ? 'web mock plotTextHint 需要人工复核'
+        decision: webNoNameScopeRequiresHumanReview(scope) ? 'needs_review' : 'apply',
+        priority: webNoNameScopePriority(scope),
+        note: webNoNameScopeRequiresHumanReview(scope)
+          ? `web mock ${scope} 需要人工复核`
           : `web mock 允许执行 ${scope}`,
       }))
         .sort((left, right) => right.priority - left.priority)
         .map((item, index) => ({ ...item, order: index + 1 })),
-      applyExecutionLog: applyScopes
-        .filter((scope) => scope !== 'plotTextHint')
+      applyExecutionLog: [
+        ...applyScopes
+        .filter((scope) => !webNoNameScopeRequiresHumanReview(scope))
         .map((scope) => ({
         target: scope,
         outcome: 'applied',
@@ -422,29 +472,19 @@ function appendWebNoNameTrace(
               ? `已补充下轮选项偏置提示，聚焦“${text}”`
               : `已补充诊断提示，聚焦“${text}”`,
       })),
+        ...(pendingAugmentationExecution ? [pendingAugmentationExecution] : []),
+      ],
       controlledOutputReviews: applyScopes.map((scope) => ({
-        requestId: `controlled-output-${proposalId}-${scope === 'plotTextHint' ? 'plot_text_hint' : scope}`,
-        requestedKind: scope === 'plotTextHint'
-          ? 'sceneAugmentation'
-          : scope === 'chapterSummaryHint'
-            ? 'recapNote'
-            : scope === 'optionBiasHint'
-              ? 'intermediateNarrativeHint'
-              : 'narrativeNote',
-        decision: scope === 'plotTextHint' ? 'needsReview' : 'allow',
-        reason: scope === 'plotTextHint'
-          ? 'plot text hint requires human review before higher-layer apply'
+        requestId: `controlled-output-${proposalId}-${webNoNameScopeTraceKey(scope)}`,
+        requestedKind: webNoNameScopeKind(scope),
+        decision: webNoNameScopeRequiresHumanReview(scope) ? 'needsReview' : 'allow',
+        reason: webNoNameScopeRequiresHumanReview(scope)
+          ? `${scope} requires human review before higher-layer apply`
           : 'controlled output stays within allowed boundary',
-        normalizedKind: scope === 'plotTextHint'
-          ? 'sceneAugmentation'
-          : scope === 'chapterSummaryHint'
-            ? 'recapNote'
-            : scope === 'optionBiasHint'
-              ? 'intermediateNarrativeHint'
-              : 'narrativeNote',
+        normalizedKind: webNoNameScopeKind(scope),
         safeApplyScope: scope,
         policyForbiddenScopes: ['finalPlotState', 'canonWorldFact'],
-        requiresHumanReview: scope === 'plotTextHint',
+        requiresHumanReview: webNoNameScopeRequiresHumanReview(scope),
       })),
       guardrailResult: { outcome: 'accept' },
       applyResult: {
@@ -486,7 +526,7 @@ function appendWebNoNameTrace(
         .map((scope) => ({
         target: scope,
         decision: 'skip',
-        priority: scope === 'plotTextHint' ? 300 : scope === 'chapterSummaryHint' ? 200 : scope === 'optionBiasHint' ? 100 : 50,
+        priority: webNoNameScopePriority(scope),
         note: `web mock observe-only：${scope} 仅记录不执行`,
       }))
         .sort((left, right) => right.priority - left.priority)
@@ -531,13 +571,9 @@ function markWebNoNameControlledOutputReview(payload: NoNameHumanReviewMarkPaylo
   ];
   const target = review.safeApplyScope ?? 'controlled_output';
   const nextOrder = Math.max(0, ...(trace.applyPlanLog ?? []).map((item) => item.order)) + 1;
-  const priority = review.safeApplyScope === 'plotTextHint'
-    ? 325
-    : review.safeApplyScope === 'chapterSummaryHint'
-      ? 225
-      : review.safeApplyScope === 'optionBiasHint'
-        ? 125
-        : 35;
+  const priority = typeof review.safeApplyScope === 'string'
+    ? webNoNameScopePriority(review.safeApplyScope) + 25
+    : 35;
 
   if (payload.decision === 'pending') {
     trace.applyPlanLog = [
@@ -591,7 +627,10 @@ function markWebNoNameControlledOutputReview(payload: NoNameHumanReviewMarkPaylo
     .find((item) => payload.requestId.includes(item.proposalId))
     ?? trace.proposals[trace.proposals.length - 1];
   const secondGuardrailRejected = trace.mode !== 'assisted'
-    || review.safeApplyScope !== 'plotTextHint'
+    || !(
+      review.safeApplyScope === 'plotTextHint'
+      || review.safeApplyScope === 'plotAugmentationHint'
+    )
     || !proposal
     || proposal.status !== 'applied'
     || !proposal.applyable
@@ -657,13 +696,9 @@ function resolveWebNoNameSecondGuardrail(payload: NoNameSecondGuardrailResolvePa
 
   const target = review.safeApplyScope ?? 'controlled_output';
   const nextOrder = Math.max(0, ...(trace.applyPlanLog ?? []).map((item) => item.order)) + 1;
-  const priority = review.safeApplyScope === 'plotTextHint'
-    ? 350
-    : review.safeApplyScope === 'chapterSummaryHint'
-      ? 250
-      : review.safeApplyScope === 'optionBiasHint'
-        ? 150
-        : 60;
+  const priority = typeof review.safeApplyScope === 'string'
+    ? webNoNameScopePriority(review.safeApplyScope) + 50
+    : 60;
   const isWaiting = (trace.proposalTransitionLog ?? [])
     .includes(`${payload.requestId}:apply_intent:awaiting_second_guardrail`)
     || (trace.applyExecutionLog ?? []).some((item) => item.outcome === 'awaiting_second_guardrail');
@@ -674,7 +709,10 @@ function resolveWebNoNameSecondGuardrail(payload: NoNameSecondGuardrailResolvePa
     ?? trace.proposals[trace.proposals.length - 1];
   const revalidateRejected = !isWaiting
     || trace.mode !== 'assisted'
-    || review.safeApplyScope !== 'plotTextHint'
+    || !(
+      review.safeApplyScope === 'plotTextHint'
+      || review.safeApplyScope === 'plotAugmentationHint'
+    )
     || !proposal
     || proposal.status !== 'applied'
     || !proposal.applyable
@@ -1038,6 +1076,104 @@ function applyWebNoNameManualOptionBiasHint(args: {
   return { trace, plotState };
 }
 
+function applyWebNoNameManualPlotAugmentationHint(args: {
+  traceId?: unknown;
+  requestId?: unknown;
+  chapterIndex?: unknown;
+  expectedPlotAugmentationHints?: unknown;
+}) {
+  const traceId = String(args.traceId ?? '');
+  const requestId = String(args.requestId ?? '');
+  const chapterIndex = Number(args.chapterIndex);
+  const expectedHints = Array.isArray(args.expectedPlotAugmentationHints)
+    ? args.expectedPlotAugmentationHints.map((item) => String(item))
+    : [];
+  const trace = runtimeState.noNameTraces.find((item) => item.traceId === traceId);
+  if (!trace) {
+    throw new Error(`NoName trace not found: ${traceId}`);
+  }
+  const review = (trace.controlledOutputReviews ?? []).find((item) => item.requestId === requestId);
+  if (!review) {
+    throw new Error(`NoName controlled output review not found: ${requestId}`);
+  }
+  if (review.humanReviewDecision !== 'approvedForHigherApply') {
+    throw new Error(`NoName controlled output review is not approved for manual apply: ${requestId}`);
+  }
+  if (review.safeApplyScope !== 'plotAugmentationHint') {
+    throw new Error('manual apply scope mismatch: expected plotAugmentationHint');
+  }
+  const hasSecondGuardrailAllow = (trace.proposalTransitionLog ?? [])
+    .includes(`${requestId}:second_guardrail:allow`)
+    || (trace.applyExecutionLog ?? []).some((item) => (
+      item.target === 'plotAugmentationHint' && item.outcome === 'second_guardrail_allowed'
+    ));
+  if (!hasSecondGuardrailAllow) {
+    throw new Error('second guardrail has not allowed this review');
+  }
+  if ((trace.applyExecutionLog ?? []).some((item) => (
+    item.target === 'plotAugmentationHint' && item.outcome === 'manual_plot_augmentation_hint_applied'
+  ))) {
+    throw new Error('manual plotAugmentationHint has already been applied for this trace');
+  }
+  const plotState = runtimeState.plotState;
+  if (!plotState) {
+    throw new Error('Web runtime plot state is not initialized');
+  }
+  if (plotState.current_chapter.index !== chapterIndex) {
+    throw new Error(`chapter mismatch: expected ${chapterIndex}, current ${plotState.current_chapter.index}`);
+  }
+  if (!plotState.is_waiting_for_input) {
+    throw new Error('plotAugmentationHint manual apply requires waiting-for-input state');
+  }
+  const currentHints = plotState.pending_plot_augmentation_hints ?? [];
+  if (JSON.stringify(currentHints) !== JSON.stringify(expectedHints)) {
+    throw new Error('plot augmentation snapshot mismatch; refusing stale manual apply');
+  }
+  const proposal = trace.proposals
+    .slice()
+    .reverse()
+    .find((item) => requestId.includes(item.proposalId))
+    ?? trace.proposals[trace.proposals.length - 1];
+  if (!proposal) {
+    throw new Error('NoName proposal not found for manual apply');
+  }
+  const hint = `NoName plot augmentation: focus=${proposal.focus.trim()} | effect=${proposal.intendedEffect.trim()}`;
+  if (currentHints.includes(hint)) {
+    throw new Error('plot augmentation already contains this NoName hint');
+  }
+  plotState.pending_plot_augmentation_hints = [...currentHints, hint];
+
+  const nextOrder = Math.max(0, ...(trace.applyPlanLog ?? []).map((item) => item.order)) + 1;
+  trace.applyPlanLog = [
+    ...(trace.applyPlanLog ?? []),
+    {
+      order: nextOrder,
+      target: 'plotAugmentationHint',
+      decision: 'manual_apply',
+      priority: 325,
+      note: `manual apply confirmed for chapter=${chapterIndex} scope=plotAugmentationHint`,
+    },
+  ];
+  trace.applyExecutionLog = [
+    ...(trace.applyExecutionLog ?? []),
+    {
+      target: 'plotAugmentationHint',
+      outcome: 'manual_plot_augmentation_hint_applied',
+      note: `manual plot augmentation hint staged for focus=${proposal.focus}`,
+    },
+  ];
+  trace.proposalTransitionLog = [
+    ...(trace.proposalTransitionLog ?? []),
+    `${requestId}:manual_apply:plot_augmentation_hint`,
+  ];
+  trace.applyResult = {
+    attempted: true,
+    outcome: 'manual_plot_augmentation_hint_applied',
+    reason: 'manual plot augmentation hint staged',
+  };
+  return { trace, plotState };
+}
+
 function resolveActionText(action: PlayerAction, options: PlayerOption[]): string {
   if (action.action_type === ActionType.FreeText) {
     return action.content.trim() || '你静静观察局势变化。';
@@ -1053,6 +1189,8 @@ function updateAfterAction(action: PlayerAction, quickMode: boolean) {
   const text = resolveActionText(action, plotState.current_scene.available_options);
   const targetSegment = pickWebNoNameTargetSegment(action);
   const applyScopes = deriveWebNoNameApplyScopes(targetSegment);
+  const pendingPlotAugmentationHints = [...(plotState.pending_plot_augmentation_hints ?? [])];
+  let pendingAugmentationExecution: WebNoNamePendingAugmentationExecution | null = null;
   const baseParagraph = quickMode
     ? `你迅速执行“${text}”，局势发生了可控变化。`
     : `你选择“${text}”，新的线索逐渐浮现。`;
@@ -1070,6 +1208,24 @@ function updateAfterAction(action: PlayerAction, quickMode: boolean) {
   if (runtimeState.noNameMode === 'assisted') {
     const applyOutcome = 'applied_summary_and_option_bias';
     plotState.last_generation_diagnostics += `；NoName.assisted：focus=${text}；target_segment=${targetSegment}；scopes=${applyScopes.join(',')}；apply=${applyOutcome}`;
+    if (pendingPlotAugmentationHints.length > 0) {
+      if (quickMode) {
+        pendingAugmentationExecution = {
+          target: 'plotAugmentationHint',
+          outcome: 'pending_plot_augmentation_retained',
+          note: `pending plot augmentation retained because quick_mode; count=${pendingPlotAugmentationHints.length}`,
+        };
+        plotState.last_generation_diagnostics += '; NoName pending plot augmentation retained(quick_mode)';
+      } else {
+        plotState.pending_plot_augmentation_hints = [];
+        pendingAugmentationExecution = {
+          target: 'plotAugmentationHint',
+          outcome: 'pending_plot_augmentation_consumed',
+          note: `pending plot augmentation consumed after web mock generation; count=${pendingPlotAugmentationHints.length}`,
+        };
+        plotState.last_generation_diagnostics += `; NoName pending plot augmentation consumed=${pendingPlotAugmentationHints.length}`;
+      }
+    }
     if (applyScopes.includes('chapterSummaryHint')) {
       plotState.current_chapter.summary = applyWebNoNameSummaryHint(
         plotState.current_chapter.summary,
@@ -1094,7 +1250,7 @@ function updateAfterAction(action: PlayerAction, quickMode: boolean) {
   gameState.game_time.total_days += 1;
   gameState.game_time.day += 1;
   gameState.player.stats.combat_power += 2;
-  appendWebNoNameTrace(text, paragraph, targetSegment, applyScopes);
+  appendWebNoNameTrace(text, paragraph, targetSegment, applyScopes, pendingAugmentationExecution);
 }
 
 function listReachable(): string[] {
@@ -1303,11 +1459,13 @@ export async function invokeWebRuntime<T>(
         ? applyWebNoNameManualChapterSummaryHint(args)
         : args.scope === 'optionBiasHint'
           ? applyWebNoNameManualOptionBiasHint(args)
-          : args.scope === 'plotTextHint'
-            ? applyWebNoNameManualPlotTextHint(args)
-            : (() => {
-              throw new Error(`Web mock reviewed apply currently does not support ${String(args.scope)}`);
-            })();
+          : args.scope === 'plotAugmentationHint'
+            ? applyWebNoNameManualPlotAugmentationHint(args)
+            : args.scope === 'plotTextHint'
+              ? applyWebNoNameManualPlotTextHint(args)
+              : (() => {
+                throw new Error(`Web mock reviewed apply currently does not support ${String(args.scope)}`);
+              })();
       persistState();
       return result as T;
     }

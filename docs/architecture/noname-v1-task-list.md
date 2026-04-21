@@ -482,18 +482,20 @@
 - `T7-0.6` 已接入 `apply_noname_manual_plot_text_hint`，只有人工批准 + 二次护栏 allow + 当前章节/段落快照一致时，才允许显式写入 `PlotTextHint`
 - `T7-0.7` 已补显式人工 apply 的前端差异预览、重复写入禁用与 stale snapshot 友好提示
 - `T7-3` 已补 apply lifecycle 展示与测试基线，调试面板、复制摘要、Info 调试文本可以统一展示 apply / review / guardrail / manual apply / fallback 进度
-- `T7-1` 第三切片已新增 `noname_apply.rs` reviewed apply runtime，提供 `apply_noname_reviewed_output` 通用命令入口；现有 `PlotTextHint` 显式写入已改走该入口，`ChapterSummaryHint` 与 `OptionBiasHint` 也已接入人工批准 + 二次护栏 + 快照一致的显式 reviewed apply
+- `T7-1` 第七切片已新增 `noname_apply.rs` reviewed apply runtime，提供 `apply_noname_reviewed_output` 通用命令入口；现有 `PlotTextHint` 显式写入已改走该入口，`ChapterSummaryHint`、`OptionBiasHint` 与 `PlotAugmentationHint` 也已接入人工批准 + 二次护栏 + 快照一致的显式 reviewed apply，并把低风险/非最终提示状态写入下沉到 `plot_engine`；pending augmentation 已能作为安全上下文进入下一轮 plot prompt，前端调试台已可显式触发四类 scope 的 reviewed apply
 
 ### 当前边界
 
-- proposal 目前不会自动改写剧情正文与状态机，但已可写入章节摘要提示这类低风险输出
-- 当前已完成 `assisted preflight`，并可应用到“诊断层 + 章节摘要提示 + 选项偏置提示”三类低风险输出；`plotTextHint` 会先进入 controlled output review、人工复核 intent、二次护栏，再由显式人工命令写入当前剧情段落
-- reviewed apply runtime 已形成统一通道，目前支持 `PlotTextHint`、`ChapterSummaryHint` 与 `OptionBiasHint`；`plot_engine` 低风险输出层入口还需要继续评估
+- proposal 目前不会自动改写剧情正文与状态机，但已可写入章节摘要提示、选项偏置提示与 pending 剧情增强提示这类非最终输出
+- 当前已完成 `assisted preflight`，并可应用到“诊断层 + 章节摘要提示 + 选项偏置提示 + pending 剧情增强提示”四类受控输出；`plotTextHint` 仍会先进入 controlled output review、人工复核 intent、二次护栏，再由显式人工命令写入当前剧情段落
+- reviewed apply runtime 已形成统一通道，目前支持 `PlotTextHint`、`ChapterSummaryHint`、`OptionBiasHint` 与 `PlotAugmentationHint`；`plot_engine` 已提供章节摘要提示、诊断提示与 pending augmentation 的受控输出层入口，并能在下一轮 prompt 中安全消费 pending augmentation
 - 仍然保持“经典主链路优先，NoName 仅辅助”
 
 ### 下一步子任务
 
-- `T7-1.2` 已完成两个扩展 scope：`ChapterSummaryHint` 与 `OptionBiasHint` 可复用 reviewed apply runtime；下一步可继续评估 `plot_engine` 低风险输出层入口
+- `T7-1.2` 已完成两个扩展 scope：`ChapterSummaryHint` 与 `OptionBiasHint` 可复用 reviewed apply runtime，并已通过 `plot_engine` 低风险输出层落地；前端调试台已补显式 apply 入口和快照预览
+- `T7-1.3` 已完成 non-final plot augmentation 最小接入：`PlotAugmentationHint` 可复用 reviewed apply runtime，要求 pending 列表快照一致后写入 `pending_plot_augmentation_hints`，并已接入前端调试台预览与 Web mock
+- `T7-1.4` 已完成 pending augmentation 安全消费：下一轮 plot prompt 会注入非最终安全上下文，成功由 plot_engine 生成并落地后按快照清空；quick mode、预设回退或双通道叙事覆盖时会保留 pending hints
 
 ### 验收标准
 
@@ -585,6 +587,60 @@
 
 如果继续推进实现，当前最推荐的是：
 
-1. 继续推进 `T7-1.2` 的后续落地层，让 `plot_engine` 低风险输出层复用 `noname_apply.rs` reviewed apply runtime
-2. 把新增 scope 持续接入现有 apply lifecycle，让后续更多输出类型复用同一套可视化与测试基线
+1. 继续评估是否需要更高一层的受控输出类型，例如 non-final plot augmentation，但仍不得直接接管最终剧情正文。
+2. 把后续新增 scope 持续接入现有 apply lifecycle，让更多输出类型复用同一套可视化与测试基线。
 这会比继续扩文档或继续堆更多角色更有价值，因为它决定 `NoName Agent` 是否能从“可观察”走向“可辅助落地”。
+
+## 2026-04-18 T7-1.5 Progress Note
+
+- `T7-1.5` has completed the pending plot augmentation observability slice.
+- `PlotAugmentationHint` remains a non-final, reviewed, manually staged hint. The next generation may consume it, but final plot state mutation is still owned by `plot_engine`.
+- The consume/retain result is now visible in trace execution logs, proposal transition logs, frontend lifecycle summaries, Web mock, and focused tests.
+- Recommended next direction after T7-1.5: review whether more controlled output scopes need the same pending-consume lifecycle pattern, or move to a broader trace UX cleanup instead of adding new plot authority.
+
+## 2026-04-18 T7-1.6 Progress Note
+
+- `T7-1.6` has completed the first trace UX cleanup slice for pending plot augmentation.
+- Debug copy reports and `gameStore` Info debug text now show a compact plot augmentation summary, making `已消费 / 已保留 / 待消费 / 待观察 / 无` readable without opening raw JSON.
+- No plot authority was expanded in this slice; it only improves trace interpretation and operator visibility.
+
+## 2026-04-19 T7-1.7 Progress Note
+
+- `T7-1.7` extends the same trace UX cleanup to the visible `AgentTracePanel` overview.
+- The pending plot augmentation summary now appears in the panel, debug copy report, and Info debug text through one shared helper.
+- This keeps the assisted apply observability path consistent while preserving the non-final prompt-context boundary.
+
+## 2026-04-19 T7-1.8 Progress Note
+
+- `T7-1.8` improves execution-log readability for pending plot augmentation records.
+- `AgentTracePanel` now shows readable execution labels such as `剧情增强提示 · 已消费`, while keeping the original trace target/outcome visible for low-level debugging.
+- No runtime behavior changed; this is an operator-facing trace interpretation slice only.
+
+## 2026-04-19 T7-1.9 Progress Note
+
+- `T7-1.9` extends the readable apply execution mapping to `gameStore` Info text and `InfoTabsDialog`.
+- Operator-facing debug surfaces now consistently translate pending plot augmentation execution records while preserving raw target/outcome details.
+- This remains a trace UX cleanup slice and does not alter assisted apply runtime behavior.
+
+## 2026-04-19 T7-2.0 Progress Note
+
+- `T7-2.0` extends readable apply execution summaries to copied `NoNameDebugConsole` trace reports.
+- Copy/paste debugging now includes both readable execution labels and raw trace target/outcome for translated pending plot augmentation records.
+- Runtime behavior and safe-output authority remain unchanged.
+
+## 2026-04-19 T7-2.1 Progress Note
+
+- `T7-2.1` centralizes apply execution summary formatting in `summarizeNoNameApplyExecutions`.
+- Info debug text and copied debug-console reports now share one execution-summary implementation with configurable raw/note formatting.
+- This reduces future drift across debug surfaces when new execution outcomes are added.
+
+## 2026-04-19 T7-2.2 Progress Note
+
+- `T7-2.2` completed a focused full-regression verification pass for the current T7 line.
+- Backend T7 tests, clippy, frontend NoName trace tests, frontend build, and diff whitespace checks passed.
+- The only build note remains the existing Vite dynamic-import warning for `@tauri-apps/api/core.js`; no new blocker was found.
+
+## 2026-04-19 T7-2.3 Progress Note
+
+- `T7-2.3` cleaned the T7 status language so optional future expansion is no longer described as unfinished core work.
+- T7 can now be treated as functionally complete pending final pre-PR review/commit preparation.

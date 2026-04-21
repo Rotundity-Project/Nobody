@@ -81,6 +81,7 @@
 ## 当前限制
 
 - 当前没有接 UI，也没有直接接游戏主线。
+- structured notes 已开始影响 role context 排序，但仍只服务 observe fan-out 的上下文构建，不自动生成或应用剧情内容。
 - `close` 目前等价于 `resolve`，后续如需要可以拆成更细状态。
 - 章节整理只做生命周期归档和结构化 review，不自动生成新剧情内容。
 
@@ -89,5 +90,16 @@
 下一步可以继续:
 
 1. 让 A1 compaction 在生成 summary 时自动创建或更新相关 note。
-2. 让 A3 role context packets 针对不同角色读取不同 note 类型。
-3. 视需要补 note merge / split / supersede 语义，避免长线剧情里 note 过多。
+2. 视需要补 note merge / split / supersede 语义，避免长线剧情里 note 过多。
+3. 继续扩展 role context trace 的 note type 命中细节，例如补充更丰富的排序依据或压缩前后对照。
+
+## 2026-04-19 T8-5 Update
+
+- `build_context_packet` now ranks active structured notes by role before placing them into narrative context and chapter-summary context.
+- Director prioritizes conflict/goal/thread notes, WorldCurator prioritizes goal/foreshadowing/thread notes, NpcIntent prioritizes character-arc/conflict/thread notes, and CombatNarrator prioritizes conflict/character-arc notes.
+- This connects A2 structured notes to role context construction while keeping runtime behavior observe-only.
+
+## 2026-04-19 T8-6 Update
+
+- Role-ranked note priorities now emit `note_type_hits` summaries into trace/debug, making structured-note selection visible per role.
+- This closes the first observability loop for A2 -> T8 integration without changing apply authority or story-writing behavior.

@@ -2,9 +2,11 @@ use crate::entity_store::{EntityQuery, EntityStore};
 use crate::entity_types::EntityType;
 use crate::noname_context_types::{
     NoNameContextBuildInput, NoNameContextPacket, NoNameContextSourceStat, NoNameRoleContextPacket,
+    NoNameRoleContextSliceStat,
 };
 use crate::noname_memory_manager::NoNameMemoryManager;
 use crate::noname_memory_retrieval::NoNameMemoryQuery;
+use crate::noname_memory_types::{NoNameNarrativeMemoryItem, NoNameNarrativeNoteType};
 use crate::noname_types::NoNameRole;
 
 pub fn build_context_packet(
@@ -38,17 +40,18 @@ pub fn build_context_packet(
         .iter()
         .map(|item| item.summary.clone())
         .collect::<Vec<_>>();
-    let mut narrative_notes = retrieved
-        .narrative
+    let active_notes = role_ranked_active_notes(memory_manager.active_notes(), input.role);
+    let mut narrative_notes = dedupe_ordered_strings(
+        active_notes
+            .iter()
+            .chain(retrieved.narrative.iter())
+            .map(note_line)
+            .collect(),
+    );
+    let mut chapter_summaries = active_notes
         .iter()
-        .map(|item| format!("{}: {}", item.title, item.summary))
-        .collect::<Vec<_>>();
-
-    let mut chapter_summaries = memory_manager
-        .active_notes()
-        .into_iter()
         .take(input.per_section_limit)
-        .map(|note| format!("{}: {}", note.title, note.summary))
+        .map(note_line)
         .collect::<Vec<_>>();
 
     let mut recent_context = input
@@ -154,6 +157,81 @@ pub fn build_context_packet(
     }
 }
 
+fn note_line(note: &NoNameNarrativeMemoryItem) -> String {
+    format!("{}: {}", note.title, note.summary)
+}
+
+fn role_ranked_active_notes(
+    mut notes: Vec<NoNameNarrativeMemoryItem>,
+    role: NoNameRole,
+) -> Vec<NoNameNarrativeMemoryItem> {
+    notes.sort_by(|left, right| {
+        role_note_priority(role, left.note_type)
+            .cmp(&role_note_priority(role, right.note_type))
+            .then_with(|| right.updated_at.cmp(&left.updated_at))
+            .then_with(|| left.note_id.cmp(&right.note_id))
+    });
+    notes
+}
+
+fn role_note_priority(role: NoNameRole, note_type: NoNameNarrativeNoteType) -> u8 {
+    match role {
+        NoNameRole::Director => match note_type {
+            NoNameNarrativeNoteType::Conflict => 0,
+            NoNameNarrativeNoteType::Goal => 1,
+            NoNameNarrativeNoteType::UnresolvedThread => 2,
+            NoNameNarrativeNoteType::Foreshadowing => 3,
+            NoNameNarrativeNoteType::CharacterArc => 4,
+        },
+        NoNameRole::WorldCurator => match note_type {
+            NoNameNarrativeNoteType::Goal => 0,
+            NoNameNarrativeNoteType::Foreshadowing => 1,
+            NoNameNarrativeNoteType::UnresolvedThread => 2,
+            NoNameNarrativeNoteType::Conflict => 3,
+            NoNameNarrativeNoteType::CharacterArc => 4,
+        },
+        NoNameRole::NpcIntent => match note_type {
+            NoNameNarrativeNoteType::CharacterArc => 0,
+            NoNameNarrativeNoteType::Conflict => 1,
+            NoNameNarrativeNoteType::UnresolvedThread => 2,
+            NoNameNarrativeNoteType::Foreshadowing => 3,
+            NoNameNarrativeNoteType::Goal => 4,
+        },
+        NoNameRole::CombatNarrator => match note_type {
+            NoNameNarrativeNoteType::Conflict => 0,
+            NoNameNarrativeNoteType::CharacterArc => 1,
+            NoNameNarrativeNoteType::Goal => 2,
+            NoNameNarrativeNoteType::UnresolvedThread => 3,
+            NoNameNarrativeNoteType::Foreshadowing => 4,
+        },
+        NoNameRole::System => match note_type {
+            NoNameNarrativeNoteType::Goal => 0,
+            NoNameNarrativeNoteType::Conflict => 1,
+            NoNameNarrativeNoteType::Foreshadowing => 2,
+            NoNameNarrativeNoteType::UnresolvedThread => 3,
+            NoNameNarrativeNoteType::CharacterArc => 4,
+        },
+    }
+}
+
+fn build_role_note_hits(notes: &[NoNameNarrativeMemoryItem], limit: usize) -> Vec<String> {
+    notes
+        .iter()
+        .take(limit)
+        .map(|note| format!("{}: {}", note_type_label(note.note_type), note.title))
+        .collect()
+}
+
+fn note_type_label(note_type: NoNameNarrativeNoteType) -> &'static str {
+    match note_type {
+        NoNameNarrativeNoteType::Goal => "goal",
+        NoNameNarrativeNoteType::Conflict => "conflict",
+        NoNameNarrativeNoteType::Foreshadowing => "foreshadowing",
+        NoNameNarrativeNoteType::UnresolvedThread => "unresolvedThread",
+        NoNameNarrativeNoteType::CharacterArc => "characterArc",
+    }
+}
+
 pub fn build_role_context_packet(
     store: &EntityStore,
     memory_manager: &NoNameMemoryManager,
@@ -163,7 +241,10 @@ pub fn build_role_context_packet(
     let mut role_input = input.clone();
     role_input.role = role;
     let packet = build_context_packet(store, memory_manager, &role_input);
-    specialize_context_packet(&packet)
+    let ranked_notes = role_ranked_active_notes(memory_manager.active_notes(), role);
+    let mut role_packet = specialize_context_packet(&packet);
+    role_packet.note_type_hits = build_role_note_hits(&ranked_notes, input.per_section_limit);
+    role_packet
 }
 
 pub fn build_role_context_packets(
@@ -189,7 +270,35 @@ pub fn specialize_context_packet(packet: &NoNameContextPacket) -> NoNameRoleCont
     }
 }
 
+pub fn flatten_role_context_packet(packet: &NoNameRoleContextPacket) -> NoNameContextPacket {
+    NoNameContextPacket {
+        role: packet.role,
+        hard_facts: packet.world_facts.clone(),
+        working_memory: packet.recent_signals.clone(),
+        episodic_memory: packet.recent_signals.clone(),
+        narrative_notes: packet.narrative_priorities.clone(),
+        chapter_summaries: packet.narrative_priorities.clone(),
+        recent_context: packet.recent_signals.clone(),
+        referenced_entities: packet.character_relationships.clone(),
+        compressed_summary: Some(format!(
+            "roleGoal: {}; sceneFocus: {}; noteTypeHits: {}; visibleConstraints: {}; forbiddenScopes: {}",
+            packet.role_goal,
+            packet.scene_focus,
+            packet.note_type_hits.join(" | "),
+            packet.visible_constraints.join(" | "),
+            packet.forbidden_scopes.join(" | ")
+        )),
+        token_budget_used: packet.token_budget_used,
+        source_stats: packet.source_stats.clone(),
+    }
+}
+
 fn director_context(packet: &NoNameContextPacket) -> NoNameRoleContextPacket {
+    let world_facts = take_lines(&packet.hard_facts, 2);
+    let character_relationships = take_lines(&packet.referenced_entities, 4);
+    let narrative_priorities =
+        take_joined(&[&packet.narrative_notes, &packet.chapter_summaries], 6);
+    let recent_signals = take_joined(&[&packet.working_memory, &packet.recent_context], 4);
     NoNameRoleContextPacket {
         role: NoNameRole::Director,
         role_goal: "Select the safest narrative focus for the next beat.".to_string(),
@@ -199,10 +308,11 @@ fn director_context(packet: &NoNameContextPacket) -> NoNameRoleContextPacket {
             &packet.recent_context,
             &packet.hard_facts,
         ]),
-        world_facts: take_lines(&packet.hard_facts, 2),
-        character_relationships: take_lines(&packet.referenced_entities, 4),
-        narrative_priorities: take_joined(&[&packet.narrative_notes, &packet.chapter_summaries], 6),
-        recent_signals: take_joined(&[&packet.working_memory, &packet.recent_context], 4),
+        note_type_hits: Vec::new(),
+        world_facts: world_facts.clone(),
+        character_relationships: character_relationships.clone(),
+        narrative_priorities: narrative_priorities.clone(),
+        recent_signals: recent_signals.clone(),
         visible_constraints: vec![
             "May propose low-risk narrative direction.".to_string(),
             "Should keep unresolved threads visible for later turns.".to_string(),
@@ -211,12 +321,34 @@ fn director_context(packet: &NoNameContextPacket) -> NoNameRoleContextPacket {
             "Must not directly rewrite final plot state.".to_string(),
             "Must not invent hard world canon without WorldCurator support.".to_string(),
         ],
+        context_slice_stats: vec![
+            build_slice_stat("worldFacts", packet.hard_facts.len(), world_facts.len()),
+            build_slice_stat(
+                "characterRelationships",
+                packet.referenced_entities.len(),
+                character_relationships.len(),
+            ),
+            build_slice_stat(
+                "narrativePriorities",
+                packet.narrative_notes.len() + packet.chapter_summaries.len(),
+                narrative_priorities.len(),
+            ),
+            build_slice_stat(
+                "recentSignals",
+                packet.working_memory.len() + packet.recent_context.len(),
+                recent_signals.len(),
+            ),
+        ],
         source_stats: packet.source_stats.clone(),
         token_budget_used: packet.token_budget_used,
     }
 }
 
 fn world_curator_context(packet: &NoNameContextPacket) -> NoNameRoleContextPacket {
+    let world_facts = take_joined(&[&packet.hard_facts, &packet.chapter_summaries], 8);
+    let character_relationships = take_lines(&packet.referenced_entities, 3);
+    let narrative_priorities = take_lines(&packet.chapter_summaries, 3);
+    let recent_signals = take_lines(&packet.recent_context, 2);
     NoNameRoleContextPacket {
         role: NoNameRole::WorldCurator,
         role_goal: "Maintain world facts, scene constraints, and canon anchors.".to_string(),
@@ -226,10 +358,11 @@ fn world_curator_context(packet: &NoNameContextPacket) -> NoNameRoleContextPacke
             &packet.referenced_entities,
             &packet.recent_context,
         ]),
-        world_facts: take_joined(&[&packet.hard_facts, &packet.chapter_summaries], 8),
-        character_relationships: take_lines(&packet.referenced_entities, 3),
-        narrative_priorities: take_lines(&packet.chapter_summaries, 3),
-        recent_signals: take_lines(&packet.recent_context, 2),
+        note_type_hits: Vec::new(),
+        world_facts: world_facts.clone(),
+        character_relationships: character_relationships.clone(),
+        narrative_priorities: narrative_priorities.clone(),
+        recent_signals: recent_signals.clone(),
         visible_constraints: vec![
             "May clarify setting rules and location constraints.".to_string(),
             "Should preserve established facts over dramatic convenience.".to_string(),
@@ -238,12 +371,39 @@ fn world_curator_context(packet: &NoNameContextPacket) -> NoNameRoleContextPacke
             "Must not decide NPC private intent.".to_string(),
             "Must not choose the main plot beat alone.".to_string(),
         ],
+        context_slice_stats: vec![
+            build_slice_stat(
+                "worldFacts",
+                packet.hard_facts.len() + packet.chapter_summaries.len(),
+                world_facts.len(),
+            ),
+            build_slice_stat(
+                "characterRelationships",
+                packet.referenced_entities.len(),
+                character_relationships.len(),
+            ),
+            build_slice_stat(
+                "narrativePriorities",
+                packet.chapter_summaries.len(),
+                narrative_priorities.len(),
+            ),
+            build_slice_stat(
+                "recentSignals",
+                packet.recent_context.len(),
+                recent_signals.len(),
+            ),
+        ],
         source_stats: packet.source_stats.clone(),
         token_budget_used: packet.token_budget_used,
     }
 }
 
 fn npc_intent_context(packet: &NoNameContextPacket) -> NoNameRoleContextPacket {
+    let world_facts = take_lines(&packet.hard_facts, 2);
+    let character_relationships =
+        take_joined(&[&packet.referenced_entities, &packet.narrative_notes], 6);
+    let narrative_priorities = take_lines(&packet.narrative_notes, 4);
+    let recent_signals = take_joined(&[&packet.episodic_memory, &packet.recent_context], 5);
     NoNameRoleContextPacket {
         role: NoNameRole::NpcIntent,
         role_goal: "Infer NPC motivation, stance changes, and relationship pressure.".to_string(),
@@ -253,13 +413,11 @@ fn npc_intent_context(packet: &NoNameContextPacket) -> NoNameRoleContextPacket {
             &packet.narrative_notes,
             &packet.recent_context,
         ]),
-        world_facts: take_lines(&packet.hard_facts, 2),
-        character_relationships: take_joined(
-            &[&packet.referenced_entities, &packet.narrative_notes],
-            6,
-        ),
-        narrative_priorities: take_lines(&packet.narrative_notes, 4),
-        recent_signals: take_joined(&[&packet.episodic_memory, &packet.recent_context], 5),
+        note_type_hits: Vec::new(),
+        world_facts: world_facts.clone(),
+        character_relationships: character_relationships.clone(),
+        narrative_priorities: narrative_priorities.clone(),
+        recent_signals: recent_signals.clone(),
         visible_constraints: vec![
             "May infer motivation only from visible context.".to_string(),
             "Should keep uncertainty explicit when evidence is thin.".to_string(),
@@ -268,12 +426,34 @@ fn npc_intent_context(packet: &NoNameContextPacket) -> NoNameRoleContextPacket {
             "Must not reveal hidden knowledge not present in context.".to_string(),
             "Must not override world facts or combat outcomes.".to_string(),
         ],
+        context_slice_stats: vec![
+            build_slice_stat("worldFacts", packet.hard_facts.len(), world_facts.len()),
+            build_slice_stat(
+                "characterRelationships",
+                packet.referenced_entities.len() + packet.narrative_notes.len(),
+                character_relationships.len(),
+            ),
+            build_slice_stat(
+                "narrativePriorities",
+                packet.narrative_notes.len(),
+                narrative_priorities.len(),
+            ),
+            build_slice_stat(
+                "recentSignals",
+                packet.episodic_memory.len() + packet.recent_context.len(),
+                recent_signals.len(),
+            ),
+        ],
         source_stats: packet.source_stats.clone(),
         token_budget_used: packet.token_budget_used,
     }
 }
 
 fn combat_narrator_context(packet: &NoNameContextPacket) -> NoNameRoleContextPacket {
+    let world_facts = take_lines(&packet.hard_facts, 3);
+    let character_relationships = take_lines(&packet.referenced_entities, 3);
+    let narrative_priorities = take_lines(&packet.narrative_notes, 3);
+    let recent_signals = take_joined(&[&packet.recent_context, &packet.episodic_memory], 6);
     NoNameRoleContextPacket {
         role: NoNameRole::CombatNarrator,
         role_goal: "Track conflict rhythm, action feedback, and combat narration anchors."
@@ -284,10 +464,11 @@ fn combat_narrator_context(packet: &NoNameContextPacket) -> NoNameRoleContextPac
             &packet.working_memory,
             &packet.narrative_notes,
         ]),
-        world_facts: take_lines(&packet.hard_facts, 3),
-        character_relationships: take_lines(&packet.referenced_entities, 3),
-        narrative_priorities: take_lines(&packet.narrative_notes, 3),
-        recent_signals: take_joined(&[&packet.recent_context, &packet.episodic_memory], 6),
+        note_type_hits: Vec::new(),
+        world_facts: world_facts.clone(),
+        character_relationships: character_relationships.clone(),
+        narrative_priorities: narrative_priorities.clone(),
+        recent_signals: recent_signals.clone(),
         visible_constraints: vec![
             "May describe action consequences as low-risk narration anchors.".to_string(),
             "Should preserve current combat constraints.".to_string(),
@@ -296,24 +477,61 @@ fn combat_narrator_context(packet: &NoNameContextPacket) -> NoNameRoleContextPac
             "Must not determine final damage or victory state.".to_string(),
             "Must not invent new combat rules.".to_string(),
         ],
+        context_slice_stats: vec![
+            build_slice_stat("worldFacts", packet.hard_facts.len(), world_facts.len()),
+            build_slice_stat(
+                "characterRelationships",
+                packet.referenced_entities.len(),
+                character_relationships.len(),
+            ),
+            build_slice_stat(
+                "narrativePriorities",
+                packet.narrative_notes.len(),
+                narrative_priorities.len(),
+            ),
+            build_slice_stat(
+                "recentSignals",
+                packet.recent_context.len() + packet.episodic_memory.len(),
+                recent_signals.len(),
+            ),
+        ],
         source_stats: packet.source_stats.clone(),
         token_budget_used: packet.token_budget_used,
     }
 }
 
 fn system_context(packet: &NoNameContextPacket) -> NoNameRoleContextPacket {
+    let recent_signals = take_joined(&[&packet.working_memory, &packet.recent_context], 4);
     NoNameRoleContextPacket {
         role: NoNameRole::System,
         role_goal: "Provide diagnostics without narrative authority.".to_string(),
         scene_focus: first_of(&[&packet.recent_context, &packet.working_memory]),
+        note_type_hits: Vec::new(),
         world_facts: Vec::new(),
         character_relationships: Vec::new(),
         narrative_priorities: Vec::new(),
-        recent_signals: take_joined(&[&packet.working_memory, &packet.recent_context], 4),
+        recent_signals: recent_signals.clone(),
         visible_constraints: vec!["May inspect available context shape.".to_string()],
         forbidden_scopes: vec!["Must not author narrative content.".to_string()],
+        context_slice_stats: vec![build_slice_stat(
+            "recentSignals",
+            packet.working_memory.len() + packet.recent_context.len(),
+            recent_signals.len(),
+        )],
         source_stats: packet.source_stats.clone(),
         token_budget_used: packet.token_budget_used,
+    }
+}
+
+fn build_slice_stat(
+    section: &str,
+    source_count: usize,
+    visible_count: usize,
+) -> NoNameRoleContextSliceStat {
+    NoNameRoleContextSliceStat {
+        section: section.to_string(),
+        source_count,
+        visible_count,
     }
 }
 
@@ -379,6 +597,16 @@ fn take_joined(groups: &[&Vec<String>], limit: usize) -> Vec<String> {
         }
     }
     values
+}
+
+fn dedupe_ordered_strings(values: Vec<String>) -> Vec<String> {
+    let mut deduped = Vec::new();
+    for value in values {
+        if !deduped.iter().any(|existing| existing == &value) {
+            deduped.push(value);
+        }
+    }
+    deduped
 }
 
 #[cfg(test)]
@@ -571,6 +799,15 @@ mod tests {
         assert_eq!(packets[2].role, NoNameRole::NpcIntent);
         assert_ne!(packets[0].role_goal, packets[1].role_goal);
         assert_ne!(packets[1].forbidden_scopes, packets[2].forbidden_scopes);
+        assert!(packets[0]
+            .context_slice_stats
+            .iter()
+            .any(|item| item.section == "narrativePriorities"
+                && item.source_count >= item.visible_count));
+        assert!(packets[1]
+            .context_slice_stats
+            .iter()
+            .any(|item| item.section == "worldFacts" && item.source_count >= item.visible_count));
         assert!(packets[1]
             .world_facts
             .iter()
@@ -579,6 +816,57 @@ mod tests {
             .recent_signals
             .iter()
             .any(|item| item.contains("Elder Qinghe")));
+    }
+
+    #[test]
+    fn role_context_prioritizes_structured_note_types_per_role() {
+        let store = EntityStore::new();
+        let mut manager = NoNameMemoryManager::new();
+        manager.upsert_narrative_memory(test_note(
+            "goal-1",
+            crate::noname_memory_types::NoNameNarrativeNoteType::Goal,
+            "Hold Gate",
+            "Keep the mountain gate secure.",
+            1,
+        ));
+        manager.upsert_narrative_memory(test_note(
+            "conflict-1",
+            crate::noname_memory_types::NoNameNarrativeNoteType::Conflict,
+            "Gate Assault",
+            "Enemy cultivators are pressing the ward line.",
+            2,
+        ));
+        manager.upsert_narrative_memory(test_note(
+            "arc-1",
+            crate::noname_memory_types::NoNameNarrativeNoteType::CharacterArc,
+            "Elder Qinghe Doubt",
+            "Elder Qinghe is hesitating under pressure.",
+            3,
+        ));
+
+        let input = NoNameContextBuildInput {
+            role: NoNameRole::Director,
+            world_id: "w1".to_string(),
+            run_id: "r1".to_string(),
+            scene_id: "s1".to_string(),
+            character_ids: vec!["player".to_string()],
+            map_node_id: None,
+            player_intent: None,
+            recent_context_lines: vec!["The ward line flickers.".to_string()],
+            token_budget: 240,
+            per_section_limit: 3,
+        };
+
+        let director = build_role_context_packet(&store, &manager, &input, NoNameRole::Director);
+        let npc = build_role_context_packet(&store, &manager, &input, NoNameRole::NpcIntent);
+        let world = build_role_context_packet(&store, &manager, &input, NoNameRole::WorldCurator);
+
+        assert!(director.narrative_priorities[0].contains("Gate Assault"));
+        assert!(npc.narrative_priorities[0].contains("Elder Qinghe Doubt"));
+        assert!(world.narrative_priorities[0].contains("Hold Gate"));
+        assert_eq!(director.note_type_hits[0], "conflict: Gate Assault");
+        assert_eq!(npc.note_type_hits[0], "characterArc: Elder Qinghe Doubt");
+        assert_eq!(world.note_type_hits[0], "goal: Hold Gate");
     }
 
     #[test]
@@ -615,5 +903,65 @@ mod tests {
             .forbidden_scopes
             .iter()
             .any(|item| item.contains("hidden knowledge")));
+    }
+
+    #[test]
+    fn role_context_can_flatten_back_to_agent_context_packet() {
+        let packet = NoNameContextPacket {
+            role: NoNameRole::NpcIntent,
+            hard_facts: vec!["Gate has a ward".to_string()],
+            working_memory: vec!["Player suspects Elder Qinghe".to_string()],
+            episodic_memory: vec!["Elder Qinghe hesitated".to_string()],
+            narrative_notes: vec!["Broken Ward: saboteur unknown".to_string()],
+            chapter_summaries: vec!["Gate Crisis: ward damaged".to_string()],
+            recent_context: vec!["Ward flickers".to_string()],
+            referenced_entities: vec![
+                "Character:player".to_string(),
+                "Character:ElderQinghe".to_string(),
+            ],
+            compressed_summary: None,
+            token_budget_used: 42,
+            source_stats: vec![NoNameContextSourceStat {
+                source: "test".to_string(),
+                count: 1,
+            }],
+        };
+
+        let role_packet = specialize_context_packet(&packet);
+        let flattened = flatten_role_context_packet(&role_packet);
+
+        assert_eq!(flattened.role, NoNameRole::NpcIntent);
+        assert_eq!(flattened.hard_facts, role_packet.world_facts);
+        assert_eq!(flattened.narrative_notes, role_packet.narrative_priorities);
+        assert_eq!(flattened.recent_context, role_packet.recent_signals);
+        assert!(flattened
+            .referenced_entities
+            .iter()
+            .any(|item| item.contains("ElderQinghe")));
+        assert!(flattened
+            .compressed_summary
+            .as_deref()
+            .unwrap_or_default()
+            .contains("roleGoal"));
+    }
+
+    fn test_note(
+        note_id: &str,
+        note_type: crate::noname_memory_types::NoNameNarrativeNoteType,
+        title: &str,
+        summary: &str,
+        updated_at: u64,
+    ) -> crate::noname_memory_types::NoNameNarrativeMemoryItem {
+        crate::noname_memory_types::NoNameNarrativeMemoryItem {
+            note_id: note_id.to_string(),
+            chapter_index: 1,
+            arc_id: None,
+            note_type,
+            title: title.to_string(),
+            summary: summary.to_string(),
+            status: crate::noname_memory_types::NoNameNarrativeStatus::Active,
+            related_entities: vec![],
+            updated_at,
+        }
     }
 }

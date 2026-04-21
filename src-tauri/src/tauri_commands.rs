@@ -16,7 +16,8 @@ use crate::llm_service::{LLMConfig, LLMRequest, LLMService};
 use crate::memory_layers::{ChapterSummary, MemoryEntry, WorldFact};
 use crate::noname_apply::{
     apply_reviewed_output_to_plot_state, NoNameApplyDiagnosticsSnapshot,
-    NoNameApplySegmentSnapshot, NoNameApplySummarySnapshot, NoNameReviewedApplyRequest,
+    NoNameApplyPlotAugmentationSnapshot, NoNameApplySegmentSnapshot, NoNameApplySummarySnapshot,
+    NoNameReviewedApplyRequest,
 };
 use crate::noname_config::NoNameConfig;
 use crate::noname_context_builder::build_context_packet;
@@ -186,7 +187,7 @@ fn target_segment_supports_apply_scope(
     scope: NoNameApplyScope,
 ) -> bool {
     match scope {
-        NoNameApplyScope::PlotTextHint => matches!(
+        NoNameApplyScope::PlotTextHint | NoNameApplyScope::PlotAugmentationHint => matches!(
             target_segment,
             NoNameTargetSegment::CurrentTurnHead | NoNameTargetSegment::CurrentTurnTail
         ),
@@ -218,6 +219,7 @@ pub struct NoNameManualPlotTextApplyResult {
 fn priority_for_apply_scope(scope: NoNameApplyScope) -> u32 {
     match scope {
         NoNameApplyScope::PlotTextHint => 300,
+        NoNameApplyScope::PlotAugmentationHint => 250,
         NoNameApplyScope::ChapterSummaryHint => 200,
         NoNameApplyScope::OptionBiasHint => 100,
         NoNameApplyScope::Diagnostics => 50,
@@ -282,6 +284,53 @@ fn plan_noname_apply_target(
                     decision: NoNameApplyTargetDecision::Skip {
                         outcome: "skipped_duplicate",
                         note: "正文已包含 NoName 标记，跳过重复提示".to_string(),
+                    },
+                };
+            }
+        }
+        NoNameApplyScope::PlotAugmentationHint => {
+            let Some(state) = plot_state else {
+                return NoNameApplyTargetPlan {
+                    target,
+                    priority,
+                    order: 0,
+                    decision: NoNameApplyTargetDecision::Skip {
+                        outcome: "skipped_missing_plot_state",
+                        note: "缺少 plot_state，跳过剧情增强提示".to_string(),
+                    },
+                };
+            };
+            if !state.is_waiting_for_input {
+                return NoNameApplyTargetPlan {
+                    target,
+                    priority,
+                    order: 0,
+                    decision: NoNameApplyTargetDecision::Skip {
+                        outcome: "skipped_not_waiting",
+                        note: "当前不处于等待输入状态，跳过剧情增强提示".to_string(),
+                    },
+                };
+            }
+            let hint = format!(
+                "NoName plot augmentation: focus={} | effect={}",
+                proposal.focus.trim(),
+                proposal.intended_effect.trim()
+            );
+            if state
+                .pending_plot_augmentation_hints
+                .iter()
+                .any(|existing| existing == &hint)
+            {
+                return NoNameApplyTargetPlan {
+                    target,
+                    priority,
+                    order: 0,
+                    decision: NoNameApplyTargetDecision::Skip {
+                        outcome: "skipped_duplicate",
+                        note: format!(
+                            "剧情增强提示已包含“{}”，跳过重复写入",
+                            proposal.focus.trim()
+                        ),
                     },
                 };
             }
@@ -370,6 +419,12 @@ fn build_noname_apply_plan_set(
             NoNameApplyScope::PlotTextHint,
             plot_state,
             plot_text,
+        ),
+        plan_noname_apply_target(
+            proposal,
+            NoNameApplyScope::PlotAugmentationHint,
+            plot_state,
+            None,
         ),
         plan_noname_apply_target(
             proposal,
@@ -486,12 +541,16 @@ fn record_noname_human_review_apply_intent(
         NoNameHumanReviewDecision::ApprovedForHigherApply => {
             let rejection_reason = if trace.mode != NoNameMode::Assisted {
                 Some("当前 trace 不是 assisted 模式，拒绝进入高层 apply intent".to_string())
-            } else if safe_apply_scope != Some(NoNameApplyScope::PlotTextHint) {
+            } else if !matches!(
+                safe_apply_scope,
+                Some(NoNameApplyScope::PlotTextHint | NoNameApplyScope::PlotAugmentationHint)
+            ) {
                 Some(format!(
-                    "当前仅允许 plot_text_hint 进入人工确认后的二次 guardrail，实际作用域为 {}",
+                    "当前仅允许 plot_text_hint / plot_augmentation_hint 进入人工确认后的二次 guardrail，实际作用域为 {}",
                     target
                 ))
             } else {
+                let scope = safe_apply_scope.unwrap_or(NoNameApplyScope::PlotTextHint);
                 match find_review_proposal(trace, request_id) {
                     Some(proposal)
                         if proposal.status
@@ -499,7 +558,7 @@ fn record_noname_human_review_apply_intent(
                             && proposal.applyable
                             && target_segment_supports_apply_scope(
                                 proposal.target_segment,
-                                NoNameApplyScope::PlotTextHint,
+                                scope,
                             ) =>
                     {
                         None
@@ -516,8 +575,9 @@ fn record_noname_human_review_apply_intent(
                         ))
                     }
                     Some(proposal) => Some(format!(
-                        "target_segment={} 不支持 plot_text_hint 二次 apply",
-                        proposal.target_segment.as_str()
+                        "target_segment={} 不支持 {} 二次 apply",
+                        proposal.target_segment.as_str(),
+                        scope.as_str()
                     )),
                     None => {
                         Some("未找到 review 对应 proposal，拒绝进入高层 apply intent".to_string())
@@ -569,10 +629,10 @@ fn review_is_waiting_for_second_guardrail(trace: &NoNameTrace, request_id: &str)
         .proposal_transition_log
         .iter()
         .any(|entry| entry == &transition)
-        || trace.apply_execution_log.iter().any(|entry| {
-            entry.outcome == "awaiting_second_guardrail"
-                && entry.target == NoNameApplyScope::PlotTextHint.as_str()
-        })
+        || trace
+            .apply_execution_log
+            .iter()
+            .any(|entry| entry.outcome == "awaiting_second_guardrail")
 }
 
 fn second_guardrail_revalidation_reason(
@@ -583,8 +643,16 @@ fn second_guardrail_revalidation_reason(
     if trace.mode != NoNameMode::Assisted {
         return Some("当前 trace 不是 assisted 模式，二次 guardrail 拒绝".to_string());
     }
-    if safe_apply_scope != Some(NoNameApplyScope::PlotTextHint) {
-        return Some("当前二次 guardrail 只允许处理 plot_text_hint".to_string());
+    let Some(scope) = safe_apply_scope else {
+        return Some("二次 guardrail 缺少 safe_apply_scope".to_string());
+    };
+    if !matches!(
+        scope,
+        NoNameApplyScope::PlotTextHint | NoNameApplyScope::PlotAugmentationHint
+    ) {
+        return Some(
+            "当前二次 guardrail 只允许处理 plot_text_hint / plot_augmentation_hint".to_string(),
+        );
     }
     if !review_is_waiting_for_second_guardrail(trace, request_id) {
         return Some("review 尚未进入 awaiting_second_guardrail 队列".to_string());
@@ -594,10 +662,7 @@ fn second_guardrail_revalidation_reason(
         Some(proposal)
             if proposal.status == crate::noname_types::NoNameProposalStatus::Applied
                 && proposal.applyable
-                && target_segment_supports_apply_scope(
-                    proposal.target_segment,
-                    NoNameApplyScope::PlotTextHint,
-                ) =>
+                && target_segment_supports_apply_scope(proposal.target_segment, scope) =>
         {
             None
         }
@@ -612,8 +677,9 @@ fn second_guardrail_revalidation_reason(
             ))
         }
         Some(proposal) => Some(format!(
-            "target_segment={} 不支持 plot_text_hint 二次 guardrail",
-            proposal.target_segment.as_str()
+            "target_segment={} 不支持 {} 二次 guardrail",
+            proposal.target_segment.as_str(),
+            scope.as_str()
         )),
         None => Some("未找到 review 对应 proposal，二次 guardrail 拒绝".to_string()),
     }
@@ -735,6 +801,7 @@ fn apply_noname_manual_plot_text_hint_to_plot_state(
             }),
             summary_snapshot: None,
             diagnostics_snapshot: None,
+            plot_augmentation_snapshot: None,
         },
         plot_state,
     )?;
@@ -744,7 +811,7 @@ fn apply_noname_manual_plot_text_hint_to_plot_state(
     })
 }
 
-fn build_noname_reviewed_apply_request(
+struct NoNameReviewedApplyCommandInput {
     request_id: String,
     scope: NoNameApplyScope,
     chapter_index: Option<u32>,
@@ -752,48 +819,73 @@ fn build_noname_reviewed_apply_request(
     expected_segment_text: Option<String>,
     expected_summary: Option<String>,
     expected_generation_diagnostics: Option<String>,
+    expected_plot_augmentation_hints: Option<Vec<String>>,
+}
+
+fn build_noname_reviewed_apply_request(
+    input: NoNameReviewedApplyCommandInput,
 ) -> Result<NoNameReviewedApplyRequest, String> {
-    let segment_snapshot = match scope {
+    let segment_snapshot = match input.scope {
         NoNameApplyScope::PlotTextHint => Some(NoNameApplySegmentSnapshot {
-            chapter_index: chapter_index
+            chapter_index: input
+                .chapter_index
                 .ok_or_else(|| "plot_text_hint manual apply requires chapter_index".to_string())?,
-            segment_index: segment_index
+            segment_index: input
+                .segment_index
                 .ok_or_else(|| "plot_text_hint manual apply requires segment_index".to_string())?,
-            expected_segment_text: expected_segment_text.ok_or_else(|| {
+            expected_segment_text: input.expected_segment_text.ok_or_else(|| {
                 "plot_text_hint manual apply requires expected_segment_text".to_string()
             })?,
         }),
         _ => None,
     };
-    let summary_snapshot = match scope {
+    let summary_snapshot = match input.scope {
         NoNameApplyScope::ChapterSummaryHint => Some(NoNameApplySummarySnapshot {
-            chapter_index: chapter_index.ok_or_else(|| {
+            chapter_index: input.chapter_index.ok_or_else(|| {
                 "chapter_summary_hint manual apply requires chapter_index".to_string()
             })?,
-            expected_summary: expected_summary.ok_or_else(|| {
+            expected_summary: input.expected_summary.ok_or_else(|| {
                 "chapter_summary_hint manual apply requires expected_summary".to_string()
             })?,
         }),
         _ => None,
     };
-    let diagnostics_snapshot = match scope {
+    let diagnostics_snapshot = match input.scope {
         NoNameApplyScope::OptionBiasHint => Some(NoNameApplyDiagnosticsSnapshot {
-            chapter_index: chapter_index.ok_or_else(|| {
+            chapter_index: input.chapter_index.ok_or_else(|| {
                 "option_bias_hint manual apply requires chapter_index".to_string()
             })?,
-            expected_generation_diagnostics: expected_generation_diagnostics.ok_or_else(|| {
-                "option_bias_hint manual apply requires expected_generation_diagnostics".to_string()
+            expected_generation_diagnostics: input.expected_generation_diagnostics.ok_or_else(
+                || {
+                    "option_bias_hint manual apply requires expected_generation_diagnostics"
+                        .to_string()
+                },
+            )?,
+        }),
+        _ => None,
+    };
+    let plot_augmentation_snapshot = match input.scope {
+        NoNameApplyScope::PlotAugmentationHint => Some(NoNameApplyPlotAugmentationSnapshot {
+            chapter_index: input.chapter_index.ok_or_else(|| {
+                "plot_augmentation_hint manual apply requires chapter_index".to_string()
             })?,
+            expected_plot_augmentation_hints: input.expected_plot_augmentation_hints.ok_or_else(
+                || {
+                    "plot_augmentation_hint manual apply requires expected_plot_augmentation_hints"
+                        .to_string()
+                },
+            )?,
         }),
         _ => None,
     };
 
     Ok(NoNameReviewedApplyRequest {
-        request_id,
-        scope,
+        request_id: input.request_id,
+        scope: input.scope,
         segment_snapshot,
         summary_snapshot,
         diagnostics_snapshot,
+        plot_augmentation_snapshot,
     })
 }
 
@@ -1145,6 +1237,19 @@ fn diagnostics_used_preset_fallback(diag: Option<&str>) -> bool {
         return false;
     };
     text.contains("已使用预设文本")
+}
+
+fn append_generation_diagnostic(existing: &mut Option<String>, note: impl Into<String>) {
+    let note = note.into();
+    match existing {
+        Some(diag) => {
+            diag.push('；');
+            diag.push_str(&note);
+        }
+        None => {
+            *existing = Some(note);
+        }
+    }
 }
 
 fn effective_consistency_report_after_option_resolution(
@@ -3627,6 +3732,7 @@ pub async fn execute_player_action(
     } else {
         build_plot_context_for_generation(&game_state, &plot_state, &action)
     };
+    let pending_plot_augmentation_snapshot = plot_state.pending_plot_augmentation_hints.clone();
     let mut plot_state_for_generation = plot_state.clone();
     let narrative_hint =
         narrative_density_and_pacing_hint(plot_state.current_chapter.interaction_count);
@@ -3644,7 +3750,7 @@ pub async fn execute_player_action(
         }
     }
 
-    let cache_key = if quick_mode {
+    let cache_key = if quick_mode || !pending_plot_augmentation_snapshot.is_empty() {
         None
     } else {
         Some(build_action_plot_cache_key(
@@ -3899,6 +4005,7 @@ pub async fn execute_player_action(
     }
 
     // Phase 2: 双通道（state_patch + narrative）优先，失败则保留现有 plot_engine 结果。
+    let mut plot_update_overridden_by_turn_update = false;
     if !quick_mode {
         if let Some(mut registry) = world_registry.clone() {
             let turn_update_started = Instant::now();
@@ -3979,6 +4086,7 @@ pub async fn execute_player_action(
                         if entity_ref_ok {
                             if !narrative.is_empty() {
                                 plot_update.plot_text = narrative;
+                                plot_update_overridden_by_turn_update = true;
                             }
                             if !turn_result.choices.is_empty() {
                                 plot_update.available_options =
@@ -4127,6 +4235,68 @@ pub async fn execute_player_action(
     }
 
     plot_state.last_generation_diagnostics = plot_update.generation_diagnostics.clone();
+    let mut pending_plot_augmentation_trace: Option<(String, String)> = None;
+    if !pending_plot_augmentation_snapshot.is_empty() {
+        let should_consume_pending_plot_augmentation = !quick_mode
+            && !plot_update_overridden_by_turn_update
+            && !diagnostics_used_preset_fallback(plot_state.last_generation_diagnostics.as_deref());
+        if should_consume_pending_plot_augmentation {
+            match plot_state
+                .consume_pending_plot_augmentation_hints(&pending_plot_augmentation_snapshot)
+            {
+                Ok(consumed) => {
+                    let note = format!(
+                        "pending plot augmentation consumed after plot_engine generation; count={}",
+                        consumed
+                    );
+                    append_generation_diagnostic(
+                        &mut plot_state.last_generation_diagnostics,
+                        format!("NoName pending plot augmentation consumed={}", consumed),
+                    );
+                    pending_plot_augmentation_trace =
+                        Some(("pending_plot_augmentation_consumed".to_string(), note));
+                }
+                Err(err) => {
+                    let note = format!(
+                        "pending plot augmentation retained because snapshot changed: {}",
+                        err
+                    );
+                    append_generation_diagnostic(
+                        &mut plot_state.last_generation_diagnostics,
+                        format!("NoName pending plot augmentation retained({})", err),
+                    );
+                    pending_plot_augmentation_trace =
+                        Some(("pending_plot_augmentation_retained".to_string(), note));
+                }
+            }
+        } else {
+            let retain_reason = if quick_mode {
+                "quick_mode"
+            } else if plot_update_overridden_by_turn_update {
+                "turn_update_override"
+            } else if diagnostics_used_preset_fallback(
+                plot_state.last_generation_diagnostics.as_deref(),
+            ) {
+                "preset_fallback"
+            } else {
+                "no_llm_consumption"
+            };
+            let note = format!(
+                "pending plot augmentation retained because {}; count={}",
+                retain_reason,
+                pending_plot_augmentation_snapshot.len()
+            );
+            append_generation_diagnostic(
+                &mut plot_state.last_generation_diagnostics,
+                format!(
+                    "NoName pending plot augmentation retained({})",
+                    retain_reason
+                ),
+            );
+            pending_plot_augmentation_trace =
+                Some(("pending_plot_augmentation_retained".to_string(), note));
+        }
+    }
 
     // 用最新段落更新场景描述，避免选项生成长期绑定旧描述导致“选项不变”。
     if !plot_text_for_history.trim().is_empty() {
@@ -4381,6 +4551,17 @@ pub async fn execute_player_action(
     }
 
     if let Some(mut noname_result) = noname_result {
+        if let Some((outcome, note)) = pending_plot_augmentation_trace.take() {
+            noname_result.trace.record_apply_execution(
+                NoNameApplyScope::PlotAugmentationHint.as_str(),
+                outcome.as_str(),
+                Some(note),
+            );
+            noname_result.trace.record_proposal_transition(format!(
+                "{}:pending_plot_augmentation:{}",
+                noname_result.proposal.proposal_id, outcome
+            ));
+        }
         apply_noname_low_risk_outputs(
             &mut plot_state,
             &mut noname_result,
@@ -4589,9 +4770,10 @@ pub async fn apply_noname_reviewed_output(
     expected_segment_text: Option<String>,
     expected_summary: Option<String>,
     expected_generation_diagnostics: Option<String>,
+    expected_plot_augmentation_hints: Option<Vec<String>>,
     engine: State<'_, Mutex<GameEngine>>,
 ) -> Result<NoNameManualPlotTextApplyResult, String> {
-    let request = build_noname_reviewed_apply_request(
+    let request = build_noname_reviewed_apply_request(NoNameReviewedApplyCommandInput {
         request_id,
         scope,
         chapter_index,
@@ -4599,7 +4781,8 @@ pub async fn apply_noname_reviewed_output(
         expected_segment_text,
         expected_summary,
         expected_generation_diagnostics,
-    )?;
+        expected_plot_augmentation_hints,
+    })?;
     let trace = {
         let runtime = noname_runtime()
             .lock()
@@ -7202,6 +7385,7 @@ mod tests {
             last_generation_diagnostics: None,
             last_option_generation_source: None,
             last_consistency_risk_score: None,
+            pending_plot_augmentation_hints: Vec::new(),
         };
 
         let summary = build_noname_action_summary(&action, &plot_state);
@@ -7217,6 +7401,13 @@ mod tests {
             focus: "山门危机".to_string(),
             rationale: "应优先观察山门危机".to_string(),
             prompt_preview: "prompt".to_string(),
+            role_goal: None,
+            scene_focus: None,
+            forbidden_scopes: Vec::new(),
+            note_type_hits: Vec::new(),
+            source_stats: Vec::new(),
+            context_token_budget_used: None,
+            context_slice_stats: Vec::new(),
             proposal: crate::noname_types::NoNameProposal {
                 proposal_id: "proposal-1".to_string(),
                 kind: crate::noname_types::NoNameProposalKind::PlotCandidate,
@@ -7370,12 +7561,17 @@ mod tests {
             crate::noname_types::NoNameProposalStatus::Applied
         );
         assert!(result.proposal.applyable);
-        assert_eq!(result.trace.controlled_output_reviews.len(), 4);
+        assert_eq!(result.trace.controlled_output_reviews.len(), 5);
         assert!(result
             .trace
             .controlled_output_reviews
             .iter()
             .any(|review| review.requires_human_review));
+        assert!(result.trace.controlled_output_reviews.iter().any(|review| {
+            review.safe_apply_scope
+                == Some(crate::noname_types::NoNameApplyScope::PlotAugmentationHint)
+                && review.requires_human_review
+        }));
         assert!(plot_state_after
             .current_chapter
             .summary
@@ -7551,6 +7747,7 @@ mod tests {
             last_generation_diagnostics: None,
             last_option_generation_source: None,
             last_consistency_risk_score: None,
+            pending_plot_augmentation_hints: Vec::new(),
         };
         let applied = apply_noname_manual_plot_text_hint_to_plot_state(
             resolved,
@@ -7593,6 +7790,7 @@ mod tests {
             last_generation_diagnostics: None,
             last_option_generation_source: None,
             last_consistency_risk_score: None,
+            pending_plot_augmentation_hints: Vec::new(),
         };
         let mut result = NoNameDirectorRunResult {
             trace: NoNameTrace {
@@ -7620,6 +7818,13 @@ mod tests {
                 focus: "山门危机".to_string(),
                 rationale: "应优先观察山门危机".to_string(),
                 prompt_preview: "prompt".to_string(),
+                role_goal: None,
+                scene_focus: None,
+                forbidden_scopes: Vec::new(),
+                note_type_hits: Vec::new(),
+                source_stats: Vec::new(),
+                context_token_budget_used: None,
+                context_slice_stats: Vec::new(),
                 proposal: crate::noname_types::NoNameProposal {
                     proposal_id: "proposal-1".to_string(),
                     kind: crate::noname_types::NoNameProposalKind::PlotCandidate,
@@ -7735,6 +7940,13 @@ mod tests {
                 focus: "山门危机".to_string(),
                 rationale: "应优先观察山门危机".to_string(),
                 prompt_preview: "prompt".to_string(),
+                role_goal: None,
+                scene_focus: None,
+                forbidden_scopes: Vec::new(),
+                note_type_hits: Vec::new(),
+                source_stats: Vec::new(),
+                context_token_budget_used: None,
+                context_slice_stats: Vec::new(),
                 proposal: crate::noname_types::NoNameProposal {
                     proposal_id: "proposal-plot-text".to_string(),
                     kind: crate::noname_types::NoNameProposalKind::PlotCandidate,
@@ -7817,6 +8029,13 @@ mod tests {
                 focus: "山门危机".to_string(),
                 rationale: "应优先观察山门危机".to_string(),
                 prompt_preview: "prompt".to_string(),
+                role_goal: None,
+                scene_focus: None,
+                forbidden_scopes: Vec::new(),
+                note_type_hits: Vec::new(),
+                source_stats: Vec::new(),
+                context_token_budget_used: None,
+                context_slice_stats: Vec::new(),
                 proposal: crate::noname_types::NoNameProposal {
                     proposal_id: "proposal-plot-text-head".to_string(),
                     kind: crate::noname_types::NoNameProposalKind::PlotCandidate,
@@ -7883,6 +8102,7 @@ mod tests {
             last_generation_diagnostics: None,
             last_option_generation_source: None,
             last_consistency_risk_score: None,
+            pending_plot_augmentation_hints: Vec::new(),
         };
         let mut result = NoNameDirectorRunResult {
             trace: NoNameTrace {
@@ -7910,6 +8130,13 @@ mod tests {
                 focus: "山门危机".to_string(),
                 rationale: "应优先观察山门危机".to_string(),
                 prompt_preview: "prompt".to_string(),
+                role_goal: None,
+                scene_focus: None,
+                forbidden_scopes: Vec::new(),
+                note_type_hits: Vec::new(),
+                source_stats: Vec::new(),
+                context_token_budget_used: None,
+                context_slice_stats: Vec::new(),
                 proposal: crate::noname_types::NoNameProposal {
                     proposal_id: "proposal-scope".to_string(),
                     kind: crate::noname_types::NoNameProposalKind::PlotCandidate,
@@ -7995,6 +8222,7 @@ mod tests {
             last_generation_diagnostics: None,
             last_option_generation_source: None,
             last_consistency_risk_score: None,
+            pending_plot_augmentation_hints: Vec::new(),
         };
         let mut result = NoNameDirectorRunResult {
             trace: NoNameTrace {
@@ -8022,6 +8250,13 @@ mod tests {
                 focus: "山门危机".to_string(),
                 rationale: "应优先观察山门危机".to_string(),
                 prompt_preview: "prompt".to_string(),
+                role_goal: None,
+                scene_focus: None,
+                forbidden_scopes: Vec::new(),
+                note_type_hits: Vec::new(),
+                source_stats: Vec::new(),
+                context_token_budget_used: None,
+                context_slice_stats: Vec::new(),
                 proposal: crate::noname_types::NoNameProposal {
                     proposal_id: "proposal-summary-head".to_string(),
                     kind: crate::noname_types::NoNameProposalKind::PlotCandidate,
@@ -8095,6 +8330,13 @@ mod tests {
                 focus: "山门危机".to_string(),
                 rationale: "应优先观察山门危机".to_string(),
                 prompt_preview: "prompt".to_string(),
+                role_goal: None,
+                scene_focus: None,
+                forbidden_scopes: Vec::new(),
+                note_type_hits: Vec::new(),
+                source_stats: Vec::new(),
+                context_token_budget_used: None,
+                context_slice_stats: Vec::new(),
                 proposal: crate::noname_types::NoNameProposal {
                     proposal_id: "proposal-plot-text-mismatch".to_string(),
                     kind: crate::noname_types::NoNameProposalKind::PlotCandidate,
@@ -8170,6 +8412,7 @@ mod tests {
             last_generation_diagnostics: None,
             last_option_generation_source: None,
             last_consistency_risk_score: None,
+            pending_plot_augmentation_hints: Vec::new(),
         };
         let mut result = NoNameDirectorRunResult {
             trace: NoNameTrace {
@@ -8197,6 +8440,13 @@ mod tests {
                 focus: "山门危机".to_string(),
                 rationale: "应优先观察山门危机".to_string(),
                 prompt_preview: "prompt".to_string(),
+                role_goal: None,
+                scene_focus: None,
+                forbidden_scopes: Vec::new(),
+                note_type_hits: Vec::new(),
+                source_stats: Vec::new(),
+                context_token_budget_used: None,
+                context_slice_stats: Vec::new(),
                 proposal: crate::noname_types::NoNameProposal {
                     proposal_id: "proposal-summary-duplicate".to_string(),
                     kind: crate::noname_types::NoNameProposalKind::PlotCandidate,
@@ -8271,6 +8521,7 @@ mod tests {
             last_generation_diagnostics: Some(existing_hint.to_string()),
             last_option_generation_source: None,
             last_consistency_risk_score: None,
+            pending_plot_augmentation_hints: Vec::new(),
         };
         let mut result = NoNameDirectorRunResult {
             trace: NoNameTrace {
@@ -8298,6 +8549,13 @@ mod tests {
                 focus: "山门危机".to_string(),
                 rationale: "应优先观察山门危机".to_string(),
                 prompt_preview: "prompt".to_string(),
+                role_goal: None,
+                scene_focus: None,
+                forbidden_scopes: Vec::new(),
+                note_type_hits: Vec::new(),
+                source_stats: Vec::new(),
+                context_token_budget_used: None,
+                context_slice_stats: Vec::new(),
                 proposal: crate::noname_types::NoNameProposal {
                     proposal_id: "proposal-option-duplicate".to_string(),
                     kind: crate::noname_types::NoNameProposalKind::PlotCandidate,

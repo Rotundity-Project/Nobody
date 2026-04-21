@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 pub enum NoNameControlledOutputKind {
     RecapNote,
     SceneAugmentation,
+    NonFinalPlotAugmentation,
     NarrativeNote,
     IntermediateNarrativeHint,
 }
@@ -16,6 +17,7 @@ impl NoNameControlledOutputKind {
         match self {
             Self::RecapNote => "recap_note",
             Self::SceneAugmentation => "scene_augmentation",
+            Self::NonFinalPlotAugmentation => "non_final_plot_augmentation",
             Self::NarrativeNote => "narrative_note",
             Self::IntermediateNarrativeHint => "intermediate_narrative_hint",
         }
@@ -73,6 +75,7 @@ impl Default for NoNameControlledOutputPolicy {
             allowed_kinds: vec![
                 NoNameControlledOutputKind::RecapNote,
                 NoNameControlledOutputKind::SceneAugmentation,
+                NoNameControlledOutputKind::NonFinalPlotAugmentation,
                 NoNameControlledOutputKind::NarrativeNote,
                 NoNameControlledOutputKind::IntermediateNarrativeHint,
             ],
@@ -176,14 +179,18 @@ impl NoNameControlledOutputInterface {
             );
         }
 
-        if request.target_scope == NoNameApplyScope::PlotTextHint
-            && self.policy.requires_human_review_for_plot_text
+        if matches!(
+            request.target_scope,
+            NoNameApplyScope::PlotTextHint | NoNameApplyScope::PlotAugmentationHint
+        ) && self.policy.requires_human_review_for_plot_text
         {
             return NoNameControlledOutputReview {
                 request_id: request.request_id.clone(),
                 decision: NoNameControlledOutputDecision::NeedsReview,
-                reason: "plot text hint requires human review before higher-layer apply"
-                    .to_string(),
+                reason: format!(
+                    "{} requires human review before higher-layer apply",
+                    request.target_scope.as_str()
+                ),
                 normalized_kind: Some(request.kind),
                 safe_apply_scope: Some(request.target_scope),
                 requires_human_review: true,
@@ -327,6 +334,9 @@ pub fn default_apply_scope_for_kind(kind: NoNameControlledOutputKind) -> NoNameA
     match kind {
         NoNameControlledOutputKind::RecapNote => NoNameApplyScope::ChapterSummaryHint,
         NoNameControlledOutputKind::SceneAugmentation => NoNameApplyScope::PlotTextHint,
+        NoNameControlledOutputKind::NonFinalPlotAugmentation => {
+            NoNameApplyScope::PlotAugmentationHint
+        }
         NoNameControlledOutputKind::NarrativeNote => NoNameApplyScope::Diagnostics,
         NoNameControlledOutputKind::IntermediateNarrativeHint => NoNameApplyScope::OptionBiasHint,
     }
@@ -346,6 +356,9 @@ mod tests {
         assert!(policy
             .allowed_kinds
             .contains(&NoNameControlledOutputKind::IntermediateNarrativeHint));
+        assert!(policy
+            .allowed_kinds
+            .contains(&NoNameControlledOutputKind::NonFinalPlotAugmentation));
         assert!(policy
             .forbidden_scopes
             .contains(&NoNameForbiddenOutputScope::FinalPlotState));
@@ -415,11 +428,32 @@ mod tests {
     }
 
     #[test]
+    fn non_final_plot_augmentation_requires_review_without_final_state() {
+        let interface = NoNameControlledOutputInterface::default();
+        let request = interface.draft_stub(
+            NoNameControlledOutputKind::NonFinalPlotAugmentation,
+            NoNameRole::Director,
+            "Staged scene beat",
+            "Stage a reversible clue for the next turn without rewriting final plot state.",
+        );
+
+        let review = interface.review(&request);
+
+        assert_eq!(review.decision, NoNameControlledOutputDecision::NeedsReview);
+        assert_eq!(
+            review.safe_apply_scope,
+            Some(NoNameApplyScope::PlotAugmentationHint)
+        );
+        assert!(review.requires_human_review);
+    }
+
+    #[test]
     fn role_context_forbidden_scopes_map_to_output_policy() {
         let context = NoNameRoleContextPacket {
             role: NoNameRole::CombatNarrator,
             role_goal: "Track conflict rhythm".to_string(),
             scene_focus: "山门冲突".to_string(),
+            note_type_hits: vec![],
             world_facts: vec![],
             character_relationships: vec![],
             narrative_priorities: vec![],
@@ -429,6 +463,7 @@ mod tests {
                 "Must not determine final damage or victory state.".to_string(),
                 "Must not override world facts or combat outcomes.".to_string(),
             ],
+            context_slice_stats: vec![],
             source_stats: vec![],
             token_budget_used: 0,
         };

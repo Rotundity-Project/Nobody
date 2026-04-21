@@ -253,12 +253,12 @@ V1 的核心目标：
 - `apply_noname_manual_plot_text_hint` 已提供显式人工 apply 命令，要求人工批准、二次护栏 allow、章节/段落快照一致后才写入 `PlotTextHint`，并记录 `manual_plot_text_applied`
 - 前端调试台已补应用前差异预览、重复写入禁用与 stale snapshot 友好错误提示
 - `T7-3` 已补 apply lifecycle 可视化基线，能从提案、预检、低风险输出、人工复核、二次护栏、人工写入、fallback 等阶段阅读当前 trace
-- `T7-1` 第三切片已抽出 reviewed apply runtime，并新增 `apply_noname_reviewed_output` 通用命令入口；现有 `PlotTextHint` 人工写入已改走该入口，旧命令保留兼容，`ChapterSummaryHint` 与 `OptionBiasHint` 已复用同一入口和快照校验
+- `T7-1` 第七切片已抽出 reviewed apply runtime，并新增 `apply_noname_reviewed_output` 通用命令入口；现有 `PlotTextHint` 人工写入已改走该入口，旧命令保留兼容，`ChapterSummaryHint`、`OptionBiasHint` 与 `PlotAugmentationHint` 已复用同一入口和快照校验，且低风险/非最终提示写入已下沉到 `plot_engine`；pending augmentation 已能作为安全上下文进入下一轮 plot prompt，前端调试台已补四类 scope 的显式 reviewed apply 入口
 
 当前未完成：
 
 - proposal 仍不会自动影响最终剧情文本或核心状态；`PlotTextHint` 只允许在人工批准 + 二次护栏 + 显式命令下写入
-- reviewed apply runtime 已接入 `PlotTextHint`、`ChapterSummaryHint` 与 `OptionBiasHint`，尚未扩展到 `plot_engine` 低风险输出层入口
+- reviewed apply runtime 已接入 `PlotTextHint`、`ChapterSummaryHint`、`OptionBiasHint` 与 `PlotAugmentationHint`，后两层已通过 `plot_engine` 低风险/非最终提示入口落地；pending augmentation 已能被下一轮 prompt/context 安全消费，下一步可补更细 trace 可观测性或继续拓展新的受控输出类型
 
 阶段完成标准：
 
@@ -400,3 +400,9 @@ V1 的核心目标：
 - 有 guardrail
 
 因此，`V1` 可以视为已完成。真正的下一阶段目标，不是再重复搭框架，而是把 `assisted skeleton` 推进成“受控应用 proposal”的稳定实现。
+
+## 2026-04-18 T7-1.5 Blueprint Note
+
+- The current T7 line has moved from "can stage non-final plot augmentation" to "can stage, consume or retain, and observe that lifecycle".
+- Implementation boundary: `tauri_commands.rs` only records orchestration-level consume/retain outcomes, while `plot_engine.rs` remains the only layer that turns prompt context into actual plot output.
+- UX boundary: `noNameApplyLifecycle` now exposes the pending augmentation lifecycle, so operators can see whether a reviewed hint is still waiting, has been consumed, or was retained for safety reasons.

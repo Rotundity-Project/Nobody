@@ -341,7 +341,7 @@ describe('gameStore', () => {
         intendedEffect: '为下一轮低风险输出提供导向',
         rationale: '当前章节冲突正在汇聚',
         labels: ['director', 'assisted_ready'],
-        applyScopes: ['diagnostics', 'chapterSummaryHint'],
+        applyScopes: ['diagnostics', 'chapterSummaryHint', 'plotAugmentationHint'],
         status: 'ready',
         applyable: true,
       }],
@@ -357,6 +357,10 @@ describe('gameStore', () => {
         target: 'chapter_summary_hint',
         outcome: 'applied',
         note: '已写入章节摘要提示',
+      }, {
+        target: 'plot_augmentation_hint',
+        outcome: 'pending_plot_augmentation_consumed',
+        note: 'pending plot augmentation consumed after plot_engine generation; count=1',
       }],
       controlledOutputReviews: [{
         requestId: 'controlled-output-proposal-1-plot_text_hint',
@@ -374,6 +378,13 @@ describe('gameStore', () => {
         actionSummary: '玩家返回山门',
         focus: '山门法阵',
         rationale: '需要补齐世界设定锚点',
+        roleGoal: 'Maintain world facts, scene constraints, and canon anchors.',
+        sceneFocus: '山门法阵',
+        forbiddenScopes: ['Must not decide NPC private intent.'],
+        noteTypeHits: ['goal: Hold Gate'],
+        sourceStats: [{ source: 'hard_facts', count: 2 }],
+        contextTokenBudgetUsed: 42,
+        contextSliceStats: [{ section: 'worldFacts', sourceCount: 4, visibleCount: 3 }],
         proposal: {
           proposalId: 'proposal-world-1',
           kind: 'worldPatchProposal',
@@ -417,14 +428,22 @@ describe('gameStore', () => {
     expect(text).toContain('应用生命周期：提案阶段:ready');
     expect(text).toContain('应用计划：#1:chapter_summary_hint:apply@200');
     expect(text).toContain('应用执行：chapter_summary_hint:applied');
+    expect(text).toContain('剧情增强提示:已消费[raw=plot_augmentation_hint:pending_plot_augmentation_consumed]');
     expect(text).toContain('受控输出复核：sceneAugmentation:plotTextHint:needsReview:human[禁区=finalPlotState/canonWorldFact][人工=approvedForHigherApply]');
     expect(text).toContain('状态迁移：proposal-1:ready');
     expect(text).toContain('提案：Director提案：山门危机 / 山门危机 / ready');
     expect(text).toContain('目标段：current_turn_tail');
     expect(text).toContain('预期效果：为下一轮低风险输出提供导向');
     expect(text).toContain('作用域：diagnostics, chapterSummaryHint');
+    expect(text).toContain('剧情增强提示：已消费');
     expect(text).toContain('agent:delegation:running');
+    expect(text).toContain('[来源=hard_facts:2]');
+    expect(text).toContain('[token=42]');
+    expect(text).toContain('[裁剪=worldFacts:4->3]');
     expect(text).toContain('协作观察：worldCurator:山门法阵');
+    expect(text).toContain('[上下文=Maintain world facts, scene constraints, and canon anchors. / 山门法阵]');
+    expect(text).toContain('[禁区=Must not decide NPC private intent.]');
+    expect(text).toContain('[笔记=goal: Hold Gate]');
   });
 
   it('marks a NoName controlled output review and updates local trace', async () => {
@@ -568,6 +587,107 @@ describe('gameStore', () => {
     expect(store.plotState?.current_chapter.content[0]).toContain('【NoName】重点关注');
     expect(store.noNameTraces[0].applyExecutionLog?.[0]?.outcome)
       .toBe('manual_plot_text_applied');
+  });
+
+  it('applies a manual NoName chapter summary hint with current summary snapshot', async () => {
+    const store = useGameStore();
+    const plotState = basePlotState();
+    plotState.current_chapter.index = 2;
+    plotState.current_chapter.summary = '已有摘要';
+    store.plotState = plotState;
+    store.noNameTraces = [{
+      traceId: 'trace-summary',
+      sessionId: 'session-1',
+      turnId: 'turn-1',
+      mode: 'assisted',
+      graphPath: [],
+      capabilityCalls: [],
+      proposals: [],
+      fallbackUsed: false,
+      elapsedMs: 0,
+    }];
+    invokeMock.mockResolvedValue({
+      trace: {
+        ...store.noNameTraces[0],
+        applyExecutionLog: [{
+          target: 'chapter_summary_hint',
+          outcome: 'manual_chapter_summary_hint_applied',
+          note: 'applied',
+        }],
+      },
+      plotState: {
+        ...plotState,
+        current_chapter: {
+          ...plotState.current_chapter,
+          summary: '已有摘要; NoName summary hint: 山门危机',
+        },
+      },
+    });
+
+    await store.applyNoNameManualChapterSummaryHint({
+      traceId: 'trace-summary',
+      requestId: 'review-summary',
+    });
+
+    expect(invokeMock).toHaveBeenCalledWith('apply_noname_reviewed_output', {
+      traceId: 'trace-summary',
+      requestId: 'review-summary',
+      scope: 'chapterSummaryHint',
+      chapterIndex: 2,
+      expectedSummary: '已有摘要',
+    });
+    expect(store.plotState?.current_chapter.summary).toContain('NoName summary hint');
+    expect(store.noNameTraces[0].applyExecutionLog?.[0]?.outcome)
+      .toBe('manual_chapter_summary_hint_applied');
+  });
+
+  it('applies a manual NoName option bias hint with current diagnostics snapshot', async () => {
+    const store = useGameStore();
+    const plotState = basePlotState();
+    plotState.current_chapter.index = 3;
+    plotState.last_generation_diagnostics = 'base diagnostics';
+    store.plotState = plotState;
+    store.noNameTraces = [{
+      traceId: 'trace-option',
+      sessionId: 'session-1',
+      turnId: 'turn-1',
+      mode: 'assisted',
+      graphPath: [],
+      capabilityCalls: [],
+      proposals: [],
+      fallbackUsed: false,
+      elapsedMs: 0,
+    }];
+    invokeMock.mockResolvedValue({
+      trace: {
+        ...store.noNameTraces[0],
+        applyExecutionLog: [{
+          target: 'option_bias_hint',
+          outcome: 'manual_option_bias_hint_applied',
+          note: 'applied',
+        }],
+      },
+      plotState: {
+        ...plotState,
+        last_generation_diagnostics: 'base diagnostics; NoName option bias: focus',
+      },
+    });
+
+    await store.applyNoNameManualOptionBiasHint({
+      traceId: 'trace-option',
+      requestId: 'review-option',
+    });
+
+    expect(invokeMock).toHaveBeenCalledWith('apply_noname_reviewed_output', {
+      traceId: 'trace-option',
+      requestId: 'review-option',
+      scope: 'optionBiasHint',
+      chapterIndex: 3,
+      expectedGenerationDiagnostics: 'base diagnostics',
+    });
+    expect(store.plotState?.last_generation_diagnostics).toContain('NoName option bias');
+    expect(store.noNameTraces[0].applyExecutionLog?.[0]?.outcome)
+      .toBe('manual_option_bias_hint_applied');
   });
 
   it('shows a friendly stale snapshot error for manual NoName plot text apply', async () => {

@@ -1,3 +1,4 @@
+use crate::noname_context_types::{NoNameContextSourceStat, NoNameRoleContextSliceStat};
 use crate::noname_output_interface::{
     NoNameControlledOutputDecision, NoNameControlledOutputKind, NoNameControlledOutputReview,
     NoNameForbiddenOutputScope,
@@ -119,6 +120,20 @@ pub struct NoNameRelatedObservationRecord {
     pub action_summary: String,
     pub focus: String,
     pub rationale: String,
+    #[serde(default)]
+    pub role_goal: Option<String>,
+    #[serde(default)]
+    pub scene_focus: Option<String>,
+    #[serde(default)]
+    pub forbidden_scopes: Vec<String>,
+    #[serde(default)]
+    pub note_type_hits: Vec<String>,
+    #[serde(default)]
+    pub source_stats: Vec<NoNameContextSourceStat>,
+    #[serde(default)]
+    pub context_token_budget_used: Option<usize>,
+    #[serde(default)]
+    pub context_slice_stats: Vec<NoNameRoleContextSliceStat>,
     pub proposal: NoNameProposal,
 }
 

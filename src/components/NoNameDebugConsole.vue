@@ -114,9 +114,15 @@
             :active-mode="noNameMode"
             :review-decisions="selectedReviewDecisions"
             :manual-apply-segment="manualApplySegment"
+            :manual-apply-summary="manualApplySummary"
+            :manual-apply-diagnostics="manualApplyDiagnostics"
+            :manual-apply-plot-augmentations="manualApplyPlotAugmentations"
             @mark-controlled-output-review="markControlledOutputReview"
             @resolve-second-guardrail="resolveSecondGuardrail"
             @apply-manual-plot-text-hint="applyManualPlotTextHint"
+            @apply-manual-chapter-summary-hint="applyManualChapterSummaryHint"
+            @apply-manual-option-bias-hint="applyManualOptionBiasHint"
+            @apply-manual-plot-augmentation-hint="applyManualPlotAugmentationHint"
           />
         </main>
       </div>
@@ -130,13 +136,23 @@ import AgentTracePanel from './AgentTracePanel.vue';
 import type {
   NoNameHumanReviewDecision,
   NoNameHumanReviewMarkPayload,
+  NoNameManualApplyDiagnosticsSnapshot,
+  NoNameManualApplyPlotAugmentationSnapshot,
   NoNameManualApplySegmentSnapshot,
+  NoNameManualApplySummarySnapshot,
+  NoNameManualChapterSummaryHintApplyPayload,
+  NoNameManualOptionBiasHintApplyPayload,
+  NoNameManualPlotAugmentationHintApplyPayload,
   NoNameManualPlotTextApplyPayload,
   NoNameMode,
   NoNameSecondGuardrailResolvePayload,
   NoNameTrace,
 } from '../types/game';
-import { summarizeNoNameApplyLifecycle } from '../utils/noNameApplyLifecycle';
+import {
+  summarizeNoNameApplyExecutions,
+  summarizeNoNameApplyLifecycle,
+  summarizeNoNamePendingPlotAugmentation,
+} from '../utils/noNameApplyLifecycle';
 
 const props = withDefaults(defineProps<{
   isOpen: boolean;
@@ -144,9 +160,15 @@ const props = withDefaults(defineProps<{
   noNameMode: NoNameMode;
   isDevMode?: boolean;
   manualApplySegment?: NoNameManualApplySegmentSnapshot | null;
+  manualApplySummary?: NoNameManualApplySummarySnapshot | null;
+  manualApplyDiagnostics?: NoNameManualApplyDiagnosticsSnapshot | null;
+  manualApplyPlotAugmentations?: NoNameManualApplyPlotAugmentationSnapshot | null;
 }>(), {
   isDevMode: false,
   manualApplySegment: null,
+  manualApplySummary: null,
+  manualApplyDiagnostics: null,
+  manualApplyPlotAugmentations: null,
 });
 
 const emit = defineEmits<{
@@ -156,6 +178,9 @@ const emit = defineEmits<{
   (event: 'mark-controlled-output-review', payload: NoNameHumanReviewMarkPayload): void;
   (event: 'resolve-second-guardrail', payload: NoNameSecondGuardrailResolvePayload): void;
   (event: 'apply-manual-plot-text-hint', payload: NoNameManualPlotTextApplyPayload): void;
+  (event: 'apply-manual-chapter-summary-hint', payload: NoNameManualChapterSummaryHintApplyPayload): void;
+  (event: 'apply-manual-option-bias-hint', payload: NoNameManualOptionBiasHintApplyPayload): void;
+  (event: 'apply-manual-plot-augmentation-hint', payload: NoNameManualPlotAugmentationHintApplyPayload): void;
 }>();
 
 const modeOptions: Array<{ value: NoNameMode; label: string }> = [
@@ -253,6 +278,18 @@ function applyManualPlotTextHint(payload: NoNameManualPlotTextApplyPayload) {
   emit('apply-manual-plot-text-hint', payload);
 }
 
+function applyManualChapterSummaryHint(payload: NoNameManualChapterSummaryHintApplyPayload) {
+  emit('apply-manual-chapter-summary-hint', payload);
+}
+
+function applyManualOptionBiasHint(payload: NoNameManualOptionBiasHintApplyPayload) {
+  emit('apply-manual-option-bias-hint', payload);
+}
+
+function applyManualPlotAugmentationHint(payload: NoNameManualPlotAugmentationHintApplyPayload) {
+  emit('apply-manual-plot-augmentation-hint', payload);
+}
+
 function humanReviewDecisionKey(traceId: string, requestId: string) {
   return `${traceId}::${requestId}`;
 }
@@ -285,6 +322,28 @@ function buildTraceReport(
     } satisfies Record<NoNameHumanReviewDecision, number>,
   );
   const relatedObservations = trace.relatedObservations ?? [];
+  const roleContextSummary = relatedObservations.length > 0
+    ? relatedObservations
+      .map((item) => {
+        const roleGoal = item.roleGoal ?? 'no-role-goal';
+        const sceneFocus = item.sceneFocus ?? 'no-scene-focus';
+        const forbiddenScopes = item.forbiddenScopes?.length
+          ? item.forbiddenScopes.join('/')
+          : 'none';
+        const noteTypeHits = item.noteTypeHits?.length
+          ? item.noteTypeHits.join('/')
+          : 'none';
+        const sourceStats = item.sourceStats?.length
+          ? item.sourceStats.map((source) => `${source.source}:${source.count}`).join('/')
+          : 'none';
+        const tokenBudgetUsed = item.contextTokenBudgetUsed ?? 0;
+        const contextSliceStats = item.contextSliceStats?.length
+          ? item.contextSliceStats.map((stat) => `${stat.section}:${stat.sourceCount}->${stat.visibleCount}`).join('/')
+          : 'none';
+        return `${item.role}:${roleGoal}:${sceneFocus}[forbidden=${forbiddenScopes}][notes=${noteTypeHits}][sources=${sourceStats}][tokens=${tokenBudgetUsed}][slice=${contextSliceStats}]`;
+      })
+      .join(', ')
+    : 'none';
   const guardrail = trace.guardrailResult
     ? `${trace.guardrailResult.outcome}${trace.guardrailResult.reason ? ` (${trace.guardrailResult.reason})` : ''}`
     : '无';
@@ -292,6 +351,12 @@ function buildTraceReport(
     ? `${trace.applyResult.outcome}${trace.applyResult.reason ? ` (${trace.applyResult.reason})` : ''}`
     : '无';
   const lifecycle = summarizeNoNameApplyLifecycle(trace, reviewDecisions);
+  const pendingPlotAugmentation = summarizeNoNamePendingPlotAugmentation(trace);
+  const applyExecutions = summarizeNoNameApplyExecutions(trace, {
+    emptyLabel: 'none',
+    rawPrefix: ' [raw=',
+    notePrefix: ' (',
+  });
   return [
     `Trace: ${trace.traceId}`,
     `Mode: ${trace.mode}`,
@@ -300,12 +365,15 @@ function buildTraceReport(
     `Proposals: ${readyCount}/${trace.proposals.length} applyable`,
     `Latest Proposal: ${latestProposal ? `${latestProposal.producerRole}:${latestProposal.kind}:${latestProposal.focus}` : '无'}`,
     `Related Observations: ${relatedObservations.length}`,
+    `Role Contexts: ${roleContextSummary}`,
     `Protocol Events: ${protocolEvents.length}`,
     `Controlled Reviews: ${controlledReviews.length} (${humanReviewCount} needs human review)`,
     `Human Review Decisions: ${reviewDecisionCounts.approvedForHigherApply} approved / ${reviewDecisionCounts.rejectedForHigherApply} rejected / ${reviewDecisionCounts.pending} pending`,
     `Guardrail: ${guardrail}`,
     `Apply Result: ${applyResult}`,
     `Apply Lifecycle: ${lifecycle}`,
+    `Apply Executions: ${applyExecutions}`,
+    `Plot Augmentation: ${pendingPlotAugmentation}`,
     `Fallback: ${trace.fallbackUsed ? 'yes' : 'no'}`,
     `Elapsed: ${trace.elapsedMs} ms`,
   ].join('\n');

@@ -145,6 +145,13 @@ impl NoNameRuntime {
                     action_summary: observation.action_summary.clone(),
                     focus: observation.focus.clone(),
                     rationale: observation.rationale.clone(),
+                    role_goal: observation.role_goal.clone(),
+                    scene_focus: observation.scene_focus.clone(),
+                    forbidden_scopes: observation.forbidden_scopes.clone(),
+                    note_type_hits: observation.note_type_hits.clone(),
+                    source_stats: observation.source_stats.clone(),
+                    context_token_budget_used: observation.context_token_budget_used,
+                    context_slice_stats: observation.context_slice_stats.clone(),
                     proposal: observation.proposal.clone(),
                 })
                 .collect(),
@@ -558,6 +565,10 @@ impl NoNameRuntime {
                 .submit_agent_message(task_request.clone())?;
             task_request.record_on_trace(trace, queued.status.as_str());
 
+            let mut base_context = context_packet.clone();
+            base_context.role = role;
+            let role_context_packet = specialize_context_packet(&base_context);
+
             let delegation = NoNameAgentMessage::new(
                 header.clone(),
                 orchestrator.clone(),
@@ -567,6 +578,9 @@ impl NoNameRuntime {
                 serde_json::json!({
                     "goal": action_summary,
                     "targetRole": role.as_str(),
+                    "roleGoal": &role_context_packet.role_goal,
+                    "sceneFocus": &role_context_packet.scene_focus,
+                    "forbiddenScopes": &role_context_packet.forbidden_scopes,
                 }),
             );
             let running = self
@@ -574,8 +588,6 @@ impl NoNameRuntime {
                 .submit_agent_message(delegation.clone())?;
             delegation.record_on_trace(trace, running.status.as_str());
 
-            let mut role_context = context_packet.clone();
-            role_context.role = role;
             let mut role_trace = NoNameTrace::empty(
                 trace.trace_id.clone(),
                 trace.session_id.clone(),
@@ -583,10 +595,9 @@ impl NoNameRuntime {
                 trace.mode,
             );
 
-            match self.agent_registry.dispatch_observe_turn(
-                role,
+            match self.agent_registry.dispatch_role_context_observe_turn(
                 &mut role_trace,
-                &role_context,
+                &role_context_packet,
                 action_summary,
             ) {
                 Ok(observation) => {
@@ -651,6 +662,9 @@ fn controlled_output_kind_for_scope(scope: NoNameApplyScope) -> NoNameControlled
         NoNameApplyScope::Diagnostics => NoNameControlledOutputKind::NarrativeNote,
         NoNameApplyScope::ChapterSummaryHint => NoNameControlledOutputKind::RecapNote,
         NoNameApplyScope::OptionBiasHint => NoNameControlledOutputKind::IntermediateNarrativeHint,
+        NoNameApplyScope::PlotAugmentationHint => {
+            NoNameControlledOutputKind::NonFinalPlotAugmentation
+        }
         NoNameApplyScope::PlotTextHint => NoNameControlledOutputKind::SceneAugmentation,
     }
 }
@@ -789,6 +803,7 @@ mod tests {
                         last_generation_diagnostics: None,
                         last_option_generation_source: None,
                         last_consistency_risk_score: None,
+                        pending_plot_augmentation_hints: Vec::new(),
                     },
                     action_result: ActionResult {
                         success: true,
@@ -810,6 +825,25 @@ mod tests {
         );
         assert_eq!(result.related_observations.len(), 3);
         assert_eq!(result.trace.related_observations.len(), 3);
+        assert!(result.trace.related_observations.iter().any(|item| {
+            item.role == NoNameRole::WorldCurator
+                && item
+                    .role_goal
+                    .as_deref()
+                    .unwrap_or_default()
+                    .contains("Maintain world facts")
+                && item
+                    .scene_focus
+                    .as_deref()
+                    .unwrap_or_default()
+                    .contains("玩家 位于 山门")
+                && item
+                    .forbidden_scopes
+                    .iter()
+                    .any(|scope| scope.contains("NPC private intent"))
+                && item.source_stats.iter().any(|source| source.count > 0)
+                && item.context_token_budget_used.unwrap_or_default() > 0
+        }));
         assert_eq!(result.trace.protocol_events.len(), 9);
         assert_eq!(result.trace.capability_calls.len(), 21);
         assert_eq!(result.trace.proposals.len(), 1);
@@ -891,6 +925,7 @@ mod tests {
                         last_generation_diagnostics: None,
                         last_option_generation_source: None,
                         last_consistency_risk_score: None,
+                        pending_plot_augmentation_hints: Vec::new(),
                     },
                     action_result: ActionResult {
                         success: true,
@@ -926,7 +961,7 @@ mod tests {
                 .map(|item| item.outcome.as_str()),
             Some("applied_diagnostics_note")
         );
-        assert_eq!(result.trace.controlled_output_reviews.len(), 4);
+        assert_eq!(result.trace.controlled_output_reviews.len(), 5);
         assert!(result.trace.controlled_output_reviews.iter().any(|item| {
             item.decision == NoNameControlledOutputDecision::NeedsReview
                 && item.safe_apply_scope == Some(NoNameApplyScope::PlotTextHint)
@@ -1009,6 +1044,7 @@ mod tests {
                         last_generation_diagnostics: None,
                         last_option_generation_source: None,
                         last_consistency_risk_score: None,
+                        pending_plot_augmentation_hints: Vec::new(),
                     },
                     action_result: ActionResult {
                         success: true,

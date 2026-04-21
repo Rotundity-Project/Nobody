@@ -1,4 +1,5 @@
 import type {
+  NoNameApplyExecutionRecord,
   NoNameHumanReviewDecision,
   NoNameTrace,
 } from '../types/game';
@@ -11,6 +12,11 @@ export interface NoNameApplyLifecycleStep {
   state: string;
   detail: string;
   tone: NoNameApplyLifecycleTone;
+}
+
+export interface NoNameApplyExecutionDisplay {
+  targetLabel: string;
+  outcomeLabel: string;
 }
 
 function normalizeTarget(value: string | undefined) {
@@ -29,8 +35,85 @@ function hasExecutionOutcome(trace: NoNameTrace, outcome: string) {
   return Boolean(trace.applyExecutionLog?.some((item) => item.outcome === outcome));
 }
 
+function latestExecutionForTarget(
+  trace: NoNameTrace,
+  target: string,
+  outcomes: string[],
+): NoNameApplyExecutionRecord | null {
+  const normalizedTarget = normalizeTarget(target);
+  return trace.applyExecutionLog
+    ?.slice()
+    .reverse()
+    .find((item) => (
+      normalizeTarget(item.target) === normalizedTarget
+      && outcomes.includes(item.outcome)
+    )) ?? null;
+}
+
 function hasTransition(trace: NoNameTrace, suffix: string) {
   return Boolean(trace.proposalTransitionLog?.some((item) => item.endsWith(suffix)));
+}
+
+export function formatNoNameApplyExecutionRecord(
+  record: NoNameApplyExecutionRecord,
+): NoNameApplyExecutionDisplay {
+  if (normalizeTarget(record.target) === normalizeTarget('plotAugmentationHint')) {
+    if (record.outcome === 'pending_plot_augmentation_consumed') {
+      return {
+        targetLabel: '剧情增强提示',
+        outcomeLabel: '已消费',
+      };
+    }
+    if (record.outcome === 'pending_plot_augmentation_retained') {
+      return {
+        targetLabel: '剧情增强提示',
+        outcomeLabel: '已保留',
+      };
+    }
+    if (record.outcome === 'manual_plot_augmentation_hint_applied') {
+      return {
+        targetLabel: '剧情增强提示',
+        outcomeLabel: '已暂存待消费',
+      };
+    }
+  }
+  return {
+    targetLabel: record.target,
+    outcomeLabel: record.outcome,
+  };
+}
+
+export function summarizeNoNameApplyExecutions(
+  trace: NoNameTrace,
+  options: {
+    emptyLabel?: string;
+    rawPrefix?: string;
+    rawSuffix?: string;
+    notePrefix?: string;
+    noteSuffix?: string;
+  } = {},
+) {
+  const {
+    emptyLabel = '无',
+    rawPrefix = '[raw=',
+    rawSuffix = ']',
+    notePrefix = '(',
+    noteSuffix = ')',
+  } = options;
+  const executionLog = trace.applyExecutionLog ?? [];
+  if (executionLog.length === 0) {
+    return emptyLabel;
+  }
+  return executionLog
+    .map((item) => {
+      const display = formatNoNameApplyExecutionRecord(item);
+      const raw = display.targetLabel !== item.target || display.outcomeLabel !== item.outcome
+        ? `${rawPrefix}${item.target}:${item.outcome}${rawSuffix}`
+        : '';
+      const note = item.note ? `${notePrefix}${item.note}${noteSuffix}` : '';
+      return `${display.targetLabel}:${display.outcomeLabel}${raw}${note}`;
+    })
+    .join(', ');
 }
 
 function resolvePreflightTone(outcome: string | undefined): NoNameApplyLifecycleTone {
@@ -48,6 +131,7 @@ function resolvePreflightTone(outcome: string | undefined): NoNameApplyLifecycle
     || outcome.includes('applied')
     || outcome.includes('allow')
     || outcome.includes('manual_plot_text_applied')
+    || outcome.includes('manual_plot_augmentation_hint_applied')
   ) {
     return 'done';
   }
@@ -64,6 +148,45 @@ function lifecycleHumanDecision(
     ?? 'pending';
 }
 
+export function summarizeNoNamePendingPlotAugmentation(trace: NoNameTrace): string {
+  const consumptionExecution = latestExecutionForTarget(
+    trace,
+    'plotAugmentationHint',
+    ['pending_plot_augmentation_consumed', 'pending_plot_augmentation_retained'],
+  );
+  if (consumptionExecution?.outcome === 'pending_plot_augmentation_consumed') {
+    return consumptionExecution.note
+      ? `已消费（${consumptionExecution.note}）`
+      : '已消费';
+  }
+  if (consumptionExecution?.outcome === 'pending_plot_augmentation_retained') {
+    return consumptionExecution.note
+      ? `已保留（${consumptionExecution.note}）`
+      : '已保留';
+  }
+
+  const stagedExecution = latestExecutionForTarget(
+    trace,
+    'plotAugmentationHint',
+    ['manual_plot_augmentation_hint_applied'],
+  );
+  if (stagedExecution) {
+    return stagedExecution.note
+      ? `待消费（${stagedExecution.note}）`
+      : '待消费';
+  }
+
+  const latestProposal = trace.proposals[trace.proposals.length - 1] ?? null;
+  const hasPlotAugmentationScope = latestProposal?.applyScopes?.some((scope) => (
+    normalizeTarget(scope) === normalizeTarget('plotAugmentationHint')
+  ));
+  if (hasPlotAugmentationScope) {
+    return '待观察（proposal 支持 PlotAugmentationHint，但尚未看到 pending 消费记录）';
+  }
+
+  return '无';
+}
+
 export function buildNoNameApplyLifecycle(
   trace: NoNameTrace,
   reviewDecisions: Record<string, NoNameHumanReviewDecision> = {},
@@ -76,6 +199,14 @@ export function buildNoNameApplyLifecycle(
   )).length;
   const lowRiskTargets = ['diagnostics', 'chapterSummaryHint', 'optionBiasHint'];
   const appliedLowRiskTargets = lowRiskTargets.filter((target) => hasExecution(trace, target, 'applied'));
+  const pendingAugmentationExecution = latestExecutionForTarget(
+    trace,
+    'plotAugmentationHint',
+    ['pending_plot_augmentation_consumed', 'pending_plot_augmentation_retained'],
+  );
+  const latestProposalScopes = latestProposal?.applyScopes ?? [];
+  const hasPlotAugmentationScope = latestProposalScopes
+    .some((scope) => normalizeTarget(scope) === normalizeTarget('plotAugmentationHint'));
   const secondGuardrailAllowed = hasExecutionOutcome(trace, 'second_guardrail_allowed')
     || hasTransition(trace, ':second_guardrail:allow');
   const secondGuardrailRejected = hasExecutionOutcome(trace, 'second_guardrail_rejected')
@@ -85,7 +216,13 @@ export function buildNoNameApplyLifecycle(
   const awaitingSecondGuardrail = hasExecutionOutcome(trace, 'awaiting_second_guardrail')
     || hasTransition(trace, ':apply_intent:awaiting_second_guardrail');
   const manualApplied = hasExecutionOutcome(trace, 'manual_plot_text_applied')
-    || hasTransition(trace, ':manual_apply:plot_text_hint');
+    || hasExecutionOutcome(trace, 'manual_chapter_summary_hint_applied')
+    || hasExecutionOutcome(trace, 'manual_option_bias_hint_applied')
+    || hasExecutionOutcome(trace, 'manual_plot_augmentation_hint_applied')
+    || hasTransition(trace, ':manual_apply:plot_text_hint')
+    || hasTransition(trace, ':manual_apply:chapter_summary_hint')
+    || hasTransition(trace, ':manual_apply:option_bias_hint')
+    || hasTransition(trace, ':manual_apply:plot_augmentation_hint');
   const preflightOutcome = trace.applyResult?.outcome;
 
   const steps: NoNameApplyLifecycleStep[] = [
@@ -133,6 +270,23 @@ export function buildNoNameApplyLifecycle(
     },
   ];
 
+  if (pendingAugmentationExecution || hasPlotAugmentationScope) {
+    const consumed = pendingAugmentationExecution?.outcome === 'pending_plot_augmentation_consumed';
+    const retained = pendingAugmentationExecution?.outcome === 'pending_plot_augmentation_retained';
+    steps.push({
+      key: 'plot-augmentation-consumption',
+      label: '剧情增强消费',
+      state: consumed
+        ? '已消费'
+        : retained
+          ? '已保留'
+          : '待观察',
+      detail: pendingAugmentationExecution?.note
+        ?? 'PlotAugmentationHint 已进入待消费层，等待下一次 plot_engine 生成结果确认',
+      tone: consumed ? 'done' : retained ? 'pending' : 'info',
+    });
+  }
+
   if (humanReviews.length > 0 || awaitingSecondGuardrail || secondGuardrailAllowed || secondGuardrailRejected || secondGuardrailFallback) {
     steps.push({
       key: 'second-guardrail',
@@ -163,7 +317,14 @@ export function buildNoNameApplyLifecycle(
     });
   }
 
-  if (humanReviews.some((item) => item.safeApplyScope === 'plotTextHint') || secondGuardrailAllowed || manualApplied) {
+  if (
+    humanReviews.some((item) => (
+      ['plotTextHint', 'chapterSummaryHint', 'optionBiasHint', 'plotAugmentationHint']
+        .includes(item.safeApplyScope ?? '')
+    ))
+    || secondGuardrailAllowed
+    || manualApplied
+  ) {
     steps.push({
       key: 'manual-plot-text',
       label: '人工写入',
@@ -173,7 +334,7 @@ export function buildNoNameApplyLifecycle(
           ? '等待显式命令'
           : '未就绪',
       detail: manualApplied
-        ? '已记录 manual_plot_text_applied'
+        ? '已记录显式人工 apply 结果'
         : secondGuardrailAllowed
           ? '需要开发者确认差异预览后手动写入'
           : 'PlotTextHint 需要人工复核与二次护栏',

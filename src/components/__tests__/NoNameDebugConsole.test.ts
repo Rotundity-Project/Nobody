@@ -52,7 +52,7 @@ const traces: NoNameTrace[] = [
       intendedEffect: '补足世界事实',
       rationale: '山门设定需要锚点',
       labels: ['world_curator'],
-      applyScopes: ['diagnostics', 'chapterSummaryHint'],
+      applyScopes: ['diagnostics', 'chapterSummaryHint', 'plotAugmentationHint'],
       status: 'ready',
       applyable: true,
     }],
@@ -68,6 +68,10 @@ const traces: NoNameTrace[] = [
       target: 'chapter_summary_hint',
       outcome: 'applied',
       note: '已完成写入',
+    }, {
+      target: 'plot_augmentation_hint',
+      outcome: 'pending_plot_augmentation_consumed',
+      note: 'pending plot augmentation consumed after plot_engine generation; count=1',
     }],
     guardrailResult: { outcome: 'accept', reason: null },
     applyResult: { attempted: true, outcome: 'preflight_ready', reason: '允许应用' },
@@ -79,6 +83,34 @@ const traces: NoNameTrace[] = [
       taskId: 'task-1',
       status: 'queued',
       detail: 'fan-out',
+    }],
+    relatedObservations: [{
+      role: 'worldCurator',
+      actionSummary: '玩家返回山门',
+      focus: '山门法阵',
+      rationale: '需要补齐世界设定锚点',
+      roleGoal: 'Maintain world facts, scene constraints, and canon anchors.',
+      sceneFocus: '山门法阵',
+      forbiddenScopes: ['Must not decide NPC private intent.'],
+      noteTypeHits: ['goal: Hold Gate'],
+      sourceStats: [{ source: 'hard_facts', count: 2 }],
+      contextTokenBudgetUsed: 42,
+      contextSliceStats: [{ section: 'worldFacts', sourceCount: 4, visibleCount: 3 }],
+      proposal: {
+        proposalId: 'proposal-world-1',
+        kind: 'worldPatchProposal',
+        producerRole: 'worldCurator',
+        title: 'WorldCurator提案：山门法阵',
+        summary: '补齐法阵约束',
+        focus: '山门法阵',
+        targetSegment: 'chapter_summary_tail',
+        intendedEffect: '补足世界事实',
+        rationale: '设定缺口明显',
+        labels: ['worldCurator'],
+        applyScopes: ['diagnostics', 'chapterSummaryHint'],
+        status: 'observed',
+        applyable: false,
+      },
     }],
     controlledOutputReviews: [{
       requestId: 'controlled-output-proposal-2-plot_text_hint',
@@ -109,9 +141,15 @@ describe('NoNameDebugConsole', () => {
     expect(wrapper.text()).toContain('WorldCurator提案：山门法阵');
     expect(wrapper.text()).toContain('当前模式：assisted');
     expect(wrapper.text()).toContain('Protocol Events: 1');
+    expect(wrapper.text()).toContain('Role Contexts: worldCurator:Maintain world facts, scene constraints, and canon anchors.:山门法阵');
+    expect(wrapper.text()).toContain('[notes=goal: Hold Gate]');
+    expect(wrapper.text()).toContain('[sources=hard_facts:2]');
+    expect(wrapper.text()).toContain('[tokens=42]');
+    expect(wrapper.text()).toContain('[slice=worldFacts:4->3]');
     expect(wrapper.text()).toContain('Controlled Reviews: 1 (1 needs human review)');
     expect(wrapper.text()).toContain('Human Review Decisions: 0 approved / 0 rejected / 1 pending');
     expect(wrapper.text()).toContain('Apply Lifecycle:');
+    expect(wrapper.text()).toContain('Plot Augmentation: 已消费');
     expect(wrapper.text()).toContain('Proposals: 1/1 applyable');
 
     const traceButtons = wrapper.findAll('.noname-debug-console-trace-btn');
@@ -193,6 +231,10 @@ describe('NoNameDebugConsole', () => {
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Protocol Events: 1'));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Controlled Reviews: 1'));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Apply Lifecycle:'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Apply Executions:'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('剧情增强提示:已消费'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('[raw=plot_augmentation_hint:pending_plot_augmentation_consumed]'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Plot Augmentation: 已消费'));
     expect(wrapper.text()).toContain('摘要已复制');
   });
 });

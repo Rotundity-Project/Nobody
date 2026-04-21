@@ -45,14 +45,14 @@
 - `T7-0.6` 已接入 `apply_noname_manual_plot_text_hint`，要求人工批准、二次护栏 allow、章节/段落快照一致后才显式写入正文提示，并记录 `manual_plot_text_applied`
 - `T7-0.7` 已补前端差异预览、重复写入禁用与 stale snapshot 友好错误提示，显式人工写入前能看到“写入前 / 写入后”
 - `T7-3` 已补 `noNameApplyLifecycle` 前端收敛层，统一从 plan / execution / review / transition / fallback 推导 apply 生命周期，并展示到调试台、复制摘要和 Info 文本
-- `T7-1` 第三切片已新增 `src-tauri/src/noname_apply.rs`，把 reviewed apply 校验、快照校验、剧情写入和 trace 记录从命令层抽成可复用 runtime；前端已改走 `apply_noname_reviewed_output(scope=plotTextHint)`，后端与 Web mock 已扩展支持 `ChapterSummaryHint` 和 `OptionBiasHint`
+- `T7-1` 第七切片已新增 `src-tauri/src/noname_apply.rs`，把 reviewed apply 校验、快照校验、剧情写入和 trace 记录从命令层抽成可复用 runtime；前端已改走 `apply_noname_reviewed_output(scope=plotTextHint)`，后端与 Web mock 已扩展支持 `ChapterSummaryHint`、`OptionBiasHint` 和 `PlotAugmentationHint`，并已把低风险状态写入下沉到 `plot_engine`；`PlotAugmentationHint` 进入 pending augmentation 列表后，下一轮会以非最终安全上下文注入 plot prompt，成功消费后按快照清空
 
-当前仍未完成的部分：
+当前边界与后续可选项：
 
-- proposal 已可进入“诊断层 + 章节摘要提示 + 选项偏置提示”低风险 apply，但还没有进入更高权重的剧情输出层
-- trace 已有 apply transition log、执行明细和 lifecycle 可视化；`PlotTextHint`、`ChapterSummaryHint` 与 `OptionBiasHint` 已补人工显式 apply 执行明细，但还没有通用化到所有高权重输出层
-- `plot_engine` 侧还没有低风险输出层应用入口
-- reviewed apply runtime 目前支持 `PlotTextHint`、`ChapterSummaryHint` 与 `OptionBiasHint`，下一步重点是评估 `plot_engine` 低风险输出层入口
+- T7 主体已完成“诊断层 + 章节摘要提示 + 选项偏置提示 + pending 剧情增强提示”的受控 apply 预备层；这些输出不会自动接管最终剧情正文。
+- trace 已覆盖 apply transition log、执行明细、lifecycle 可视化、pending augmentation 消费/保留摘要，以及复制报告/Info 面板的人类可读执行摘要。
+- `plot_engine` 侧已有章节摘要提示、generation diagnostics 提示与 pending plot augmentation 提示入口；仍不直接改 `new_scene / available_options / 主剧情全文主体`。
+- 后续如果继续扩展，应作为新阶段评估新的受控输出类型或更细 trace 体验，而不是继续在 T7 内扩大剧情写入权限。
 
 ## 2. 建议文件范围
 
@@ -279,6 +279,8 @@
 - 第一个 apply 版本只影响“低风险输出层”
 - 不直接篡改核心剧情状态机
 
+当前状态：已新增 `PlotState::apply_low_risk_chapter_summary_hint` 与 `PlotState::apply_low_risk_generation_diagnostics_hint`，`noname_apply.rs` 中的 `ChapterSummaryHint / OptionBiasHint` reviewed apply 已委托到这两个入口；仍不直接改 `new_scene / available_options / 主剧情全文主体`。
+
 ## F8 `game.ts` / `gameStore.ts`
 
 ### 目标
@@ -360,3 +362,58 @@
 6. `webRuntime.ts`
 7. 对应前后端测试
 这个顺序的好处是：在已有 lifecycle 可视化基线下，先把当前显式 apply 命令抽象成可复用 runtime，再补更多输出类型的回归测试。
+
+## 2026-04-18 T7-1.5 Current Status
+
+- Done: `PlotAugmentationHint` pending consumption now has explicit trace observability.
+- Done: backend `execute_player_action` records `pending_plot_augmentation_consumed` when pending hints are consumed after a real plot_engine generation, and records `pending_plot_augmentation_retained` when quick mode, preset fallback, turn-update override, or stale snapshot prevents consumption.
+- Done: frontend lifecycle adds a `plot-augmentation-consumption` step labelled `剧情增强消费`, so debug panels and summaries can distinguish `已消费`, `已保留`, and `待观察`.
+- Done: Web mock and focused tests now mirror the same consumption/retention behavior.
+
+## 2026-04-18 T7-1.6 Current Status
+
+- Done: pending plot augmentation now has a compact human-readable summary helper, `summarizeNoNamePendingPlotAugmentation`.
+- Done: NoName debug console copy reports include `Plot Augmentation: ...`, so consumed/retained/staged states are visible without reading raw execution log rows.
+- Done: `gameStore.getNoNameTraceDebugText()` includes `剧情增强提示：...`, keeping the Info debug text aligned with the trace panel lifecycle.
+
+## 2026-04-19 T7-1.7 Current Status
+
+- Done: `AgentTracePanel` now shows the pending plot augmentation summary directly in its run overview.
+- Done: the same `summarizeNoNamePendingPlotAugmentation` helper now powers trace panel, debug copy reports, and Info debug text, keeping operator-facing views consistent.
+- Done: focused UI tests cover the visible `剧情增强提示` summary for consumed pending augmentation.
+
+## 2026-04-19 T7-1.8 Current Status
+
+- Done: `AgentTracePanel` execution rows now render human-readable labels for pending plot augmentation execution records.
+- Done: raw trace target/outcome is still shown under the readable label, preserving debugging fidelity for `pending_plot_augmentation_consumed` and `pending_plot_augmentation_retained`.
+- Done: `formatNoNameApplyExecutionRecord` centralizes the display mapping for plot augmentation execution outcomes.
+
+## 2026-04-19 T7-1.9 Current Status
+
+- Done: `gameStore.getNoNameTraceDebugText()` now uses `formatNoNameApplyExecutionRecord` for apply execution rows, while keeping raw target/outcome in-line for translated records.
+- Done: `InfoTabsDialog` structured debug execution rows now share the same readable labels and raw-record fallback as `AgentTracePanel`.
+- Done: focused tests cover the shared execution display behavior across Trace panel, Info drawer, Info text, and lifecycle utilities.
+
+## 2026-04-19 T7-2.0 Current Status
+
+- Done: `NoNameDebugConsole` copy reports now include `Apply Executions: ...` using the shared `formatNoNameApplyExecutionRecord` mapping.
+- Done: copied trace summaries now preserve raw target/outcome details for translated pending plot augmentation execution records.
+- Done: focused debug-console tests cover the copied execution summary.
+
+## 2026-04-19 T7-2.1 Current Status
+
+- Done: `summarizeNoNameApplyExecutions` centralizes the execution-summary string used by copy reports and Info debug text.
+- Done: `gameStore.getNoNameTraceDebugText()` and `NoNameDebugConsole` now reuse the same helper instead of duplicating execution formatting logic.
+- Done: tests cover the helper with both compact Info text formatting and copy-report formatting.
+
+## 2026-04-19 T7-2.2 Current Status
+
+- Done: completed a focused full-regression pass for the T7 apply/trace UX line.
+- Passed: `cargo fmt`, `cargo test plot_augmentation -- --nocapture`, `cargo test low_risk -- --nocapture`, `cargo clippy -- -D warnings`.
+- Passed: `npm test -- --run src/utils/noNameApplyLifecycle.test.ts src/components/__tests__/AgentTracePanel.test.ts src/components/__tests__/NoNameDebugConsole.test.ts src/components/__tests__/InfoTabsDialog.test.ts src/stores/__tests__/gameStore.test.ts src/platform/webRuntime.test.ts`.
+- Passed: `npm run build` and `git diff --check`; build still reports the existing Vite dynamic-import warning for `@tauri-apps/api/core.js`.
+
+## 2026-04-19 T7-2.3 Current Status
+
+- Done: cleaned the T7 checklist wording from "unfinished parts" to "current boundaries and optional next steps".
+- Done: documented that T7's remaining work is future-stage optional expansion, not missing core apply functionality.

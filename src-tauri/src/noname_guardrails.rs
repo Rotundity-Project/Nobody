@@ -359,16 +359,18 @@ pub fn validate_director_proposal_for_apply(
     if matches!(
         proposal.target_segment,
         NoNameTargetSegment::ChapterSummaryHead | NoNameTargetSegment::ChapterSummaryTail
-    ) && proposal
-        .apply_scopes
-        .contains(&NoNameApplyScope::PlotTextHint)
-    {
+    ) && proposal.apply_scopes.iter().any(|scope| {
+        matches!(
+            scope,
+            NoNameApplyScope::PlotTextHint | NoNameApplyScope::PlotAugmentationHint
+        )
+    }) {
         return NoNameApplyGuardrailResult::blocked(
             NoNameApplyGuardrailOutcome::FallbackRequired,
             "proposal target_segment 与 apply_scope 不匹配，回退经典链路",
             vec![
                 format!("target_segment={}", proposal.target_segment.as_str()),
-                "apply_scope=plot_text_hint".to_string(),
+                "apply_scope=plot_text_or_augmentation_hint".to_string(),
             ],
         );
     }
@@ -468,6 +470,7 @@ mod tests {
             last_generation_diagnostics: None,
             last_option_generation_source: None,
             last_consistency_risk_score: None,
+            pending_plot_augmentation_hints: Vec::new(),
         }
     }
 
@@ -516,6 +519,13 @@ mod tests {
             focus: "   ".to_string(),
             rationale: "保持山门线索推进".to_string(),
             prompt_preview: "prompt".to_string(),
+            role_goal: None,
+            scene_focus: None,
+            forbidden_scopes: Vec::new(),
+            note_type_hits: Vec::new(),
+            source_stats: Vec::new(),
+            context_token_budget_used: None,
+            context_slice_stats: Vec::new(),
             proposal: make_director_proposal("   ", "保持山门线索推进"),
         };
 
@@ -531,6 +541,13 @@ mod tests {
             focus: "山门危机".repeat(13),
             rationale: "优先观察山门内部的冲突升级与人物反应".to_string(),
             prompt_preview: "prompt".to_string(),
+            role_goal: None,
+            scene_focus: None,
+            forbidden_scopes: Vec::new(),
+            note_type_hits: Vec::new(),
+            source_stats: Vec::new(),
+            context_token_budget_used: None,
+            context_slice_stats: Vec::new(),
             proposal: make_director_proposal(
                 &"山门危机".repeat(13),
                 "优先观察山门内部的冲突升级与人物反应",

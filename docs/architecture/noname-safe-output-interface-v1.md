@@ -74,7 +74,7 @@
 
 当前 T7-3 已补 apply lifecycle 可视化基线：前端会从 trace 的 plan、execution、review、transition 与 fallback 字段推导“提案阶段 / Apply 预检 / 低风险输出 / 人工复核 / 二次护栏 / 人工写入 / 回退”进度，并统一展示到调试台、复制摘要和 Info 调试文本。
 
-当前 T7-1 第三切片已新增 `noname_apply.rs` reviewed apply runtime：人工批准、二次护栏、scope 匹配、快照校验、剧情写入和 trace 留痕已从 `tauri_commands.rs` 抽出；前端显式写入改走通用命令 `apply_noname_reviewed_output(scope=plotTextHint)`，旧命令保留兼容；`ChapterSummaryHint` 和 `OptionBiasHint` 也已接入同一 runtime，分别要求提交章节摘要快照、诊断提示快照一致后才写入对应低风险提示层。
+当前 T7-1 第七切片已新增 `noname_apply.rs` reviewed apply runtime：人工批准、二次护栏、scope 匹配、快照校验、剧情写入和 trace 留痕已从 `tauri_commands.rs` 抽出；前端显式写入改走通用命令 `apply_noname_reviewed_output(scope=plotTextHint)`，旧命令保留兼容；`ChapterSummaryHint`、`OptionBiasHint` 与 `PlotAugmentationHint` 也已接入同一 runtime。前两者分别要求提交章节摘要快照、诊断提示快照一致后才写入对应低风险提示层；`PlotAugmentationHint` 要求提交 pending augmentation 列表快照一致后，只写入 `pending_plot_augmentation_hints`。下一轮生成时，pending augmentation 会以“非最终、可忽略、不得直接改写状态”的安全上下文进入 plot prompt；只有 plot_engine 结果真正落地、没有预设回退且未被双通道叙事覆盖时才按快照清空。
 
 ## V1 决策规则
 
@@ -109,11 +109,18 @@
 - `apply_noname_manual_plot_text_hint` 可在人工批准 + 二次护栏 allow + 正文快照一致时显式写入 `PlotTextHint`，并拒绝陈旧段落、重复 NoName 标记和不匹配的章节。
 - 前端调试台可在写入前展示差异预览，并对重复应用 / stale snapshot 给出明确提示。
 - apply lifecycle 可视化可以稳定表达 apply / review / guardrail / manual apply / fallback 当前状态。
-- reviewed apply runtime 已提供统一入口，当前覆盖 `PlotTextHint`、`ChapterSummaryHint` 与 `OptionBiasHint`，后续可继续评估 `plot_engine` 低风险输出层入口。
+- reviewed apply runtime 已提供统一入口，当前覆盖 `PlotTextHint`、`ChapterSummaryHint`、`OptionBiasHint` 与 `PlotAugmentationHint`；其中低风险提示层已通过 `plot_engine` 入口落地，non-final plot augmentation 已进入 pending 提示列表并可被下一轮 plot prompt 安全消费。
 
 ## 后续建议
 
 下一步可以继续:
 
-1. 继续扩展 `noname_apply.rs` 的落地边界，让 `plot_engine` 低风险输出层复用 reviewed apply runtime，但仍要求快照校验和 trace 留痕。
-2. 将更多输出类型接入现有 lifecycle 可视化与测试基线，继续保持 `PlotTextHint` 与最终剧情正文写入之间的人工/护栏边界。
+1. 继续观察 pending augmentation 被消费后的生成质量，必要时增加更细的“已消费/保留原因”trace 记录。
+2. 将更多输出类型接入现有 lifecycle 可视化与测试基线，继续保持高权重输出与最终剧情正文写入之间的人工/护栏边界。
+
+## 2026-04-18 T7-1.5 Safe Output Update
+
+- `PlotAugmentationHint` consumption is now observable without expanding its authority.
+- Safe boundary remains unchanged: pending augmentation is only prompt context for the next generation and must not directly mutate final plot state, canon world facts, options, or scene structure.
+- New trace outcomes: `pending_plot_augmentation_consumed` and `pending_plot_augmentation_retained`.
+- Frontend lifecycle now surfaces this safe-output boundary as `剧情增强消费`, making it clear whether the non-final hint was consumed or deliberately retained.

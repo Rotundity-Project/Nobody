@@ -22,12 +22,19 @@ pub struct NoNameApplyDiagnosticsSnapshot {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NoNameApplyPlotAugmentationSnapshot {
+    pub chapter_index: u32,
+    pub expected_plot_augmentation_hints: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NoNameReviewedApplyRequest {
     pub request_id: String,
     pub scope: NoNameApplyScope,
     pub segment_snapshot: Option<NoNameApplySegmentSnapshot>,
     pub summary_snapshot: Option<NoNameApplySummarySnapshot>,
     pub diagnostics_snapshot: Option<NoNameApplyDiagnosticsSnapshot>,
+    pub plot_augmentation_snapshot: Option<NoNameApplyPlotAugmentationSnapshot>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -39,6 +46,7 @@ pub struct NoNameReviewedApplyOutcome {
 fn priority_for_apply_scope(scope: NoNameApplyScope) -> u32 {
     match scope {
         NoNameApplyScope::PlotTextHint => 300,
+        NoNameApplyScope::PlotAugmentationHint => 250,
         NoNameApplyScope::ChapterSummaryHint => 200,
         NoNameApplyScope::OptionBiasHint => 100,
         NoNameApplyScope::Diagnostics => 50,
@@ -72,7 +80,7 @@ fn target_segment_supports_apply_scope(
     scope: NoNameApplyScope,
 ) -> bool {
     match scope {
-        NoNameApplyScope::PlotTextHint => matches!(
+        NoNameApplyScope::PlotTextHint | NoNameApplyScope::PlotAugmentationHint => matches!(
             target_segment,
             NoNameTargetSegment::CurrentTurnHead | NoNameTargetSegment::CurrentTurnTail
         ),
@@ -110,9 +118,18 @@ fn build_option_bias_hint(proposal: &NoNameProposal) -> String {
     )
 }
 
+fn build_plot_augmentation_hint(proposal: &NoNameProposal) -> String {
+    format!(
+        "NoName plot augmentation: focus={} | effect={}",
+        proposal.focus.trim(),
+        proposal.intended_effect.trim()
+    )
+}
+
 fn manual_apply_outcome_for_scope(scope: NoNameApplyScope) -> &'static str {
     match scope {
         NoNameApplyScope::PlotTextHint => "manual_plot_text_applied",
+        NoNameApplyScope::PlotAugmentationHint => "manual_plot_augmentation_hint_applied",
         NoNameApplyScope::ChapterSummaryHint => "manual_chapter_summary_hint_applied",
         NoNameApplyScope::OptionBiasHint => "manual_option_bias_hint_applied",
         NoNameApplyScope::Diagnostics => "manual_diagnostics_applied",
@@ -294,24 +311,12 @@ fn apply_chapter_summary_hint(
         return Err("chapter summary already contains this NoName hint".to_string());
     }
 
-    let summary = snapshot.expected_summary.trim();
-    let updated_summary = if summary.is_empty() {
-        hint.clone()
-    } else {
-        match proposal.target_segment {
-            NoNameTargetSegment::ChapterSummaryHead => format!("{}; {}", hint, summary),
-            _ => format!("{}; {}", summary, hint),
-        }
-    };
-
-    plot_state.current_chapter.summary = updated_summary.clone();
-    if let Some(history_chapter) = plot_state
-        .chapters
-        .iter_mut()
-        .find(|chapter| chapter.index == snapshot.chapter_index)
-    {
-        history_chapter.summary = updated_summary;
-    }
+    plot_state.apply_low_risk_chapter_summary_hint(
+        snapshot.chapter_index,
+        &snapshot.expected_summary,
+        &hint,
+        proposal.target_segment == NoNameTargetSegment::ChapterSummaryHead,
+    )?;
 
     let order = next_apply_plan_order(&trace);
     trace.record_apply_plan(
@@ -355,34 +360,21 @@ fn apply_option_bias_hint(
     let Some(snapshot) = &request.diagnostics_snapshot else {
         return Err("option_bias_hint manual apply requires a diagnostics snapshot".to_string());
     };
-    if plot_state.current_chapter.index != snapshot.chapter_index {
-        return Err(format!(
-            "chapter mismatch: expected {}, current {}",
-            snapshot.chapter_index, plot_state.current_chapter.index
-        ));
-    }
-    if !plot_state.is_waiting_for_input {
-        return Err("option_bias_hint manual apply requires waiting-for-input state".to_string());
-    }
-
     let current_diagnostics = plot_state
         .last_generation_diagnostics
         .clone()
         .unwrap_or_default();
-    if current_diagnostics != snapshot.expected_generation_diagnostics {
-        return Err("diagnostics snapshot mismatch; refusing stale manual apply".to_string());
-    }
 
     let hint = build_option_bias_hint(proposal);
     if current_diagnostics.contains(&hint) {
         return Err("diagnostics already contains this NoName option bias hint".to_string());
     }
 
-    plot_state.last_generation_diagnostics = Some(if current_diagnostics.trim().is_empty() {
-        hint.clone()
-    } else {
-        format!("{}; {}", current_diagnostics, hint)
-    });
+    plot_state.apply_low_risk_generation_diagnostics_hint(
+        snapshot.chapter_index,
+        &snapshot.expected_generation_diagnostics,
+        &hint,
+    )?;
 
     let order = next_apply_plan_order(&trace);
     trace.record_apply_plan(
@@ -417,6 +409,66 @@ fn apply_option_bias_hint(
     Ok(NoNameReviewedApplyOutcome { trace, plot_state })
 }
 
+fn apply_plot_augmentation_hint(
+    mut trace: NoNameTrace,
+    mut plot_state: PlotState,
+    request: &NoNameReviewedApplyRequest,
+    proposal: &NoNameProposal,
+) -> Result<NoNameReviewedApplyOutcome, String> {
+    let Some(snapshot) = &request.plot_augmentation_snapshot else {
+        return Err(
+            "plot_augmentation_hint manual apply requires a plot augmentation snapshot".to_string(),
+        );
+    };
+
+    let hint = build_plot_augmentation_hint(proposal);
+    if snapshot
+        .expected_plot_augmentation_hints
+        .iter()
+        .any(|existing| existing == &hint)
+    {
+        return Err("plot augmentation already contains this NoName hint".to_string());
+    }
+
+    plot_state.apply_pending_plot_augmentation_hint(
+        snapshot.chapter_index,
+        &snapshot.expected_plot_augmentation_hints,
+        &hint,
+    )?;
+
+    let order = next_apply_plan_order(&trace);
+    trace.record_apply_plan(
+        order,
+        request.scope.as_str(),
+        "manual_apply",
+        priority_for_apply_scope(request.scope) + 75,
+        Some(format!(
+            "manual apply confirmed for chapter={} scope={}",
+            snapshot.chapter_index,
+            request.scope.as_str()
+        )),
+    );
+    trace.record_apply_execution(
+        request.scope.as_str(),
+        manual_apply_outcome_for_scope(request.scope),
+        Some(format!(
+            "manual plot augmentation hint staged for focus={}",
+            proposal.focus
+        )),
+    );
+    trace.record_proposal_transition(format!(
+        "{}:manual_apply:plot_augmentation_hint",
+        request.request_id
+    ));
+    trace.set_apply_result(
+        true,
+        manual_apply_outcome_for_scope(request.scope),
+        Some("manual plot augmentation hint staged".to_string()),
+    );
+
+    Ok(NoNameReviewedApplyOutcome { trace, plot_state })
+}
+
 pub fn apply_reviewed_output_to_plot_state(
     trace: NoNameTrace,
     request: NoNameReviewedApplyRequest,
@@ -432,6 +484,9 @@ pub fn apply_reviewed_output_to_plot_state(
         }
         NoNameApplyScope::OptionBiasHint => {
             apply_option_bias_hint(trace, plot_state, &request, &proposal)
+        }
+        NoNameApplyScope::PlotAugmentationHint => {
+            apply_plot_augmentation_hint(trace, plot_state, &request, &proposal)
         }
         scope => Err(format!(
             "manual reviewed apply currently does not support {}",
@@ -546,6 +601,49 @@ mod tests {
         (trace, request_id)
     }
 
+    fn make_trace_for_plot_augmentation_apply() -> (NoNameTrace, String) {
+        let proposal_id = "proposal-plot-augmentation".to_string();
+        let request_id =
+            "controlled-output-proposal-plot-augmentation-plot_augmentation_hint".to_string();
+        let mut trace = NoNameTrace::empty("trace-3", "session-1", "turn-3", NoNameMode::Assisted);
+        trace.record_proposal(NoNameProposal {
+            proposal_id,
+            kind: NoNameProposalKind::PlotCandidate,
+            producer_role: NoNameRole::Director,
+            title: "plot augmentation hint".to_string(),
+            summary: "suggest non-final plot augmentation".to_string(),
+            focus: "hidden cave".to_string(),
+            target_segment: NoNameTargetSegment::CurrentTurnTail,
+            intended_effect: "stage a reversible narrative beat".to_string(),
+            rationale: "keep plot augmentation outside final text".to_string(),
+            suggested_action: Some("manual apply".to_string()),
+            labels: vec!["test".to_string()],
+            apply_scopes: vec![NoNameApplyScope::PlotAugmentationHint],
+            status: NoNameProposalStatus::Applied,
+            applyable: true,
+        });
+        trace.record_controlled_output_review(
+            NoNameControlledOutputKind::NonFinalPlotAugmentation,
+            Vec::new(),
+            NoNameControlledOutputReview {
+                request_id: request_id.clone(),
+                decision: NoNameControlledOutputDecision::NeedsReview,
+                reason: "plot augmentation hint requires human review".to_string(),
+                normalized_kind: Some(NoNameControlledOutputKind::NonFinalPlotAugmentation),
+                safe_apply_scope: Some(NoNameApplyScope::PlotAugmentationHint),
+                requires_human_review: true,
+            },
+        );
+        trace.controlled_output_reviews[0].human_review_decision =
+            Some(NoNameHumanReviewDecision::ApprovedForHigherApply);
+        trace.record_apply_execution(
+            NoNameApplyScope::PlotAugmentationHint.as_str(),
+            "second_guardrail_allowed",
+            None,
+        );
+        (trace, request_id)
+    }
+
     #[test]
     fn reviewed_apply_can_write_chapter_summary_hint() {
         let (trace, request_id) = make_trace_for_summary_apply();
@@ -562,6 +660,7 @@ mod tests {
                     expected_summary: "existing summary".to_string(),
                 }),
                 diagnostics_snapshot: None,
+                plot_augmentation_snapshot: None,
             },
             plot_state,
         )
@@ -599,6 +698,7 @@ mod tests {
                     expected_summary: "older summary".to_string(),
                 }),
                 diagnostics_snapshot: None,
+                plot_augmentation_snapshot: None,
             },
             plot_state,
         )
@@ -624,6 +724,7 @@ mod tests {
                     chapter_index: 1,
                     expected_generation_diagnostics: "base diagnostics".to_string(),
                 }),
+                plot_augmentation_snapshot: None,
             },
             plot_state,
         )
@@ -662,11 +763,77 @@ mod tests {
                     chapter_index: 1,
                     expected_generation_diagnostics: "older diagnostics".to_string(),
                 }),
+                plot_augmentation_snapshot: None,
             },
             plot_state,
         )
         .expect_err("stale diagnostics should be rejected");
 
         assert!(error.contains("diagnostics snapshot mismatch"));
+    }
+
+    #[test]
+    fn reviewed_apply_can_stage_plot_augmentation_hint() {
+        let (trace, request_id) = make_trace_for_plot_augmentation_apply();
+        let mut plot_state = make_plot_state("");
+        plot_state
+            .pending_plot_augmentation_hints
+            .push("existing hint".to_string());
+
+        let outcome = apply_reviewed_output_to_plot_state(
+            trace,
+            NoNameReviewedApplyRequest {
+                request_id,
+                scope: NoNameApplyScope::PlotAugmentationHint,
+                segment_snapshot: None,
+                summary_snapshot: None,
+                diagnostics_snapshot: None,
+                plot_augmentation_snapshot: Some(NoNameApplyPlotAugmentationSnapshot {
+                    chapter_index: 1,
+                    expected_plot_augmentation_hints: vec!["existing hint".to_string()],
+                }),
+            },
+            plot_state,
+        )
+        .expect("plot augmentation hint should be staged");
+
+        assert_eq!(outcome.plot_state.pending_plot_augmentation_hints.len(), 2);
+        assert!(outcome
+            .plot_state
+            .pending_plot_augmentation_hints
+            .iter()
+            .any(|hint| hint.contains("NoName plot augmentation: focus=hidden cave")));
+        assert!(outcome.trace.apply_execution_log.iter().any(|entry| {
+            entry.target == "plot_augmentation_hint"
+                && entry.outcome == "manual_plot_augmentation_hint_applied"
+        }));
+    }
+
+    #[test]
+    fn reviewed_apply_rejects_stale_plot_augmentation_snapshot() {
+        let (trace, request_id) = make_trace_for_plot_augmentation_apply();
+        let mut plot_state = make_plot_state("");
+        plot_state
+            .pending_plot_augmentation_hints
+            .push("new hint".to_string());
+
+        let error = apply_reviewed_output_to_plot_state(
+            trace,
+            NoNameReviewedApplyRequest {
+                request_id,
+                scope: NoNameApplyScope::PlotAugmentationHint,
+                segment_snapshot: None,
+                summary_snapshot: None,
+                diagnostics_snapshot: None,
+                plot_augmentation_snapshot: Some(NoNameApplyPlotAugmentationSnapshot {
+                    chapter_index: 1,
+                    expected_plot_augmentation_hints: vec!["old hint".to_string()],
+                }),
+            },
+            plot_state,
+        )
+        .expect_err("stale plot augmentation snapshot should be rejected");
+
+        assert!(error.contains("plot augmentation snapshot mismatch"));
     }
 }
