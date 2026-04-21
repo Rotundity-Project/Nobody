@@ -152,6 +152,8 @@ pub struct PlotState {
     pub last_option_generation_source: Option<String>,
     #[serde(default)]
     pub last_consistency_risk_score: Option<i32>,
+    #[serde(default)]
+    pub pending_plot_augmentation_hints: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -1122,6 +1124,18 @@ impl PlotEngine {
         segment
     }
 
+    fn world_summary_with_pending_plot_augmentation(
+        base: impl Into<String>,
+        current_state: &PlotState,
+    ) -> String {
+        let base = base.into();
+        if let Some(context) = current_state.pending_plot_augmentation_prompt_context() {
+            format!("{base}；{context}")
+        } else {
+            base
+        }
+    }
+
     fn generate_chapter_segment_with_llm(
         &self,
         current_state: &PlotState,
@@ -1153,9 +1167,12 @@ impl PlotEngine {
             actor_realm: None,
             actor_combat_power: None,
             history_events: action_result.events.clone(),
-            world_setting_summary: Some(format!(
-                "小说风格：{}；参考设定文档 78 与补充稿，采用克制、具体、可验证的修仙叙事。请生成一段承接剧情的小说文本。玩家每章需要 2-3 次互动。",
-                settings.novel_style
+            world_setting_summary: Some(Self::world_summary_with_pending_plot_augmentation(
+                format!(
+                    "小说风格：{}；参考设定文档 78 与补充稿，采用克制、具体、可验证的修仙叙事。请生成一段承接剧情的小说文本。玩家每章需要 2-3 次互动。",
+                    settings.novel_style
+                ),
+                current_state,
             )),
         };
 
@@ -1322,9 +1339,12 @@ impl PlotEngine {
             actor_realm: None,
             actor_combat_power: None,
             history_events: action_result.events.clone(),
-            world_setting_summary: Some(format!(
-                "小说风格：{}；请生成一段承接剧情的小说文本。玩家每章需要 2-3 次互动。",
-                settings.novel_style
+            world_setting_summary: Some(Self::world_summary_with_pending_plot_augmentation(
+                format!(
+                    "小说风格：{}；请生成一段承接剧情的小说文本。玩家每章需要 2-3 次互动。",
+                    settings.novel_style
+                ),
+                current_state,
             )),
         };
 
@@ -1566,7 +1586,10 @@ impl PlotEngine {
                 actor_realm: None,
                 actor_combat_power: None,
                 history_events: action_result.events.clone(),
-                world_setting_summary: Some("参考设定文档 78 与补充稿，修仙叙事保持克制、写实、可验证，强调场景、事件与 NPC 反应".to_string()),
+                world_setting_summary: Some(Self::world_summary_with_pending_plot_augmentation(
+                    "参考设定文档 78 与补充稿，修仙叙事保持克制、写实、可验证，强调场景、事件与 NPC 反应",
+                    current_state,
+                )),
             },
             &PromptConstraints {
                 numerical_rules: vec!["必须与行动结果保持一致".to_string()],
@@ -1788,7 +1811,10 @@ impl PlotEngine {
                 actor_realm: None,
                 actor_combat_power: None,
                 history_events: action_result.events.clone(),
-                world_setting_summary: Some("先状态后叙事，输出可验证事实".to_string()),
+                world_setting_summary: Some(Self::world_summary_with_pending_plot_augmentation(
+                    "先状态后叙事，输出可验证事实",
+                    current_state,
+                )),
             },
             &PromptConstraints {
                 numerical_rules: vec!["必须与行动结果保持一致".to_string()],
@@ -1928,7 +1954,10 @@ impl PlotEngine {
                 actor_realm: None,
                 actor_combat_power: None,
                 history_events: action_result.events.clone(),
-                world_setting_summary: Some("轻量降级模式：优先可用与可验证性".to_string()),
+                world_setting_summary: Some(Self::world_summary_with_pending_plot_augmentation(
+                    "轻量降级模式：优先可用与可验证性",
+                    current_state,
+                )),
             },
             &PromptConstraints {
                 numerical_rules: vec!["必须与行动结果保持一致".to_string()],
@@ -2368,9 +2397,10 @@ impl PlotEngine {
                 actor_realm: None,
                 actor_combat_power: None,
                 history_events: action_result.events.clone(),
-                world_setting_summary: Some(
-                    "输出连贯中文小说段落，强调具体行动与因果。".to_string(),
-                ),
+                world_setting_summary: Some(Self::world_summary_with_pending_plot_augmentation(
+                    "输出连贯中文小说段落，强调具体行动与因果。",
+                    current_state,
+                )),
             },
             &PromptConstraints {
                 numerical_rules: vec!["必须与行动结果保持一致".to_string()],
@@ -2967,6 +2997,19 @@ fn fallback_chapter_title(index: u32, summary: &str) -> String {
     }
 }
 
+fn sanitize_pending_plot_augmentation_hint(hint: &str) -> Option<String> {
+    let normalized = hint
+        .replace(['\r', '\n', '\t'], " ")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    let trimmed = normalized.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    Some(trimmed.chars().take(160).collect())
+}
+
 impl Scene {
     pub fn new(id: String, name: String, description: String, location: String) -> Self {
         Self {
@@ -3005,6 +3048,7 @@ impl PlotState {
             last_generation_diagnostics: None,
             last_option_generation_source: None,
             last_consistency_risk_score: None,
+            pending_plot_augmentation_hints: Vec::new(),
         }
     }
 
@@ -3027,6 +3071,153 @@ impl PlotState {
         self.current_chapter.content.push(text);
         self.segment_count = self.segment_count.saturating_add(1);
         self.current_scene.description = self.current_chapter.content.join("\n\n");
+    }
+
+    pub fn apply_low_risk_chapter_summary_hint(
+        &mut self,
+        chapter_index: u32,
+        expected_summary: &str,
+        hint: &str,
+        prepend: bool,
+    ) -> Result<(), String> {
+        if self.current_chapter.index != chapter_index {
+            return Err(format!(
+                "chapter mismatch: expected {}, current {}",
+                chapter_index, self.current_chapter.index
+            ));
+        }
+        if self.current_chapter.summary != expected_summary {
+            return Err("summary snapshot mismatch; refusing stale low-risk apply".to_string());
+        }
+        let hint = hint.trim();
+        if hint.is_empty() {
+            return Err("chapter summary hint is empty".to_string());
+        }
+        if expected_summary.contains(hint) {
+            return Err("chapter summary already contains this low-risk hint".to_string());
+        }
+
+        let summary = expected_summary.trim();
+        let updated_summary = if summary.is_empty() {
+            hint.to_string()
+        } else if prepend {
+            format!("{}; {}", hint, summary)
+        } else {
+            format!("{}; {}", summary, hint)
+        };
+
+        self.current_chapter.summary = updated_summary.clone();
+        if let Some(history_chapter) = self
+            .chapters
+            .iter_mut()
+            .find(|chapter| chapter.index == chapter_index)
+        {
+            history_chapter.summary = updated_summary;
+        }
+        Ok(())
+    }
+
+    pub fn apply_low_risk_generation_diagnostics_hint(
+        &mut self,
+        chapter_index: u32,
+        expected_generation_diagnostics: &str,
+        hint: &str,
+    ) -> Result<(), String> {
+        if self.current_chapter.index != chapter_index {
+            return Err(format!(
+                "chapter mismatch: expected {}, current {}",
+                chapter_index, self.current_chapter.index
+            ));
+        }
+        if !self.is_waiting_for_input {
+            return Err("diagnostics hint requires waiting-for-input state".to_string());
+        }
+
+        let current_diagnostics = self.last_generation_diagnostics.clone().unwrap_or_default();
+        if current_diagnostics != expected_generation_diagnostics {
+            return Err("diagnostics snapshot mismatch; refusing stale low-risk apply".to_string());
+        }
+
+        let hint = hint.trim();
+        if hint.is_empty() {
+            return Err("generation diagnostics hint is empty".to_string());
+        }
+        if current_diagnostics.contains(hint) {
+            return Err("generation diagnostics already contains this low-risk hint".to_string());
+        }
+
+        self.last_generation_diagnostics = Some(if current_diagnostics.trim().is_empty() {
+            hint.to_string()
+        } else {
+            format!("{}; {}", current_diagnostics, hint)
+        });
+        Ok(())
+    }
+
+    pub fn apply_pending_plot_augmentation_hint(
+        &mut self,
+        chapter_index: u32,
+        expected_hints: &[String],
+        hint: &str,
+    ) -> Result<(), String> {
+        if self.current_chapter.index != chapter_index {
+            return Err(format!(
+                "chapter mismatch: expected {}, current {}",
+                chapter_index, self.current_chapter.index
+            ));
+        }
+        if !self.is_waiting_for_input {
+            return Err("plot augmentation hint requires waiting-for-input state".to_string());
+        }
+        if self.pending_plot_augmentation_hints != expected_hints {
+            return Err(
+                "plot augmentation snapshot mismatch; refusing stale controlled apply".to_string(),
+            );
+        }
+
+        let hint = hint.trim();
+        if hint.is_empty() {
+            return Err("plot augmentation hint is empty".to_string());
+        }
+        if self
+            .pending_plot_augmentation_hints
+            .iter()
+            .any(|existing| existing == hint)
+        {
+            return Err("plot augmentation already contains this controlled hint".to_string());
+        }
+
+        self.pending_plot_augmentation_hints.push(hint.to_string());
+        Ok(())
+    }
+
+    pub fn pending_plot_augmentation_prompt_context(&self) -> Option<String> {
+        let hints = self
+            .pending_plot_augmentation_hints
+            .iter()
+            .filter_map(|hint| sanitize_pending_plot_augmentation_hint(hint))
+            .take(3)
+            .collect::<Vec<_>>();
+        if hints.is_empty() {
+            return None;
+        }
+
+        Some(format!(
+            "NoName pending plot augmentation hints（非最终提示，可忽略）：{}。安全边界：只能作为下一轮叙事灵感；不得直接改写最终剧情状态、数值、背包、地图或章节生命周期；若与玩家行动结果或既有世界事实冲突，必须忽略。",
+            hints.join("；")
+        ))
+    }
+
+    pub fn consume_pending_plot_augmentation_hints(
+        &mut self,
+        expected_hints: &[String],
+    ) -> Result<usize, String> {
+        if self.pending_plot_augmentation_hints != expected_hints {
+            return Err("plot augmentation snapshot mismatch; refusing stale consume".to_string());
+        }
+        let consumed = self.pending_plot_augmentation_hints.len();
+        self.pending_plot_augmentation_hints.clear();
+        Ok(consumed)
     }
 
     pub fn finalize_chapter(&mut self, title: Option<String>, summary: Option<String>) {
@@ -3126,6 +3317,157 @@ mod tests {
         let state = PlotState::new(scene);
         assert!(state.is_waiting_for_input);
         assert!(state.plot_history.is_empty());
+    }
+
+    #[test]
+    fn test_low_risk_chapter_summary_hint_updates_summary() {
+        let scene = create_test_scene();
+        let mut state = PlotState::new(scene);
+        state.current_chapter.summary = "existing summary".to_string();
+
+        state
+            .apply_low_risk_chapter_summary_hint(
+                1,
+                "existing summary",
+                "NoName summary hint: focus",
+                true,
+            )
+            .expect("summary hint should apply");
+
+        assert_eq!(
+            state.current_chapter.summary,
+            "NoName summary hint: focus; existing summary"
+        );
+    }
+
+    #[test]
+    fn test_low_risk_chapter_summary_hint_rejects_stale_snapshot() {
+        let scene = create_test_scene();
+        let mut state = PlotState::new(scene);
+        state.current_chapter.summary = "new summary".to_string();
+
+        let error = state
+            .apply_low_risk_chapter_summary_hint(
+                1,
+                "old summary",
+                "NoName summary hint: focus",
+                false,
+            )
+            .expect_err("stale summary should be rejected");
+
+        assert!(error.contains("summary snapshot mismatch"));
+    }
+
+    #[test]
+    fn test_low_risk_generation_diagnostics_hint_updates_diagnostics() {
+        let scene = create_test_scene();
+        let mut state = PlotState::new(scene);
+        state.last_generation_diagnostics = Some("base diagnostics".to_string());
+
+        state
+            .apply_low_risk_generation_diagnostics_hint(
+                1,
+                "base diagnostics",
+                "NoName option bias: focus",
+            )
+            .expect("diagnostics hint should apply");
+
+        assert_eq!(
+            state.last_generation_diagnostics.as_deref(),
+            Some("base diagnostics; NoName option bias: focus")
+        );
+    }
+
+    #[test]
+    fn test_low_risk_generation_diagnostics_hint_rejects_when_not_waiting() {
+        let scene = create_test_scene();
+        let mut state = PlotState::new(scene);
+        state.is_waiting_for_input = false;
+
+        let error = state
+            .apply_low_risk_generation_diagnostics_hint(1, "", "NoName option bias: focus")
+            .expect_err("non-waiting state should be rejected");
+
+        assert!(error.contains("waiting-for-input"));
+    }
+
+    #[test]
+    fn test_pending_plot_augmentation_hint_updates_pending_hints() {
+        let scene = create_test_scene();
+        let mut state = PlotState::new(scene);
+        state
+            .pending_plot_augmentation_hints
+            .push("existing augmentation".to_string());
+
+        state
+            .apply_pending_plot_augmentation_hint(
+                1,
+                &["existing augmentation".to_string()],
+                "NoName plot augmentation: focus",
+            )
+            .expect("plot augmentation hint should apply");
+
+        assert_eq!(
+            state.pending_plot_augmentation_hints,
+            vec![
+                "existing augmentation".to_string(),
+                "NoName plot augmentation: focus".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn test_pending_plot_augmentation_hint_rejects_stale_snapshot() {
+        let scene = create_test_scene();
+        let mut state = PlotState::new(scene);
+        state
+            .pending_plot_augmentation_hints
+            .push("new augmentation".to_string());
+
+        let error = state
+            .apply_pending_plot_augmentation_hint(
+                1,
+                &["old augmentation".to_string()],
+                "NoName plot augmentation: focus",
+            )
+            .expect_err("stale plot augmentation snapshot should be rejected");
+
+        assert!(error.contains("plot augmentation snapshot mismatch"));
+    }
+
+    #[test]
+    fn test_pending_plot_augmentation_prompt_context_is_sanitized_and_bounded() {
+        let scene = create_test_scene();
+        let mut state = PlotState::new(scene);
+        state
+            .pending_plot_augmentation_hints
+            .push("NoName plot augmentation:\n focus=hidden cave\t| effect=stage beat".to_string());
+        state.pending_plot_augmentation_hints.push("".to_string());
+
+        let context = state
+            .pending_plot_augmentation_prompt_context()
+            .expect("pending hints should produce prompt context");
+
+        assert!(context.contains("非最终提示"));
+        assert!(context.contains("focus=hidden cave | effect=stage beat"));
+        assert!(context.contains("不得直接改写最终剧情状态"));
+        assert!(!context.contains('\n'));
+        assert!(!context.contains('\t'));
+    }
+
+    #[test]
+    fn test_consume_pending_plot_augmentation_hints_clears_matching_snapshot() {
+        let scene = create_test_scene();
+        let mut state = PlotState::new(scene);
+        let expected = vec!["NoName plot augmentation: focus=hidden cave".to_string()];
+        state.pending_plot_augmentation_hints = expected.clone();
+
+        let consumed = state
+            .consume_pending_plot_augmentation_hints(&expected)
+            .expect("matching snapshot should be consumed");
+
+        assert_eq!(consumed, 1);
+        assert!(state.pending_plot_augmentation_hints.is_empty());
     }
 
     #[test]
