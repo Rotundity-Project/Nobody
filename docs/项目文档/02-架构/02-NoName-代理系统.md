@@ -71,9 +71,18 @@
 
 ## 5. 当前主要问题
 
-### 5.1 命令层仍然过重
+### 5.1 命令层压力正在下降
 
-`reviewed apply` 的核心逻辑虽已下沉到 `noname_apply.rs`，但命令编排仍强依赖 `tauri_commands.rs`。
+`reviewed apply` 的请求构造、快照校验、显式 apply、人工 review intent 与 second guardrail 记录逻辑已经下沉到 `noname_apply.rs`。
+
+`tauri_commands.rs` 在这条链路上主要保留：
+
+- Tauri 参数接收
+- runtime trace 读取与回写
+- game engine / plot state 读取与回写
+- 命令错误返回
+
+后续仍可继续观察低风险 apply 与生成主链中是否还有适合抽离的重复编排，但不应再把新的 reviewed apply 权限逻辑直接堆回命令层。
 
 ### 5.2 Web mock 与后端容易漂移
 
@@ -90,10 +99,10 @@
 
 ## 6. 当前结论
 
-`NoName` 已经完成 `V1` 骨架并进入 `T7 reviewed apply runtime` 阶段。  
+`NoName` 已经完成 `V1` 骨架并进入 reviewed apply runtime 收口阶段。
 后续不建议立即扩大它对正文和主剧情状态的控制权，应该先完成：
 
-- 命令层减压
+- 命令层剩余编排减压
 - 前后端语义对齐
 - 记忆与 structured notes 串联
 - 协作文档重建
