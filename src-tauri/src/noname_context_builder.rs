@@ -206,12 +206,20 @@ fn director_context(packet: &NoNameContextPacket) -> NoNameRoleContextPacket {
         visible_constraints: vec![
             "May propose low-risk narrative direction.".to_string(),
             "Should keep unresolved threads visible for later turns.".to_string(),
+            "Primary context bias: narrative notes, episodic memory, then recent signals."
+                .to_string(),
         ],
         forbidden_scopes: vec![
             "Must not directly rewrite final plot state.".to_string(),
             "Must not invent hard world canon without WorldCurator support.".to_string(),
         ],
-        source_stats: packet.source_stats.clone(),
+        source_stats: role_source_stats(
+            packet,
+            &[
+                ("rolePriority:director:narrative", 3),
+                ("rolePriority:director:episodic", 2),
+            ],
+        ),
         token_budget_used: packet.token_budget_used,
     }
 }
@@ -233,12 +241,20 @@ fn world_curator_context(packet: &NoNameContextPacket) -> NoNameRoleContextPacke
         visible_constraints: vec![
             "May clarify setting rules and location constraints.".to_string(),
             "Should preserve established facts over dramatic convenience.".to_string(),
+            "Primary context bias: semantic facts, chapter summaries, then map entities."
+                .to_string(),
         ],
         forbidden_scopes: vec![
             "Must not decide NPC private intent.".to_string(),
             "Must not choose the main plot beat alone.".to_string(),
         ],
-        source_stats: packet.source_stats.clone(),
+        source_stats: role_source_stats(
+            packet,
+            &[
+                ("rolePriority:worldCurator:semantic", 4),
+                ("rolePriority:worldCurator:chapterSummary", 2),
+            ],
+        ),
         token_budget_used: packet.token_budget_used,
     }
 }
@@ -263,12 +279,20 @@ fn npc_intent_context(packet: &NoNameContextPacket) -> NoNameRoleContextPacket {
         visible_constraints: vec![
             "May infer motivation only from visible context.".to_string(),
             "Should keep uncertainty explicit when evidence is thin.".to_string(),
+            "Primary context bias: referenced entities, episodic memory, then narrative notes."
+                .to_string(),
         ],
         forbidden_scopes: vec![
             "Must not reveal hidden knowledge not present in context.".to_string(),
             "Must not override world facts or combat outcomes.".to_string(),
         ],
-        source_stats: packet.source_stats.clone(),
+        source_stats: role_source_stats(
+            packet,
+            &[
+                ("rolePriority:npcIntent:referencedEntities", 4),
+                ("rolePriority:npcIntent:episodic", 3),
+            ],
+        ),
         token_budget_used: packet.token_budget_used,
     }
 }
@@ -291,12 +315,20 @@ fn combat_narrator_context(packet: &NoNameContextPacket) -> NoNameRoleContextPac
         visible_constraints: vec![
             "May describe action consequences as low-risk narration anchors.".to_string(),
             "Should preserve current combat constraints.".to_string(),
+            "Primary context bias: recent context, episodic combat memory, then working memory."
+                .to_string(),
         ],
         forbidden_scopes: vec![
             "Must not determine final damage or victory state.".to_string(),
             "Must not invent new combat rules.".to_string(),
         ],
-        source_stats: packet.source_stats.clone(),
+        source_stats: role_source_stats(
+            packet,
+            &[
+                ("rolePriority:combatNarrator:recentContext", 4),
+                ("rolePriority:combatNarrator:episodic", 3),
+            ],
+        ),
         token_budget_used: packet.token_budget_used,
     }
 }
@@ -312,9 +344,23 @@ fn system_context(packet: &NoNameContextPacket) -> NoNameRoleContextPacket {
         recent_signals: take_joined(&[&packet.working_memory, &packet.recent_context], 4),
         visible_constraints: vec!["May inspect available context shape.".to_string()],
         forbidden_scopes: vec!["Must not author narrative content.".to_string()],
-        source_stats: packet.source_stats.clone(),
+        source_stats: role_source_stats(packet, &[("rolePriority:system:diagnostics", 1)]),
         token_budget_used: packet.token_budget_used,
     }
+}
+
+fn role_source_stats(
+    packet: &NoNameContextPacket,
+    role_priorities: &[(&str, usize)],
+) -> Vec<NoNameContextSourceStat> {
+    let mut stats = packet.source_stats.clone();
+    for (source, count) in role_priorities {
+        stats.push(NoNameContextSourceStat {
+            source: (*source).to_string(),
+            count: *count,
+        });
+    }
+    stats
 }
 
 fn trim_to_budget(items: &mut Vec<String>, remain_budget: usize, used: &mut usize) {
@@ -571,6 +617,23 @@ mod tests {
         assert_eq!(packets[2].role, NoNameRole::NpcIntent);
         assert_ne!(packets[0].role_goal, packets[1].role_goal);
         assert_ne!(packets[1].forbidden_scopes, packets[2].forbidden_scopes);
+        assert_ne!(packets[0].source_stats, packets[1].source_stats);
+        assert!(packets[0]
+            .source_stats
+            .iter()
+            .any(|item| item.source == "rolePriority:director:narrative"));
+        assert!(packets[1]
+            .source_stats
+            .iter()
+            .any(|item| item.source == "rolePriority:worldCurator:semantic"));
+        assert!(packets[2]
+            .source_stats
+            .iter()
+            .any(|item| item.source == "rolePriority:npcIntent:referencedEntities"));
+        assert!(packets[2]
+            .visible_constraints
+            .iter()
+            .any(|item| item.contains("Primary context bias")));
         assert!(packets[1]
             .world_facts
             .iter()
@@ -615,5 +678,53 @@ mod tests {
             .forbidden_scopes
             .iter()
             .any(|item| item.contains("hidden knowledge")));
+    }
+
+    #[test]
+    fn role_context_source_stats_are_specialized_per_role() {
+        let packet = NoNameContextPacket {
+            role: NoNameRole::Director,
+            hard_facts: vec!["Gate has a ward".to_string()],
+            working_memory: vec!["Player suspects Elder Qinghe".to_string()],
+            episodic_memory: vec!["Elder Qinghe hesitated".to_string()],
+            narrative_notes: vec!["Broken Ward: saboteur unknown".to_string()],
+            chapter_summaries: vec!["Gate Crisis: ward damaged".to_string()],
+            recent_context: vec!["Ward flickers".to_string()],
+            referenced_entities: vec!["Character:ElderQinghe".to_string()],
+            compressed_summary: None,
+            token_budget_used: 42,
+            source_stats: vec![
+                NoNameContextSourceStat {
+                    source: "semantic".to_string(),
+                    count: 1,
+                },
+                NoNameContextSourceStat {
+                    source: "episodic".to_string(),
+                    count: 1,
+                },
+            ],
+        };
+
+        let director = specialize_context_packet(&packet);
+        let mut world_packet = packet.clone();
+        world_packet.role = NoNameRole::WorldCurator;
+        let world = specialize_context_packet(&world_packet);
+        let mut npc_packet = packet.clone();
+        npc_packet.role = NoNameRole::NpcIntent;
+        let npc = specialize_context_packet(&npc_packet);
+
+        assert!(director
+            .source_stats
+            .iter()
+            .any(|item| item.source == "rolePriority:director:narrative" && item.count == 3));
+        assert!(world
+            .source_stats
+            .iter()
+            .any(|item| item.source == "rolePriority:worldCurator:semantic" && item.count == 4));
+        assert!(npc.source_stats.iter().any(|item| {
+            item.source == "rolePriority:npcIntent:referencedEntities" && item.count == 4
+        }));
+        assert_ne!(director.source_stats, world.source_stats);
+        assert_ne!(world.source_stats, npc.source_stats);
     }
 }

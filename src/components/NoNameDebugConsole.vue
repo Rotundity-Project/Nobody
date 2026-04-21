@@ -272,6 +272,7 @@ function buildTraceReport(
   const protocolEvents = trace.protocolEvents ?? [];
   const controlledReviews = trace.controlledOutputReviews ?? [];
   const humanReviewCount = controlledReviews.filter((review) => review.requiresHumanReview).length;
+  const applyExecutionCount = trace.applyExecutionLog?.length ?? 0;
   const reviewDecisionCounts = controlledReviews.reduce(
     (counts, review) => {
       const decision = reviewDecisions[review.requestId] ?? 'pending';
@@ -299,6 +300,7 @@ function buildTraceReport(
     `Graph: ${graphPath}`,
     `Proposals: ${readyCount}/${trace.proposals.length} applyable`,
     `Latest Proposal: ${latestProposal ? `${latestProposal.producerRole}:${latestProposal.kind}:${latestProposal.focus}` : '无'}`,
+    `Trace Breakdown: proposals=${trace.proposals.length}, reviews=${controlledReviews.length}, humanReview=${humanReviewCount}, applyExecutions=${applyExecutionCount}`,
     `Related Observations: ${relatedObservations.length}`,
     `Protocol Events: ${protocolEvents.length}`,
     `Controlled Reviews: ${controlledReviews.length} (${humanReviewCount} needs human review)`,

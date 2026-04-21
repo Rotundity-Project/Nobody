@@ -27,6 +27,27 @@ pub struct NoNameChapterNoteReview {
     pub updated_at: u64,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum NoNameNoteLifecycleAction {
+    Resolve,
+    Archive,
+    Reopen,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NoNameNoteLifecycleResult {
+    pub note_id: String,
+    pub action: NoNameNoteLifecycleAction,
+    pub previous_status: NoNameNarrativeStatus,
+    pub next_status: NoNameNarrativeStatus,
+    pub applied: bool,
+    pub reason: String,
+    pub updated_at: u64,
+    pub note: NoNameNarrativeMemoryItem,
+}
+
 #[derive(Debug, Default, Clone)]
 pub struct NoNameNoteStore {
     notes: Vec<NoNameNarrativeMemoryItem>,
@@ -94,7 +115,7 @@ impl NoNameNoteStore {
             note.summary = summary;
         }
         if let Some(status) = update.status {
-            note.status = status;
+            note.status = transition_status(note.status, status)?;
         }
         if let Some(related_entities) = update.related_entities {
             note.related_entities = dedupe_strings(related_entities);
@@ -120,7 +141,8 @@ impl NoNameNoteStore {
     }
 
     pub fn resolve(&mut self, note_id: &str, updated_at: u64) -> Option<NoNameNarrativeMemoryItem> {
-        self.set_status(note_id, NoNameNarrativeStatus::Resolved, updated_at)
+        self.apply_lifecycle_action(note_id, NoNameNoteLifecycleAction::Resolve, updated_at)
+            .map(|result| result.note)
     }
 
     pub fn close(&mut self, note_id: &str, updated_at: u64) -> Option<NoNameNarrativeMemoryItem> {
@@ -128,7 +150,37 @@ impl NoNameNoteStore {
     }
 
     pub fn archive(&mut self, note_id: &str, updated_at: u64) -> Option<NoNameNarrativeMemoryItem> {
-        self.set_status(note_id, NoNameNarrativeStatus::Archived, updated_at)
+        self.apply_lifecycle_action(note_id, NoNameNoteLifecycleAction::Archive, updated_at)
+            .map(|result| result.note)
+    }
+
+    pub fn reopen(&mut self, note_id: &str, updated_at: u64) -> Option<NoNameNarrativeMemoryItem> {
+        self.apply_lifecycle_action(note_id, NoNameNoteLifecycleAction::Reopen, updated_at)
+            .map(|result| result.note)
+    }
+
+    pub fn apply_lifecycle_action(
+        &mut self,
+        note_id: &str,
+        action: NoNameNoteLifecycleAction,
+        updated_at: u64,
+    ) -> Option<NoNameNoteLifecycleResult> {
+        let note = self.notes.iter_mut().find(|item| item.note_id == note_id)?;
+        let previous_status = note.status;
+        let next_status = status_for_lifecycle_action(previous_status, action)?;
+        note.status = next_status;
+        note.updated_at = updated_at;
+
+        Some(NoNameNoteLifecycleResult {
+            note_id: note.note_id.clone(),
+            action,
+            previous_status,
+            next_status,
+            applied: previous_status != next_status,
+            reason: lifecycle_reason(action, previous_status, next_status),
+            updated_at,
+            note: note.clone(),
+        })
     }
 
     pub fn organize_chapter_end(
@@ -195,6 +247,42 @@ impl NoNameNoteStore {
         review.carried_forward_count = review.active_note_ids.len();
         review
     }
+}
+
+fn status_for_lifecycle_action(
+    current: NoNameNarrativeStatus,
+    action: NoNameNoteLifecycleAction,
+) -> Option<NoNameNarrativeStatus> {
+    let next = match action {
+        NoNameNoteLifecycleAction::Resolve => NoNameNarrativeStatus::Resolved,
+        NoNameNoteLifecycleAction::Archive => NoNameNarrativeStatus::Archived,
+        NoNameNoteLifecycleAction::Reopen => NoNameNarrativeStatus::Active,
+    };
+    transition_status(current, next)
+}
+
+fn transition_status(
+    current: NoNameNarrativeStatus,
+    next: NoNameNarrativeStatus,
+) -> Option<NoNameNarrativeStatus> {
+    current.can_transition_to(next).then_some(next)
+}
+
+fn lifecycle_reason(
+    action: NoNameNoteLifecycleAction,
+    previous_status: NoNameNarrativeStatus,
+    next_status: NoNameNarrativeStatus,
+) -> String {
+    if previous_status == next_status {
+        return format!("note already {}", next_status.as_str());
+    }
+
+    format!(
+        "{:?} transitioned note from {} to {}",
+        action,
+        previous_status.as_str(),
+        next_status.as_str()
+    )
 }
 
 fn dedupe_strings(values: Vec<String>) -> Vec<String> {
@@ -275,6 +363,70 @@ mod tests {
         assert_eq!(
             store.list_by_status(NoNameNarrativeStatus::Archived).len(),
             1
+        );
+    }
+
+    #[test]
+    fn note_store_applies_reusable_lifecycle_actions() {
+        let mut store = NoNameNoteStore::new();
+        store.upsert(note("note-1", NoNameNarrativeNoteType::Goal));
+
+        let resolved = store
+            .apply_lifecycle_action("note-1", NoNameNoteLifecycleAction::Resolve, 2)
+            .expect("active note should resolve");
+        assert!(resolved.applied);
+        assert_eq!(resolved.previous_status, NoNameNarrativeStatus::Active);
+        assert_eq!(resolved.next_status, NoNameNarrativeStatus::Resolved);
+        assert_eq!(resolved.note.status, NoNameNarrativeStatus::Resolved);
+
+        let reopened = store
+            .apply_lifecycle_action("note-1", NoNameNoteLifecycleAction::Reopen, 3)
+            .expect("resolved note should reopen");
+        assert!(reopened.applied);
+        assert_eq!(reopened.previous_status, NoNameNarrativeStatus::Resolved);
+        assert_eq!(reopened.next_status, NoNameNarrativeStatus::Active);
+
+        let archived = store
+            .apply_lifecycle_action("note-1", NoNameNoteLifecycleAction::Archive, 4)
+            .expect("active note should archive");
+        assert!(archived.applied);
+        assert_eq!(archived.next_status, NoNameNarrativeStatus::Archived);
+    }
+
+    #[test]
+    fn note_store_rejects_reopening_archived_notes() {
+        let mut store = NoNameNoteStore::new();
+        store.upsert(note("note-1", NoNameNarrativeNoteType::Goal));
+        store.archive("note-1", 2);
+
+        let rejected = store.apply_lifecycle_action("note-1", NoNameNoteLifecycleAction::Reopen, 3);
+
+        assert!(rejected.is_none());
+        assert_eq!(
+            store.get("note-1").expect("note should exist").status,
+            NoNameNarrativeStatus::Archived
+        );
+    }
+
+    #[test]
+    fn note_update_rejects_invalid_status_transition() {
+        let mut store = NoNameNoteStore::new();
+        store.upsert(note("note-1", NoNameNarrativeNoteType::Goal));
+        store.archive("note-1", 2);
+
+        let rejected = store.update(
+            "note-1",
+            NoNameNoteUpdate {
+                status: Some(NoNameNarrativeStatus::Active),
+                updated_at: 3,
+                ..NoNameNoteUpdate::default()
+            },
+        );
+
+        assert!(rejected.is_none());
+        assert_eq!(
+            store.get("note-1").expect("note should exist").updated_at,
+            2
         );
     }
 
