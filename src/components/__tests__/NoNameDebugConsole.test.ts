@@ -147,7 +147,7 @@ describe('NoNameDebugConsole', () => {
     expect(wrapper.text()).toContain('[tokens=42]');
     expect(wrapper.text()).toContain('[slice=worldFacts:4->3]');
     expect(wrapper.text()).toContain('Controlled Reviews: 1 (1 needs human review)');
-    expect(wrapper.text()).toContain('Trace Breakdown: proposals=1, reviews=1, humanReview=1, applyExecutions=1');
+    expect(wrapper.text()).toContain('Trace Breakdown: proposals=1, reviews=1, humanReview=1, applyExecutions=2');
     expect(wrapper.text()).toContain('Human Review Decisions: 0 approved / 0 rejected / 1 pending');
     expect(wrapper.text()).toContain('Apply Lifecycle:');
     expect(wrapper.text()).toContain('Plot Augmentation: 已消费');
