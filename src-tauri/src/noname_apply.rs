@@ -36,6 +36,78 @@ pub struct NoNameReviewedApplyOutcome {
     pub plot_state: PlotState,
 }
 
+pub fn build_manual_plot_text_apply_request(
+    request_id: impl Into<String>,
+    chapter_index: u32,
+    segment_index: usize,
+    expected_segment_text: impl Into<String>,
+) -> NoNameReviewedApplyRequest {
+    NoNameReviewedApplyRequest {
+        request_id: request_id.into(),
+        scope: NoNameApplyScope::PlotTextHint,
+        segment_snapshot: Some(NoNameApplySegmentSnapshot {
+            chapter_index,
+            segment_index,
+            expected_segment_text: expected_segment_text.into(),
+        }),
+        summary_snapshot: None,
+        diagnostics_snapshot: None,
+    }
+}
+
+pub fn build_reviewed_apply_request(
+    request_id: String,
+    scope: NoNameApplyScope,
+    chapter_index: Option<u32>,
+    segment_index: Option<usize>,
+    expected_segment_text: Option<String>,
+    expected_summary: Option<String>,
+    expected_generation_diagnostics: Option<String>,
+) -> Result<NoNameReviewedApplyRequest, String> {
+    let segment_snapshot = match scope {
+        NoNameApplyScope::PlotTextHint => Some(NoNameApplySegmentSnapshot {
+            chapter_index: chapter_index
+                .ok_or_else(|| "plot_text_hint manual apply requires chapter_index".to_string())?,
+            segment_index: segment_index
+                .ok_or_else(|| "plot_text_hint manual apply requires segment_index".to_string())?,
+            expected_segment_text: expected_segment_text.ok_or_else(|| {
+                "plot_text_hint manual apply requires expected_segment_text".to_string()
+            })?,
+        }),
+        _ => None,
+    };
+    let summary_snapshot = match scope {
+        NoNameApplyScope::ChapterSummaryHint => Some(NoNameApplySummarySnapshot {
+            chapter_index: chapter_index.ok_or_else(|| {
+                "chapter_summary_hint manual apply requires chapter_index".to_string()
+            })?,
+            expected_summary: expected_summary.ok_or_else(|| {
+                "chapter_summary_hint manual apply requires expected_summary".to_string()
+            })?,
+        }),
+        _ => None,
+    };
+    let diagnostics_snapshot = match scope {
+        NoNameApplyScope::OptionBiasHint => Some(NoNameApplyDiagnosticsSnapshot {
+            chapter_index: chapter_index.ok_or_else(|| {
+                "option_bias_hint manual apply requires chapter_index".to_string()
+            })?,
+            expected_generation_diagnostics: expected_generation_diagnostics.ok_or_else(|| {
+                "option_bias_hint manual apply requires expected_generation_diagnostics".to_string()
+            })?,
+        }),
+        _ => None,
+    };
+
+    Ok(NoNameReviewedApplyRequest {
+        request_id,
+        scope,
+        segment_snapshot,
+        summary_snapshot,
+        diagnostics_snapshot,
+    })
+}
+
 fn priority_for_apply_scope(scope: NoNameApplyScope) -> u32 {
     match scope {
         NoNameApplyScope::PlotTextHint => 300,
@@ -443,6 +515,26 @@ pub fn apply_reviewed_output_to_plot_state(
             scope.as_str()
         )),
     }
+}
+
+pub fn apply_manual_plot_text_hint_to_plot_state(
+    trace: NoNameTrace,
+    request_id: &str,
+    plot_state: PlotState,
+    chapter_index: u32,
+    segment_index: usize,
+    expected_segment_text: &str,
+) -> Result<NoNameReviewedApplyOutcome, String> {
+    apply_reviewed_output_to_plot_state(
+        trace,
+        build_manual_plot_text_apply_request(
+            request_id,
+            chapter_index,
+            segment_index,
+            expected_segment_text,
+        ),
+        plot_state,
+    )
 }
 
 #[cfg(test)]
