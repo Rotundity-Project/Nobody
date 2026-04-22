@@ -1,3 +1,4 @@
+use crate::noname_output_interface::NoNameControlledOutputDecision;
 use crate::noname_trace::{NoNameHumanReviewDecision, NoNameSecondGuardrailDecision, NoNameTrace};
 use crate::noname_types::{
     NoNameApplyScope, NoNameMode, NoNameProposal, NoNameProposalStatus, NoNameTargetSegment,
@@ -171,6 +172,13 @@ fn next_apply_plan_order(trace: &NoNameTrace) -> u32 {
         + 1
 }
 
+fn find_controlled_output_review_index(trace: &NoNameTrace, request_id: &str) -> Option<usize> {
+    trace
+        .controlled_output_reviews
+        .iter()
+        .position(|review| review.request_id == request_id)
+}
+
 fn find_review_proposal<'a>(
     trace: &'a NoNameTrace,
     request_id: &str,
@@ -314,6 +322,45 @@ fn human_review_apply_intent_rejection_reason(
         )),
         None => Some("NoName proposal not found for apply intent".to_string()),
     }
+}
+
+pub fn apply_human_review_decision_to_trace(
+    trace: &mut NoNameTrace,
+    request_id: &str,
+    decision: NoNameHumanReviewDecision,
+    reviewed_at: u64,
+) -> Result<(), String> {
+    let review_index = find_controlled_output_review_index(trace, request_id)
+        .ok_or_else(|| format!("NoName controlled output review not found: {}", request_id))?;
+
+    let safe_apply_scope = {
+        let review = &trace.controlled_output_reviews[review_index];
+        if review.decision != NoNameControlledOutputDecision::NeedsReview
+            || !review.requires_human_review
+        {
+            return Err(format!(
+                "NoName controlled output review does not require human review: {}",
+                request_id
+            ));
+        }
+
+        review.safe_apply_scope.ok_or_else(|| {
+            format!(
+                "NoName controlled output review has no safe apply scope: {}",
+                request_id
+            )
+        })?
+    };
+
+    let review = &mut trace.controlled_output_reviews[review_index];
+    review.human_review_decision = Some(decision);
+    review.human_reviewed_at = Some(reviewed_at);
+    review.human_review_note = Some(decision.note().to_string());
+
+    trace.record_proposal_transition(format!("{}:human_review:{}", request_id, decision.as_str()));
+    record_human_review_apply_intent(trace, request_id, decision, Some(safe_apply_scope));
+
+    Ok(())
 }
 
 pub fn record_human_review_apply_intent(
@@ -500,6 +547,32 @@ pub fn record_second_guardrail_decision(
     }
 
     Ok(())
+}
+
+pub fn resolve_second_guardrail_for_trace(
+    trace: &mut NoNameTrace,
+    request_id: &str,
+    decision: NoNameSecondGuardrailDecision,
+) -> Result<(), String> {
+    let safe_apply_scope = trace
+        .controlled_output_reviews
+        .iter()
+        .find(|review| review.request_id == request_id)
+        .ok_or_else(|| format!("NoName controlled output review not found: {}", request_id))
+        .and_then(|review| {
+            if review.human_review_decision
+                != Some(NoNameHumanReviewDecision::ApprovedForHigherApply)
+            {
+                return Err(format!(
+                    "NoName controlled output review is not approved for second guardrail: {}",
+                    request_id
+                ));
+            }
+
+            Ok(review.safe_apply_scope)
+        })?;
+
+    record_second_guardrail_decision(trace, request_id, decision, safe_apply_scope)
 }
 
 fn trace_has_second_guardrail_allow(
@@ -909,6 +982,15 @@ pub fn apply_reviewed_output_to_plot_state(
     }
 }
 
+pub fn apply_reviewed_output_input_to_plot_state(
+    trace: NoNameTrace,
+    input: NoNameReviewedApplyRequestInput,
+    plot_state: PlotState,
+) -> Result<NoNameReviewedApplyOutcome, String> {
+    let request = build_reviewed_apply_request(input)?;
+    apply_reviewed_output_to_plot_state(trace, request, plot_state)
+}
+
 pub fn apply_manual_plot_text_hint_to_plot_state(
     trace: NoNameTrace,
     request_id: &str,
@@ -1141,6 +1223,67 @@ mod tests {
     }
 
     #[test]
+    fn apply_human_review_decision_to_trace_updates_review_and_logs() {
+        let (mut trace, request_id) = make_trace_for_plot_text_review();
+
+        apply_human_review_decision_to_trace(
+            &mut trace,
+            &request_id,
+            NoNameHumanReviewDecision::ApprovedForHigherApply,
+            123,
+        )
+        .expect("human review decision should be applied to trace");
+
+        let review = &trace.controlled_output_reviews[0];
+        assert_eq!(
+            review.human_review_decision,
+            Some(NoNameHumanReviewDecision::ApprovedForHigherApply)
+        );
+        assert_eq!(review.human_reviewed_at, Some(123));
+        assert_eq!(
+            review.human_review_note.as_deref(),
+            Some(NoNameHumanReviewDecision::ApprovedForHigherApply.note())
+        );
+        assert!(trace.proposal_transition_log.iter().any(|entry| {
+            entry
+                == &format!(
+                    "{}:human_review:{}",
+                    request_id,
+                    NoNameHumanReviewDecision::ApprovedForHigherApply.as_str()
+                )
+        }));
+        assert!(trace.apply_execution_log.iter().any(|entry| {
+            entry.target == "plot_text_hint" && entry.outcome == "awaiting_second_guardrail"
+        }));
+    }
+
+    #[test]
+    fn apply_human_review_decision_to_trace_rejects_missing_safe_scope_without_mutation() {
+        let (mut trace, request_id) = make_trace_for_plot_text_review();
+        trace.controlled_output_reviews[0].safe_apply_scope = None;
+
+        let error = apply_human_review_decision_to_trace(
+            &mut trace,
+            &request_id,
+            NoNameHumanReviewDecision::ApprovedForHigherApply,
+            456,
+        )
+        .expect_err("missing safe apply scope should fail");
+
+        assert_eq!(
+            error,
+            format!(
+                "NoName controlled output review has no safe apply scope: {}",
+                request_id
+            )
+        );
+        let review = &trace.controlled_output_reviews[0];
+        assert_eq!(review.human_review_decision, None);
+        assert_eq!(review.human_reviewed_at, None);
+        assert_eq!(review.human_review_note, None);
+    }
+
+    #[test]
     fn human_review_apply_intent_rejects_non_second_guardrail_scope() {
         let (mut trace, request_id) = make_trace_for_summary_apply();
 
@@ -1188,6 +1331,49 @@ mod tests {
                 .map(|item| item.outcome.as_str()),
             Some("second_guardrail_allow")
         );
+    }
+
+    #[test]
+    fn resolve_second_guardrail_for_trace_requires_review_approval() {
+        let (mut trace, request_id) = make_trace_for_plot_text_review();
+
+        let error = resolve_second_guardrail_for_trace(
+            &mut trace,
+            &request_id,
+            NoNameSecondGuardrailDecision::Allow,
+        )
+        .expect_err("second guardrail should require approved human review");
+
+        assert_eq!(
+            error,
+            format!(
+                "NoName controlled output review is not approved for second guardrail: {}",
+                request_id
+            )
+        );
+    }
+
+    #[test]
+    fn resolve_second_guardrail_for_trace_records_allow() {
+        let (mut trace, request_id) = make_trace_for_plot_text_review();
+        apply_human_review_decision_to_trace(
+            &mut trace,
+            &request_id,
+            NoNameHumanReviewDecision::ApprovedForHigherApply,
+            789,
+        )
+        .expect("human review should prepare second guardrail");
+
+        resolve_second_guardrail_for_trace(
+            &mut trace,
+            &request_id,
+            NoNameSecondGuardrailDecision::Allow,
+        )
+        .expect("second guardrail allow should be recorded");
+
+        assert!(trace.apply_execution_log.iter().any(|entry| {
+            entry.target == "plot_text_hint" && entry.outcome == "second_guardrail_allowed"
+        }));
     }
 
     #[test]
@@ -1281,6 +1467,34 @@ mod tests {
             .proposal_transition_log
             .iter()
             .any(|entry| entry.ends_with(":manual_apply:chapter_summary_hint")));
+    }
+
+    #[test]
+    fn reviewed_apply_input_can_write_chapter_summary_hint() {
+        let (trace, request_id) = make_trace_for_summary_apply();
+        let plot_state = make_plot_state("existing summary");
+
+        let outcome = apply_reviewed_output_input_to_plot_state(
+            trace,
+            NoNameReviewedApplyRequestInput {
+                request_id,
+                scope: NoNameApplyScope::ChapterSummaryHint,
+                chapter_index: Some(1),
+                segment_index: None,
+                expected_segment_text: None,
+                expected_summary: Some("existing summary".to_string()),
+                expected_generation_diagnostics: None,
+                expected_plot_augmentation_hints: None,
+            },
+            plot_state,
+        )
+        .expect("summary hint should be manually applied from request input");
+
+        assert!(outcome
+            .plot_state
+            .current_chapter
+            .summary
+            .starts_with("NoName summary hint: sect crisis; existing summary"));
     }
 
     #[test]
