@@ -73,7 +73,7 @@
 
 ### 5.1 命令层压力正在下降
 
-`reviewed apply` 的请求构造、快照校验、显式 apply、人工 review intent 与 second guardrail 记录逻辑已经下沉到 `noname_apply.rs`。
+`reviewed apply` 的 request input 构造、快照校验、显式 apply、人工复核结果写回、review intent、second guardrail 预校验与记录逻辑已经下沉到 `noname_apply.rs`。
 
 `tauri_commands.rs` 在这条链路上主要保留：
 
@@ -82,7 +82,7 @@
 - game engine / plot state 读取与回写
 - 命令错误返回
 
-后续仍可继续观察低风险 apply 与生成主链中是否还有适合抽离的重复编排，但不应再把新的 reviewed apply 权限逻辑直接堆回命令层。
+这意味着 reviewed apply 的命令层已经进一步变成薄壳，本轮 A2/A3 可视为阶段性收口完成。后续仍可继续观察低风险 apply 与生成主链中是否还有适合抽离的重复编排，但不应再把新的 reviewed apply 权限逻辑直接堆回命令层。
 
 ### 5.2 Web mock 与后端容易漂移
 

@@ -15,16 +15,15 @@ use crate::llm_runtime_config::{
 use crate::llm_service::{LLMConfig, LLMRequest, LLMService};
 use crate::memory_layers::{ChapterSummary, MemoryEntry, WorldFact};
 use crate::noname_apply::{
-    apply_manual_plot_text_hint_to_plot_state, apply_reviewed_output_to_plot_state,
-    build_reviewed_apply_request, record_human_review_apply_intent,
-    record_second_guardrail_decision, NoNameReviewedApplyRequestInput,
+    apply_human_review_decision_to_trace, apply_manual_plot_text_hint_to_plot_state,
+    apply_reviewed_output_input_to_plot_state, resolve_second_guardrail_for_trace,
+    NoNameReviewedApplyRequestInput,
 };
 use crate::noname_config::NoNameConfig;
 use crate::noname_context_builder::build_context_packet;
 use crate::noname_context_types::NoNameContextBuildInput;
 use crate::noname_guardrails::{NoNameDirectorGuardrailInput, NoNameGuardrailResult};
 use crate::noname_memory_manager::NoNameMemoryManager;
-use crate::noname_output_interface::NoNameControlledOutputDecision;
 use crate::noname_roles::NoNameDirectorObservation;
 use crate::noname_runtime::{NoNameDirectorRunResult, NoNameRuntime, NoNameTurnInput};
 use crate::noname_trace::{NoNameHumanReviewDecision, NoNameSecondGuardrailDecision, NoNameTrace};
@@ -4250,37 +4249,7 @@ pub async fn mark_noname_controlled_output_review(
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_secs())
         .unwrap_or_default();
-    let safe_apply_scope = {
-        let review = trace
-            .controlled_output_reviews
-            .iter_mut()
-            .find(|review| review.request_id == request_id)
-            .ok_or_else(|| format!("NoName controlled output review not found: {}", request_id))?;
-
-        if review.decision != NoNameControlledOutputDecision::NeedsReview
-            || !review.requires_human_review
-        {
-            return Err(format!(
-                "NoName controlled output review does not require human review: {}",
-                request_id
-            ));
-        }
-
-        review.human_review_decision = Some(decision);
-        review.human_reviewed_at = Some(reviewed_at);
-        review.human_review_note = Some(decision.note().to_string());
-        review.safe_apply_scope
-    };
-
-    if safe_apply_scope.is_none() {
-        return Err(format!(
-            "NoName controlled output review has no safe apply scope: {}",
-            request_id
-        ));
-    }
-
-    trace.record_proposal_transition(format!("{}:human_review:{}", request_id, decision.as_str()));
-    record_human_review_apply_intent(&mut trace, &request_id, decision, safe_apply_scope);
+    apply_human_review_decision_to_trace(&mut trace, &request_id, decision, reviewed_at)?;
 
     if !runtime.replace_trace(trace.clone()) {
         return Err(format!("NoName trace not found: {}", trace_id));
@@ -4305,24 +4274,7 @@ pub async fn resolve_noname_second_guardrail(
         .find(|trace| trace.trace_id == trace_id)
         .ok_or_else(|| format!("NoName trace not found: {}", trace_id))?;
 
-    let safe_apply_scope = {
-        let review = trace
-            .controlled_output_reviews
-            .iter()
-            .find(|review| review.request_id == request_id)
-            .ok_or_else(|| format!("NoName controlled output review not found: {}", request_id))?;
-
-        if review.human_review_decision != Some(NoNameHumanReviewDecision::ApprovedForHigherApply) {
-            return Err(format!(
-                "NoName controlled output review is not approved for second guardrail: {}",
-                request_id
-            ));
-        }
-
-        review.safe_apply_scope
-    };
-
-    record_second_guardrail_decision(&mut trace, &request_id, decision, safe_apply_scope)?;
+    resolve_second_guardrail_for_trace(&mut trace, &request_id, decision)?;
 
     if !runtime.replace_trace(trace.clone()) {
         return Err(format!("NoName trace not found: {}", trace_id));
@@ -4366,18 +4318,21 @@ pub async fn apply_noname_reviewed_output(
     expected_plot_augmentation_hints: Option<Vec<String>>,
     engine: State<'_, Mutex<GameEngine>>,
 ) -> Result<NoNameManualPlotTextApplyResult, String> {
-    let request = build_reviewed_apply_request(NoNameReviewedApplyRequestInput {
-        request_id,
-        scope,
-        chapter_index,
-        segment_index,
-        expected_segment_text,
-        expected_summary,
-        expected_generation_diagnostics,
-        expected_plot_augmentation_hints,
-    })?;
     apply_noname_outcome_with_engine(&trace_id, &engine, |trace, plot_state| {
-        apply_reviewed_output_to_plot_state(trace, request, plot_state)
+        apply_reviewed_output_input_to_plot_state(
+            trace,
+            NoNameReviewedApplyRequestInput {
+                request_id,
+                scope,
+                chapter_index,
+                segment_index,
+                expected_segment_text,
+                expected_summary,
+                expected_generation_diagnostics,
+                expected_plot_augmentation_hints,
+            },
+            plot_state,
+        )
     })
 }
 
@@ -5082,6 +5037,7 @@ mod tests {
     use super::*;
     use crate::event_log::{EventImportance, GameEvent};
     use crate::models::{CultivationRealm, Element, Grade, SpiritualRoot};
+    use crate::noname_output_interface::NoNameControlledOutputDecision;
     use crate::script::{InitialState, Location, ScriptType, WorldSetting};
     use std::sync::{Mutex as TestMutex, OnceLock as TestOnceLock};
     use tempfile::tempdir;
