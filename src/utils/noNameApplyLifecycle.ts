@@ -33,6 +33,14 @@ export interface NoNameApplyExecutionDisplay {
   outcomeLabel: string;
 }
 
+interface NoNameSecondGuardrailStats {
+  allowed: number;
+  rejected: number;
+  fallback: number;
+  awaiting: number;
+  manualApplied: number;
+}
+
 function normalizeTarget(value: string | undefined) {
   return (value ?? '').replace(/_/g, '').toLowerCase();
 }
@@ -43,10 +51,6 @@ function hasExecution(trace: NoNameTrace, target: string, outcome: string) {
     normalizeTarget(item.target) === normalizedTarget
     && item.outcome === outcome
   )));
-}
-
-function hasExecutionOutcome(trace: NoNameTrace, outcome: string) {
-  return Boolean(trace.applyExecutionLog?.some((item) => item.outcome === outcome));
 }
 
 function latestExecutionForTarget(
@@ -64,8 +68,69 @@ function latestExecutionForTarget(
     )) ?? null;
 }
 
-function hasTransition(trace: NoNameTrace, suffix: string) {
-  return Boolean(trace.proposalTransitionLog?.some((item) => item.endsWith(suffix)));
+function countTransitions(trace: NoNameTrace, suffix: string) {
+  return trace.proposalTransitionLog?.filter((item) => item.endsWith(suffix)).length ?? 0;
+}
+
+function countTransitionMatches(trace: NoNameTrace, predicate: (item: string) => boolean) {
+  return trace.proposalTransitionLog?.filter(predicate).length ?? 0;
+}
+
+function countExecutionOutcomes(trace: NoNameTrace, outcome: string) {
+  return trace.applyExecutionLog?.filter((item) => item.outcome === outcome).length ?? 0;
+}
+
+function countExecutionMatches(trace: NoNameTrace, predicate: (item: NoNameApplyExecutionRecord) => boolean) {
+  return trace.applyExecutionLog?.filter(predicate).length ?? 0;
+}
+
+function countOutcomeEvidence(
+  trace: NoNameTrace,
+  transitionSuffix: string,
+  executionOutcome: string,
+) {
+  const transitionCount = countTransitions(trace, transitionSuffix);
+  return transitionCount > 0
+    ? transitionCount
+    : countExecutionOutcomes(trace, executionOutcome);
+}
+
+function countManualApplyEvidence(trace: NoNameTrace) {
+  const transitionCount = countTransitionMatches(
+    trace,
+    (item) => item.includes(':manual_apply:'),
+  );
+  if (transitionCount > 0) {
+    return transitionCount;
+  }
+  return countExecutionMatches(trace, (item) => [
+    'manual_plot_text_applied',
+    'manual_chapter_summary_hint_applied',
+    'manual_option_bias_hint_applied',
+    'manual_plot_augmentation_hint_applied',
+  ].includes(item.outcome));
+}
+
+function buildSecondGuardrailStats(trace: NoNameTrace): NoNameSecondGuardrailStats {
+  return {
+    allowed: countOutcomeEvidence(trace, ':second_guardrail:allow', 'second_guardrail_allowed'),
+    rejected: countOutcomeEvidence(trace, ':second_guardrail:reject', 'second_guardrail_rejected'),
+    fallback: countOutcomeEvidence(trace, ':second_guardrail:fallback', 'second_guardrail_fallback'),
+    awaiting: countOutcomeEvidence(trace, ':apply_intent:awaiting_second_guardrail', 'awaiting_second_guardrail'),
+    manualApplied: countManualApplyEvidence(trace),
+  };
+}
+
+function hasMixedSecondGuardrailOutcomes(stats: NoNameSecondGuardrailStats) {
+  return [
+    stats.allowed > 0,
+    stats.rejected > 0,
+    stats.fallback > 0,
+  ].filter(Boolean).length > 1;
+}
+
+function formatSecondGuardrailCounts(stats: NoNameSecondGuardrailStats) {
+  return `allow=${stats.allowed}, reject=${stats.rejected}, fallback=${stats.fallback}`;
 }
 
 export function formatNoNameApplyExecutionRecord(
@@ -162,37 +227,6 @@ function lifecycleHumanDecision(
     ?? 'pending';
 }
 
-function hasManualApplyEvidence(trace: NoNameTrace) {
-  return hasExecutionOutcome(trace, 'manual_plot_text_applied')
-    || hasExecutionOutcome(trace, 'manual_chapter_summary_hint_applied')
-    || hasExecutionOutcome(trace, 'manual_option_bias_hint_applied')
-    || hasExecutionOutcome(trace, 'manual_plot_augmentation_hint_applied')
-    || hasTransition(trace, ':manual_apply:plot_text_hint')
-    || hasTransition(trace, ':manual_apply:chapter_summary_hint')
-    || hasTransition(trace, ':manual_apply:option_bias_hint')
-    || hasTransition(trace, ':manual_apply:plot_augmentation_hint');
-}
-
-function hasSecondGuardrailAllowed(trace: NoNameTrace) {
-  return hasExecutionOutcome(trace, 'second_guardrail_allowed')
-    || hasTransition(trace, ':second_guardrail:allow');
-}
-
-function hasSecondGuardrailRejected(trace: NoNameTrace) {
-  return hasExecutionOutcome(trace, 'second_guardrail_rejected')
-    || hasTransition(trace, ':second_guardrail:reject');
-}
-
-function hasSecondGuardrailFallback(trace: NoNameTrace) {
-  return hasExecutionOutcome(trace, 'second_guardrail_fallback')
-    || hasTransition(trace, ':second_guardrail:fallback');
-}
-
-function hasAwaitingSecondGuardrail(trace: NoNameTrace) {
-  return hasExecutionOutcome(trace, 'awaiting_second_guardrail')
-    || hasTransition(trace, ':apply_intent:awaiting_second_guardrail');
-}
-
 export function buildNoNameApplyLifecycleCheckpoints(
   trace: NoNameTrace,
   reviewDecisions: Record<string, NoNameHumanReviewDecision> = {},
@@ -211,11 +245,13 @@ export function buildNoNameApplyLifecycleCheckpoints(
       rejectedForHigherApply: 0,
     } satisfies Record<NoNameHumanReviewDecision, number>,
   );
-  const secondGuardrailAllowed = hasSecondGuardrailAllowed(trace);
-  const secondGuardrailRejected = hasSecondGuardrailRejected(trace);
-  const secondGuardrailFallback = hasSecondGuardrailFallback(trace);
-  const awaitingSecondGuardrail = hasAwaitingSecondGuardrail(trace);
-  const manualApplied = hasManualApplyEvidence(trace);
+  const secondGuardrailStats = buildSecondGuardrailStats(trace);
+  const secondGuardrailAllowed = secondGuardrailStats.allowed > 0;
+  const secondGuardrailRejected = secondGuardrailStats.rejected > 0;
+  const secondGuardrailFallback = secondGuardrailStats.fallback > 0;
+  const mixedSecondGuardrail = hasMixedSecondGuardrailOutcomes(secondGuardrailStats);
+  const awaitingSecondGuardrail = secondGuardrailStats.awaiting > 0;
+  const manualApplied = secondGuardrailStats.manualApplied > 0;
   const needsManualApplyPath = humanReviews.length > 0
     || awaitingSecondGuardrail
     || secondGuardrailAllowed
@@ -268,6 +304,15 @@ export function buildNoNameApplyLifecycleCheckpoints(
       state: 'not-required',
       detail: 'No higher-layer apply path is currently staged.',
       tone: 'info',
+    };
+  } else if (mixedSecondGuardrail) {
+    secondGuardrailCheckpoint = {
+      key: 'second-guardrail',
+      label: 'Second Guardrail',
+      order: 2,
+      state: 'mixed',
+      detail: `Multiple reviewed apply scopes have different second guardrail outcomes (${formatSecondGuardrailCounts(secondGuardrailStats)}).`,
+      tone: 'blocked',
     };
   } else if (secondGuardrailFallback) {
     secondGuardrailCheckpoint = {
@@ -326,7 +371,16 @@ export function buildNoNameApplyLifecycleCheckpoints(
   }
 
   let manualApplyCheckpoint: NoNameApplyLifecycleCheckpoint;
-  if (manualApplied) {
+  if (manualApplied && mixedSecondGuardrail) {
+    manualApplyCheckpoint = {
+      key: 'manual-apply',
+      label: 'Manual Apply',
+      order: 3,
+      state: 'partially-applied',
+      detail: `Some reviewed apply scopes were manually applied while others are blocked (${formatSecondGuardrailCounts(secondGuardrailStats)}).`,
+      tone: 'blocked',
+    };
+  } else if (manualApplied) {
     manualApplyCheckpoint = {
       key: 'manual-apply',
       label: 'Manual Apply',
@@ -343,6 +397,15 @@ export function buildNoNameApplyLifecycleCheckpoints(
       state: 'not-required',
       detail: 'No manual apply scope is currently staged.',
       tone: 'info',
+    };
+  } else if (mixedSecondGuardrail && secondGuardrailAllowed) {
+    manualApplyCheckpoint = {
+      key: 'manual-apply',
+      label: 'Manual Apply',
+      order: 3,
+      state: 'partially-ready',
+      detail: `Only the allowed reviewed apply scope(s) can continue; rejected or fallback scope(s) stay blocked (${formatSecondGuardrailCounts(secondGuardrailStats)}).`,
+      tone: 'blocked',
     };
   } else if (secondGuardrailAllowed) {
     manualApplyCheckpoint = {
@@ -448,22 +511,13 @@ export function buildNoNameApplyLifecycle(
   const latestProposalScopes = latestProposal?.applyScopes ?? [];
   const hasPlotAugmentationScope = latestProposalScopes
     .some((scope) => normalizeTarget(scope) === normalizeTarget('plotAugmentationHint'));
-  const secondGuardrailAllowed = hasExecutionOutcome(trace, 'second_guardrail_allowed')
-    || hasTransition(trace, ':second_guardrail:allow');
-  const secondGuardrailRejected = hasExecutionOutcome(trace, 'second_guardrail_rejected')
-    || hasTransition(trace, ':second_guardrail:reject');
-  const secondGuardrailFallback = hasExecutionOutcome(trace, 'second_guardrail_fallback')
-    || hasTransition(trace, ':second_guardrail:fallback');
-  const awaitingSecondGuardrail = hasExecutionOutcome(trace, 'awaiting_second_guardrail')
-    || hasTransition(trace, ':apply_intent:awaiting_second_guardrail');
-  const manualApplied = hasExecutionOutcome(trace, 'manual_plot_text_applied')
-    || hasExecutionOutcome(trace, 'manual_chapter_summary_hint_applied')
-    || hasExecutionOutcome(trace, 'manual_option_bias_hint_applied')
-    || hasExecutionOutcome(trace, 'manual_plot_augmentation_hint_applied')
-    || hasTransition(trace, ':manual_apply:plot_text_hint')
-    || hasTransition(trace, ':manual_apply:chapter_summary_hint')
-    || hasTransition(trace, ':manual_apply:option_bias_hint')
-    || hasTransition(trace, ':manual_apply:plot_augmentation_hint');
+  const secondGuardrailStats = buildSecondGuardrailStats(trace);
+  const secondGuardrailAllowed = secondGuardrailStats.allowed > 0;
+  const secondGuardrailRejected = secondGuardrailStats.rejected > 0;
+  const secondGuardrailFallback = secondGuardrailStats.fallback > 0;
+  const mixedSecondGuardrail = hasMixedSecondGuardrailOutcomes(secondGuardrailStats);
+  const awaitingSecondGuardrail = secondGuardrailStats.awaiting > 0;
+  const manualApplied = secondGuardrailStats.manualApplied > 0;
   const preflightOutcome = trace.applyResult?.outcome;
 
   const steps: NoNameApplyLifecycleStep[] = [
@@ -532,25 +586,31 @@ export function buildNoNameApplyLifecycle(
     steps.push({
       key: 'second-guardrail',
       label: '二次护栏',
-      state: secondGuardrailFallback
-        ? 'fallback'
-        : secondGuardrailRejected
+      state: mixedSecondGuardrail
+        ? 'mixed'
+        : secondGuardrailFallback
+          ? 'fallback'
+          : secondGuardrailRejected
           ? 'rejected'
           : secondGuardrailAllowed
             ? 'allow'
             : awaitingSecondGuardrail
               ? 'waiting'
               : '未进入',
-      detail: secondGuardrailAllowed
+      detail: mixedSecondGuardrail
+        ? `Multiple second guardrail outcomes: ${formatSecondGuardrailCounts(secondGuardrailStats)}`
+        : secondGuardrailAllowed
         ? '已允许进入显式人工 apply；仍不会自动写正文'
         : secondGuardrailFallback
           ? '已要求回退经典链路'
           : secondGuardrailRejected
             ? '已拒绝高层 apply'
             : '等待人工批准后进入二次护栏',
-      tone: secondGuardrailFallback
-        ? 'fallback'
-        : secondGuardrailRejected
+      tone: mixedSecondGuardrail
+        ? 'blocked'
+        : secondGuardrailFallback
+          ? 'fallback'
+          : secondGuardrailRejected
           ? 'blocked'
           : secondGuardrailAllowed
             ? 'done'
@@ -569,17 +629,31 @@ export function buildNoNameApplyLifecycle(
     steps.push({
       key: 'manual-plot-text',
       label: '人工写入',
-      state: manualApplied
+      state: manualApplied && mixedSecondGuardrail
+        ? 'partially-applied'
+        : manualApplied
         ? '已写入'
-        : secondGuardrailAllowed
-          ? '等待显式命令'
-          : '未就绪',
-      detail: manualApplied
+        : mixedSecondGuardrail && secondGuardrailAllowed
+          ? 'partially-ready'
+          : secondGuardrailAllowed
+            ? '等待显式命令'
+            : '未就绪',
+      detail: manualApplied && mixedSecondGuardrail
+        ? `Some manual apply scopes completed while others are blocked: ${formatSecondGuardrailCounts(secondGuardrailStats)}`
+        : manualApplied
         ? '已记录显式人工 apply 结果'
-        : secondGuardrailAllowed
+        : mixedSecondGuardrail && secondGuardrailAllowed
+          ? `Only allowed scopes can continue: ${formatSecondGuardrailCounts(secondGuardrailStats)}`
+          : secondGuardrailAllowed
           ? '需要开发者确认差异预览后手动写入'
           : 'PlotTextHint 需要人工复核与二次护栏',
-      tone: manualApplied ? 'done' : secondGuardrailAllowed ? 'pending' : 'info',
+      tone: manualApplied
+        ? (mixedSecondGuardrail ? 'blocked' : 'done')
+        : mixedSecondGuardrail
+          ? 'blocked'
+          : secondGuardrailAllowed
+            ? 'pending'
+            : 'info',
     });
   }
 

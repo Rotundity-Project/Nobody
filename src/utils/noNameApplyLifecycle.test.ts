@@ -141,6 +141,79 @@ describe('buildNoNameApplyLifecycle', () => {
     ]);
   });
 
+  it('summarizes mixed second guardrail outcomes without contradictory manual state', () => {
+    const trace: NoNameTrace = {
+      ...buildTrace(
+        'manual_plot_augmentation_hint_applied',
+        'manual plot augmentation hint staged for focus=hidden cave clue',
+      ),
+      traceId: 'trace-mixed-second-guardrail',
+      proposals: [{
+        ...buildTrace(
+          'manual_plot_augmentation_hint_applied',
+          'manual plot augmentation hint staged for focus=hidden cave clue',
+        ).proposals[0],
+        proposalId: 'proposal-mixed',
+        applyScopes: ['plotTextHint', 'optionBiasHint'],
+      }],
+      controlledOutputReviews: [{
+        requestId: 'controlled-output-proposal-mixed-plot_text_hint',
+        proposalId: 'proposal-mixed',
+        requestedKind: 'sceneAugmentation',
+        decision: 'needsReview',
+        reason: 'plot text hint requires review',
+        normalizedKind: 'sceneAugmentation',
+        safeApplyScope: 'plotTextHint',
+        policyForbiddenScopes: ['finalPlotState'],
+        requiresHumanReview: true,
+        humanReviewDecision: 'approvedForHigherApply',
+      }, {
+        requestId: 'controlled-output-proposal-mixed-option_bias_hint',
+        proposalId: 'proposal-mixed',
+        requestedKind: 'intermediateNarrativeHint',
+        decision: 'needsReview',
+        reason: 'option bias hint requires review',
+        normalizedKind: 'intermediateNarrativeHint',
+        safeApplyScope: 'optionBiasHint',
+        policyForbiddenScopes: ['finalPlotState'],
+        requiresHumanReview: true,
+        humanReviewDecision: 'approvedForHigherApply',
+      }],
+      proposalTransitionLog: [
+        'controlled-output-proposal-mixed-plot_text_hint:apply_intent:awaiting_second_guardrail',
+        'controlled-output-proposal-mixed-option_bias_hint:apply_intent:awaiting_second_guardrail',
+        'controlled-output-proposal-mixed-plot_text_hint:second_guardrail:allow',
+        'controlled-output-proposal-mixed-option_bias_hint:second_guardrail:reject',
+      ],
+      applyExecutionLog: [{
+        target: 'plot_text_hint',
+        outcome: 'awaiting_second_guardrail',
+      }, {
+        target: 'option_bias_hint',
+        outcome: 'awaiting_second_guardrail',
+      }, {
+        target: 'plot_text_hint',
+        outcome: 'second_guardrail_allowed',
+      }, {
+        target: 'option_bias_hint',
+        outcome: 'second_guardrail_rejected',
+      }],
+    };
+
+    expect(buildNoNameApplyLifecycleCheckpoints(trace).map((checkpoint) => checkpoint.state)).toEqual([
+      'approved',
+      'mixed',
+      'partially-ready',
+    ]);
+    expect(summarizeNoNameApplyLifecycleCheckpoints(trace)).toBe(
+      '1.Human Review=approved -> 2.Second Guardrail=mixed -> 3.Manual Apply=partially-ready',
+    );
+    expect(buildNoNameApplyLifecycle(trace).find((step) => step.key === 'second-guardrail')?.state)
+      .toBe('mixed');
+    expect(buildNoNameApplyLifecycle(trace).find((step) => step.key === 'manual-plot-text')?.state)
+      .toBe('partially-ready');
+  });
+
   it('does not treat ordinary pending hints as reviewed apply checkpoints', () => {
     const trace = buildTrace(
       'pending_plot_augmentation_retained',
