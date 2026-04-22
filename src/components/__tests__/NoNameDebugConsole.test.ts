@@ -150,6 +150,7 @@ describe('NoNameDebugConsole', () => {
     expect(wrapper.text()).toContain('Trace Breakdown: proposals=1, reviews=1, humanReview=1, applyExecutions=2');
     expect(wrapper.text()).toContain('Human Review Decisions: 0 approved / 0 rejected / 1 pending');
     expect(wrapper.text()).toContain('Apply Lifecycle:');
+    expect(wrapper.text()).toContain('Lifecycle Checkpoints: 1.Human Review=pending');
     expect(wrapper.text()).toContain('Plot Augmentation: 已消费');
     expect(wrapper.text()).toContain('Proposals: 1/1 applyable');
 
@@ -233,6 +234,7 @@ describe('NoNameDebugConsole', () => {
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Controlled Reviews: 1'));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Trace Breakdown: proposals=1'));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Apply Lifecycle:'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Lifecycle Checkpoints:'));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Apply Executions:'));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('剧情增强提示:已消费'));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('[raw=plot_augmentation_hint:pending_plot_augmentation_consumed]'));

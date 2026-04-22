@@ -108,6 +108,9 @@
         <p class="agent-trace-card-title">
           应用生命周期
         </p>
+        <p class="agent-trace-muted">
+          Lifecycle Checkpoints: {{ applyLifecycleCheckpointSummary }}
+        </p>
         <ul class="agent-trace-lifecycle">
           <li
             v-for="step in applyLifecycleSteps"
@@ -515,6 +518,7 @@ import type {
 import {
   buildNoNameApplyLifecycle,
   formatNoNameApplyExecutionRecord,
+  summarizeNoNameApplyLifecycleCheckpoints,
   summarizeNoNamePendingPlotAugmentation,
 } from '../utils/noNameApplyLifecycle';
 
@@ -560,6 +564,9 @@ const protocolEvents = computed(() => props.trace?.protocolEvents ?? []);
 const controlledOutputReviews = computed(() => props.trace?.controlledOutputReviews ?? []);
 const applyLifecycleSteps = computed(() => (
   props.trace ? buildNoNameApplyLifecycle(props.trace, props.reviewDecisions) : []
+));
+const applyLifecycleCheckpointSummary = computed(() => (
+  props.trace ? summarizeNoNameApplyLifecycleCheckpoints(props.trace, props.reviewDecisions) : 'none'
 ));
 const pendingPlotAugmentationSummary = computed(() => (
   props.trace ? summarizeNoNamePendingPlotAugmentation(props.trace) : '无'

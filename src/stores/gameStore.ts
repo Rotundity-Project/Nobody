@@ -3,6 +3,7 @@ import { invokeRuntime, invokeWithTimeout } from '../utils/tauriInvoke';
 import {
   summarizeNoNameApplyExecutions,
   summarizeNoNameApplyLifecycle,
+  summarizeNoNameApplyLifecycleCheckpoints,
   summarizeNoNamePendingPlotAugmentation,
 } from '../utils/noNameApplyLifecycle';
 import type {
@@ -474,6 +475,7 @@ export const useGameStore = defineStore('game', {
           .join(', ')
         : '无';
       const applyLifecycle = summarizeNoNameApplyLifecycle(latest);
+      const applyLifecycleCheckpoints = summarizeNoNameApplyLifecycleCheckpoints(latest);
       const pendingPlotAugmentation = summarizeNoNamePendingPlotAugmentation(latest);
       return [
         `最近 Trace：${latest.traceId}`,
@@ -489,6 +491,7 @@ export const useGameStore = defineStore('game', {
         `作用域：${proposalScopes}`,
         `预检：${latest.applyResult ? `${latest.applyResult.outcome}${latest.applyResult.reason ? ` (${latest.applyResult.reason})` : ''}` : '无'}`,
         `应用生命周期：${applyLifecycle}`,
+        `应用阶段核对：${applyLifecycleCheckpoints}`,
         `剧情增强提示：${pendingPlotAugmentation}`,
         `应用计划：${applyPlans}`,
         `应用执行：${applyExecutions}`,
