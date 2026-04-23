@@ -64,6 +64,14 @@ impl NoNameMemoryStore {
         &self.episodic
     }
 
+    pub fn episodic_by_chapter(&self, chapter_index: u32) -> Vec<NoNameEpisodicMemoryItem> {
+        self.episodic
+            .iter()
+            .filter(|item| item.chapter_index == chapter_index)
+            .cloned()
+            .collect()
+    }
+
     pub fn semantic(&self) -> &[NoNameSemanticMemoryItem] {
         &self.semantic
     }
