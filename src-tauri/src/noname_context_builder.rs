@@ -14,7 +14,7 @@ pub fn build_context_packet(
     memory_manager: &NoNameMemoryManager,
     input: &NoNameContextBuildInput,
 ) -> NoNameContextPacket {
-    let retrieved = memory_manager.retrieve(&NoNameMemoryQuery {
+    let query = NoNameMemoryQuery {
         role: input.role,
         search_term: input.player_intent.clone(),
         actor: None,
@@ -23,7 +23,10 @@ pub fn build_context_packet(
         keyword: input.player_intent.clone(),
         token_budget: input.token_budget,
         per_section_limit: input.per_section_limit,
-    });
+    };
+    let retrieval_report = memory_manager.retrieve_with_active_note_context(&query);
+    let note_context_count = retrieval_report.note_contexts.len();
+    let retrieved = retrieval_report.memories;
 
     let mut hard_facts = retrieved
         .semantic
@@ -125,6 +128,31 @@ pub fn build_context_packet(
         None
     };
 
+    let mut source_stats = vec![
+        NoNameContextSourceStat {
+            source: "semantic".to_string(),
+            count: retrieved.semantic.len(),
+        },
+        NoNameContextSourceStat {
+            source: "working".to_string(),
+            count: retrieved.working.len(),
+        },
+        NoNameContextSourceStat {
+            source: "episodic".to_string(),
+            count: retrieved.episodic.len(),
+        },
+        NoNameContextSourceStat {
+            source: "narrative".to_string(),
+            count: retrieved.narrative.len(),
+        },
+    ];
+    if note_context_count > 0 {
+        source_stats.push(NoNameContextSourceStat {
+            source: "noteContext".to_string(),
+            count: note_context_count,
+        });
+    }
+
     NoNameContextPacket {
         role: input.role,
         hard_facts,
@@ -136,24 +164,7 @@ pub fn build_context_packet(
         referenced_entities,
         compressed_summary,
         token_budget_used: used,
-        source_stats: vec![
-            NoNameContextSourceStat {
-                source: "semantic".to_string(),
-                count: retrieved.semantic.len(),
-            },
-            NoNameContextSourceStat {
-                source: "working".to_string(),
-                count: retrieved.working.len(),
-            },
-            NoNameContextSourceStat {
-                source: "episodic".to_string(),
-                count: retrieved.episodic.len(),
-            },
-            NoNameContextSourceStat {
-                source: "narrative".to_string(),
-                count: retrieved.narrative.len(),
-            },
-        ],
+        source_stats,
     }
 }
 
@@ -660,7 +671,10 @@ mod tests {
     use super::*;
     use crate::memory_layers::{ChapterSummary, MemoryEntry, MemoryLayers, WorldFact};
     use crate::noname_memory_manager::NoNameMemoryManager;
-    use crate::noname_memory_types::NoNameWorkingMemoryItem;
+    use crate::noname_memory_types::{
+        NoNameEpisodicMemoryItem, NoNameMemoryImportance, NoNameNarrativeMemoryItem,
+        NoNameNarrativeNoteType, NoNameNarrativeStatus, NoNameWorkingMemoryItem,
+    };
     use crate::noname_types::NoNameRole;
 
     #[test]
@@ -724,6 +738,111 @@ mod tests {
         assert!(!packet.episodic_memory.is_empty());
         assert!(!packet.narrative_notes.is_empty());
         assert!(!packet.source_stats.is_empty());
+    }
+
+    #[test]
+    fn context_builder_uses_active_notes_to_expand_retrieved_memory() {
+        let store = EntityStore::new();
+        let mut manager = NoNameMemoryManager::new();
+        manager.push_episodic_memory(NoNameEpisodicMemoryItem {
+            memory_id: "event-qinghe".to_string(),
+            event_type: "dialogue".to_string(),
+            timestamp: 4,
+            chapter_index: 1,
+            location_id: None,
+            actors: vec!["Elder Qinghe".to_string()],
+            summary: "Elder Qinghe hesitated before naming the saboteur.".to_string(),
+            detail_ref: None,
+            importance: NoNameMemoryImportance::High,
+        });
+        manager.upsert_narrative_memory(NoNameNarrativeMemoryItem {
+            note_id: "note-ward".to_string(),
+            chapter_index: 1,
+            arc_id: None,
+            note_type: NoNameNarrativeNoteType::UnresolvedThread,
+            title: "Broken Ward".to_string(),
+            summary: "The saboteur clue points back to Elder Qinghe.".to_string(),
+            status: NoNameNarrativeStatus::Active,
+            related_entities: vec!["Elder Qinghe".to_string()],
+            updated_at: 5,
+        });
+
+        let packet = build_context_packet(
+            &store,
+            &manager,
+            &NoNameContextBuildInput {
+                role: NoNameRole::Director,
+                world_id: "w1".to_string(),
+                run_id: "r1".to_string(),
+                scene_id: "s1".to_string(),
+                character_ids: vec![],
+                map_node_id: None,
+                player_intent: Some("ward".to_string()),
+                recent_context_lines: vec![],
+                token_budget: 200,
+                per_section_limit: 4,
+            },
+        );
+
+        assert!(packet
+            .episodic_memory
+            .iter()
+            .any(|item| item.contains("Elder Qinghe hesitated")));
+        assert!(packet
+            .source_stats
+            .iter()
+            .any(|item| item.source == "noteContext" && item.count == 1));
+    }
+
+    #[test]
+    fn context_builder_ignores_archived_notes_when_expanding_retrieval() {
+        let store = EntityStore::new();
+        let mut manager = NoNameMemoryManager::new();
+        manager.push_episodic_memory(NoNameEpisodicMemoryItem {
+            memory_id: "event-qinghe".to_string(),
+            event_type: "dialogue".to_string(),
+            timestamp: 4,
+            chapter_index: 1,
+            location_id: None,
+            actors: vec!["Elder Qinghe".to_string()],
+            summary: "Elder Qinghe mentioned a saboteur.".to_string(),
+            detail_ref: None,
+            importance: NoNameMemoryImportance::High,
+        });
+        manager.upsert_narrative_memory(NoNameNarrativeMemoryItem {
+            note_id: "note-ward".to_string(),
+            chapter_index: 1,
+            arc_id: None,
+            note_type: NoNameNarrativeNoteType::UnresolvedThread,
+            title: "Broken Ward".to_string(),
+            summary: "The saboteur clue points back to Elder Qinghe.".to_string(),
+            status: NoNameNarrativeStatus::Archived,
+            related_entities: vec!["Elder Qinghe".to_string()],
+            updated_at: 5,
+        });
+
+        let packet = build_context_packet(
+            &store,
+            &manager,
+            &NoNameContextBuildInput {
+                role: NoNameRole::Director,
+                world_id: "w1".to_string(),
+                run_id: "r1".to_string(),
+                scene_id: "s1".to_string(),
+                character_ids: vec![],
+                map_node_id: None,
+                player_intent: Some("ward".to_string()),
+                recent_context_lines: vec![],
+                token_budget: 200,
+                per_section_limit: 4,
+            },
+        );
+
+        assert!(packet.episodic_memory.is_empty());
+        assert!(!packet
+            .source_stats
+            .iter()
+            .any(|item| item.source == "noteContext"));
     }
 
     #[test]
