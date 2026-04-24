@@ -97,6 +97,19 @@
 
 旧版协作文档把多个已落地模块标成“未开始”，已不适合作为当前任务基线。
 
+### 5.4 记忆沉淀顺序需要统一复用
+
+`NoNameMemoryManager` 现在已经形成章节收束的最小顺序约定：
+
+1. 先基于当前章节 events 和尚未归档的 notes 做 chapter compaction
+2. 再执行章节 note 整理，把 `resolved` notes 归档
+3. 最后把 chapter summary 作为新的 narrative note 写回
+
+这样可以同时保证两件事：
+
+- 已解决但仍有价值的 note 会进入本次章节摘要
+- 新写回的 chapter summary 不会污染同轮 note review，也不会在后续章节压缩里被再次回吃
+
 ## 6. 当前结论
 
 `NoName` 已经完成 `V1` 骨架并进入 reviewed apply runtime 收口阶段。
