@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { ActionType, type NoNameTrace, type PlotState, type Script } from '../types/game';
+import { summarizeNoNameApplyLifecycleCheckpoints } from '../utils/noNameApplyLifecycle';
 import { invokeWebRuntime } from './webRuntime';
 
 describe('webRuntime', () => {
@@ -129,6 +130,16 @@ describe('webRuntime', () => {
       'playerChoice',
       'combatOutcome',
     ]));
+    expect(latestTrace?.relatedObservations?.[0]?.sourceStats).toEqual(expect.arrayContaining([
+      { source: 'hard_facts', count: 2 },
+      { source: 'chapter_summaries', count: 1 },
+      { source: 'noteContext', count: 1 },
+    ]));
+    expect(latestTrace?.relatedObservations?.[0]?.contextSliceStats).toEqual(expect.arrayContaining([
+      { section: 'worldFacts', sourceCount: 3, visibleCount: 2 },
+      { section: 'narrativeNotes', sourceCount: 1, visibleCount: 1 },
+    ]));
+    expect(summarizeNoNameApplyLifecycleCheckpoints(latestTrace!)).toContain('1.Human Review=pending');
     expect(latestTrace?.applyResult?.outcome).toBe('applied_summary_and_option_bias');
     expect(latestTrace?.applyResult?.reason).toContain('plotTextHint 等待人工复核');
     expect(latestTrace?.applyResult?.reason).toContain('target=current_turn_head');
@@ -175,6 +186,7 @@ describe('webRuntime', () => {
     expect(updatedTrace.controlledOutputReviews?.find((item) => (
       item.safeApplyScope === 'plotTextHint'
     ))?.humanReviewDecision).toBe('approvedForHigherApply');
+    expect(summarizeNoNameApplyLifecycleCheckpoints(updatedTrace)).toContain('1.Human Review=pending');
     expect(updatedTrace.applyPlanLog?.some((item) => (
       item.target === 'plotTextHint' && item.decision === 'review_intent_ready'
     ))).toBe(true);
@@ -195,6 +207,7 @@ describe('webRuntime', () => {
     expect(resolvedTrace.applyExecutionLog?.some((item) => (
       item.target === 'plotTextHint' && item.outcome === 'second_guardrail_allowed'
     ))).toBe(true);
+    expect(summarizeNoNameApplyLifecycleCheckpoints(resolvedTrace)).toContain('2.Second Guardrail=allowed');
     expect(resolvedTrace.applyResult?.outcome).toBe('second_guardrail_allow');
 
     const applied = await invokeWebRuntime<{ trace: NoNameTrace; plotState: PlotState }>('apply_noname_manual_plot_text_hint', {
@@ -208,6 +221,7 @@ describe('webRuntime', () => {
     expect(applied.trace.applyExecutionLog?.some((item) => (
       item.target === 'plotTextHint' && item.outcome === 'manual_plot_text_applied'
     ))).toBe(true);
+    expect(summarizeNoNameApplyLifecycleCheckpoints(applied.trace)).toContain('3.Manual Apply=applied');
   });
 
   it('consumes reviewed plot augmentation hints on the next assisted generation', async () => {

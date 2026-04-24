@@ -382,7 +382,7 @@ describe('gameStore', () => {
         sceneFocus: '山门法阵',
         forbiddenScopes: ['Must not decide NPC private intent.'],
         noteTypeHits: ['goal: Hold Gate'],
-        sourceStats: [{ source: 'hard_facts', count: 2 }],
+        sourceStats: [{ source: 'hard_facts', count: 2 }, { source: 'noteContext', count: 1 }],
         contextTokenBudgetUsed: 42,
         contextSliceStats: [{ section: 'worldFacts', sourceCount: 4, visibleCount: 3 }],
         proposal: {
@@ -438,7 +438,7 @@ describe('gameStore', () => {
     expect(text).toContain('作用域：diagnostics, chapterSummaryHint');
     expect(text).toContain('剧情增强提示：已消费');
     expect(text).toContain('agent:delegation:running');
-    expect(text).toContain('[来源=hard_facts:2]');
+    expect(text).toContain('[来源=hard_facts:2/noteContext:1]');
     expect(text).toContain('[token=42]');
     expect(text).toContain('[裁剪=worldFacts:4->3]');
     expect(text).toContain('协作观察：worldCurator:山门法阵');

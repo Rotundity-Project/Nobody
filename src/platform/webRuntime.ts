@@ -15,6 +15,7 @@ import {
   type NoNameHumanReviewMarkPayload,
   type NoNameMode,
   type NoNameSecondGuardrailResolvePayload,
+  type NoNameRelatedObservation,
   type NoNameTargetSegment,
   type NoNameTrace,
   type PlayerAction,
@@ -358,6 +359,49 @@ function policyForbiddenScopesForProducerRole(_producerRole: string): NoNameForb
   return [...defaultControlledOutputForbiddenScopes];
 }
 
+function buildWebRelatedObservations(
+  text: string,
+  targetSegment: NoNameTargetSegment,
+  mode: WebNoNameMode,
+): NoNameRelatedObservation[] {
+  const noteContextCount = targetSegment === 'chapter_summary_head' ? 0 : 1;
+  return [{
+    role: 'worldCurator',
+    actionSummary: `玩家本轮聚焦：${text}`,
+    focus: text,
+    rationale: 'web mock: mirror backend-facing context stats for debug surfaces',
+    roleGoal: 'Maintain world facts, note context, and scene anchors.',
+    sceneFocus: targetSegment === 'chapter_summary_head' ? '章节摘要收束' : '当前回合正文',
+    forbiddenScopes: ['Must not decide NPC private intent.', 'Must not finalize plot state.'],
+    noteTypeHits: noteContextCount > 0 ? [`goal: 跟进${text}`] : [],
+    sourceStats: [
+      { source: 'hard_facts', count: 2 },
+      { source: 'chapter_summaries', count: 1 },
+      ...(noteContextCount > 0 ? [{ source: 'noteContext', count: noteContextCount }] : []),
+    ],
+    contextTokenBudgetUsed: mode === 'assisted' ? 56 : 32,
+    contextSliceStats: [
+      { section: 'worldFacts', sourceCount: 3, visibleCount: 2 },
+      ...(noteContextCount > 0 ? [{ section: 'narrativeNotes', sourceCount: 1, visibleCount: 1 }] : []),
+    ],
+    proposal: {
+      proposalId: `proposal-world-${mode}-${targetSegment}`,
+      kind: 'worldPatchProposal',
+      producerRole: 'worldCurator',
+      title: `WorldCurator提案：${text}`,
+      summary: `补充“${text}”相关上下文锚点`,
+      focus: text,
+      targetSegment,
+      intendedEffect: '让前端调试面板读到与后端接近的上下文证据',
+      rationale: 'web mock: related observation bridge',
+      labels: ['worldCurator', mode === 'assisted' ? 'assisted_context' : 'observe_context'],
+      applyScopes: ['diagnostics', 'chapterSummaryHint'],
+      status: 'observed',
+      applyable: false,
+    },
+  }];
+}
+
 function findProposalForControlledOutputRequest(trace: NoNameTrace, requestId: string) {
   const proposalId = (trace.controlledOutputReviews ?? [])
     .find((item) => item.requestId === requestId)
@@ -526,6 +570,7 @@ function appendWebNoNameTrace(
         humanReviewedAt: null,
         humanReviewNote: null,
       })),
+      relatedObservations: buildWebRelatedObservations(text, targetSegment, 'assisted'),
       guardrailResult: { outcome: 'accept' },
       applyResult: {
         attempted: true,
@@ -572,6 +617,7 @@ function appendWebNoNameTrace(
         .sort((left, right) => right.priority - left.priority)
         .map((item, index) => ({ ...item, order: index + 1 })),
       applyExecutionLog: [],
+      relatedObservations: buildWebRelatedObservations(text, targetSegment, 'observeOnly'),
       guardrailResult: { outcome: 'accept' },
       applyResult: { attempted: false, outcome: 'skipped_observe_only' },
       fallbackUsed: false,
