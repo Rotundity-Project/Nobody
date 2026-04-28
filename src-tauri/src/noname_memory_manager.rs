@@ -194,7 +194,10 @@ impl NoNameMemoryManager {
             .notes
             .list_by_chapter(chapter_index)
             .into_iter()
-            .filter(|note| note.status != NoNameNarrativeStatus::Archived)
+            .filter(|note| {
+                note.status != NoNameNarrativeStatus::Archived
+                    && !is_compaction_summary_note(&note.note_id)
+            })
             .collect();
 
         NoNameChapterCompactionInput {
@@ -413,6 +416,12 @@ fn note_contains(fields: &[&str], related_entities: &[String], term: &str) -> bo
             .any(|entity| entity.to_lowercase().contains(&normalized_term))
 }
 
+fn is_compaction_summary_note(note_id: &str) -> bool {
+    note_id.starts_with("compact-turn-")
+        || note_id.starts_with("compact-chapter-")
+        || note_id.starts_with("compact-trace-")
+}
+
 fn first_non_empty(values: &[&str]) -> Option<String> {
     values
         .iter()
@@ -554,6 +563,21 @@ mod tests {
             related_entities: vec!["Old Rival".to_string()],
             updated_at: 3,
         });
+        let compact_turn = manager.compact_turn_memory(NoNameTurnCompactionInput {
+            turn_id: "turn-1".to_string(),
+            chapter_index: Some(1),
+            location_id: Some("mountain_gate".to_string()),
+            actor_mentions: vec!["Player".to_string()],
+            goal: Some("keep gate".to_string()),
+            segments: vec!["The gate barely holds after the ward flares.".to_string()],
+            conflicts: vec!["ward flares".to_string()],
+            unresolved_threads: Vec::new(),
+            relationships: Vec::new(),
+            created_at: 4,
+        });
+        manager.upsert_compaction_summary(&compact_turn);
+        let compact_chapter = manager.compact_chapter_from_memory("chapter-1", 1, "Gate Crisis", 5);
+        manager.upsert_compaction_summary(&compact_chapter);
 
         let input = manager.build_chapter_compaction_input("chapter-1", 1, "Gate Crisis", 10);
 
@@ -569,6 +593,14 @@ mod tests {
             .notes
             .iter()
             .any(|note| note.note_id == "old-archived"));
+        assert!(!input
+            .notes
+            .iter()
+            .any(|note| note.note_id == compact_turn.summary_id));
+        assert!(!input
+            .notes
+            .iter()
+            .any(|note| note.note_id == compact_chapter.summary_id));
     }
 
     #[test]
@@ -631,6 +663,49 @@ mod tests {
             .diagnostics
             .iter()
             .any(|item| item == "notes_compacted=2"));
+    }
+
+    #[test]
+    fn repeated_chapter_compaction_does_not_reingest_previous_compaction_summary() {
+        let mut manager = NoNameMemoryManager::new();
+        manager.push_episodic_memory(NoNameEpisodicMemoryItem {
+            memory_id: "event-ward".to_string(),
+            event_type: "scene".to_string(),
+            timestamp: 1,
+            chapter_index: 6,
+            location_id: Some("mountain_gate".to_string()),
+            actors: vec!["Player".to_string()],
+            summary: "The ward flickers as the chapter closes.".to_string(),
+            detail_ref: None,
+            importance: NoNameMemoryImportance::High,
+        });
+        manager.upsert_narrative_memory(NoNameNarrativeMemoryItem {
+            note_id: "goal-ward".to_string(),
+            chapter_index: 6,
+            arc_id: None,
+            note_type: NoNameNarrativeNoteType::Goal,
+            title: "Secure Ward".to_string(),
+            summary: "Keep the ward stable through the night.".to_string(),
+            status: NoNameNarrativeStatus::Active,
+            related_entities: vec!["Player".to_string()],
+            updated_at: 2,
+        });
+
+        let first = manager.compact_chapter_from_memory("chapter-6", 6, "Ward Vigil", 10);
+        manager.upsert_compaction_summary(&first);
+        let second = manager.compact_chapter_from_memory("chapter-6", 6, "Ward Vigil", 11);
+
+        assert_eq!(first.summary_id, second.summary_id);
+        assert!(!second
+            .source_ids
+            .iter()
+            .any(|item| item == &first.summary_id));
+        assert!(second.source_ids.iter().any(|item| item == "event-ward"));
+        assert!(second.source_ids.iter().any(|item| item == "goal-ward"));
+        assert!(second
+            .diagnostics
+            .iter()
+            .any(|item| item == "notes_compacted=1"));
     }
 
     #[test]
