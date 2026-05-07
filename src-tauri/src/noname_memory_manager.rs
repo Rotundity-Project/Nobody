@@ -8,8 +8,8 @@ use crate::noname_memory_retrieval::{
 };
 use crate::noname_memory_store::NoNameMemoryStore;
 use crate::noname_memory_types::{
-    NoNameEpisodicMemoryItem, NoNameNarrativeMemoryItem, NoNameSemanticMemoryItem,
-    NoNameWorkingMemoryItem,
+    NoNameEpisodicMemoryItem, NoNameNarrativeMemoryItem, NoNameNarrativeStatus,
+    NoNameSemanticMemoryItem, NoNameWorkingMemoryItem,
 };
 use crate::noname_note_store::{
     NoNameChapterNoteReview, NoNameNoteLifecycleAction, NoNameNoteLifecycleResult, NoNameNoteStore,
@@ -36,6 +36,12 @@ pub struct NoNameNoteAugmentedRetrievalReport {
     pub memories: NoNameRetrievedMemories,
     pub note_contexts: Vec<NoNameNoteRetrievalContext>,
     pub explanations: Vec<crate::noname_memory_retrieval::NoNameRetrievalExplanation>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NoNameChapterClosureResult {
+    pub note_review: NoNameChapterNoteReview,
+    pub summary: NoNameCompactionSummary,
 }
 
 impl Default for NoNameMemoryManager {
@@ -181,6 +187,64 @@ impl NoNameMemoryManager {
         input: NoNameChapterCompactionInput,
     ) -> NoNameCompactionSummary {
         NoNameMemoryCompactionService::new().compact_chapter(input)
+    }
+
+    pub fn build_chapter_compaction_input(
+        &self,
+        chapter_id: impl Into<String>,
+        chapter_index: u32,
+        title: impl Into<String>,
+        created_at: u64,
+    ) -> NoNameChapterCompactionInput {
+        let notes = self
+            .notes
+            .list_by_chapter(chapter_index)
+            .into_iter()
+            .filter(note_feeds_chapter_compaction)
+            .collect();
+
+        NoNameChapterCompactionInput {
+            chapter_id: chapter_id.into(),
+            chapter_index,
+            title: title.into(),
+            events: self.store.episodic_by_chapter(chapter_index),
+            notes,
+            created_at,
+        }
+    }
+
+    pub fn compact_chapter_from_memory(
+        &self,
+        chapter_id: impl Into<String>,
+        chapter_index: u32,
+        title: impl Into<String>,
+        created_at: u64,
+    ) -> NoNameCompactionSummary {
+        self.compact_chapter_memory(self.build_chapter_compaction_input(
+            chapter_id,
+            chapter_index,
+            title,
+            created_at,
+        ))
+    }
+
+    pub fn close_chapter_memory(
+        &mut self,
+        chapter_id: impl Into<String>,
+        chapter_index: u32,
+        title: impl Into<String>,
+        closed_at: u64,
+    ) -> NoNameChapterClosureResult {
+        // Compact first so resolved notes are still available to the summary,
+        // then archive them and finally persist the chapter summary as a fresh note.
+        let summary = self.compact_chapter_from_memory(chapter_id, chapter_index, title, closed_at);
+        let note_review = self.organize_chapter_notes(chapter_index, closed_at);
+        self.upsert_compaction_summary(&summary);
+
+        NoNameChapterClosureResult {
+            note_review,
+            summary,
+        }
     }
 
     pub fn compact_trace_memory(
@@ -382,11 +446,22 @@ fn first_non_empty(values: &[&str]) -> Option<String> {
         .map(str::to_string)
 }
 
+fn note_feeds_chapter_compaction(note: &NoNameNarrativeMemoryItem) -> bool {
+    note.status != NoNameNarrativeStatus::Archived && !is_chapter_compaction_summary_note(note)
+}
+
+fn is_chapter_compaction_summary_note(note: &NoNameNarrativeMemoryItem) -> bool {
+    note.note_id.starts_with("compact-chapter-")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::memory_layers::{ChapterSummary, MemoryEntry, WorldFact};
-    use crate::noname_memory_types::{NoNameNarrativeNoteType, NoNameNarrativeStatus};
+    use crate::noname_memory_compaction::NoNameCompactionKind;
+    use crate::noname_memory_types::{
+        NoNameMemoryImportance, NoNameNarrativeNoteType, NoNameNarrativeStatus,
+    };
     use crate::noname_types::NoNameRole;
 
     #[test]
@@ -453,6 +528,267 @@ mod tests {
         assert_eq!(active_notes.len(), 1);
         assert_eq!(active_notes[0].note_id, "compact-turn-turn-1");
         assert_eq!(active_notes[0].summary, summary.summary);
+    }
+
+    #[test]
+    fn manager_builds_chapter_compaction_input_from_current_memory() {
+        let mut manager = NoNameMemoryManager::new();
+        manager.push_episodic_memory(NoNameEpisodicMemoryItem {
+            memory_id: "event-1".to_string(),
+            event_type: "scene".to_string(),
+            timestamp: 1,
+            chapter_index: 1,
+            location_id: Some("mountain_gate".to_string()),
+            actors: vec!["Player".to_string(), "Elder Qinghe".to_string()],
+            summary: "The ward flared while Elder Qinghe guarded the gate.".to_string(),
+            detail_ref: None,
+            importance: NoNameMemoryImportance::High,
+        });
+        manager.push_episodic_memory(NoNameEpisodicMemoryItem {
+            memory_id: "event-other".to_string(),
+            event_type: "scene".to_string(),
+            timestamp: 2,
+            chapter_index: 2,
+            location_id: Some("spirit_mine".to_string()),
+            actors: vec!["Miner".to_string()],
+            summary: "A later chapter happens elsewhere.".to_string(),
+            detail_ref: None,
+            importance: NoNameMemoryImportance::Low,
+        });
+        manager.upsert_narrative_memory(NoNameNarrativeMemoryItem {
+            note_id: "goal-1".to_string(),
+            chapter_index: 1,
+            arc_id: None,
+            note_type: NoNameNarrativeNoteType::Goal,
+            title: "Hold Gate".to_string(),
+            summary: "Keep the mountain gate secure.".to_string(),
+            status: NoNameNarrativeStatus::Active,
+            related_entities: vec!["Player".to_string()],
+            updated_at: 1,
+        });
+        manager.upsert_narrative_memory(NoNameNarrativeMemoryItem {
+            note_id: "thread-1".to_string(),
+            chapter_index: 1,
+            arc_id: None,
+            note_type: NoNameNarrativeNoteType::UnresolvedThread,
+            title: "Saboteur Trail".to_string(),
+            summary: "The saboteur clue was resolved by Qinghe's confession.".to_string(),
+            status: NoNameNarrativeStatus::Resolved,
+            related_entities: vec!["Elder Qinghe".to_string()],
+            updated_at: 2,
+        });
+        manager.upsert_narrative_memory(NoNameNarrativeMemoryItem {
+            note_id: "old-archived".to_string(),
+            chapter_index: 1,
+            arc_id: None,
+            note_type: NoNameNarrativeNoteType::Conflict,
+            title: "Old Conflict".to_string(),
+            summary: "This archived conflict should not be compacted again.".to_string(),
+            status: NoNameNarrativeStatus::Archived,
+            related_entities: vec!["Old Rival".to_string()],
+            updated_at: 3,
+        });
+        manager.upsert_compaction_summary(&NoNameCompactionSummary {
+            summary_id: "compact-chapter-chapter-1".to_string(),
+            kind: NoNameCompactionKind::Chapter,
+            title: "Gate Crisis".to_string(),
+            summary: "Existing chapter summary".to_string(),
+            chapter_index: Some(1),
+            source_ids: vec!["event-1".to_string()],
+            key_entities: vec!["Player".to_string()],
+            locations: vec!["mountain_gate".to_string()],
+            goals: vec!["Hold Gate: Keep the mountain gate secure.".to_string()],
+            conflicts: Vec::new(),
+            unresolved_threads: Vec::new(),
+            relationships: Vec::new(),
+            diagnostics: vec!["events_compacted=1".to_string()],
+            estimated_tokens: 16,
+            created_at: 4,
+        });
+
+        let input = manager.build_chapter_compaction_input("chapter-1", 1, "Gate Crisis", 10);
+
+        assert_eq!(input.chapter_id, "chapter-1");
+        assert_eq!(input.chapter_index, 1);
+        assert_eq!(input.title, "Gate Crisis");
+        assert_eq!(input.events.len(), 1);
+        assert_eq!(input.events[0].memory_id, "event-1");
+        assert_eq!(input.notes.len(), 2);
+        assert!(input.notes.iter().any(|note| note.note_id == "goal-1"));
+        assert!(input.notes.iter().any(|note| note.note_id == "thread-1"));
+        assert!(!input
+            .notes
+            .iter()
+            .any(|note| note.note_id == "old-archived"));
+        assert!(!input
+            .notes
+            .iter()
+            .any(|note| note.note_id == "compact-chapter-chapter-1"));
+    }
+
+    #[test]
+    fn manager_compacts_chapter_from_memory_without_reusing_prior_chapter_summary() {
+        let mut manager = NoNameMemoryManager::new();
+        manager.push_episodic_memory(NoNameEpisodicMemoryItem {
+            memory_id: "event-ward".to_string(),
+            event_type: "scene".to_string(),
+            timestamp: 1,
+            chapter_index: 3,
+            location_id: Some("mountain_gate".to_string()),
+            actors: vec!["Player".to_string(), "Elder Qinghe".to_string()],
+            summary: "The ward collapsed during the night watch.".to_string(),
+            detail_ref: None,
+            importance: NoNameMemoryImportance::High,
+        });
+        manager.upsert_narrative_memory(NoNameNarrativeMemoryItem {
+            note_id: "conflict-ward".to_string(),
+            chapter_index: 3,
+            arc_id: None,
+            note_type: NoNameNarrativeNoteType::Conflict,
+            title: "Ward Collapse".to_string(),
+            summary: "The mountain gate ward is failing.".to_string(),
+            status: NoNameNarrativeStatus::Active,
+            related_entities: vec!["Mountain Gate".to_string()],
+            updated_at: 3,
+        });
+        manager.upsert_narrative_memory(NoNameNarrativeMemoryItem {
+            note_id: "thread-saboteur".to_string(),
+            chapter_index: 3,
+            arc_id: None,
+            note_type: NoNameNarrativeNoteType::UnresolvedThread,
+            title: "Hidden Saboteur".to_string(),
+            summary: "The saboteur behind the ward remains unidentified.".to_string(),
+            status: NoNameNarrativeStatus::Active,
+            related_entities: vec!["Elder Qinghe".to_string()],
+            updated_at: 4,
+        });
+
+        let first_summary = manager.compact_chapter_from_memory("chapter-3", 3, "Night Ward", 20);
+        manager.upsert_compaction_summary(&first_summary);
+
+        let input_after_upsert =
+            manager.build_chapter_compaction_input("chapter-3", 3, "Night Ward", 21);
+        assert!(!input_after_upsert
+            .notes
+            .iter()
+            .any(|note| note.note_id == first_summary.summary_id));
+
+        let second_summary = manager.compact_chapter_from_memory("chapter-3", 3, "Night Ward", 22);
+
+        assert_eq!(second_summary.chapter_index, Some(3));
+        assert!(second_summary
+            .source_ids
+            .iter()
+            .any(|item| item == "event-ward"));
+        assert!(second_summary
+            .source_ids
+            .iter()
+            .any(|item| item == "conflict-ward"));
+        assert!(!second_summary
+            .source_ids
+            .iter()
+            .any(|item| item == &first_summary.summary_id));
+        assert!(second_summary
+            .conflicts
+            .iter()
+            .any(|item| { item.contains("Ward Collapse") && item.contains("ward is failing") }));
+        assert!(second_summary.unresolved_threads.iter().any(|item| {
+            item.contains("Hidden Saboteur") && item.contains("remains unidentified")
+        }));
+        assert!(second_summary
+            .diagnostics
+            .iter()
+            .any(|item| item == "events_compacted=1"));
+        assert!(second_summary
+            .diagnostics
+            .iter()
+            .any(|item| item == "notes_compacted=2"));
+    }
+
+    #[test]
+    fn close_chapter_memory_compacts_before_archiving_and_stores_summary_after_review() {
+        let mut manager = NoNameMemoryManager::new();
+        manager.push_episodic_memory(NoNameEpisodicMemoryItem {
+            memory_id: "event-finale".to_string(),
+            event_type: "scene".to_string(),
+            timestamp: 7,
+            chapter_index: 4,
+            location_id: Some("summit_hall".to_string()),
+            actors: vec!["Player".to_string(), "Elder Qinghe".to_string()],
+            summary: "The summit hall rite ended with the ward restored.".to_string(),
+            detail_ref: None,
+            importance: NoNameMemoryImportance::High,
+        });
+        manager.upsert_narrative_memory(NoNameNarrativeMemoryItem {
+            note_id: "resolved-thread".to_string(),
+            chapter_index: 4,
+            arc_id: None,
+            note_type: NoNameNarrativeNoteType::UnresolvedThread,
+            title: "Ward Saboteur".to_string(),
+            summary: "Elder Qinghe confessed before the rite concluded.".to_string(),
+            status: NoNameNarrativeStatus::Resolved,
+            related_entities: vec!["Elder Qinghe".to_string()],
+            updated_at: 6,
+        });
+        manager.upsert_narrative_memory(NoNameNarrativeMemoryItem {
+            note_id: "carry-forward".to_string(),
+            chapter_index: 4,
+            arc_id: None,
+            note_type: NoNameNarrativeNoteType::Goal,
+            title: "Rebuild Trust".to_string(),
+            summary: "The sect still needs to rebuild trust after the sabotage.".to_string(),
+            status: NoNameNarrativeStatus::Active,
+            related_entities: vec!["Player".to_string()],
+            updated_at: 6,
+        });
+
+        let closure = manager.close_chapter_memory("chapter-4", 4, "Summit Rite", 8);
+
+        assert_eq!(closure.note_review.chapter_index, 4);
+        assert_eq!(closure.note_review.archived_from_resolved_count, 1);
+        assert!(closure
+            .note_review
+            .archived_note_ids
+            .iter()
+            .any(|note_id| note_id == "resolved-thread"));
+        assert!(closure
+            .note_review
+            .active_note_ids
+            .iter()
+            .any(|note_id| note_id == "carry-forward"));
+        assert!(!closure
+            .note_review
+            .active_note_ids
+            .iter()
+            .any(|note_id| note_id == &closure.summary.summary_id));
+        assert!(closure
+            .summary
+            .source_ids
+            .iter()
+            .any(|item| item == "resolved-thread"));
+        assert!(closure.summary.summary.contains("Ward Saboteur"));
+        assert!(closure
+            .summary
+            .summary
+            .contains("confessed before the rite concluded"));
+        assert!(!closure
+            .summary
+            .unresolved_threads
+            .iter()
+            .any(|item| item.contains("Ward Saboteur")));
+
+        let chapter_notes = manager.notes_by_chapter(4);
+        let resolved_thread = chapter_notes
+            .iter()
+            .find(|note| note.note_id == "resolved-thread")
+            .expect("resolved note should remain stored");
+        assert_eq!(resolved_thread.status, NoNameNarrativeStatus::Archived);
+
+        let stored_summary = chapter_notes
+            .iter()
+            .find(|note| note.note_id == closure.summary.summary_id)
+            .expect("chapter summary should be stored after closure");
+        assert_eq!(stored_summary.status, NoNameNarrativeStatus::Active);
     }
 
     #[test]

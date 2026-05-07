@@ -64,6 +64,14 @@ impl NoNameMemoryStore {
         &self.episodic
     }
 
+    pub fn episodic_by_chapter(&self, chapter_index: u32) -> Vec<NoNameEpisodicMemoryItem> {
+        self.episodic
+            .iter()
+            .filter(|item| item.chapter_index == chapter_index)
+            .cloned()
+            .collect()
+    }
+
     pub fn semantic(&self) -> &[NoNameSemanticMemoryItem] {
         &self.semantic
     }
@@ -236,5 +244,36 @@ mod tests {
         assert_eq!(report.memories.episodic[0].memory_id, "event-1");
         assert_eq!(report.explanations[0].item_id, "event-1");
         assert_eq!(report.explanations[0].rank, 1);
+    }
+
+    #[test]
+    fn episodic_by_chapter_filters_other_chapters() {
+        let mut store = NoNameMemoryStore::new();
+        store.push_episodic(NoNameEpisodicMemoryItem {
+            memory_id: "event-1".to_string(),
+            event_type: "scene".to_string(),
+            timestamp: 1,
+            chapter_index: 1,
+            location_id: None,
+            actors: vec!["player".to_string()],
+            summary: "chapter one".to_string(),
+            detail_ref: None,
+            importance: NoNameMemoryImportance::Low,
+        });
+        store.push_episodic(NoNameEpisodicMemoryItem {
+            memory_id: "event-2".to_string(),
+            event_type: "scene".to_string(),
+            timestamp: 2,
+            chapter_index: 2,
+            location_id: None,
+            actors: vec!["player".to_string()],
+            summary: "chapter two".to_string(),
+            detail_ref: None,
+            importance: NoNameMemoryImportance::Low,
+        });
+
+        let chapter_one = store.episodic_by_chapter(1);
+        assert_eq!(chapter_one.len(), 1);
+        assert_eq!(chapter_one[0].memory_id, "event-1");
     }
 }
