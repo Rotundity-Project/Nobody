@@ -153,6 +153,7 @@ import {
   summarizeNoNameApplyLifecycle,
   summarizeNoNameApplyLifecycleCheckpoints,
   summarizeNoNamePendingPlotAugmentation,
+  summarizeNoNameSafeOutputDraftEvidence,
   summarizeNoNameSafeOutputDrafts,
 } from '../utils/noNameApplyLifecycle';
 
@@ -357,6 +358,7 @@ function buildTraceReport(
   const lifecycleCheckpoints = summarizeNoNameApplyLifecycleCheckpoints(trace, reviewDecisions);
   const pendingPlotAugmentation = summarizeNoNamePendingPlotAugmentation(trace);
   const safeOutputDrafts = summarizeNoNameSafeOutputDrafts(trace, reviewDecisions);
+  const safeOutputDraftEvidence = summarizeNoNameSafeOutputDraftEvidence(trace, reviewDecisions);
   const applyExecutions = summarizeNoNameApplyExecutions(trace, {
     emptyLabel: 'none',
     rawPrefix: ' [raw=',
@@ -380,6 +382,7 @@ function buildTraceReport(
     `Apply Lifecycle: ${lifecycle}`,
     `Lifecycle Checkpoints: ${lifecycleCheckpoints}`,
     `Safe Output Drafts: ${safeOutputDrafts}`,
+    `Safe Output Evidence: ${safeOutputDraftEvidence}`,
     `Apply Executions: ${applyExecutions}`,
     `Plot Augmentation: ${pendingPlotAugmentation}`,
     `Fallback: ${trace.fallbackUsed ? 'yes' : 'no'}`,

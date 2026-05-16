@@ -49,6 +49,8 @@ export interface NoNameSafeOutputDraftEvidence {
   secondGuardrailDecision: 'allow' | 'reject' | 'fallback' | 'notEntered';
   manualApplyRecorded: boolean;
   finalPlotStateWriteAllowed: false;
+  missingEvidence: string[];
+  warnings: string[];
   reasons: string[];
 }
 
@@ -616,6 +618,26 @@ export function buildNoNameSafeOutputDrafts(
         `safe apply scope=${safeApplyScope}`,
         'draft probe never allows final plot state writes',
       ];
+      const missingEvidence: string[] = [];
+      const warnings: string[] = [];
+      const humanReviewSatisfied = humanReviewDecision === 'approvedForHigherApply'
+        || humanReviewDecision === 'notRequired';
+
+      if (review.requiresHumanReview && humanReviewDecision === 'pending') {
+        missingEvidence.push('humanReviewApproval');
+      }
+      if (humanReviewSatisfied && secondGuardrailDecision === 'notEntered') {
+        missingEvidence.push('secondGuardrailDecision');
+      }
+      if (secondGuardrailDecision === 'allow' && !manualApplyRecorded) {
+        missingEvidence.push('manualApplyCommand');
+      }
+      if (manualApplyRecorded && !humanReviewSatisfied) {
+        warnings.push('manual apply recorded before human review approval');
+      }
+      if (manualApplyRecorded && secondGuardrailDecision !== 'allow') {
+        warnings.push('manual apply recorded without second guardrail allow');
+      }
 
       let lifecycleState: NoNameSafeOutputDraftState = 'drafted';
       if (humanReviewDecision === 'rejectedForHigherApply' || secondGuardrailDecision === 'reject') {
@@ -624,7 +646,7 @@ export function buildNoNameSafeOutputDrafts(
       } else if (secondGuardrailDecision === 'fallback') {
         lifecycleState = 'fallback';
         reasons.push('second guardrail requested fallback instead of manual apply');
-      } else if (manualApplyRecorded) {
+      } else if (manualApplyRecorded && humanReviewSatisfied && secondGuardrailDecision === 'allow') {
         lifecycleState = 'manuallyApplied';
         reasons.push('explicit manual apply evidence is recorded');
       } else if (secondGuardrailDecision === 'allow') {
@@ -653,6 +675,8 @@ export function buildNoNameSafeOutputDrafts(
           secondGuardrailDecision,
           manualApplyRecorded,
           finalPlotStateWriteAllowed: false,
+          missingEvidence,
+          warnings,
           reasons,
         },
       };
@@ -673,6 +697,28 @@ export function summarizeNoNameSafeOutputDrafts(
       `${draft.lifecycleState}:${draft.safeApplyScope}:${draft.outputKind}`
       + `[final=${draft.evidence.finalPlotStateWriteAllowed ? 'true' : 'false'}]`
     ))
+    .join(', ');
+}
+
+export function summarizeNoNameSafeOutputDraftEvidence(
+  trace: NoNameTrace,
+  reviewDecisions: Record<string, NoNameHumanReviewDecision> = {},
+  emptyLabel = 'none',
+) {
+  const drafts = buildNoNameSafeOutputDrafts(trace, reviewDecisions);
+  if (drafts.length === 0) {
+    return emptyLabel;
+  }
+  return drafts
+    .map((draft) => {
+      const missing = draft.evidence.missingEvidence.length > 0
+        ? draft.evidence.missingEvidence.join('/')
+        : 'none';
+      const warnings = draft.evidence.warnings.length > 0
+        ? draft.evidence.warnings.join('/')
+        : 'none';
+      return `${draft.lifecycleState}:${draft.safeApplyScope}[missing=${missing}][warnings=${warnings}]`;
+    })
     .join(', ');
 }
 

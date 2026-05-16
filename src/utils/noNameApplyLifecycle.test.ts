@@ -9,6 +9,7 @@ import {
   summarizeNoNameApplyExecutions,
   summarizeNoNameApplyLifecycle,
   summarizeNoNamePendingPlotAugmentation,
+  summarizeNoNameSafeOutputDraftEvidence,
   summarizeNoNameSafeOutputDrafts,
 } from './noNameApplyLifecycle';
 
@@ -405,6 +406,8 @@ describe('buildNoNameApplyLifecycle', () => {
       secondGuardrailDecision: 'notEntered',
       manualApplyRecorded: false,
       finalPlotStateWriteAllowed: false,
+      missingEvidence: ['humanReviewApproval'],
+      warnings: [],
     }));
     expect(draft?.evidence.reasons).toContain('draft probe never allows final plot state writes');
   });
@@ -420,6 +423,7 @@ describe('buildNoNameApplyLifecycle', () => {
     }));
     expect(allowed?.lifecycleState).toBe('guardrailAllowed');
     expect(allowed?.evidence.secondGuardrailDecision).toBe('allow');
+    expect(allowed?.evidence.missingEvidence).toEqual(['manualApplyCommand']);
     expect(allowed?.evidence.finalPlotStateWriteAllowed).toBe(false);
 
     const [applied] = buildNoNameSafeOutputDrafts(buildReviewedDraftTrace({
@@ -429,6 +433,8 @@ describe('buildNoNameApplyLifecycle', () => {
     }));
     expect(applied?.lifecycleState).toBe('manuallyApplied');
     expect(applied?.evidence.manualApplyRecorded).toBe(true);
+    expect(applied?.evidence.missingEvidence).toEqual([]);
+    expect(applied?.evidence.warnings).toEqual([]);
     expect(applied?.evidence.finalPlotStateWriteAllowed).toBe(false);
   });
 
@@ -471,6 +477,34 @@ describe('buildNoNameApplyLifecycle', () => {
     })).toBe('none');
     expect(summarizeNoNameSafeOutputDrafts({
       ...trace,
+      controlledOutputReviews: [],
+    }, {}, '无')).toBe('无');
+  });
+
+  it('summarizes safe output draft evidence gaps without promoting invalid manual apply', () => {
+    const [invalidManualApply] = buildNoNameSafeOutputDrafts(buildReviewedDraftTrace({
+      manualApply: true,
+    }));
+    expect(invalidManualApply?.lifecycleState).toBe('drafted');
+    expect(invalidManualApply?.evidence.manualApplyRecorded).toBe(true);
+    expect(invalidManualApply?.evidence.missingEvidence).toEqual(['humanReviewApproval']);
+    expect(invalidManualApply?.evidence.warnings).toEqual([
+      'manual apply recorded before human review approval',
+      'manual apply recorded without second guardrail allow',
+    ]);
+
+    expect(summarizeNoNameSafeOutputDraftEvidence(buildReviewedDraftTrace())).toBe(
+      'drafted:plotAugmentationHint[missing=humanReviewApproval][warnings=none]',
+    );
+    expect(summarizeNoNameSafeOutputDraftEvidence(buildReviewedDraftTrace({
+      humanReviewDecision: 'approvedForHigherApply',
+      secondGuardrail: 'allow',
+      manualApply: true,
+    }))).toBe(
+      'manuallyApplied:plotAugmentationHint[missing=none][warnings=none]',
+    );
+    expect(summarizeNoNameSafeOutputDraftEvidence({
+      ...buildReviewedDraftTrace(),
       controlledOutputReviews: [],
     }, {}, '无')).toBe('无');
   });

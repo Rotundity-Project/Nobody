@@ -5,6 +5,7 @@ import {
   summarizeNoNameApplyLifecycle,
   summarizeNoNameApplyLifecycleCheckpoints,
   summarizeNoNamePendingPlotAugmentation,
+  summarizeNoNameSafeOutputDraftEvidence,
   summarizeNoNameSafeOutputDrafts,
 } from '../utils/noNameApplyLifecycle';
 import type {
@@ -479,6 +480,7 @@ export const useGameStore = defineStore('game', {
       const applyLifecycleCheckpoints = summarizeNoNameApplyLifecycleCheckpoints(latest);
       const pendingPlotAugmentation = summarizeNoNamePendingPlotAugmentation(latest);
       const safeOutputDrafts = summarizeNoNameSafeOutputDrafts(latest, {}, '无');
+      const safeOutputDraftEvidence = summarizeNoNameSafeOutputDraftEvidence(latest, {}, '无');
       return [
         `最近 Trace：${latest.traceId}`,
         `模式：${latest.mode}`,
@@ -495,6 +497,7 @@ export const useGameStore = defineStore('game', {
         `应用生命周期：${applyLifecycle}`,
         `应用阶段核对：${applyLifecycleCheckpoints}`,
         `安全输出草稿：${safeOutputDrafts}`,
+        `安全输出证据：${safeOutputDraftEvidence}`,
         `剧情增强提示：${pendingPlotAugmentation}`,
         `应用计划：${applyPlans}`,
         `应用执行：${applyExecutions}`,
