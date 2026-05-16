@@ -14,6 +14,7 @@ import {
   type NoNameForbiddenOutputScope,
   type NoNameHumanReviewMarkPayload,
   type NoNameMode,
+  type NoNameRelatedObservation,
   type NoNameSecondGuardrailResolvePayload,
   type NoNameTargetSegment,
   type NoNameTrace,
@@ -28,6 +29,7 @@ import {
 
 type WebNoNameMode = NoNameMode;
 type WebNoNamePendingAugmentationExecution = Pick<NoNameApplyExecutionRecord, 'target' | 'outcome' | 'note'>;
+type WebNoNameProposal = NoNameTrace['proposals'][number];
 
 type SaveSnapshot = {
   script: Script;
@@ -412,6 +414,48 @@ function webNoNameScopeRequiresHumanReview(scope: NoNameApplyScope) {
   return scope === 'plotTextHint' || scope === 'plotAugmentationHint';
 }
 
+function buildWebNoNameRelatedObservations(
+  actionSummary: string,
+  proposal: WebNoNameProposal,
+): NoNameRelatedObservation[] {
+  return [
+    {
+      role: 'worldCurator',
+      actionSummary,
+      focus: proposal.focus,
+      rationale: 'web mock: keep backend role context fields visible for drift checks',
+      roleGoal: 'Maintain world facts, scene constraints, and canon anchors.',
+      sceneFocus: proposal.targetSegment,
+      forbiddenScopes: [
+        'Must not decide NPC private intent.',
+        'Must not write final plot state.',
+      ],
+      noteTypeHits: ['goal:web-mock-note-context'],
+      sourceStats: [
+        { source: 'semantic', count: 1 },
+        { source: 'noteContext', count: 1 },
+      ],
+      contextTokenBudgetUsed: 64,
+      contextSliceStats: [
+        { section: 'worldFacts', sourceCount: 2, visibleCount: 1 },
+        { section: 'narrativeNotes', sourceCount: 1, visibleCount: 1 },
+      ],
+      proposal: {
+        ...proposal,
+        proposalId: `${proposal.proposalId}-world-context`,
+        kind: 'world_patch_proposal',
+        producerRole: 'worldCurator',
+        title: `WorldCurator观察：${proposal.focus}`,
+        summary: `围绕“${proposal.focus}”保留世界设定与 noteContext 证据`,
+        rationale: 'web mock: role context drift guard',
+        labels: ['worldCurator', 'context_guard', 'noteContext'],
+        status: 'observed',
+        applyable: false,
+      },
+    },
+  ];
+}
+
 function applyWebNoNameSummaryHint(summary: string, focus: string, targetSegment: NoNameTargetSegment): string {
   const hint = `NoName提示：后续重点关注${focus}`;
   if (!summary.trim()) {
@@ -443,6 +487,23 @@ function appendWebNoNameTrace(
   }
 
   if (runtimeState.noNameMode === 'assisted') {
+    const proposal: WebNoNameProposal = {
+      proposalId,
+      kind: 'plot_candidate',
+      producerRole,
+      title: `Director提案：${text}`,
+      summary: `建议优先推进“${text}”`,
+      focus: text,
+      targetSegment,
+      intendedEffect: '为低风险输出提供稳定导向',
+      rationale: 'web mock: assisted apply',
+      suggestedAction: '进入低风险 apply',
+      labels: ['director', 'assisted_ready', 'apply_scope_diagnostics'],
+      applyScopes,
+      status: 'applied',
+      applyable: true,
+    };
+
     runtimeState.noNameTraces.push({
       traceId,
       sessionId: 'web-session',
@@ -457,24 +518,7 @@ function appendWebNoNameTrace(
         'PersistTrace',
       ],
       capabilityCalls: [],
-      proposals: [
-        {
-          proposalId,
-          kind: 'plot_candidate',
-          producerRole,
-          title: `Director提案：${text}`,
-          summary: `建议优先推进“${text}”`,
-          focus: text,
-          targetSegment,
-          intendedEffect: '为低风险输出提供稳定导向',
-          rationale: 'web mock: assisted apply',
-          suggestedAction: '进入低风险 apply',
-          labels: ['director', 'assisted_ready', 'apply_scope_diagnostics'],
-          applyScopes,
-          status: 'applied',
-          applyable: true,
-        },
-      ],
+      proposals: [proposal],
       proposalTransitionLog: [
         `${proposalId}:ready`,
         `${proposalId}:apply_preflight:ready`,
@@ -526,6 +570,7 @@ function appendWebNoNameTrace(
         humanReviewedAt: null,
         humanReviewNote: null,
       })),
+      relatedObservations: buildWebNoNameRelatedObservations(text, proposal),
       guardrailResult: { outcome: 'accept' },
       applyResult: {
         attempted: true,
@@ -536,6 +581,23 @@ function appendWebNoNameTrace(
       elapsedMs: 0,
     });
   } else {
+    const proposal: WebNoNameProposal = {
+      proposalId,
+      kind: 'plot_candidate',
+      producerRole: 'director',
+      title: `Director提案：${text}`,
+      summary: `建议优先观察“${text}”`,
+      focus: text,
+      targetSegment,
+      intendedEffect: '维持观察链路，不直接改写主剧情',
+      rationale: 'web mock: observe-only',
+      suggestedAction: '保持 observe-only',
+      labels: ['director', 'observe_only'],
+      applyScopes,
+      status: 'observed',
+      applyable: false,
+    };
+
     runtimeState.noNameTraces.push({
       traceId,
       sessionId: 'web-session',
@@ -543,24 +605,7 @@ function appendWebNoNameTrace(
       mode: 'observeOnly',
       graphPath: ['CollectTurnInput', 'BuildContextBundle', 'PlanTurn', 'PersistTrace'],
       capabilityCalls: [],
-      proposals: [
-        {
-          proposalId,
-          kind: 'plot_candidate',
-          producerRole: 'director',
-          title: `Director提案：${text}`,
-          summary: `建议优先观察“${text}”`,
-          focus: text,
-          targetSegment,
-          intendedEffect: '维持观察链路，不直接改写主剧情',
-          rationale: 'web mock: observe-only',
-          suggestedAction: '保持 observe-only',
-          labels: ['director', 'observe_only'],
-          applyScopes,
-          status: 'observed',
-          applyable: false,
-        },
-      ],
+      proposals: [proposal],
       proposalTransitionLog: [`${proposalId}:observed`],
       applyPlanLog: applyScopes
         .map((scope) => ({
@@ -572,6 +617,7 @@ function appendWebNoNameTrace(
         .sort((left, right) => right.priority - left.priority)
         .map((item, index) => ({ ...item, order: index + 1 })),
       applyExecutionLog: [],
+      relatedObservations: buildWebNoNameRelatedObservations(text, proposal),
       guardrailResult: { outcome: 'accept' },
       applyResult: { attempted: false, outcome: 'skipped_observe_only' },
       fallbackUsed: false,

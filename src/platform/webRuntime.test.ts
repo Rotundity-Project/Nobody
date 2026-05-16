@@ -134,6 +134,74 @@ describe('webRuntime', () => {
     expect(latestTrace?.applyResult?.reason).toContain('target=current_turn_head');
   });
 
+  it('keeps Web NoName mock aligned with backend review and context fields', async () => {
+    const script = await invokeWebRuntime<Script>('generate_random_script');
+    await invokeWebRuntime('initialize_game', { script });
+    await invokeWebRuntime('initialize_plot');
+    await invokeWebRuntime('set_noname_mode', { mode: 'assisted' });
+
+    await invokeWebRuntime('execute_player_action', {
+      action: {
+        action_type: ActionType.FreeText,
+        content: '校准护山阵纹',
+        selected_option_id: null,
+      },
+    });
+
+    const traces = await invokeWebRuntime<NoNameTrace[]>('get_noname_recent_traces');
+    const latestTrace = traces[traces.length - 1];
+    const reviews = latestTrace.controlledOutputReviews ?? [];
+    const relatedObservations = latestTrace.relatedObservations ?? [];
+    const plotTextReview = reviews.find((item) => item.safeApplyScope === 'plotTextHint');
+    const plotAugmentationReview = reviews.find((item) => item.safeApplyScope === 'plotAugmentationHint');
+    const diagnosticsReview = reviews.find((item) => item.safeApplyScope === 'diagnostics');
+    const worldContext = relatedObservations.find((item) => item.role === 'worldCurator');
+
+    expect(reviews).toHaveLength(5);
+    expect(plotTextReview).toEqual(expect.objectContaining({
+      requestedKind: 'sceneAugmentation',
+      decision: 'needsReview',
+      normalizedKind: 'sceneAugmentation',
+      requiresHumanReview: true,
+      humanReviewDecision: null,
+    }));
+    expect(plotTextReview?.proposalId).toBe(latestTrace.proposals[0]?.proposalId);
+    expect(plotTextReview?.policyForbiddenScopes).toEqual(expect.arrayContaining([
+      'finalPlotState',
+      'canonWorldFact',
+      'chapterLifecycle',
+      'playerChoice',
+    ]));
+    expect(plotAugmentationReview).toEqual(expect.objectContaining({
+      requestedKind: 'nonFinalPlotAugmentation',
+      decision: 'needsReview',
+      requiresHumanReview: true,
+    }));
+    expect(diagnosticsReview).toEqual(expect.objectContaining({
+      requestedKind: 'narrativeNote',
+      decision: 'allow',
+      requiresHumanReview: false,
+    }));
+
+    expect(worldContext).toBeTruthy();
+    expect(worldContext?.actionSummary).toBe('校准护山阵纹');
+    expect(worldContext?.roleGoal).toContain('Maintain world facts');
+    expect(worldContext?.forbiddenScopes).toEqual(expect.arrayContaining([
+      'Must not decide NPC private intent.',
+      'Must not write final plot state.',
+    ]));
+    expect(worldContext?.noteTypeHits).toContain('goal:web-mock-note-context');
+    expect(worldContext?.sourceStats).toEqual(expect.arrayContaining([
+      { source: 'semantic', count: 1 },
+      { source: 'noteContext', count: 1 },
+    ]));
+    expect(worldContext?.contextSliceStats).toEqual(expect.arrayContaining([
+      { section: 'narrativeNotes', sourceCount: 1, visibleCount: 1 },
+    ]));
+    expect(worldContext?.proposal.producerRole).toBe('worldCurator');
+    expect(worldContext?.proposal.applyable).toBe(false);
+  });
+
   it('records human review apply intent without mutating plot text in web mode', async () => {
     const script = await invokeWebRuntime<Script>('generate_random_script');
     await invokeWebRuntime('initialize_game', { script });
