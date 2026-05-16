@@ -525,19 +525,20 @@ impl NoNameRuntime {
 
         self.protocol_runtime.clear();
 
+        let dispatch_plan = NoNameGraphExecutor::default_role_dispatch_plan();
         let orchestrator = NoNameAgentAddress {
-            agent_id: NoNameRole::Director.as_str().to_string(),
-            role: NoNameRole::Director,
+            agent_id: dispatch_plan.orchestrator.as_str().to_string(),
+            role: dispatch_plan.orchestrator,
             runtime: "local".to_string(),
         };
-        let parent_task_id = format!("{}-director-observe", input.turn_id);
+        let parent_task_id = format!(
+            "{}-{}-observe",
+            input.turn_id,
+            dispatch_plan.orchestrator.as_str()
+        );
         let mut observations = Vec::new();
 
-        for role in NoNameGraphExecutor::default_role_dispatch_order()
-            .iter()
-            .copied()
-            .filter(|role| *role != NoNameRole::Director)
-        {
+        for role in dispatch_plan.callees.iter().copied() {
             let header =
                 NoNameProtocolHeader::new(trace.trace_id.clone(), trace.session_id.clone());
             let callee = NoNameAgentAddress {
