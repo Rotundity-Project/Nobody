@@ -441,6 +441,7 @@ describe('gameStore', () => {
     expect(text).toContain('作用域：diagnostics, chapterSummaryHint');
     expect(text).toContain('剧情增强提示：已消费');
     expect(text).toContain('agent:delegation:running');
+    expect(text).toContain('协议摘要：roles=2(director/world_curator), tasks=1, events=1, statuses=running:1, errors=no');
     expect(text).toContain('[来源=hard_facts:2]');
     expect(text).toContain('[token=42]');
     expect(text).toContain('[裁剪=worldFacts:4->3]');

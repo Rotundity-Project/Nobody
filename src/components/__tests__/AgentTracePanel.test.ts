@@ -149,6 +149,7 @@ describe('AgentTracePanel', () => {
     expect(wrapper.text()).toContain('裁剪差异');
     expect(wrapper.text()).toContain('worldFacts:4->3');
     expect(wrapper.text()).toContain('协议事件');
+    expect(wrapper.text()).toContain('协议摘要：roles=2(director/world_curator), tasks=1, events=1, statuses=running:1, errors=no');
     expect(wrapper.text()).toContain('agent · delegation · running');
     expect(wrapper.text()).toContain('受控输出复核');
     expect(wrapper.text()).toContain('sceneAugmentation · plotTextHint · needsReview');

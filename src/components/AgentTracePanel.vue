@@ -263,6 +263,9 @@
         <p class="agent-trace-card-title">
           协议事件
         </p>
+        <p class="agent-trace-muted">
+          协议摘要：{{ protocolSummary }}
+        </p>
         <p
           v-if="protocolEvents.length === 0"
           class="agent-trace-muted"
@@ -562,6 +565,7 @@ import {
   formatNoNameApplyExecutionRecord,
   summarizeNoNameApplyLifecycleCheckpoints,
   summarizeNoNamePendingPlotAugmentation,
+  summarizeNoNameProtocolSummary,
   type NoNameSafeOutputDraft,
 } from '../utils/noNameApplyLifecycle';
 
@@ -613,6 +617,9 @@ const applyLifecycleCheckpointSummary = computed(() => (
 ));
 const pendingPlotAugmentationSummary = computed(() => (
   props.trace ? summarizeNoNamePendingPlotAugmentation(props.trace) : '无'
+));
+const protocolSummary = computed(() => (
+  props.trace ? summarizeNoNameProtocolSummary(props.trace, '无') : '无'
 ));
 const safeOutputDrafts = computed(() => (
   props.trace ? buildNoNameSafeOutputDrafts(props.trace, props.reviewDecisions) : []

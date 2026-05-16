@@ -3,6 +3,7 @@ import type {
   NoNameApplyScope,
   NoNameControlledOutputKind,
   NoNameHumanReviewDecision,
+  NoNameProtocolEvent,
   NoNameTrace,
 } from '../types/game';
 
@@ -63,6 +64,15 @@ export interface NoNameSafeOutputDraft {
   rationale: string;
   lifecycleState: NoNameSafeOutputDraftState;
   evidence: NoNameSafeOutputDraftEvidence;
+}
+
+export interface NoNameProtocolSummary {
+  eventCount: number;
+  taskCount: number;
+  roleCount: number;
+  roles: string[];
+  statusCounts: Record<string, number>;
+  hasErrors: boolean;
 }
 
 interface NoNameSecondGuardrailStats {
@@ -177,6 +187,51 @@ function countExecutionOutcomes(trace: NoNameTrace, outcome: string) {
 
 function countExecutionMatches(trace: NoNameTrace, predicate: (item: NoNameApplyExecutionRecord) => boolean) {
   return trace.applyExecutionLog?.filter(predicate).length ?? 0;
+}
+
+function protocolRoleIds(event: NoNameProtocolEvent) {
+  return [event.from, event.to]
+    .filter((item): item is string => Boolean(item && item !== 'runtime'));
+}
+
+export function buildNoNameProtocolSummary(trace: NoNameTrace): NoNameProtocolSummary {
+  const events = trace.protocolEvents ?? [];
+  const roles = new Set<string>();
+  const tasks = new Set<string>();
+  const statusCounts: Record<string, number> = {};
+
+  events.forEach((event) => {
+    protocolRoleIds(event).forEach((role) => roles.add(role));
+    if (event.taskId) {
+      tasks.add(event.taskId);
+    }
+    statusCounts[event.status] = (statusCounts[event.status] ?? 0) + 1;
+  });
+
+  return {
+    eventCount: events.length,
+    taskCount: tasks.size,
+    roleCount: roles.size,
+    roles: [...roles].sort(),
+    statusCounts,
+    hasErrors: events.some((event) => event.status === 'failed' || event.kind === 'error'),
+  };
+}
+
+export function summarizeNoNameProtocolSummary(trace: NoNameTrace, emptyLabel = 'none') {
+  const summary = buildNoNameProtocolSummary(trace);
+  if (summary.eventCount === 0) {
+    return emptyLabel;
+  }
+  const statuses = Object.entries(summary.statusCounts)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([status, count]) => `${status}:${count}`)
+    .join('/');
+  return (
+    `roles=${summary.roleCount}(${summary.roles.join('/') || 'none'}), `
+    + `tasks=${summary.taskCount}, events=${summary.eventCount}, `
+    + `statuses=${statuses || 'none'}, errors=${summary.hasErrors ? 'yes' : 'no'}`
+  );
 }
 
 function countOutcomeEvidence(

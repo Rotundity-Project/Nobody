@@ -153,6 +153,7 @@ import {
   summarizeNoNameApplyLifecycle,
   summarizeNoNameApplyLifecycleCheckpoints,
   summarizeNoNamePendingPlotAugmentation,
+  summarizeNoNameProtocolSummary,
   summarizeNoNameSafeOutputDraftEvidence,
   summarizeNoNameSafeOutputDrafts,
 } from '../utils/noNameApplyLifecycle';
@@ -356,6 +357,7 @@ function buildTraceReport(
     : '无';
   const lifecycle = summarizeNoNameApplyLifecycle(trace, reviewDecisions);
   const lifecycleCheckpoints = summarizeNoNameApplyLifecycleCheckpoints(trace, reviewDecisions);
+  const protocolSummary = summarizeNoNameProtocolSummary(trace);
   const pendingPlotAugmentation = summarizeNoNamePendingPlotAugmentation(trace);
   const safeOutputDrafts = summarizeNoNameSafeOutputDrafts(trace, reviewDecisions);
   const safeOutputDraftEvidence = summarizeNoNameSafeOutputDraftEvidence(trace, reviewDecisions);
@@ -375,6 +377,7 @@ function buildTraceReport(
     `Related Observations: ${relatedObservations.length}`,
     `Role Contexts: ${roleContextSummary}`,
     `Protocol Events: ${protocolEvents.length}`,
+    `Protocol Summary: ${protocolSummary}`,
     `Controlled Reviews: ${controlledReviews.length} (${humanReviewCount} needs human review)`,
     `Human Review Decisions: ${reviewDecisionCounts.approvedForHigherApply} approved / ${reviewDecisionCounts.rejectedForHigherApply} rejected / ${reviewDecisionCounts.pending} pending`,
     `Guardrail: ${guardrail}`,

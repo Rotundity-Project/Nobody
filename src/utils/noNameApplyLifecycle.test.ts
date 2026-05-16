@@ -3,12 +3,14 @@ import type { NoNameTrace } from '../types/game';
 import {
   buildNoNameApplyLifecycleCheckpoints,
   buildNoNameApplyLifecycle,
+  buildNoNameProtocolSummary,
   buildNoNameSafeOutputDrafts,
   formatNoNameApplyExecutionRecord,
   summarizeNoNameApplyLifecycleCheckpoints,
   summarizeNoNameApplyExecutions,
   summarizeNoNameApplyLifecycle,
   summarizeNoNamePendingPlotAugmentation,
+  summarizeNoNameProtocolSummary,
   summarizeNoNameSafeOutputDraftEvidence,
   summarizeNoNameSafeOutputDrafts,
 } from './noNameApplyLifecycle';
@@ -507,5 +509,46 @@ describe('buildNoNameApplyLifecycle', () => {
       ...buildReviewedDraftTrace(),
       controlledOutputReviews: [],
     }, {}, '无')).toBe('无');
+  });
+
+  it('summarizes multi-agent protocol fan-out health', () => {
+    const trace = buildReviewedDraftTrace();
+    trace.protocolEvents = [{
+      channel: 'agent',
+      from: 'director',
+      to: 'world_curator',
+      kind: 'taskRequest',
+      taskId: 'turn-1-world_curator-observe',
+      status: 'queued',
+    }, {
+      channel: 'agent',
+      from: 'world_curator',
+      to: 'director',
+      kind: 'result',
+      taskId: 'turn-1-world_curator-observe',
+      status: 'completed',
+    }, {
+      channel: 'agent',
+      from: 'npc_intent',
+      to: 'director',
+      kind: 'error',
+      taskId: 'turn-1-npc_intent-observe',
+      status: 'failed',
+    }];
+
+    expect(buildNoNameProtocolSummary(trace)).toEqual(expect.objectContaining({
+      eventCount: 3,
+      taskCount: 2,
+      roleCount: 3,
+      roles: ['director', 'npc_intent', 'world_curator'],
+      hasErrors: true,
+    }));
+    expect(summarizeNoNameProtocolSummary(trace)).toBe(
+      'roles=3(director/npc_intent/world_curator), tasks=2, events=3, statuses=completed:1/failed:1/queued:1, errors=yes',
+    );
+    expect(summarizeNoNameProtocolSummary({
+      ...trace,
+      protocolEvents: [],
+    }, '无')).toBe('无');
   });
 });
