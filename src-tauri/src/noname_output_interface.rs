@@ -122,6 +122,28 @@ pub struct NoNameControlledOutputReview {
     pub requires_human_review: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum NoNameSafeOutputDraftLifecycleState {
+    Drafted,
+    Reviewed,
+    Blocked,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NoNameSafeOutputDraftContract {
+    pub draft_id: String,
+    pub request_id: String,
+    pub source_proposal_id: Option<String>,
+    pub output_kind: NoNameControlledOutputKind,
+    pub safe_apply_scope: NoNameApplyScope,
+    pub lifecycle_state: NoNameSafeOutputDraftLifecycleState,
+    pub requires_human_review: bool,
+    pub final_plot_state_write_allowed: bool,
+    pub evidence: Vec<String>,
+}
+
 #[derive(Debug, Clone)]
 pub struct NoNameControlledOutputInterface {
     policy: NoNameControlledOutputPolicy,
@@ -229,6 +251,39 @@ impl NoNameControlledOutputInterface {
                 kind_key.to_string(),
             ],
         }
+    }
+
+    pub fn safe_output_draft_contract(
+        &self,
+        request: &NoNameControlledOutputRequest,
+        review: &NoNameControlledOutputReview,
+    ) -> Option<NoNameSafeOutputDraftContract> {
+        let safe_apply_scope = review.safe_apply_scope?;
+        let lifecycle_state = match review.decision {
+            NoNameControlledOutputDecision::Allow => NoNameSafeOutputDraftLifecycleState::Reviewed,
+            NoNameControlledOutputDecision::NeedsReview => {
+                NoNameSafeOutputDraftLifecycleState::Drafted
+            }
+            NoNameControlledOutputDecision::Reject => NoNameSafeOutputDraftLifecycleState::Blocked,
+        };
+        Some(NoNameSafeOutputDraftContract {
+            draft_id: format!("safe-output-draft-{}", request.request_id),
+            request_id: request.request_id.clone(),
+            source_proposal_id: request
+                .proposal_ref
+                .as_ref()
+                .map(|proposal| proposal.proposal_id.clone()),
+            output_kind: review.normalized_kind.unwrap_or(request.kind),
+            safe_apply_scope,
+            lifecycle_state,
+            requires_human_review: review.requires_human_review,
+            final_plot_state_write_allowed: false,
+            evidence: vec![
+                format!("controlled output decision={:?}", review.decision),
+                format!("safe apply scope={}", safe_apply_scope.as_str()),
+                "backend draft contract never allows final plot state writes".to_string(),
+            ],
+        })
     }
 
     fn reject(
@@ -445,6 +500,57 @@ mod tests {
             Some(NoNameApplyScope::PlotAugmentationHint)
         );
         assert!(review.requires_human_review);
+    }
+
+    #[test]
+    fn safe_output_draft_contract_keeps_backend_boundary_non_final() {
+        let interface = NoNameControlledOutputInterface::default();
+        let request = interface.draft_stub(
+            NoNameControlledOutputKind::NonFinalPlotAugmentation,
+            NoNameRole::Director,
+            "Staged scene beat",
+            "Stage a reversible clue for the next turn without rewriting final plot state.",
+        );
+        let review = interface.review(&request);
+
+        let contract = interface
+            .safe_output_draft_contract(&request, &review)
+            .expect("safe apply scope should produce a draft contract");
+
+        assert_eq!(
+            contract.lifecycle_state,
+            NoNameSafeOutputDraftLifecycleState::Drafted
+        );
+        assert_eq!(
+            contract.safe_apply_scope,
+            NoNameApplyScope::PlotAugmentationHint
+        );
+        assert!(contract.requires_human_review);
+        assert!(!contract.final_plot_state_write_allowed);
+        assert!(contract
+            .evidence
+            .iter()
+            .any(|item| item.contains("never allows final plot state writes")));
+    }
+
+    #[test]
+    fn rejected_controlled_output_has_no_safe_draft_contract() {
+        let interface = NoNameControlledOutputInterface::default();
+        let mut request = interface.draft_stub(
+            NoNameControlledOutputKind::NarrativeNote,
+            NoNameRole::WorldCurator,
+            "Canon change",
+            "The sect law is permanently rewritten.",
+        );
+        request
+            .touched_forbidden_scopes
+            .push(NoNameForbiddenOutputScope::CanonWorldFact);
+        let review = interface.review(&request);
+
+        assert_eq!(
+            interface.safe_output_draft_contract(&request, &review),
+            None
+        );
     }
 
     #[test]
