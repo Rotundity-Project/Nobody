@@ -454,6 +454,7 @@ mod tests {
             role_goal: "Track conflict rhythm".to_string(),
             scene_focus: "山门冲突".to_string(),
             note_type_hits: vec![],
+            note_evidence_stats: vec![],
             world_facts: vec![],
             character_relationships: vec![],
             narrative_priorities: vec![],

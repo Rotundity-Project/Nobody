@@ -2,7 +2,7 @@ use crate::entity_store::{EntityQuery, EntityStore};
 use crate::entity_types::EntityType;
 use crate::noname_context_types::{
     NoNameContextBuildInput, NoNameContextPacket, NoNameContextSourceStat, NoNameRoleContextPacket,
-    NoNameRoleContextSliceStat,
+    NoNameRoleContextSliceStat, NoNameRoleNoteEvidenceStat,
 };
 use crate::noname_memory_manager::NoNameMemoryManager;
 use crate::noname_memory_retrieval::NoNameMemoryQuery;
@@ -255,6 +255,7 @@ pub fn build_role_context_packet(
     let ranked_notes = role_ranked_active_notes(memory_manager.active_notes(), role);
     let mut role_packet = specialize_context_packet(&packet);
     role_packet.note_type_hits = build_role_note_hits(&ranked_notes, input.per_section_limit);
+    role_packet.note_evidence_stats = build_role_note_evidence_stats(&ranked_notes);
     role_packet
 }
 
@@ -320,6 +321,7 @@ fn director_context(packet: &NoNameContextPacket) -> NoNameRoleContextPacket {
             &packet.hard_facts,
         ]),
         note_type_hits: Vec::new(),
+        note_evidence_stats: Vec::new(),
         world_facts: world_facts.clone(),
         character_relationships: character_relationships.clone(),
         narrative_priorities: narrative_priorities.clone(),
@@ -378,6 +380,7 @@ fn world_curator_context(packet: &NoNameContextPacket) -> NoNameRoleContextPacke
             &packet.recent_context,
         ]),
         note_type_hits: Vec::new(),
+        note_evidence_stats: Vec::new(),
         world_facts: world_facts.clone(),
         character_relationships: character_relationships.clone(),
         narrative_priorities: narrative_priorities.clone(),
@@ -441,6 +444,7 @@ fn npc_intent_context(packet: &NoNameContextPacket) -> NoNameRoleContextPacket {
             &packet.recent_context,
         ]),
         note_type_hits: Vec::new(),
+        note_evidence_stats: Vec::new(),
         world_facts: world_facts.clone(),
         character_relationships: character_relationships.clone(),
         narrative_priorities: narrative_priorities.clone(),
@@ -500,6 +504,7 @@ fn combat_narrator_context(packet: &NoNameContextPacket) -> NoNameRoleContextPac
             &packet.narrative_notes,
         ]),
         note_type_hits: Vec::new(),
+        note_evidence_stats: Vec::new(),
         world_facts: world_facts.clone(),
         character_relationships: character_relationships.clone(),
         narrative_priorities: narrative_priorities.clone(),
@@ -550,6 +555,7 @@ fn system_context(packet: &NoNameContextPacket) -> NoNameRoleContextPacket {
         role_goal: "Provide diagnostics without narrative authority.".to_string(),
         scene_focus: first_of(&[&packet.recent_context, &packet.working_memory]),
         note_type_hits: Vec::new(),
+        note_evidence_stats: Vec::new(),
         world_facts: Vec::new(),
         character_relationships: Vec::new(),
         narrative_priorities: Vec::new(),
@@ -576,6 +582,30 @@ fn build_slice_stat(
         source_count,
         visible_count,
     }
+}
+
+fn build_role_note_evidence_stats(
+    ranked_notes: &[NoNameNarrativeMemoryItem],
+) -> Vec<NoNameRoleNoteEvidenceStat> {
+    let mut stats: Vec<NoNameRoleNoteEvidenceStat> = Vec::new();
+    for note in ranked_notes {
+        let note_type = note_type_label(note.note_type).to_string();
+        if let Some(existing) = stats.iter_mut().find(|item| item.note_type == note_type) {
+            existing.count += 1;
+        } else {
+            stats.push(NoNameRoleNoteEvidenceStat {
+                note_type,
+                count: 1,
+            });
+        }
+    }
+    stats.sort_by(|left, right| {
+        right
+            .count
+            .cmp(&left.count)
+            .then_with(|| left.note_type.cmp(&right.note_type))
+    });
+    stats
 }
 
 fn role_source_stats(
@@ -1049,6 +1079,18 @@ mod tests {
         assert_eq!(director.note_type_hits[0], "conflict: Gate Assault");
         assert_eq!(npc.note_type_hits[0], "characterArc: Elder Qinghe Doubt");
         assert_eq!(world.note_type_hits[0], "goal: Hold Gate");
+        assert!(director
+            .note_evidence_stats
+            .iter()
+            .any(|item| item.note_type == "conflict" && item.count == 1));
+        assert!(npc
+            .note_evidence_stats
+            .iter()
+            .any(|item| item.note_type == "characterArc" && item.count == 1));
+        assert!(world
+            .note_evidence_stats
+            .iter()
+            .any(|item| item.note_type == "goal" && item.count == 1));
     }
 
     #[test]
