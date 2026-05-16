@@ -364,6 +364,7 @@ describe('gameStore', () => {
       }],
       controlledOutputReviews: [{
         requestId: 'controlled-output-proposal-1-plot_text_hint',
+        proposalId: 'proposal-1',
         requestedKind: 'sceneAugmentation',
         decision: 'needsReview',
         reason: 'plot text hint requires human review before higher-layer apply',
@@ -427,6 +428,7 @@ describe('gameStore', () => {
     expect(text).toContain('预检：preflight_ready');
     expect(text).toContain('应用生命周期：提案阶段:ready');
     expect(text).toContain('应用阶段核对：1.Human Review=approved');
+    expect(text).toContain('安全输出草稿：reviewed:plotTextHint:sceneAugmentation[final=false]');
     expect(text).toContain('应用计划：#1:chapter_summary_hint:apply@200');
     expect(text).toContain('应用执行：chapter_summary_hint:applied');
     expect(text).toContain('剧情增强提示:已消费[raw=plot_augmentation_hint:pending_plot_augmentation_consumed]');

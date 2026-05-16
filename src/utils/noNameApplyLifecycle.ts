@@ -659,6 +659,23 @@ export function buildNoNameSafeOutputDrafts(
     });
 }
 
+export function summarizeNoNameSafeOutputDrafts(
+  trace: NoNameTrace,
+  reviewDecisions: Record<string, NoNameHumanReviewDecision> = {},
+  emptyLabel = 'none',
+) {
+  const drafts = buildNoNameSafeOutputDrafts(trace, reviewDecisions);
+  if (drafts.length === 0) {
+    return emptyLabel;
+  }
+  return drafts
+    .map((draft) => (
+      `${draft.lifecycleState}:${draft.safeApplyScope}:${draft.outputKind}`
+      + `[final=${draft.evidence.finalPlotStateWriteAllowed ? 'true' : 'false'}]`
+    ))
+    .join(', ');
+}
+
 export function buildNoNameApplyLifecycle(
   trace: NoNameTrace,
   reviewDecisions: Record<string, NoNameHumanReviewDecision> = {},

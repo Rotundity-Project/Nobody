@@ -9,6 +9,7 @@ import {
   summarizeNoNameApplyExecutions,
   summarizeNoNameApplyLifecycle,
   summarizeNoNamePendingPlotAugmentation,
+  summarizeNoNameSafeOutputDrafts,
 } from './noNameApplyLifecycle';
 
 function buildTrace(outcome: string, note: string): NoNameTrace {
@@ -453,5 +454,24 @@ describe('buildNoNameApplyLifecycle', () => {
     expect(fallback?.lifecycleState).toBe('fallback');
     expect(fallback?.evidence.manualApplyRecorded).toBe(false);
     expect(fallback?.evidence.finalPlotStateWriteAllowed).toBe(false);
+  });
+
+  it('summarizes safe output drafts for read-only diagnostics', () => {
+    const trace = buildReviewedDraftTrace({
+      humanReviewDecision: 'approvedForHigherApply',
+      secondGuardrail: 'allow',
+    });
+
+    expect(summarizeNoNameSafeOutputDrafts(trace)).toBe(
+      'guardrailAllowed:plotAugmentationHint:nonFinalPlotAugmentation[final=false]',
+    );
+    expect(summarizeNoNameSafeOutputDrafts({
+      ...trace,
+      controlledOutputReviews: [],
+    })).toBe('none');
+    expect(summarizeNoNameSafeOutputDrafts({
+      ...trace,
+      controlledOutputReviews: [],
+    }, {}, '无')).toBe('无');
   });
 });
