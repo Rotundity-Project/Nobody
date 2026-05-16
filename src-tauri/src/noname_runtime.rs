@@ -194,6 +194,14 @@ impl NoNameRuntime {
         self.recent_traces.iter().cloned().collect()
     }
 
+    pub fn get_trace_by_id(&self, trace_id: &str) -> Option<NoNameTrace> {
+        self.recent_traces
+            .iter()
+            .rev()
+            .find(|trace| trace.trace_id == trace_id)
+            .cloned()
+    }
+
     pub fn replace_trace(&mut self, trace: NoNameTrace) -> bool {
         if let Some(existing) = self
             .recent_traces
@@ -205,6 +213,26 @@ impl NoNameRuntime {
             return true;
         }
         false
+    }
+
+    pub fn update_trace_by_id<F>(
+        &mut self,
+        trace_id: &str,
+        update: F,
+    ) -> Result<NoNameTrace, String>
+    where
+        F: FnOnce(&mut NoNameTrace) -> Result<(), String>,
+    {
+        let trace = self
+            .recent_traces
+            .iter_mut()
+            .rev()
+            .find(|trace| trace.trace_id == trace_id)
+            .ok_or_else(|| format!("NoName trace not found: {}", trace_id))?;
+        let mut updated = trace.clone();
+        update(&mut updated)?;
+        *trace = updated.clone();
+        Ok(updated)
     }
 
     pub fn clear_traces(&mut self) {
@@ -750,6 +778,53 @@ mod tests {
 
         assert!(updated);
         assert_eq!(runtime.get_recent_traces()[0].elapsed_ms, 77);
+    }
+
+    #[test]
+    fn update_trace_by_id_mutates_existing_trace() {
+        let mut runtime = NoNameRuntime::new(NoNameConfig::observe_only());
+        runtime
+            .run_turn(NoNameTurnInput::default())
+            .expect("trace should be stored");
+
+        let updated = runtime
+            .update_trace_by_id("noname-trace-0", |trace| {
+                trace.elapsed_ms = 88;
+                Ok(())
+            })
+            .expect("trace update should succeed");
+
+        assert_eq!(updated.elapsed_ms, 88);
+        assert_eq!(runtime.get_recent_traces()[0].elapsed_ms, 88);
+    }
+
+    #[test]
+    fn update_trace_by_id_reports_missing_trace() {
+        let mut runtime = NoNameRuntime::new(NoNameConfig::observe_only());
+
+        let error = runtime
+            .update_trace_by_id("missing-trace", |_| Ok(()))
+            .expect_err("missing trace should fail");
+
+        assert_eq!(error, "NoName trace not found: missing-trace");
+    }
+
+    #[test]
+    fn update_trace_by_id_keeps_failed_update_mutation_local_to_closure() {
+        let mut runtime = NoNameRuntime::new(NoNameConfig::observe_only());
+        runtime
+            .run_turn(NoNameTurnInput::default())
+            .expect("trace should be stored");
+
+        let error = runtime
+            .update_trace_by_id("noname-trace-0", |trace| {
+                trace.elapsed_ms = 99;
+                Err("review decision rejected".to_string())
+            })
+            .expect_err("failed update should bubble up");
+
+        assert_eq!(error, "review decision rejected");
+        assert_eq!(runtime.get_recent_traces()[0].elapsed_ms, 0);
     }
 
     #[test]
