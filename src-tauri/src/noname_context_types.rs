@@ -18,6 +18,13 @@ pub struct NoNameRoleContextSliceStat {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct NoNameRoleNoteEvidenceStat {
+    pub note_type: String,
+    pub count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct NoNameContextPacket {
     pub role: NoNameRole,
     pub hard_facts: Vec<String>,
@@ -40,6 +47,8 @@ pub struct NoNameRoleContextPacket {
     pub scene_focus: String,
     #[serde(default)]
     pub note_type_hits: Vec<String>,
+    #[serde(default)]
+    pub note_evidence_stats: Vec<NoNameRoleNoteEvidenceStat>,
     pub world_facts: Vec<String>,
     pub character_relationships: Vec<String>,
     pub narrative_priorities: Vec<String>,
