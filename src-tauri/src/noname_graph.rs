@@ -26,6 +26,31 @@ pub struct NoNameGraphExecutionResult {
     pub graph_path: Vec<NoNameTraceStage>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NoNameRoleDispatchPlan {
+    pub orchestrator: NoNameRole,
+    pub callees: Vec<NoNameRole>,
+}
+
+impl NoNameRoleDispatchPlan {
+    pub fn default_observe_fan_out() -> Self {
+        Self {
+            orchestrator: NoNameRole::Director,
+            callees: vec![
+                NoNameRole::WorldCurator,
+                NoNameRole::NpcIntent,
+                NoNameRole::CombatNarrator,
+            ],
+        }
+    }
+
+    pub fn full_order(&self) -> Vec<NoNameRole> {
+        std::iter::once(self.orchestrator)
+            .chain(self.callees.iter().copied())
+            .collect()
+    }
+}
+
 #[derive(Debug, Default, Clone)]
 pub struct NoNameGraphExecutor;
 
@@ -50,6 +75,10 @@ impl NoNameGraphExecutor {
             NoNameRole::NpcIntent,
             NoNameRole::CombatNarrator,
         ]
+    }
+
+    pub fn default_role_dispatch_plan() -> NoNameRoleDispatchPlan {
+        NoNameRoleDispatchPlan::default_observe_fan_out()
     }
 
     pub fn execute_empty_turn(
@@ -104,6 +133,25 @@ mod tests {
                 NoNameRole::NpcIntent,
                 NoNameRole::CombatNarrator,
             ]
+        );
+    }
+
+    #[test]
+    fn default_role_dispatch_plan_makes_orchestrator_and_callees_explicit() {
+        let plan = NoNameGraphExecutor::default_role_dispatch_plan();
+
+        assert_eq!(plan.orchestrator, NoNameRole::Director);
+        assert_eq!(
+            plan.callees,
+            vec![
+                NoNameRole::WorldCurator,
+                NoNameRole::NpcIntent,
+                NoNameRole::CombatNarrator,
+            ]
+        );
+        assert_eq!(
+            plan.full_order(),
+            NoNameGraphExecutor::default_role_dispatch_order()
         );
     }
 
