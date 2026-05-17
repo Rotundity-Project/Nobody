@@ -1,5 +1,7 @@
 import type {
   NoNameApplyExecutionRecord,
+  NoNameApplyScope,
+  NoNameControlledOutputKind,
   NoNameHumanReviewDecision,
   NoNameTrace,
 } from '../types/game';
@@ -33,6 +35,34 @@ export interface NoNameApplyExecutionDisplay {
   outcomeLabel: string;
 }
 
+export type NoNameSafeOutputDraftState =
+  | 'drafted'
+  | 'reviewed'
+  | 'guardrailAllowed'
+  | 'manuallyApplied'
+  | 'blocked'
+  | 'fallback';
+
+export interface NoNameSafeOutputDraftEvidence {
+  reviewRequestId: string;
+  humanReviewDecision: NoNameHumanReviewDecision | 'notRequired';
+  secondGuardrailDecision: 'allow' | 'reject' | 'fallback' | 'notEntered';
+  manualApplyRecorded: boolean;
+  finalPlotStateWriteAllowed: false;
+  reasons: string[];
+}
+
+export interface NoNameSafeOutputDraft {
+  draftId: string;
+  sourceProposalId: string;
+  outputKind: NoNameControlledOutputKind;
+  safeApplyScope: NoNameApplyScope;
+  summary: string;
+  rationale: string;
+  lifecycleState: NoNameSafeOutputDraftState;
+  evidence: NoNameSafeOutputDraftEvidence;
+}
+
 interface NoNameSecondGuardrailStats {
   allowed: number;
   rejected: number;
@@ -43,6 +73,22 @@ interface NoNameSecondGuardrailStats {
 
 function normalizeTarget(value: string | undefined) {
   return (value ?? '').replace(/_/g, '').toLowerCase();
+}
+
+function scopeToTransitionSuffix(scope: NoNameApplyScope) {
+  if (scope === 'plotTextHint') {
+    return 'plot_text_hint';
+  }
+  if (scope === 'chapterSummaryHint') {
+    return 'chapter_summary_hint';
+  }
+  if (scope === 'optionBiasHint') {
+    return 'option_bias_hint';
+  }
+  if (scope === 'plotAugmentationHint') {
+    return 'plot_augmentation_hint';
+  }
+  return scope;
 }
 
 function hasExecution(trace: NoNameTrace, target: string, outcome: string) {
@@ -66,6 +112,53 @@ function latestExecutionForTarget(
       normalizeTarget(item.target) === normalizedTarget
       && outcomes.includes(item.outcome)
     )) ?? null;
+}
+
+function hasTransition(trace: NoNameTrace, transition: string) {
+  return trace.proposalTransitionLog?.includes(transition) ?? false;
+}
+
+function hasManualApplyEvidenceForScope(
+  trace: NoNameTrace,
+  requestId: string,
+  scope: NoNameApplyScope,
+) {
+  const scopeSuffix = scopeToTransitionSuffix(scope);
+  if (hasTransition(trace, `${requestId}:manual_apply:${scopeSuffix}`)) {
+    return true;
+  }
+  return Boolean(latestExecutionForTarget(trace, scope, [
+    'manual_plot_text_applied',
+    'manual_chapter_summary_hint_applied',
+    'manual_option_bias_hint_applied',
+    'manual_plot_augmentation_hint_applied',
+  ]));
+}
+
+function resolveDraftSecondGuardrailDecision(
+  trace: NoNameTrace,
+  requestId: string,
+  scope: NoNameApplyScope,
+) {
+  if (
+    hasTransition(trace, `${requestId}:second_guardrail:allow`)
+    || latestExecutionForTarget(trace, scope, ['second_guardrail_allowed'])
+  ) {
+    return 'allow' as const;
+  }
+  if (
+    hasTransition(trace, `${requestId}:second_guardrail:reject`)
+    || latestExecutionForTarget(trace, scope, ['second_guardrail_rejected'])
+  ) {
+    return 'reject' as const;
+  }
+  if (
+    hasTransition(trace, `${requestId}:second_guardrail:fallback`)
+    || latestExecutionForTarget(trace, scope, ['second_guardrail_fallback'])
+  ) {
+    return 'fallback' as const;
+  }
+  return 'notEntered' as const;
 }
 
 function countTransitions(trace: NoNameTrace, suffix: string) {
@@ -489,6 +582,81 @@ export function summarizeNoNamePendingPlotAugmentation(trace: NoNameTrace): stri
   }
 
   return '无';
+}
+
+export function buildNoNameSafeOutputDrafts(
+  trace: NoNameTrace,
+  reviewDecisions: Record<string, NoNameHumanReviewDecision> = {},
+): NoNameSafeOutputDraft[] {
+  const reviews = trace.controlledOutputReviews ?? [];
+  return reviews
+    .filter((review) => review.safeApplyScope)
+    .map((review) => {
+      const safeApplyScope = review.safeApplyScope as NoNameApplyScope;
+      const proposal = trace.proposals.find((item) => item.proposalId === review.proposalId)
+        ?? trace.proposals[trace.proposals.length - 1];
+      const sourceProposalId = review.proposalId
+        ?? proposal?.proposalId
+        ?? review.requestId;
+      const humanReviewDecision = review.requiresHumanReview
+        ? lifecycleHumanDecision(trace, review.requestId, reviewDecisions)
+        : 'notRequired';
+      const secondGuardrailDecision = resolveDraftSecondGuardrailDecision(
+        trace,
+        review.requestId,
+        safeApplyScope,
+      );
+      const manualApplyRecorded = hasManualApplyEvidenceForScope(
+        trace,
+        review.requestId,
+        safeApplyScope,
+      );
+      const reasons: string[] = [
+        `controlled output review decision=${review.decision}`,
+        `safe apply scope=${safeApplyScope}`,
+        'draft probe never allows final plot state writes',
+      ];
+
+      let lifecycleState: NoNameSafeOutputDraftState = 'drafted';
+      if (humanReviewDecision === 'rejectedForHigherApply' || secondGuardrailDecision === 'reject') {
+        lifecycleState = 'blocked';
+        reasons.push('review or second guardrail blocked higher-layer apply');
+      } else if (secondGuardrailDecision === 'fallback') {
+        lifecycleState = 'fallback';
+        reasons.push('second guardrail requested fallback instead of manual apply');
+      } else if (manualApplyRecorded) {
+        lifecycleState = 'manuallyApplied';
+        reasons.push('explicit manual apply evidence is recorded');
+      } else if (secondGuardrailDecision === 'allow') {
+        lifecycleState = 'guardrailAllowed';
+        reasons.push('second guardrail allowed explicit manual apply only');
+      } else if (humanReviewDecision === 'approvedForHigherApply') {
+        lifecycleState = 'reviewed';
+        reasons.push('human review approved the draft for second guardrail');
+      } else if (humanReviewDecision === 'notRequired' && review.decision === 'allow') {
+        reasons.push('low-risk controlled output can stay drafted without higher-layer apply');
+      } else {
+        reasons.push('waiting for explicit human review or guardrail evidence');
+      }
+
+      return {
+        draftId: `safe-output-draft-${review.requestId}`,
+        sourceProposalId,
+        outputKind: review.normalizedKind ?? review.requestedKind,
+        safeApplyScope,
+        summary: proposal?.summary ?? review.reason,
+        rationale: review.reason,
+        lifecycleState,
+        evidence: {
+          reviewRequestId: review.requestId,
+          humanReviewDecision,
+          secondGuardrailDecision,
+          manualApplyRecorded,
+          finalPlotStateWriteAllowed: false,
+          reasons,
+        },
+      };
+    });
 }
 
 export function buildNoNameApplyLifecycle(

@@ -3,6 +3,7 @@ import type { NoNameTrace } from '../types/game';
 import {
   buildNoNameApplyLifecycleCheckpoints,
   buildNoNameApplyLifecycle,
+  buildNoNameSafeOutputDrafts,
   formatNoNameApplyExecutionRecord,
   summarizeNoNameApplyLifecycleCheckpoints,
   summarizeNoNameApplyExecutions,
@@ -40,6 +41,87 @@ function buildTrace(outcome: string, note: string): NoNameTrace {
       outcome,
       note,
     }],
+    guardrailResult: { outcome: 'accept' },
+    applyResult: { attempted: true, outcome: 'applied_scoped_outputs' },
+    fallbackUsed: false,
+    elapsedMs: 3,
+  };
+}
+
+function buildReviewedDraftTrace(options: {
+  humanReviewDecision?: 'pending' | 'approvedForHigherApply' | 'rejectedForHigherApply';
+  secondGuardrail?: 'allow' | 'reject' | 'fallback' | null;
+  manualApply?: boolean;
+} = {}): NoNameTrace {
+  const {
+    humanReviewDecision = 'pending',
+    secondGuardrail = null,
+    manualApply = false,
+  } = options;
+  const requestId = 'controlled-output-proposal-draft-plot_augmentation_hint';
+  const proposalId = 'proposal-draft';
+  const proposalTransitionLog = [`${requestId}:apply_intent:awaiting_second_guardrail`];
+  const applyExecutionLog = [{
+    target: 'plotAugmentationHint',
+    outcome: 'awaiting_second_guardrail',
+  }];
+
+  if (secondGuardrail) {
+    proposalTransitionLog.push(`${requestId}:second_guardrail:${secondGuardrail}`);
+    applyExecutionLog.push({
+      target: 'plotAugmentationHint',
+      outcome: secondGuardrail === 'allow'
+        ? 'second_guardrail_allowed'
+        : secondGuardrail === 'fallback'
+          ? 'second_guardrail_fallback'
+          : 'second_guardrail_rejected',
+    });
+  }
+  if (manualApply) {
+    proposalTransitionLog.push(`${requestId}:manual_apply:plot_augmentation_hint`);
+    applyExecutionLog.push({
+      target: 'plotAugmentationHint',
+      outcome: 'manual_plot_augmentation_hint_applied',
+    });
+  }
+
+  return {
+    traceId: 'trace-safe-output-draft',
+    sessionId: 'session-1',
+    turnId: 'turn-1',
+    mode: 'assisted',
+    graphPath: ['CollectTurnInput', 'PlanTurn', 'ApplyProposal'],
+    capabilityCalls: [],
+    proposals: [{
+      proposalId,
+      kind: 'plotCandidate',
+      producerRole: 'director',
+      title: 'draft proposal',
+      summary: 'stage a non-final safe output draft',
+      focus: 'safe draft focus',
+      targetSegment: 'current_turn_tail',
+      intendedEffect: 'guide the next generation without mutating final state',
+      rationale: 'test safe output draft',
+      labels: ['director'],
+      applyScopes: ['plotAugmentationHint'],
+      status: 'applied',
+      applyable: true,
+    }],
+    controlledOutputReviews: [{
+      requestId,
+      proposalId,
+      requestedKind: 'nonFinalPlotAugmentation',
+      decision: 'needsReview',
+      reason: 'plot augmentation draft requires explicit review',
+      normalizedKind: 'nonFinalPlotAugmentation',
+      safeApplyScope: 'plotAugmentationHint',
+      policyForbiddenScopes: ['finalPlotState', 'canonWorldFact'],
+      requiresHumanReview: true,
+      humanReviewDecision,
+    }],
+    proposalTransitionLog,
+    applyPlanLog: [],
+    applyExecutionLog,
     guardrailResult: { outcome: 'accept' },
     applyResult: { attempted: true, outcome: 'applied_scoped_outputs' },
     fallbackUsed: false,
@@ -304,5 +386,72 @@ describe('buildNoNameApplyLifecycle', () => {
     })).toContain(
       '剧情增强提示:已消费 [raw=plot_augmentation_hint:pending_plot_augmentation_consumed]',
     );
+  });
+
+  it('builds safe output drafts without allowing final plot state writes', () => {
+    const [draft] = buildNoNameSafeOutputDrafts(buildReviewedDraftTrace());
+
+    expect(draft).toEqual(expect.objectContaining({
+      draftId: 'safe-output-draft-controlled-output-proposal-draft-plot_augmentation_hint',
+      sourceProposalId: 'proposal-draft',
+      outputKind: 'nonFinalPlotAugmentation',
+      safeApplyScope: 'plotAugmentationHint',
+      lifecycleState: 'drafted',
+    }));
+    expect(draft?.evidence).toEqual(expect.objectContaining({
+      reviewRequestId: 'controlled-output-proposal-draft-plot_augmentation_hint',
+      humanReviewDecision: 'pending',
+      secondGuardrailDecision: 'notEntered',
+      manualApplyRecorded: false,
+      finalPlotStateWriteAllowed: false,
+    }));
+    expect(draft?.evidence.reasons).toContain('draft probe never allows final plot state writes');
+  });
+
+  it('promotes safe output drafts only through explicit review and guardrail evidence', () => {
+    expect(buildNoNameSafeOutputDrafts(buildReviewedDraftTrace({
+      humanReviewDecision: 'approvedForHigherApply',
+    }))[0]?.lifecycleState).toBe('reviewed');
+
+    const [allowed] = buildNoNameSafeOutputDrafts(buildReviewedDraftTrace({
+      humanReviewDecision: 'approvedForHigherApply',
+      secondGuardrail: 'allow',
+    }));
+    expect(allowed?.lifecycleState).toBe('guardrailAllowed');
+    expect(allowed?.evidence.secondGuardrailDecision).toBe('allow');
+    expect(allowed?.evidence.finalPlotStateWriteAllowed).toBe(false);
+
+    const [applied] = buildNoNameSafeOutputDrafts(buildReviewedDraftTrace({
+      humanReviewDecision: 'approvedForHigherApply',
+      secondGuardrail: 'allow',
+      manualApply: true,
+    }));
+    expect(applied?.lifecycleState).toBe('manuallyApplied');
+    expect(applied?.evidence.manualApplyRecorded).toBe(true);
+    expect(applied?.evidence.finalPlotStateWriteAllowed).toBe(false);
+  });
+
+  it('keeps rejected and fallback safe output drafts out of manual apply', () => {
+    const [rejectedByReview] = buildNoNameSafeOutputDrafts(buildReviewedDraftTrace({
+      humanReviewDecision: 'rejectedForHigherApply',
+    }));
+    expect(rejectedByReview?.lifecycleState).toBe('blocked');
+    expect(rejectedByReview?.evidence.manualApplyRecorded).toBe(false);
+
+    const [rejectedByGuardrail] = buildNoNameSafeOutputDrafts(buildReviewedDraftTrace({
+      humanReviewDecision: 'approvedForHigherApply',
+      secondGuardrail: 'reject',
+    }));
+    expect(rejectedByGuardrail?.lifecycleState).toBe('blocked');
+    expect(rejectedByGuardrail?.evidence.secondGuardrailDecision).toBe('reject');
+    expect(rejectedByGuardrail?.evidence.finalPlotStateWriteAllowed).toBe(false);
+
+    const [fallback] = buildNoNameSafeOutputDrafts(buildReviewedDraftTrace({
+      humanReviewDecision: 'approvedForHigherApply',
+      secondGuardrail: 'fallback',
+    }));
+    expect(fallback?.lifecycleState).toBe('fallback');
+    expect(fallback?.evidence.manualApplyRecorded).toBe(false);
+    expect(fallback?.evidence.finalPlotStateWriteAllowed).toBe(false);
   });
 });
