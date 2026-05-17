@@ -5,6 +5,7 @@ import {
   summarizeNoNameApplyLifecycle,
   summarizeNoNameApplyLifecycleCheckpoints,
   summarizeNoNamePendingPlotAugmentation,
+  summarizeNoNameProtocolSummary,
   summarizeNoNameSafeOutputDraftEvidence,
   summarizeNoNameSafeOutputDrafts,
 } from '../utils/noNameApplyLifecycle';
@@ -481,6 +482,7 @@ export const useGameStore = defineStore('game', {
       const pendingPlotAugmentation = summarizeNoNamePendingPlotAugmentation(latest);
       const safeOutputDrafts = summarizeNoNameSafeOutputDrafts(latest, {}, '无');
       const safeOutputDraftEvidence = summarizeNoNameSafeOutputDraftEvidence(latest, {}, '无');
+      const protocolSummary = summarizeNoNameProtocolSummary(latest, '无');
       return [
         `最近 Trace：${latest.traceId}`,
         `模式：${latest.mode}`,
@@ -489,6 +491,7 @@ export const useGameStore = defineStore('game', {
         `提案：${proposal ? `${proposal.title} / ${proposal.focus} / ${proposalStatus}` : '无'}`,
         `协作观察：${relatedObservations}`,
         `协议事件：${protocolEvents}`,
+        `协议摘要：${protocolSummary}`,
         `受控输出复核：${controlledOutputReviews}`,
         `目标段：${proposal?.targetSegment || '无'}`,
         `预期效果：${proposal?.intendedEffect || '无'}`,

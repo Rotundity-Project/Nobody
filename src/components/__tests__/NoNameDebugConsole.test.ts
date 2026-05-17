@@ -142,6 +142,7 @@ describe('NoNameDebugConsole', () => {
     expect(wrapper.text()).toContain('WorldCurator提案：山门法阵');
     expect(wrapper.text()).toContain('当前模式：assisted');
     expect(wrapper.text()).toContain('Protocol Events: 1');
+    expect(wrapper.text()).toContain('Protocol Summary: roles=1(worldCurator), tasks=1, events=1, statuses=queued:1, errors=no');
     expect(wrapper.text()).toContain('Role Contexts: worldCurator:Maintain world facts, scene constraints, and canon anchors.:山门法阵');
     expect(wrapper.text()).toContain('[notes=goal: Hold Gate]');
     expect(wrapper.text()).toContain('[sources=hard_facts:2]');
@@ -234,6 +235,7 @@ describe('NoNameDebugConsole', () => {
 
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Trace: trace-2'));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Protocol Events: 1'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Protocol Summary: roles=1(worldCurator), tasks=1, events=1, statuses=queued:1, errors=no'));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Controlled Reviews: 1'));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Trace Breakdown: proposals=1'));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Apply Lifecycle:'));
