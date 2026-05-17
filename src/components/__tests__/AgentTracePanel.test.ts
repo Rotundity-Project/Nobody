@@ -129,6 +129,12 @@ describe('AgentTracePanel', () => {
     expect(wrapper.text()).toContain('Lifecycle Checkpoints: 1.Human Review=pending');
     expect(wrapper.text()).toContain('提案阶段');
     expect(wrapper.text()).toContain('低风险输出');
+    expect(wrapper.text()).toContain('安全输出证据');
+    expect(wrapper.text()).toContain('plotTextHint · sceneAugmentation');
+    expect(wrapper.text()).toContain('drafted');
+    expect(wrapper.text()).toContain('final=false');
+    expect(wrapper.text()).toContain('缺失证据：humanReviewApproval');
+    expect(wrapper.text()).toContain('异常提醒：无');
     expect(wrapper.text()).toContain('协作观察');
     expect(wrapper.text()).toContain('WorldCurator提案：山门法阵');
     expect(wrapper.text()).toContain('角色上下文');
@@ -205,6 +211,7 @@ describe('AgentTracePanel', () => {
       },
     });
     expect(wrapper.text()).toContain('人工结论：可进入下一阶段 apply 设计');
+    expect(wrapper.text()).toContain('缺失证据：secondGuardrailDecision');
     expect(wrapper.text()).toContain('重置待复核');
     expect(wrapper.text()).toContain('二次护栏允许');
 
@@ -241,6 +248,7 @@ describe('AgentTracePanel', () => {
       },
     });
     expect(wrapper.text()).toContain('显式人工写入正文提示');
+    expect(wrapper.text()).toContain('缺失证据：manualApplyCommand');
     expect(wrapper.text()).toContain('人工写入');
     expect(wrapper.text()).toContain('等待显式命令');
     expect(wrapper.text()).toContain('人工写入预览');

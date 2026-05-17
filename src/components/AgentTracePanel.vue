@@ -131,6 +131,47 @@
 
       <section class="agent-trace-card">
         <p class="agent-trace-card-title">
+          安全输出证据
+        </p>
+        <p
+          v-if="safeOutputDrafts.length === 0"
+          class="agent-trace-muted"
+        >
+          暂无安全输出草稿证据
+        </p>
+        <ul
+          v-else
+          class="agent-trace-rows"
+        >
+          <li
+            v-for="draft in safeOutputDrafts"
+            :key="draft.draftId"
+            class="agent-trace-row agent-trace-evidence-row"
+            :class="safeOutputEvidenceTone(draft)"
+          >
+            <div class="agent-trace-lifecycle-head">
+              <span class="agent-trace-main-line">
+                {{ draft.safeApplyScope }} · {{ draft.outputKind }}
+              </span>
+              <span class="agent-trace-lifecycle-state">
+                {{ draft.lifecycleState }}
+              </span>
+            </div>
+            <p class="agent-trace-muted">
+              source={{ draft.sourceProposalId }} · final={{ draft.evidence.finalPlotStateWriteAllowed ? 'true' : 'false' }}
+            </p>
+            <p class="agent-trace-muted">
+              缺失证据：{{ formatSafeOutputEvidenceList(draft.evidence.missingEvidence) }}
+            </p>
+            <p class="agent-trace-muted">
+              异常提醒：{{ formatSafeOutputEvidenceList(draft.evidence.warnings) }}
+            </p>
+          </li>
+        </ul>
+      </section>
+
+      <section class="agent-trace-card">
+        <p class="agent-trace-card-title">
           状态迁移
         </p>
         <p
@@ -516,10 +557,12 @@ import type {
   NoNameTrace,
 } from '../types/game';
 import {
+  buildNoNameSafeOutputDrafts,
   buildNoNameApplyLifecycle,
   formatNoNameApplyExecutionRecord,
   summarizeNoNameApplyLifecycleCheckpoints,
   summarizeNoNamePendingPlotAugmentation,
+  type NoNameSafeOutputDraft,
 } from '../utils/noNameApplyLifecycle';
 
 const props = withDefaults(defineProps<{
@@ -571,9 +614,26 @@ const applyLifecycleCheckpointSummary = computed(() => (
 const pendingPlotAugmentationSummary = computed(() => (
   props.trace ? summarizeNoNamePendingPlotAugmentation(props.trace) : '无'
 ));
+const safeOutputDrafts = computed(() => (
+  props.trace ? buildNoNameSafeOutputDrafts(props.trace, props.reviewDecisions) : []
+));
 
 function applyExecutionDisplay(execution: NoNameApplyExecutionRecord) {
   return formatNoNameApplyExecutionRecord(execution);
+}
+
+function formatSafeOutputEvidenceList(items: string[]) {
+  return items.length > 0 ? items.join(' / ') : '无';
+}
+
+function safeOutputEvidenceTone(draft: NoNameSafeOutputDraft) {
+  if (draft.evidence.warnings.length > 0) {
+    return 'is-warn';
+  }
+  if (draft.evidence.missingEvidence.length === 0) {
+    return 'is-safe';
+  }
+  return 'is-pending';
 }
 
 function formatSourceStats(sourceStats: NoNameContextSourceStat[] | undefined) {
@@ -1200,6 +1260,18 @@ function applyManualReviewedOutput(review: NoNameControlledOutputReviewRecord) {
   border: 1px solid color-mix(in srgb, var(--ink-border-soft) 72%, transparent);
   background: color-mix(in srgb, var(--ink-card-bg) 90%, transparent);
   padding: 10px 12px;
+}
+
+.agent-trace-evidence-row.is-safe {
+  border-color: color-mix(in srgb, #2f6b4b 44%, var(--ink-border-soft));
+}
+
+.agent-trace-evidence-row.is-pending {
+  border-color: color-mix(in srgb, var(--ink-accent-main) 54%, var(--ink-border-soft));
+}
+
+.agent-trace-evidence-row.is-warn {
+  border-color: color-mix(in srgb, #9b4d2e 54%, var(--ink-border-soft));
 }
 
 .agent-trace-review-state {
