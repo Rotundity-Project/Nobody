@@ -59,6 +59,20 @@ pub struct NoNameReviewedApplyOutcome {
     pub plot_state: PlotState,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NoNameApplyTargetDecision {
+    Apply,
+    Skip { outcome: &'static str, note: String },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NoNameApplyTargetPlan {
+    pub target: &'static str,
+    pub priority: u32,
+    pub order: u32,
+    pub decision: NoNameApplyTargetDecision,
+}
+
 pub fn build_manual_plot_text_apply_request(
     request_id: impl Into<String>,
     chapter_index: u32,
@@ -160,6 +174,409 @@ fn priority_for_apply_scope(scope: NoNameApplyScope) -> u32 {
         NoNameApplyScope::OptionBiasHint => 100,
         NoNameApplyScope::Diagnostics => 50,
     }
+}
+
+fn build_noname_summary_hint(proposal: &NoNameProposal) -> String {
+    format!("NoName提示：后续重点关注{}", proposal.focus.trim())
+}
+
+fn build_noname_option_bias_hint(proposal: &NoNameProposal) -> String {
+    format!(
+        "NoName选项偏置：下轮优先围绕{}提供行动切入点",
+        proposal.focus.trim()
+    )
+}
+
+fn build_noname_plot_text_hint(proposal: &NoNameProposal) -> String {
+    format!("【NoName】重点关注：{}", proposal.focus.trim())
+}
+
+fn proposal_allows_apply_scope(proposal: &NoNameProposal, scope: NoNameApplyScope) -> bool {
+    proposal.apply_scopes.is_empty() || proposal.apply_scopes.contains(&scope)
+}
+
+pub fn plan_noname_apply_target(
+    proposal: &NoNameProposal,
+    scope: NoNameApplyScope,
+    plot_state: Option<&PlotState>,
+    plot_text: Option<&str>,
+) -> NoNameApplyTargetPlan {
+    let target = scope.as_str();
+    let priority = priority_for_apply_scope(scope);
+    if !proposal_allows_apply_scope(proposal, scope) {
+        return NoNameApplyTargetPlan {
+            target,
+            priority,
+            order: 0,
+            decision: NoNameApplyTargetDecision::Skip {
+                outcome: "skipped_scope_forbidden",
+                note: format!("提案未声明 {} 作用域，跳过对应输出", target),
+            },
+        };
+    }
+
+    if !target_segment_supports_apply_scope(proposal.target_segment, scope) {
+        return NoNameApplyTargetPlan {
+            target,
+            priority,
+            order: 0,
+            decision: NoNameApplyTargetDecision::Skip {
+                outcome: "skipped_target_mismatch",
+                note: format!(
+                    "目标段 {} 不支持 {}，跳过对应输出",
+                    proposal.target_segment.as_str(),
+                    target
+                ),
+            },
+        };
+    }
+
+    match scope {
+        NoNameApplyScope::PlotTextHint => {
+            let current_text = plot_text.unwrap_or_default();
+            if current_text.trim().is_empty() {
+                return NoNameApplyTargetPlan {
+                    target,
+                    priority,
+                    order: 0,
+                    decision: NoNameApplyTargetDecision::Skip {
+                        outcome: "skipped_empty_plot_text",
+                        note: "当前正文为空，跳过受控正文提示".to_string(),
+                    },
+                };
+            }
+            if current_text.contains("【NoName】") || current_text.contains("NoName提示") {
+                return NoNameApplyTargetPlan {
+                    target,
+                    priority,
+                    order: 0,
+                    decision: NoNameApplyTargetDecision::Skip {
+                        outcome: "skipped_duplicate",
+                        note: "正文已包含 NoName 标记，跳过重复提示".to_string(),
+                    },
+                };
+            }
+        }
+        NoNameApplyScope::PlotAugmentationHint => {
+            let Some(state) = plot_state else {
+                return NoNameApplyTargetPlan {
+                    target,
+                    priority,
+                    order: 0,
+                    decision: NoNameApplyTargetDecision::Skip {
+                        outcome: "skipped_missing_plot_state",
+                        note: "缺少 plot_state，跳过剧情增强提示".to_string(),
+                    },
+                };
+            };
+            if !state.is_waiting_for_input {
+                return NoNameApplyTargetPlan {
+                    target,
+                    priority,
+                    order: 0,
+                    decision: NoNameApplyTargetDecision::Skip {
+                        outcome: "skipped_not_waiting",
+                        note: "当前不处于等待输入状态，跳过剧情增强提示".to_string(),
+                    },
+                };
+            }
+            let hint = format!(
+                "NoName plot augmentation: focus={} | effect={}",
+                proposal.focus.trim(),
+                proposal.intended_effect.trim()
+            );
+            if state
+                .pending_plot_augmentation_hints
+                .iter()
+                .any(|existing| existing == &hint)
+            {
+                return NoNameApplyTargetPlan {
+                    target,
+                    priority,
+                    order: 0,
+                    decision: NoNameApplyTargetDecision::Skip {
+                        outcome: "skipped_duplicate",
+                        note: format!(
+                            "剧情增强提示已包含“{}”，跳过重复写入",
+                            proposal.focus.trim()
+                        ),
+                    },
+                };
+            }
+        }
+        NoNameApplyScope::ChapterSummaryHint => {
+            if let Some(state) = plot_state {
+                let summary = state.current_chapter.summary.trim();
+                if !summary.is_empty() && summary.contains(proposal.focus.trim()) {
+                    return NoNameApplyTargetPlan {
+                        target,
+                        priority,
+                        order: 0,
+                        decision: NoNameApplyTargetDecision::Skip {
+                            outcome: "skipped_duplicate",
+                            note: format!(
+                                "章节摘要已覆盖“{}”，跳过重复提示",
+                                proposal.focus.trim()
+                            ),
+                        },
+                    };
+                }
+            }
+        }
+        NoNameApplyScope::OptionBiasHint => {
+            let Some(state) = plot_state else {
+                return NoNameApplyTargetPlan {
+                    target,
+                    priority,
+                    order: 0,
+                    decision: NoNameApplyTargetDecision::Skip {
+                        outcome: "skipped_missing_plot_state",
+                        note: "缺少 plot_state，跳过选项偏置提示".to_string(),
+                    },
+                };
+            };
+            if !state.is_waiting_for_input {
+                return NoNameApplyTargetPlan {
+                    target,
+                    priority,
+                    order: 0,
+                    decision: NoNameApplyTargetDecision::Skip {
+                        outcome: "skipped_not_waiting",
+                        note: "当前不处于等待输入状态，跳过选项偏置提示".to_string(),
+                    },
+                };
+            }
+            let option_hint = build_noname_option_bias_hint(proposal);
+            let diagnostics = state
+                .last_generation_diagnostics
+                .as_deref()
+                .unwrap_or_default();
+            if diagnostics.contains(option_hint.as_str()) {
+                return NoNameApplyTargetPlan {
+                    target,
+                    priority,
+                    order: 0,
+                    decision: NoNameApplyTargetDecision::Skip {
+                        outcome: "skipped_duplicate",
+                        note: format!(
+                            "诊断中已包含选项偏置提示“{}”，跳过重复写入",
+                            proposal.focus.trim()
+                        ),
+                    },
+                };
+            }
+        }
+        NoNameApplyScope::Diagnostics => {}
+    }
+
+    NoNameApplyTargetPlan {
+        target,
+        priority,
+        order: 0,
+        decision: NoNameApplyTargetDecision::Apply,
+    }
+}
+
+pub fn build_noname_apply_plan_set(
+    proposal: &NoNameProposal,
+    plot_state: Option<&PlotState>,
+    plot_text: Option<&str>,
+) -> Vec<NoNameApplyTargetPlan> {
+    let mut plans = vec![
+        plan_noname_apply_target(
+            proposal,
+            NoNameApplyScope::PlotTextHint,
+            plot_state,
+            plot_text,
+        ),
+        plan_noname_apply_target(
+            proposal,
+            NoNameApplyScope::PlotAugmentationHint,
+            plot_state,
+            None,
+        ),
+        plan_noname_apply_target(
+            proposal,
+            NoNameApplyScope::ChapterSummaryHint,
+            plot_state,
+            None,
+        ),
+        plan_noname_apply_target(proposal, NoNameApplyScope::OptionBiasHint, plot_state, None),
+    ];
+    plans.sort_by(|left, right| {
+        right
+            .priority
+            .cmp(&left.priority)
+            .then_with(|| left.target.cmp(right.target))
+    });
+    for (index, plan) in plans.iter_mut().enumerate() {
+        plan.order = (index + 1) as u32;
+    }
+    plans
+}
+
+pub fn record_noname_apply_plan(trace: &mut NoNameTrace, plan: &NoNameApplyTargetPlan) {
+    let (decision, note) = match &plan.decision {
+        NoNameApplyTargetDecision::Apply => (
+            "apply",
+            Some(format!(
+                "允许执行 {}，优先级 {}，顺位 #{}",
+                plan.target, plan.priority, plan.order
+            )),
+        ),
+        NoNameApplyTargetDecision::Skip { note, .. } => ("skip", Some(note.clone())),
+    };
+    trace.record_apply_plan(plan.order, plan.target, decision, plan.priority, note);
+}
+
+fn record_noname_apply_plan_and_skip_execution(
+    trace: &mut NoNameTrace,
+    plan: &NoNameApplyTargetPlan,
+) {
+    record_noname_apply_plan(trace, plan);
+    if let NoNameApplyTargetDecision::Skip { outcome, note } = &plan.decision {
+        trace.record_apply_execution(plan.target, *outcome, Some(note.clone()));
+    }
+}
+
+pub fn apply_noname_plot_text_hint(
+    plot_text: &mut String,
+    trace: &mut NoNameTrace,
+    proposal: &NoNameProposal,
+) -> bool {
+    if proposal.status != NoNameProposalStatus::Applied {
+        return false;
+    }
+
+    let plan = plan_noname_apply_target(
+        proposal,
+        NoNameApplyScope::PlotTextHint,
+        None,
+        Some(plot_text.as_str()),
+    );
+    if !matches!(plan.decision, NoNameApplyTargetDecision::Apply) {
+        if let NoNameApplyTargetDecision::Skip { outcome, note } = &plan.decision {
+            trace.record_apply_execution(plan.target, *outcome, Some(note.clone()));
+        }
+        return false;
+    }
+
+    let hint = build_noname_plot_text_hint(proposal);
+    match proposal.target_segment {
+        NoNameTargetSegment::CurrentTurnHead => {
+            let original = plot_text.trim().to_string();
+            *plot_text = format!("{}\n\n{}", hint, original);
+        }
+        _ => {
+            plot_text.push_str("\n\n");
+            plot_text.push_str(&hint);
+        }
+    }
+    trace.record_proposal_transition(format!("{}:applied:plot_text_hint", proposal.proposal_id));
+    trace.record_apply_execution(
+        "plot_text_hint",
+        "applied",
+        Some(format!("已将提案提示插入正文，聚焦“{}”", proposal.focus)),
+    );
+    true
+}
+
+pub fn apply_noname_low_risk_outputs(
+    plot_state: &mut PlotState,
+    trace: &mut NoNameTrace,
+    proposal: &NoNameProposal,
+    plot_text_applied: bool,
+) {
+    if proposal.status != NoNameProposalStatus::Applied {
+        return;
+    }
+
+    let mut applied_targets: Vec<&str> = Vec::new();
+
+    let summary_plan = plan_noname_apply_target(
+        proposal,
+        NoNameApplyScope::ChapterSummaryHint,
+        Some(plot_state),
+        None,
+    );
+    if matches!(summary_plan.decision, NoNameApplyTargetDecision::Apply) {
+        let hint = build_noname_summary_hint(proposal);
+        let summary = plot_state.current_chapter.summary.trim();
+        if summary.is_empty() {
+            plot_state.current_chapter.summary = hint.clone();
+        } else {
+            plot_state.current_chapter.summary = match proposal.target_segment {
+                NoNameTargetSegment::ChapterSummaryHead => format!("{}；{}", hint, summary),
+                _ => format!("{}；{}", summary, hint),
+            };
+        }
+        trace.record_proposal_transition(format!(
+            "{}:applied:chapter_summary_hint",
+            proposal.proposal_id
+        ));
+        trace.record_apply_execution(
+            "chapter_summary_hint",
+            "applied",
+            Some(format!("已写入章节摘要提示，聚焦“{}”", proposal.focus)),
+        );
+        applied_targets.push("chapter_summary_hint");
+    } else {
+        record_noname_apply_plan_and_skip_execution(trace, &summary_plan);
+    }
+
+    let option_bias_plan = plan_noname_apply_target(
+        proposal,
+        NoNameApplyScope::OptionBiasHint,
+        Some(plot_state),
+        None,
+    );
+    if matches!(option_bias_plan.decision, NoNameApplyTargetDecision::Apply) {
+        let option_hint = build_noname_option_bias_hint(proposal);
+        let diagnostics = plot_state
+            .last_generation_diagnostics
+            .clone()
+            .unwrap_or_default();
+        if diagnostics.is_empty() {
+            plot_state.last_generation_diagnostics = Some(option_hint.clone());
+        } else if !diagnostics.contains(option_hint.as_str()) {
+            plot_state.last_generation_diagnostics =
+                Some(format!("{}；{}", diagnostics, option_hint));
+        }
+        trace.record_proposal_transition(format!(
+            "{}:applied:option_bias_hint",
+            proposal.proposal_id
+        ));
+        trace.record_apply_execution(
+            "option_bias_hint",
+            "applied",
+            Some(format!("已写入下轮选项偏置提示，聚焦“{}”", proposal.focus)),
+        );
+        applied_targets.push("option_bias_hint");
+    } else {
+        record_noname_apply_plan_and_skip_execution(trace, &option_bias_plan);
+    }
+
+    if plot_text_applied {
+        applied_targets.push("plot_text_hint");
+    }
+    let apply_outcome = if applied_targets.is_empty() {
+        "applied_no_scoped_output"
+    } else {
+        "applied_scoped_outputs"
+    };
+    trace.set_apply_result(
+        true,
+        apply_outcome,
+        Some(format!(
+            "已应用作用域：{}；聚焦“{}”",
+            if applied_targets.is_empty() {
+                "无".to_string()
+            } else {
+                applied_targets.join(", ")
+            },
+            proposal.focus
+        )),
+    );
 }
 
 fn next_apply_plan_order(trace: &NoNameTrace) -> u32 {
@@ -1197,6 +1614,132 @@ mod tests {
             },
         );
         (trace, request_id)
+    }
+
+    fn make_low_risk_proposal() -> NoNameProposal {
+        NoNameProposal {
+            proposal_id: "proposal-low-risk".to_string(),
+            kind: NoNameProposalKind::PlotCandidate,
+            producer_role: NoNameRole::Director,
+            title: "low risk hint".to_string(),
+            summary: "suggest low risk hints".to_string(),
+            focus: "sect crisis".to_string(),
+            target_segment: NoNameTargetSegment::CurrentTurnTail,
+            intended_effect: "guide next turn without mutating final plot state".to_string(),
+            rationale: "keep safe outputs scoped".to_string(),
+            suggested_action: Some("low risk apply".to_string()),
+            labels: vec!["test".to_string()],
+            apply_scopes: vec![
+                NoNameApplyScope::PlotTextHint,
+                NoNameApplyScope::ChapterSummaryHint,
+                NoNameApplyScope::OptionBiasHint,
+            ],
+            status: NoNameProposalStatus::Applied,
+            applyable: true,
+        }
+    }
+
+    #[test]
+    fn low_risk_apply_plan_set_orders_and_skips_forbidden_scopes() {
+        let proposal = make_low_risk_proposal();
+        let plot_state = make_plot_state("");
+        let plans = build_noname_apply_plan_set(
+            &proposal,
+            Some(&plot_state),
+            Some("current turn narrative"),
+        );
+
+        assert_eq!(
+            plans.iter().map(|plan| plan.target).collect::<Vec<_>>(),
+            vec![
+                "plot_text_hint",
+                "plot_augmentation_hint",
+                "chapter_summary_hint",
+                "option_bias_hint"
+            ]
+        );
+        assert_eq!(
+            plans.iter().map(|plan| plan.order).collect::<Vec<_>>(),
+            vec![1, 2, 3, 4]
+        );
+        assert!(matches!(
+            plans[0].decision,
+            NoNameApplyTargetDecision::Apply
+        ));
+        assert!(matches!(
+            &plans[1].decision,
+            NoNameApplyTargetDecision::Skip { outcome, .. }
+                if *outcome == "skipped_scope_forbidden"
+        ));
+    }
+
+    #[test]
+    fn apply_noname_plot_text_hint_updates_text_and_trace() {
+        let proposal = make_low_risk_proposal();
+        let mut trace = NoNameTrace::empty(
+            "trace-low-risk",
+            "session-1",
+            "turn-1",
+            NoNameMode::Assisted,
+        );
+        let mut plot_text = "The mountain gate falls quiet.".to_string();
+
+        let applied = apply_noname_plot_text_hint(&mut plot_text, &mut trace, &proposal);
+
+        assert!(applied);
+        assert!(plot_text.contains("【NoName】重点关注：sect crisis"));
+        assert!(trace
+            .proposal_transition_log
+            .iter()
+            .any(|entry| entry == "proposal-low-risk:applied:plot_text_hint"));
+        assert!(trace
+            .apply_execution_log
+            .iter()
+            .any(|entry| entry.target == "plot_text_hint" && entry.outcome == "applied"));
+    }
+
+    #[test]
+    fn apply_noname_low_risk_outputs_updates_summary_diagnostics_and_trace() {
+        let proposal = make_low_risk_proposal();
+        let mut trace = NoNameTrace::empty(
+            "trace-low-risk",
+            "session-1",
+            "turn-1",
+            NoNameMode::Assisted,
+        );
+        let mut plot_state = make_plot_state("");
+
+        apply_noname_low_risk_outputs(&mut plot_state, &mut trace, &proposal, true);
+
+        assert!(plot_state
+            .current_chapter
+            .summary
+            .contains("NoName提示：后续重点关注sect crisis"));
+        assert!(plot_state
+            .last_generation_diagnostics
+            .as_deref()
+            .unwrap_or_default()
+            .contains("NoName选项偏置：下轮优先围绕sect crisis提供行动切入点"));
+        assert!(trace
+            .apply_execution_log
+            .iter()
+            .any(|entry| { entry.target == "chapter_summary_hint" && entry.outcome == "applied" }));
+        assert!(trace
+            .apply_execution_log
+            .iter()
+            .any(|entry| { entry.target == "option_bias_hint" && entry.outcome == "applied" }));
+        assert_eq!(
+            trace
+                .apply_result
+                .as_ref()
+                .map(|entry| entry.outcome.as_str()),
+            Some("applied_scoped_outputs")
+        );
+        assert!(trace
+            .apply_result
+            .as_ref()
+            .and_then(|entry| entry.reason.as_deref())
+            .is_some_and(|note| note.contains("plot_text_hint")));
     }
 
     #[test]

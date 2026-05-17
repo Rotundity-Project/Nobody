@@ -17,6 +17,7 @@ pub mod noname_agent_registry;
 pub mod noname_apply;
 pub mod noname_capability_base;
 pub mod noname_capability_registry;
+pub mod noname_command_support;
 pub mod noname_config;
 pub mod noname_context_builder;
 pub mod noname_context_types;

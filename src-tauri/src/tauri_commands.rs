@@ -16,18 +16,17 @@ use crate::llm_service::{LLMConfig, LLMRequest, LLMService};
 use crate::memory_layers::{ChapterSummary, MemoryEntry, WorldFact};
 use crate::noname_apply::{
     apply_human_review_decision_to_trace, apply_manual_plot_text_hint_to_plot_state,
-    apply_reviewed_output_input_to_plot_state, resolve_second_guardrail_for_trace,
+    apply_noname_plot_text_hint, apply_reviewed_output_input_to_plot_state,
+    build_noname_apply_plan_set, record_noname_apply_plan, resolve_second_guardrail_for_trace,
     NoNameReviewedApplyRequestInput,
 };
+use crate::noname_command_support::{
+    apply_noname_turn_outputs, build_noname_action_summary, run_noname_director_observe_turn,
+};
 use crate::noname_config::NoNameConfig;
-use crate::noname_context_builder::build_context_packet;
-use crate::noname_context_types::NoNameContextBuildInput;
-use crate::noname_guardrails::{NoNameDirectorGuardrailInput, NoNameGuardrailResult};
-use crate::noname_memory_manager::NoNameMemoryManager;
-use crate::noname_roles::NoNameDirectorObservation;
-use crate::noname_runtime::{NoNameDirectorRunResult, NoNameRuntime, NoNameTurnInput};
+use crate::noname_runtime::{NoNameDirectorRunResult, NoNameRuntime};
 use crate::noname_trace::{NoNameHumanReviewDecision, NoNameSecondGuardrailDecision, NoNameTrace};
-use crate::noname_types::{NoNameApplyScope, NoNameMode, NoNameRole, NoNameTargetSegment};
+use crate::noname_types::{NoNameApplyScope, NoNameMode};
 use crate::novel_generator::{Novel, NovelGenerator};
 use crate::numerical_system::{Action, Context, StatChange};
 use crate::plot_consistency::{
@@ -65,149 +64,6 @@ fn noname_runtime() -> &'static Mutex<NoNameRuntime> {
     NONAME_RUNTIME.get_or_init(|| Mutex::new(NoNameRuntime::new(NoNameConfig::observe_only())))
 }
 
-fn noname_mode_label(mode: NoNameMode) -> &'static str {
-    match mode {
-        NoNameMode::Disabled => "disabled",
-        NoNameMode::ObserveOnly => "observe_only",
-        NoNameMode::Assisted => "assisted",
-    }
-}
-
-fn build_noname_action_summary(action: &PlayerAction, plot_state: &PlotState) -> String {
-    if let Some(selected_option_id) = action.selected_option_id {
-        if let Some(option) = plot_state
-            .current_scene
-            .available_options
-            .get(selected_option_id)
-        {
-            return format!("选择选项: {}", option.description);
-        }
-    }
-
-    if !action.content.trim().is_empty() {
-        return format!("自由输入: {}", action.content.trim());
-    }
-
-    "玩家执行了默认推进动作".to_string()
-}
-
-fn append_noname_observation_diagnostics(
-    existing: &mut Option<String>,
-    mode: NoNameMode,
-    observation: &NoNameDirectorObservation,
-    guardrail_result: Option<&NoNameGuardrailResult>,
-    trace: &NoNameTrace,
-) {
-    let mut segments = vec![
-        format!("focus={}", observation.focus),
-        format!("rationale={}", observation.rationale),
-        format!("proposal={}", observation.proposal.title),
-        format!(
-            "target_segment={}",
-            observation.proposal.target_segment.as_str()
-        ),
-        format!("intended_effect={}", observation.proposal.intended_effect),
-        format!("proposal_status={}", observation.proposal.status.as_str()),
-        format!(
-            "apply_scopes={}",
-            if observation.proposal.apply_scopes.is_empty() {
-                "none".to_string()
-            } else {
-                observation
-                    .proposal
-                    .apply_scopes
-                    .iter()
-                    .map(|scope| scope.as_str())
-                    .collect::<Vec<_>>()
-                    .join(",")
-            }
-        ),
-        format!(
-            "applyable={}",
-            if observation.proposal.applyable {
-                "yes"
-            } else {
-                "no"
-            }
-        ),
-    ];
-    if let Some(result) = guardrail_result {
-        segments.push(format!("guardrail={}", result.outcome.as_str()));
-        if let Some(reason) = &result.reason {
-            segments.push(format!("reason={}", reason));
-        }
-    }
-    if let Some(apply_result) = &trace.apply_result {
-        segments.push(format!("apply={}", apply_result.outcome));
-        if let Some(reason) = &apply_result.reason {
-            segments.push(format!("apply_reason={}", reason));
-        }
-    }
-    let note = format!(
-        "NoName.{}：{}",
-        noname_mode_label(mode),
-        segments.join("；")
-    );
-    match existing {
-        Some(diag) => {
-            diag.push('；');
-            diag.push_str(&note);
-        }
-        None => {
-            *existing = Some(note);
-        }
-    }
-}
-
-fn build_noname_summary_hint(proposal: &crate::noname_types::NoNameProposal) -> String {
-    format!("NoName提示：后续重点关注{}", proposal.focus.trim())
-}
-
-fn build_noname_option_bias_hint(proposal: &crate::noname_types::NoNameProposal) -> String {
-    format!(
-        "NoName选项偏置：下轮优先围绕{}提供行动切入点",
-        proposal.focus.trim()
-    )
-}
-
-fn build_noname_plot_text_hint(proposal: &crate::noname_types::NoNameProposal) -> String {
-    format!("【NoName】重点关注：{}", proposal.focus.trim())
-}
-
-fn proposal_allows_apply_scope(
-    proposal: &crate::noname_types::NoNameProposal,
-    scope: NoNameApplyScope,
-) -> bool {
-    proposal.apply_scopes.is_empty() || proposal.apply_scopes.contains(&scope)
-}
-
-fn target_segment_supports_apply_scope(
-    target_segment: NoNameTargetSegment,
-    scope: NoNameApplyScope,
-) -> bool {
-    match scope {
-        NoNameApplyScope::PlotTextHint | NoNameApplyScope::PlotAugmentationHint => matches!(
-            target_segment,
-            NoNameTargetSegment::CurrentTurnHead | NoNameTargetSegment::CurrentTurnTail
-        ),
-        _ => true,
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum NoNameApplyTargetDecision {
-    Apply,
-    Skip { outcome: &'static str, note: String },
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct NoNameApplyTargetPlan {
-    target: &'static str,
-    priority: u32,
-    order: u32,
-    decision: NoNameApplyTargetDecision,
-}
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NoNameManualPlotTextApplyResult {
@@ -220,10 +76,7 @@ fn load_noname_trace(trace_id: &str) -> Result<NoNameTrace, String> {
         .lock()
         .map_err(|_| "NoName runtime lock poisoned".to_string())?;
     runtime
-        .get_recent_traces()
-        .into_iter()
-        .rev()
-        .find(|trace| trace.trace_id == trace_id)
+        .get_trace_by_id(trace_id)
         .ok_or_else(|| format!("NoName trace not found: {}", trace_id))
 }
 
@@ -269,505 +122,28 @@ where
     Ok(result)
 }
 
-fn priority_for_apply_scope(scope: NoNameApplyScope) -> u32 {
-    match scope {
-        NoNameApplyScope::PlotTextHint => 300,
-        NoNameApplyScope::PlotAugmentationHint => 250,
-        NoNameApplyScope::ChapterSummaryHint => 200,
-        NoNameApplyScope::OptionBiasHint => 100,
-        NoNameApplyScope::Diagnostics => 50,
-    }
-}
-
-fn plan_noname_apply_target(
-    proposal: &crate::noname_types::NoNameProposal,
-    scope: NoNameApplyScope,
-    plot_state: Option<&PlotState>,
-    plot_text: Option<&str>,
-) -> NoNameApplyTargetPlan {
-    let target = scope.as_str();
-    let priority = priority_for_apply_scope(scope);
-    if !proposal_allows_apply_scope(proposal, scope) {
-        return NoNameApplyTargetPlan {
-            target,
-            priority,
-            order: 0,
-            decision: NoNameApplyTargetDecision::Skip {
-                outcome: "skipped_scope_forbidden",
-                note: format!("提案未声明 {} 作用域，跳过对应输出", target),
-            },
-        };
-    }
-
-    if !target_segment_supports_apply_scope(proposal.target_segment, scope) {
-        return NoNameApplyTargetPlan {
-            target,
-            priority,
-            order: 0,
-            decision: NoNameApplyTargetDecision::Skip {
-                outcome: "skipped_target_mismatch",
-                note: format!(
-                    "目标段 {} 不支持 {}，跳过对应输出",
-                    proposal.target_segment.as_str(),
-                    target
-                ),
-            },
-        };
-    }
-
-    match scope {
-        NoNameApplyScope::PlotTextHint => {
-            let current_text = plot_text.unwrap_or_default();
-            if current_text.trim().is_empty() {
-                return NoNameApplyTargetPlan {
-                    target,
-                    priority,
-                    order: 0,
-                    decision: NoNameApplyTargetDecision::Skip {
-                        outcome: "skipped_empty_plot_text",
-                        note: "当前正文为空，跳过受控正文提示".to_string(),
-                    },
-                };
-            }
-            if current_text.contains("【NoName】") || current_text.contains("NoName提示") {
-                return NoNameApplyTargetPlan {
-                    target,
-                    priority,
-                    order: 0,
-                    decision: NoNameApplyTargetDecision::Skip {
-                        outcome: "skipped_duplicate",
-                        note: "正文已包含 NoName 标记，跳过重复提示".to_string(),
-                    },
-                };
-            }
-        }
-        NoNameApplyScope::PlotAugmentationHint => {
-            let Some(state) = plot_state else {
-                return NoNameApplyTargetPlan {
-                    target,
-                    priority,
-                    order: 0,
-                    decision: NoNameApplyTargetDecision::Skip {
-                        outcome: "skipped_missing_plot_state",
-                        note: "缺少 plot_state，跳过剧情增强提示".to_string(),
-                    },
-                };
-            };
-            if !state.is_waiting_for_input {
-                return NoNameApplyTargetPlan {
-                    target,
-                    priority,
-                    order: 0,
-                    decision: NoNameApplyTargetDecision::Skip {
-                        outcome: "skipped_not_waiting",
-                        note: "当前不处于等待输入状态，跳过剧情增强提示".to_string(),
-                    },
-                };
-            }
-            let hint = format!(
-                "NoName plot augmentation: focus={} | effect={}",
-                proposal.focus.trim(),
-                proposal.intended_effect.trim()
-            );
-            if state
-                .pending_plot_augmentation_hints
-                .iter()
-                .any(|existing| existing == &hint)
-            {
-                return NoNameApplyTargetPlan {
-                    target,
-                    priority,
-                    order: 0,
-                    decision: NoNameApplyTargetDecision::Skip {
-                        outcome: "skipped_duplicate",
-                        note: format!(
-                            "剧情增强提示已包含“{}”，跳过重复写入",
-                            proposal.focus.trim()
-                        ),
-                    },
-                };
-            }
-        }
-        NoNameApplyScope::ChapterSummaryHint => {
-            if let Some(state) = plot_state {
-                let summary = state.current_chapter.summary.trim();
-                if !summary.is_empty() && summary.contains(proposal.focus.trim()) {
-                    return NoNameApplyTargetPlan {
-                        target,
-                        priority,
-                        order: 0,
-                        decision: NoNameApplyTargetDecision::Skip {
-                            outcome: "skipped_duplicate",
-                            note: format!(
-                                "章节摘要已覆盖“{}”，跳过重复提示",
-                                proposal.focus.trim()
-                            ),
-                        },
-                    };
-                }
-            }
-        }
-        NoNameApplyScope::OptionBiasHint => {
-            let Some(state) = plot_state else {
-                return NoNameApplyTargetPlan {
-                    target,
-                    priority,
-                    order: 0,
-                    decision: NoNameApplyTargetDecision::Skip {
-                        outcome: "skipped_missing_plot_state",
-                        note: "缺少 plot_state，跳过选项偏置提示".to_string(),
-                    },
-                };
-            };
-            if !state.is_waiting_for_input {
-                return NoNameApplyTargetPlan {
-                    target,
-                    priority,
-                    order: 0,
-                    decision: NoNameApplyTargetDecision::Skip {
-                        outcome: "skipped_not_waiting",
-                        note: "当前不处于等待输入状态，跳过选项偏置提示".to_string(),
-                    },
-                };
-            }
-            let option_hint = build_noname_option_bias_hint(proposal);
-            let diagnostics = state
-                .last_generation_diagnostics
-                .as_deref()
-                .unwrap_or_default();
-            if diagnostics.contains(option_hint.as_str()) {
-                return NoNameApplyTargetPlan {
-                    target,
-                    priority,
-                    order: 0,
-                    decision: NoNameApplyTargetDecision::Skip {
-                        outcome: "skipped_duplicate",
-                        note: format!(
-                            "诊断中已包含选项偏置提示“{}”，跳过重复写入",
-                            proposal.focus.trim()
-                        ),
-                    },
-                };
-            }
-        }
-        NoNameApplyScope::Diagnostics => {}
-    }
-
-    NoNameApplyTargetPlan {
-        target,
-        priority,
-        order: 0,
-        decision: NoNameApplyTargetDecision::Apply,
-    }
-}
-
-fn build_noname_apply_plan_set(
-    proposal: &crate::noname_types::NoNameProposal,
-    plot_state: Option<&PlotState>,
-    plot_text: Option<&str>,
-) -> Vec<NoNameApplyTargetPlan> {
-    let mut plans = vec![
-        plan_noname_apply_target(
-            proposal,
-            NoNameApplyScope::PlotTextHint,
-            plot_state,
-            plot_text,
-        ),
-        plan_noname_apply_target(
-            proposal,
-            NoNameApplyScope::PlotAugmentationHint,
-            plot_state,
-            None,
-        ),
-        plan_noname_apply_target(
-            proposal,
-            NoNameApplyScope::ChapterSummaryHint,
-            plot_state,
-            None,
-        ),
-        plan_noname_apply_target(proposal, NoNameApplyScope::OptionBiasHint, plot_state, None),
-    ];
-    plans.sort_by(|left, right| {
-        right
-            .priority
-            .cmp(&left.priority)
-            .then_with(|| left.target.cmp(right.target))
-    });
-    for (index, plan) in plans.iter_mut().enumerate() {
-        plan.order = (index + 1) as u32;
-    }
-    plans
-}
-
-fn record_noname_apply_plan(trace: &mut NoNameTrace, plan: &NoNameApplyTargetPlan) {
-    let (decision, note) = match &plan.decision {
-        NoNameApplyTargetDecision::Apply => (
-            "apply",
-            Some(format!(
-                "允许执行 {}，优先级 {}，顺位 #{}",
-                plan.target, plan.priority, plan.order
-            )),
-        ),
-        NoNameApplyTargetDecision::Skip { note, .. } => ("skip", Some(note.clone())),
-    };
-    trace.record_apply_plan(plan.order, plan.target, decision, plan.priority, note);
-}
-
-fn record_noname_apply_plan_and_skip_execution(
-    trace: &mut NoNameTrace,
-    plan: &NoNameApplyTargetPlan,
-) {
-    record_noname_apply_plan(trace, plan);
-    if let NoNameApplyTargetDecision::Skip { outcome, note } = &plan.decision {
-        trace.record_apply_execution(plan.target, *outcome, Some(note.clone()));
-    }
-}
-
-fn apply_noname_plot_text_hint(
-    plot_text: &mut String,
-    noname_result: &mut NoNameDirectorRunResult,
-) -> bool {
-    if noname_result.proposal.status != crate::noname_types::NoNameProposalStatus::Applied {
-        return false;
-    }
-
-    let plan = plan_noname_apply_target(
-        &noname_result.proposal,
-        NoNameApplyScope::PlotTextHint,
-        None,
-        Some(plot_text.as_str()),
-    );
-    if !matches!(plan.decision, NoNameApplyTargetDecision::Apply) {
-        if let NoNameApplyTargetDecision::Skip { outcome, note } = &plan.decision {
-            noname_result
-                .trace
-                .record_apply_execution(plan.target, *outcome, Some(note.clone()));
-        }
-        return false;
-    }
-
-    let hint = build_noname_plot_text_hint(&noname_result.proposal);
-    match noname_result.proposal.target_segment {
-        NoNameTargetSegment::CurrentTurnHead => {
-            let original = plot_text.trim().to_string();
-            *plot_text = format!("{}\n\n{}", hint, original);
-        }
-        _ => {
-            plot_text.push_str("\n\n");
-            plot_text.push_str(&hint);
-        }
-    }
-    noname_result.trace.record_proposal_transition(format!(
-        "{}:applied:plot_text_hint",
-        noname_result.proposal.proposal_id
-    ));
-    noname_result.trace.record_apply_execution(
-        "plot_text_hint",
-        "applied",
-        Some(format!(
-            "已将提案提示插入正文，聚焦“{}”",
-            noname_result.proposal.focus
-        )),
-    );
-    true
-}
-
-fn apply_noname_low_risk_outputs(
-    plot_state: &mut PlotState,
-    noname_result: &mut NoNameDirectorRunResult,
-    plot_text_applied: bool,
-) {
-    if noname_result.proposal.status != crate::noname_types::NoNameProposalStatus::Applied {
-        return;
-    }
-
-    let mut applied_targets: Vec<&str> = Vec::new();
-
-    let summary_plan = plan_noname_apply_target(
-        &noname_result.proposal,
-        NoNameApplyScope::ChapterSummaryHint,
-        Some(plot_state),
-        None,
-    );
-    if matches!(summary_plan.decision, NoNameApplyTargetDecision::Apply) {
-        let hint = build_noname_summary_hint(&noname_result.proposal);
-        let summary = plot_state.current_chapter.summary.trim();
-        if summary.is_empty() {
-            plot_state.current_chapter.summary = hint.clone();
-        } else {
-            plot_state.current_chapter.summary = match noname_result.proposal.target_segment {
-                NoNameTargetSegment::ChapterSummaryHead => format!("{}；{}", hint, summary),
-                _ => format!("{}；{}", summary, hint),
-            };
-        }
-        noname_result.trace.record_proposal_transition(format!(
-            "{}:applied:chapter_summary_hint",
-            noname_result.proposal.proposal_id
-        ));
-        noname_result.trace.record_apply_execution(
-            "chapter_summary_hint",
-            "applied",
-            Some(format!(
-                "已写入章节摘要提示，聚焦“{}”",
-                noname_result.proposal.focus
-            )),
-        );
-        applied_targets.push("chapter_summary_hint");
-    } else {
-        record_noname_apply_plan_and_skip_execution(&mut noname_result.trace, &summary_plan);
-    }
-
-    let option_bias_plan = plan_noname_apply_target(
-        &noname_result.proposal,
-        NoNameApplyScope::OptionBiasHint,
-        Some(plot_state),
-        None,
-    );
-    if matches!(option_bias_plan.decision, NoNameApplyTargetDecision::Apply) {
-        let option_hint = build_noname_option_bias_hint(&noname_result.proposal);
-        let diagnostics = plot_state
-            .last_generation_diagnostics
-            .clone()
-            .unwrap_or_default();
-        if diagnostics.is_empty() {
-            plot_state.last_generation_diagnostics = Some(option_hint.clone());
-        } else if !diagnostics.contains(option_hint.as_str()) {
-            plot_state.last_generation_diagnostics =
-                Some(format!("{}；{}", diagnostics, option_hint));
-        }
-        noname_result.trace.record_proposal_transition(format!(
-            "{}:applied:option_bias_hint",
-            noname_result.proposal.proposal_id
-        ));
-        noname_result.trace.record_apply_execution(
-            "option_bias_hint",
-            "applied",
-            Some(format!(
-                "已写入下轮选项偏置提示，聚焦“{}”",
-                noname_result.proposal.focus
-            )),
-        );
-        applied_targets.push("option_bias_hint");
-    } else {
-        record_noname_apply_plan_and_skip_execution(&mut noname_result.trace, &option_bias_plan);
-    }
-
-    if plot_text_applied {
-        applied_targets.push("plot_text_hint");
-    }
-    let apply_outcome = if applied_targets.is_empty() {
-        "applied_no_scoped_output"
-    } else {
-        "applied_scoped_outputs"
-    };
-    noname_result.trace.set_apply_result(
-        true,
-        apply_outcome,
-        Some(format!(
-            "已应用作用域：{}；聚焦“{}”",
-            if applied_targets.is_empty() {
-                "无".to_string()
-            } else {
-                applied_targets.join(", ")
-            },
-            noname_result.proposal.focus
-        )),
-    );
-
-    if let Ok(mut runtime) = noname_runtime().lock() {
-        let _ = runtime.replace_trace(noname_result.trace.clone());
-    }
-}
-
 fn run_noname_observe_only_for_turn(
     action_summary: &str,
     game_state: &GameState,
     plot_state: &PlotState,
     timestamp: u64,
 ) -> Result<NoNameDirectorRunResult, String> {
-    let mut memory_manager = NoNameMemoryManager::new();
-    if let Ok(memory) = memory_layers().lock() {
-        memory_manager.ingest_legacy_layers(&memory);
-    }
-    memory_manager.push_working_memory(
-        crate::noname_memory_types::NoNameWorkingMemoryItem {
-            memory_id: format!("work-{}", timestamp),
-            turn_id: format!("turn-{}", timestamp),
-            source: "execute_player_action".to_string(),
-            category: "recent_turn".to_string(),
-            summary: action_summary.to_string(),
-            expires_at: None,
-            priority: 10,
-        },
-        8,
-    );
-
     let store = entity_store()
         .lock()
         .map_err(|_| "NoName observe-only: entity store lock poisoned".to_string())?;
-    let context_packet = build_context_packet(
-        &store,
-        &memory_manager,
-        &NoNameContextBuildInput {
-            role: NoNameRole::Director,
-            world_id: game_state.script.id.clone(),
-            run_id: "active-run".to_string(),
-            scene_id: plot_state.current_scene.id.clone(),
-            character_ids: vec![game_state.player.id.clone()],
-            map_node_id: Some(game_state.player.location.clone()),
-            player_intent: if action_summary.trim().is_empty() {
-                None
-            } else {
-                Some(action_summary.to_string())
-            },
-            recent_context_lines: plot_state
-                .current_chapter
-                .content
-                .iter()
-                .rev()
-                .take(6)
-                .cloned()
-                .collect::<Vec<_>>()
-                .into_iter()
-                .rev()
-                .collect(),
-            token_budget: 320,
-            per_section_limit: 4,
-        },
-    );
-    drop(store);
-
+    let memory = memory_layers().lock().ok();
     let mut runtime = noname_runtime()
         .lock()
         .map_err(|_| "NoName observe-only: runtime lock poisoned".to_string())?;
-    let result = runtime
-        .run_director_observe_turn(
-            NoNameTurnInput {
-                trace_id: format!("noname-trace-{}", timestamp),
-                session_id: "active-run".to_string(),
-                turn_id: format!("turn-{}", timestamp),
-                caller_role: NoNameRole::Director,
-            },
-            action_summary,
-            &context_packet,
-            Some(&NoNameDirectorGuardrailInput {
-                plot_state: plot_state.clone(),
-                action_result: plot_state.last_action_result.clone().unwrap_or(
-                    crate::numerical_system::ActionResult {
-                        success: true,
-                        description: action_summary.to_string(),
-                        stat_changes: Vec::new(),
-                        events: Vec::new(),
-                    },
-                ),
-                player_name: game_state.player.name.clone(),
-                player_realm_level: game_state.player.stats.cultivation_realm.level,
-                player_combat_power: game_state.player.stats.combat_power,
-            }),
-        )
-        .map_err(|e| e.to_string())?;
-
-    Ok(result)
+    run_noname_director_observe_turn(
+        &mut runtime,
+        &store,
+        memory.as_deref(),
+        action_summary,
+        game_state,
+        plot_state,
+        timestamp,
+    )
 }
 
 fn maybe_run_noname_for_turn(
@@ -3833,7 +3209,11 @@ pub async fn execute_player_action(
         for plan in &plans {
             record_noname_apply_plan(&mut result.trace, plan);
         }
-        noname_plot_text_applied = apply_noname_plot_text_hint(&mut plot_text_for_player, result);
+        noname_plot_text_applied = apply_noname_plot_text_hint(
+            &mut plot_text_for_player,
+            &mut result.trace,
+            &result.proposal,
+        );
     }
 
     plot_state.append_segment(plot_text_for_history.clone());
@@ -4173,29 +3553,15 @@ pub async fn execute_player_action(
     }
 
     if let Some(mut noname_result) = noname_result {
-        if let Some((outcome, note)) = pending_plot_augmentation_trace.take() {
-            noname_result.trace.record_apply_execution(
-                NoNameApplyScope::PlotAugmentationHint.as_str(),
-                outcome.as_str(),
-                Some(note),
-            );
-            noname_result.trace.record_proposal_transition(format!(
-                "{}:pending_plot_augmentation:{}",
-                noname_result.proposal.proposal_id, outcome
-            ));
-        }
-        apply_noname_low_risk_outputs(
+        apply_noname_turn_outputs(
             &mut plot_state,
             &mut noname_result,
             noname_plot_text_applied,
+            pending_plot_augmentation_trace.take(),
         );
-        append_noname_observation_diagnostics(
-            &mut plot_state.last_generation_diagnostics,
-            noname_result.trace.mode,
-            &noname_result.observation,
-            noname_result.guardrail_result.as_ref(),
-            &noname_result.trace,
-        );
+        if let Ok(mut runtime) = noname_runtime().lock() {
+            let _ = runtime.replace_trace(noname_result.trace.clone());
+        }
     }
 
     game_state.player.refresh_profile_views();
@@ -4238,24 +3604,14 @@ pub async fn mark_noname_controlled_output_review(
     let mut runtime = noname_runtime()
         .lock()
         .map_err(|_| "NoName runtime lock poisoned".to_string())?;
-    let mut trace = runtime
-        .get_recent_traces()
-        .into_iter()
-        .rev()
-        .find(|trace| trace.trace_id == trace_id)
-        .ok_or_else(|| format!("NoName trace not found: {}", trace_id))?;
 
     let reviewed_at = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_secs())
         .unwrap_or_default();
-    apply_human_review_decision_to_trace(&mut trace, &request_id, decision, reviewed_at)?;
-
-    if !runtime.replace_trace(trace.clone()) {
-        return Err(format!("NoName trace not found: {}", trace_id));
-    }
-
-    Ok(trace)
+    runtime.update_trace_by_id(&trace_id, |trace| {
+        apply_human_review_decision_to_trace(trace, &request_id, decision, reviewed_at)
+    })
 }
 
 #[tauri::command]
@@ -4267,20 +3623,9 @@ pub async fn resolve_noname_second_guardrail(
     let mut runtime = noname_runtime()
         .lock()
         .map_err(|_| "NoName runtime lock poisoned".to_string())?;
-    let mut trace = runtime
-        .get_recent_traces()
-        .into_iter()
-        .rev()
-        .find(|trace| trace.trace_id == trace_id)
-        .ok_or_else(|| format!("NoName trace not found: {}", trace_id))?;
-
-    resolve_second_guardrail_for_trace(&mut trace, &request_id, decision)?;
-
-    if !runtime.replace_trace(trace.clone()) {
-        return Err(format!("NoName trace not found: {}", trace_id));
-    }
-
-    Ok(trace)
+    runtime.update_trace_by_id(&trace_id, |trace| {
+        resolve_second_guardrail_for_trace(trace, &request_id, decision)
+    })
 }
 
 #[tauri::command]
@@ -5037,7 +4382,11 @@ mod tests {
     use super::*;
     use crate::event_log::{EventImportance, GameEvent};
     use crate::models::{CultivationRealm, Element, Grade, SpiritualRoot};
+    use crate::noname_apply::apply_noname_low_risk_outputs;
+    use crate::noname_command_support::append_noname_observation_diagnostics;
     use crate::noname_output_interface::NoNameControlledOutputDecision;
+    use crate::noname_roles::NoNameDirectorObservation;
+    use crate::noname_types::NoNameRole;
     use crate::script::{InitialState, Location, ScriptType, WorldSetting};
     use std::sync::{Mutex as TestMutex, OnceLock as TestOnceLock};
     use tempfile::tempdir;
@@ -6878,116 +6227,6 @@ mod tests {
     }
 
     #[test]
-    fn test_build_noname_action_summary_prefers_selected_option_text() {
-        let action = PlayerAction {
-            action_type: crate::plot_engine::ActionType::SelectedOption,
-            content: String::new(),
-            selected_option_id: Some(0),
-            meta: None,
-        };
-        let plot_state = PlotState {
-            current_scene: crate::plot_engine::Scene {
-                id: "scene-1".to_string(),
-                name: "山门".to_string(),
-                description: "山门风声渐紧".to_string(),
-                location: "sect".to_string(),
-                available_options: vec![make_option(0, "返回山门广场")],
-            },
-            plot_history: vec![],
-            is_waiting_for_input: true,
-            interaction_state: PlotInteractionState::WaitingForChoice,
-            last_action_result: None,
-            settings: PlotSettings::default(),
-            current_chapter: crate::plot_engine::ChapterState::new(1, "第一章".to_string()),
-            chapters: vec![],
-            segment_count: 0,
-            last_generation_diagnostics: None,
-            last_option_generation_source: None,
-            last_consistency_risk_score: None,
-            pending_plot_augmentation_hints: Vec::new(),
-        };
-
-        let summary = build_noname_action_summary(&action, &plot_state);
-        assert!(summary.contains("返回山门广场"));
-    }
-
-    #[test]
-    fn test_append_noname_observation_diagnostics_appends_note() {
-        let mut diagnostics = Some("原始诊断".to_string());
-        let observation = NoNameDirectorObservation {
-            role: NoNameRole::Director,
-            action_summary: "选择返回山门".to_string(),
-            focus: "山门危机".to_string(),
-            rationale: "应优先观察山门危机".to_string(),
-            prompt_preview: "prompt".to_string(),
-            role_goal: None,
-            scene_focus: None,
-            forbidden_scopes: Vec::new(),
-            note_type_hits: Vec::new(),
-            source_stats: Vec::new(),
-            context_token_budget_used: None,
-            context_slice_stats: Vec::new(),
-            proposal: crate::noname_types::NoNameProposal {
-                proposal_id: "proposal-1".to_string(),
-                kind: crate::noname_types::NoNameProposalKind::PlotCandidate,
-                producer_role: NoNameRole::Director,
-                title: "Director提案：山门危机".to_string(),
-                summary: "建议优先观察山门危机".to_string(),
-                focus: "山门危机".to_string(),
-                target_segment: crate::noname_types::NoNameTargetSegment::CurrentTurnTail,
-                intended_effect: "维持低风险观察导向".to_string(),
-                rationale: "应优先观察山门危机".to_string(),
-                suggested_action: Some("保持 observe-only".to_string()),
-                labels: vec!["director".to_string()],
-                apply_scopes: vec![crate::noname_types::NoNameApplyScope::Diagnostics],
-                status: crate::noname_types::NoNameProposalStatus::Observed,
-                applyable: false,
-            },
-        };
-        let guardrail = NoNameGuardrailResult::accept();
-
-        append_noname_observation_diagnostics(
-            &mut diagnostics,
-            NoNameMode::ObserveOnly,
-            &observation,
-            Some(&guardrail),
-            &NoNameTrace {
-                trace_id: "trace-1".to_string(),
-                session_id: "session-1".to_string(),
-                turn_id: "turn-1".to_string(),
-                mode: NoNameMode::ObserveOnly,
-                graph_path: vec![],
-                capability_calls: vec![],
-                proposals: vec![],
-                proposal_transition_log: vec!["proposal-1:observed".to_string()],
-                apply_plan_log: vec![],
-                apply_execution_log: vec![],
-                controlled_output_reviews: vec![],
-                related_observations: vec![],
-                protocol_events: vec![],
-                guardrail_result: None,
-                apply_result: Some(crate::noname_trace::NoNameApplyTraceResult {
-                    attempted: false,
-                    outcome: "skipped_observe_only".to_string(),
-                    reason: Some("当前模式仅观察，不尝试 assisted apply".to_string()),
-                }),
-                fallback_used: false,
-                elapsed_ms: 0,
-            },
-        );
-
-        let text = diagnostics.expect("diagnostics should exist");
-        assert!(text.contains("原始诊断"));
-        assert!(text.contains("NoName.observe_only"));
-        assert!(text.contains("山门危机"));
-        assert!(text.contains("Director提案"));
-        assert!(text.contains("proposal_status=observed"));
-        assert!(text.contains("applyable=no"));
-        assert!(text.contains("guardrail=accept"));
-        assert!(text.contains("apply=skipped_observe_only"));
-    }
-
-    #[test]
     fn test_t7_mode_matrix_disabled_skips_noname_turn() {
         let _guard = noname_mode_matrix_lock()
             .lock()
@@ -7018,7 +6257,12 @@ mod tests {
         let mut result =
             maybe_run_noname_for_turn("自由输入: 观察山门灵气", &game_state, &plot_state, 11)
                 .expect("observe-only should produce a NoName observation");
-        apply_noname_low_risk_outputs(&mut plot_state_after, &mut result, false);
+        apply_noname_low_risk_outputs(
+            &mut plot_state_after,
+            &mut result.trace,
+            &result.proposal,
+            false,
+        );
         append_noname_observation_diagnostics(
             &mut plot_state_after.last_generation_diagnostics,
             result.trace.mode,
@@ -7066,7 +6310,12 @@ mod tests {
         let mut result =
             maybe_run_noname_for_turn("自由输入: 观察山门灵气", &game_state, &plot_state, 12)
                 .expect("assisted should produce a NoName observation");
-        apply_noname_low_risk_outputs(&mut plot_state_after, &mut result, false);
+        apply_noname_low_risk_outputs(
+            &mut plot_state_after,
+            &mut result.trace,
+            &result.proposal,
+            false,
+        );
         append_noname_observation_diagnostics(
             &mut plot_state_after.last_generation_diagnostics,
             result.trace.mode,
@@ -7400,7 +6649,7 @@ mod tests {
             related_observations: vec![],
         };
 
-        apply_noname_low_risk_outputs(&mut plot_state, &mut result, false);
+        apply_noname_low_risk_outputs(&mut plot_state, &mut result.trace, &result.proposal, false);
 
         assert!(plot_state.current_chapter.summary.contains("NoName提示"));
         assert!(plot_state.current_chapter.summary.contains("山门危机"));
@@ -7509,7 +6758,8 @@ mod tests {
         };
         let mut plot_text = "山门风声渐紧".to_string();
 
-        let applied = apply_noname_plot_text_hint(&mut plot_text, &mut result);
+        let applied =
+            apply_noname_plot_text_hint(&mut plot_text, &mut result.trace, &result.proposal);
 
         assert!(applied);
         assert!(plot_text.contains("【NoName】重点关注：山门危机"));
@@ -7598,7 +6848,8 @@ mod tests {
         };
         let mut plot_text = "山门风声渐紧".to_string();
 
-        let applied = apply_noname_plot_text_hint(&mut plot_text, &mut result);
+        let applied =
+            apply_noname_plot_text_hint(&mut plot_text, &mut result.trace, &result.proposal);
 
         assert!(applied);
         assert!(plot_text.starts_with("【NoName】重点关注：山门危机"));
@@ -7698,7 +6949,7 @@ mod tests {
             related_observations: vec![],
         };
 
-        apply_noname_low_risk_outputs(&mut plot_state, &mut result, false);
+        apply_noname_low_risk_outputs(&mut plot_state, &mut result.trace, &result.proposal, false);
 
         assert!(!plot_state.current_chapter.summary.contains("NoName提示"));
         assert!(plot_state
@@ -7818,7 +7069,7 @@ mod tests {
             related_observations: vec![],
         };
 
-        apply_noname_low_risk_outputs(&mut plot_state, &mut result, false);
+        apply_noname_low_risk_outputs(&mut plot_state, &mut result.trace, &result.proposal, false);
 
         assert!(plot_state
             .current_chapter
@@ -7899,7 +7150,8 @@ mod tests {
         };
         let mut plot_text = "山门风声渐紧".to_string();
 
-        let applied = apply_noname_plot_text_hint(&mut plot_text, &mut result);
+        let applied =
+            apply_noname_plot_text_hint(&mut plot_text, &mut result.trace, &result.proposal);
 
         assert!(!applied);
         assert_eq!(plot_text, "山门风声渐紧");
@@ -8008,7 +7260,7 @@ mod tests {
             related_observations: vec![],
         };
 
-        apply_noname_low_risk_outputs(&mut plot_state, &mut result, false);
+        apply_noname_low_risk_outputs(&mut plot_state, &mut result.trace, &result.proposal, false);
 
         assert_eq!(
             plot_state.current_chapter.summary,
@@ -8117,7 +7369,7 @@ mod tests {
             related_observations: vec![],
         };
 
-        apply_noname_low_risk_outputs(&mut plot_state, &mut result, false);
+        apply_noname_low_risk_outputs(&mut plot_state, &mut result.trace, &result.proposal, false);
 
         assert_eq!(
             plot_state
