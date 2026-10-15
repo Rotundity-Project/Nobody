@@ -100,7 +100,7 @@ const localSettings = reactive<StorySettings>({
   recap_enabled: props.settings.recap_enabled,
   novel_style: props.settings.novel_style,
   llm_priority_mode: props.settings.llm_priority_mode ?? true,
-  llm_strict_mode: props.settings.llm_strict_mode ?? true,
+  llm_strict_mode: props.settings.llm_strict_mode ?? false,
   min_interactions_per_chapter: props.settings.min_interactions_per_chapter,
   max_interactions_per_chapter: props.settings.max_interactions_per_chapter,
   target_chapter_words_min: props.settings.target_chapter_words_min,
@@ -114,7 +114,7 @@ watch(
     localSettings.recap_enabled = next.recap_enabled;
     localSettings.novel_style = next.novel_style;
     localSettings.llm_priority_mode = next.llm_priority_mode ?? true;
-    localSettings.llm_strict_mode = next.llm_strict_mode ?? true;
+    localSettings.llm_strict_mode = next.llm_strict_mode ?? false;
     localSettings.min_interactions_per_chapter = next.min_interactions_per_chapter;
     localSettings.max_interactions_per_chapter = next.max_interactions_per_chapter;
     localSettings.target_chapter_words_min = next.target_chapter_words_min;

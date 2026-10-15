@@ -4,10 +4,41 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Nobody - ÐÞÏÉÄ£ÄâÆ÷</title>
+    <title>Nobody - ä¿®ä»™æ¨¡æ‹Ÿå™¨</title>
   </head>
   <body>
     <div id="app"></div>
+    <script>
+      (() => {
+        const reloadKey = 'nobody_dev_boot_reloaded_v1'
+        const isDevServer = location.hostname === 'localhost' || location.hostname === '127.0.0.1'
+        if (!isDevServer) return
+
+        const reloadOnceIfEmpty = () => {
+          const appRoot = document.getElementById('app')
+          if (!appRoot || appRoot.childElementCount > 0 || sessionStorage.getItem(reloadKey) === '1') {
+            return
+          }
+          sessionStorage.setItem(reloadKey, '1')
+          location.reload()
+        }
+
+        window.addEventListener(
+          'error',
+          (event) => {
+            const target = event.target
+            const scriptFailed = target instanceof HTMLScriptElement && target.type === 'module'
+            const runtimeFailed = target === window
+            if (scriptFailed || runtimeFailed) reloadOnceIfEmpty()
+          },
+          true,
+        )
+        window.addEventListener('nobody:app-mounted', () => sessionStorage.removeItem(reloadKey), {
+          once: true,
+        })
+        window.setTimeout(reloadOnceIfEmpty, 6000)
+      })()
+    </script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

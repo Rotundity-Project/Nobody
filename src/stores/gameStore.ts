@@ -1,5 +1,6 @@
 ﻿import { defineStore } from 'pinia';
 import { invokeRuntime, invokeWithTimeout } from '../utils/tauriInvoke';
+import { getStorySettings } from '../utils/storySettings';
 import {
   summarizeNoNameApplyExecutions,
   summarizeNoNameApplyLifecycle,
@@ -44,7 +45,7 @@ interface GameStoreState {
   error: string | null;
 }
 
-const LLM_TIMEOUT_MS = 60 * 1000;
+const LLM_TIMEOUT_MS = 5 * 60 * 1000;
 const OPTION_LLM_STORY_BLOCKED_MARKER = '本轮为选项续写：未获得可用 LLM 剧情文本';
 const MAX_GENERATION_DIAGNOSTICS = 40;
 
@@ -538,7 +539,7 @@ export const useGameStore = defineStore('game', {
 
         const plotState = await invokeWithTimeout<PlotState>(
           'initialize_plot',
-          undefined,
+          { settings: getStorySettings() },
           LLM_TIMEOUT_MS,
           '初始化剧情超时，请检查 LLM 配置后重试',
         );
@@ -591,6 +592,13 @@ export const useGameStore = defineStore('game', {
         await this.refreshWorldRegistry();
         await this.refreshReachableLocations();
         await this.refreshMapOverview();
+        if (plotState.last_generation_diagnostics?.includes('quick_mode_rule_only')) {
+          this.backgroundNotice = {
+            id: `quick-mode-${Date.now()}`,
+            message: '主链路较慢，本轮先使用快速模式续写，后台将尝试补全为完整叙事版本。',
+          };
+          void this.tryRehydrateLastQuickModeSegment();
+        }
 
         // 显示 LLM 诊断信息（如果有）
         if (plotState.last_generation_diagnostics) {
@@ -627,8 +635,13 @@ export const useGameStore = defineStore('game', {
             await this.refreshWorldRegistry();
             await this.refreshReachableLocations();
             await this.refreshMapOverview();
-            this.error = `主链路超时，已切换快速模式续写。${quickPlotState.last_generation_diagnostics ?? ''}`.trim();
+            this.error = null;
+            this.backgroundNotice = {
+              id: `quick-mode-${Date.now()}`,
+              message: `主链路较慢，本轮已切换快速模式续写。${quickPlotState.last_generation_diagnostics ?? ''}`.trim(),
+            };
             void this.tryRehydrateLastQuickModeSegment();
+            return;
           } catch {
             try {
               const latestPlotState = await invokeWithTimeout<PlotState>(
@@ -758,7 +771,7 @@ export const useGameStore = defineStore('game', {
 
         const plotState = await invokeWithTimeout<PlotState>(
           'initialize_plot',
-          undefined,
+          { settings: getStorySettings() },
           LLM_TIMEOUT_MS,
           '初始化剧情超时，请检查 LLM 配置后重试',
         );

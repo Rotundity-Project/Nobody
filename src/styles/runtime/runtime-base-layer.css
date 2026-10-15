@@ -16,9 +16,18 @@
   opacity: var(--runtime-shell-overlay-opacity);
 }
 
-.game-shell > * {
+.runtime-shell-content {
   position: relative;
   z-index: 1;
+}
+
+.runtime-noname-debug-trigger {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 40;
+  padding: 8px 16px;
+  border-radius: 999px;
 }
 
 .runtime-topbar {

@@ -34,7 +34,8 @@ use crate::plot_consistency::{
     validate_and_repair_plot_update, ConsistencyPolicy, ConsistencyReport,
 };
 use crate::plot_engine::{
-    PlayerAction, PlayerOption, PlotEngine, PlotInteractionState, PlotSettings, PlotState,
+    OpeningPlot, PlayerAction, PlayerOption, PlotEngine, PlotInteractionState, PlotSettings,
+    PlotState,
 };
 use crate::runtime_prompt_baseline::{WORLD_REGISTRY_REFERENCE, WORLD_REGISTRY_SUPPLEMENT};
 use crate::save_load::{MigrationBatchReport, SaveInfo};
@@ -51,6 +52,10 @@ use tauri::State;
 static ENTITY_STORE: OnceLock<Mutex<EntityStore>> = OnceLock::new();
 static MEMORY_LAYERS: OnceLock<Mutex<crate::memory_layers::MemoryLayers>> = OnceLock::new();
 static NONAME_RUNTIME: OnceLock<Mutex<NoNameRuntime>> = OnceLock::new();
+const INIT_WORLD_REGISTRY_BOOTSTRAP_TIMEOUT_SECS: u64 = 120;
+const NON_STRICT_OPENING_TIMEOUT_SECS: u64 = 150;
+const NON_STRICT_ACTION_TIMEOUT_SECS: u64 = 260;
+const NON_STRICT_TURN_UPDATE_TIMEOUT_SECS: u64 = 45;
 
 fn entity_store() -> &'static Mutex<EntityStore> {
     ENTITY_STORE.get_or_init(|| Mutex::new(EntityStore::new()))
@@ -62,6 +67,103 @@ fn memory_layers() -> &'static Mutex<crate::memory_layers::MemoryLayers> {
 
 fn noname_runtime() -> &'static Mutex<NoNameRuntime> {
     NONAME_RUNTIME.get_or_init(|| Mutex::new(NoNameRuntime::new(NoNameConfig::observe_only())))
+}
+
+async fn resolve_opening_plot_for_initialize<F>(
+    settings: &PlotSettings,
+    fallback_text: String,
+    opening_future: F,
+) -> Result<OpeningPlot, String>
+where
+    F: std::future::Future<Output = OpeningPlot>,
+{
+    resolve_opening_plot_for_initialize_with_timeout(
+        settings,
+        fallback_text,
+        opening_future,
+        Duration::from_secs(NON_STRICT_OPENING_TIMEOUT_SECS),
+    )
+    .await
+}
+
+async fn resolve_opening_plot_for_initialize_with_timeout<F>(
+    settings: &PlotSettings,
+    fallback_text: String,
+    opening_future: F,
+    timeout: Duration,
+) -> Result<OpeningPlot, String>
+where
+    F: std::future::Future<Output = OpeningPlot>,
+{
+    if settings.llm_strict_mode {
+        let opening = opening_future.await;
+        if !opening.from_llm {
+            return Err(
+                "初始化剧情失败：未获取到 LLM 开局内容（已禁止预设文案回退）。请检查模型配置、网络与超时后重试。"
+                    .to_string(),
+            );
+        }
+        return Ok(opening);
+    }
+
+    match tokio::time::timeout(timeout, opening_future).await {
+        Ok(opening) => Ok(opening),
+        Err(_) => Ok(OpeningPlot {
+            text: fallback_text,
+            options: vec![],
+            from_llm: false,
+        }),
+    }
+}
+
+async fn resolve_plot_update_for_action<F>(
+    settings: &PlotSettings,
+    quick_mode: &mut bool,
+    fallback_update: crate::plot_engine::PlotUpdate,
+    plot_update_future: F,
+) -> (crate::plot_engine::PlotUpdate, bool)
+where
+    F: std::future::Future<Output = crate::plot_engine::PlotUpdate>,
+{
+    resolve_plot_update_for_action_with_timeout(
+        settings,
+        quick_mode,
+        fallback_update,
+        plot_update_future,
+        Duration::from_secs(NON_STRICT_ACTION_TIMEOUT_SECS),
+    )
+    .await
+}
+
+async fn resolve_plot_update_for_action_with_timeout<F>(
+    settings: &PlotSettings,
+    quick_mode: &mut bool,
+    fallback_update: crate::plot_engine::PlotUpdate,
+    plot_update_future: F,
+    timeout: Duration,
+) -> (crate::plot_engine::PlotUpdate, bool)
+where
+    F: std::future::Future<Output = crate::plot_engine::PlotUpdate>,
+{
+    if *quick_mode || settings.llm_strict_mode {
+        return (plot_update_future.await, false);
+    }
+
+    match tokio::time::timeout(timeout, plot_update_future).await {
+        Ok(update) => (update, false),
+        Err(_) => {
+            *quick_mode = true;
+            let mut fallback = fallback_update;
+            match &mut fallback.generation_diagnostics {
+                Some(diag) => diag.push_str("；主链路超时：已切换快速模式续写"),
+                None => {
+                    fallback.generation_diagnostics =
+                        Some("主链路超时：已切换快速模式续写".to_string())
+                }
+            }
+            (fallback, true)
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -2312,7 +2414,6 @@ pub async fn initialize_game(
     script: Script,
     engine: State<'_, Mutex<GameEngine>>,
 ) -> Result<GameState, String> {
-    const INIT_WORLD_REGISTRY_BOOTSTRAP_TIMEOUT_SECS: u64 = 20;
     let init_started = Instant::now();
     let mut game_state = {
         let mut engine = match engine.lock() {
@@ -2371,7 +2472,7 @@ pub async fn execute_player_action(
     quick_mode: Option<bool>,
     engine: State<'_, Mutex<GameEngine>>,
 ) -> Result<String, String> {
-    let quick_mode = quick_mode.unwrap_or(false);
+    let mut quick_mode = quick_mode.unwrap_or(false);
     let total_started = Instant::now();
     let (mut game_state, mut plot_state, mut world_registry) = {
         let engine = match engine.lock() {
@@ -2758,6 +2859,7 @@ pub async fn execute_player_action(
         ))
     };
     let plot_generation_started = Instant::now();
+    let allow_skeleton_fallback = !selected_option_requires_llm_story;
     let (mut plot_update, cache_hit_semantic) = if quick_mode {
         (
             plot_engine.advance_plot_fast(&plot_state_for_generation, &action_result),
@@ -2767,28 +2869,32 @@ pub async fn execute_player_action(
         if let Some(cached) = get_cached_plot_update(key) {
             (cached, true)
         } else {
-            (
-                plot_engine
-                    .advance_plot_async_with_policy(
-                        &plot_state_for_generation,
-                        &action_result,
-                        !selected_option_requires_llm_story,
-                    )
-                    .await,
-                false,
-            )
-        }
-    } else {
-        (
-            plot_engine
-                .advance_plot_async_with_policy(
+            let (update, _) = resolve_plot_update_for_action(
+                &plot_state.settings,
+                &mut quick_mode,
+                plot_engine.advance_plot_fast(&plot_state_for_generation, &action_result),
+                plot_engine.advance_plot_async_with_policy(
                     &plot_state_for_generation,
                     &action_result,
-                    !selected_option_requires_llm_story,
-                )
-                .await,
-            false,
+                    allow_skeleton_fallback,
+                ),
+            )
+            .await;
+            (update, false)
+        }
+    } else {
+        let (update, _) = resolve_plot_update_for_action(
+            &plot_state.settings,
+            &mut quick_mode,
+            plot_engine.advance_plot_fast(&plot_state_for_generation, &action_result),
+            plot_engine.advance_plot_async_with_policy(
+                &plot_state_for_generation,
+                &action_result,
+                allow_skeleton_fallback,
+            ),
         )
+        .await;
+        (update, false)
     };
     let plot_generation_ms = plot_generation_started.elapsed().as_millis();
     if !quick_mode && !cache_hit_semantic {
@@ -3007,15 +3113,39 @@ pub async fn execute_player_action(
     if !quick_mode {
         if let Some(mut registry) = world_registry.clone() {
             let turn_update_started = Instant::now();
-            let (turn_result, turn_update_error) = registry
-                .generate_turn_update_with_llm_diagnostic(
-                    &game_state,
-                    &plot_state,
-                    &action.content,
-                    WORLD_REGISTRY_REFERENCE,
-                    WORLD_REGISTRY_SUPPLEMENT,
+            let (turn_result, turn_update_error) = if plot_state.settings.llm_strict_mode {
+                registry
+                    .generate_turn_update_with_llm_diagnostic(
+                        &game_state,
+                        &plot_state,
+                        &action.content,
+                        WORLD_REGISTRY_REFERENCE,
+                        WORLD_REGISTRY_SUPPLEMENT,
+                    )
+                    .await
+            } else {
+                match tokio::time::timeout(
+                    Duration::from_secs(NON_STRICT_TURN_UPDATE_TIMEOUT_SECS),
+                    registry.generate_turn_update_with_llm_diagnostic(
+                        &game_state,
+                        &plot_state,
+                        &action.content,
+                        WORLD_REGISTRY_REFERENCE,
+                        WORLD_REGISTRY_SUPPLEMENT,
+                    ),
                 )
-                .await;
+                .await
+                {
+                    Ok(result) => result,
+                    Err(_) => (
+                        None,
+                        Some(format!(
+                            "timed_out_after_{}s",
+                            NON_STRICT_TURN_UPDATE_TIMEOUT_SECS
+                        )),
+                    ),
+                }
+            };
             let turn_update_ms = turn_update_started.elapsed().as_millis();
             if let Some(turn_result) = turn_result {
                 let previous_plot_text = plot_update.plot_text.clone();
@@ -3937,7 +4067,10 @@ pub async fn get_player_options(
 }
 
 #[tauri::command]
-pub async fn initialize_plot(engine: State<'_, Mutex<GameEngine>>) -> Result<PlotState, String> {
+pub async fn initialize_plot(
+    engine: State<'_, Mutex<GameEngine>>,
+    settings: Option<PlotSettings>,
+) -> Result<PlotState, String> {
     let total_started = Instant::now();
     let (player_name, realm_name, spiritual_root, location) = {
         let engine = match engine.lock() {
@@ -3961,17 +4094,22 @@ pub async fn initialize_plot(engine: State<'_, Mutex<GameEngine>>) -> Result<Plo
     };
 
     let plot_engine = PlotEngine::new();
+    let effective_settings = settings.unwrap_or_default();
+    let fallback_opening_text =
+        plot_engine.generate_opening_plot(&player_name, &realm_name, &spiritual_root, &location);
     let opening_started = Instant::now();
-    let opening = plot_engine
-        .generate_opening_plot_async(&player_name, &realm_name, &spiritual_root, &location)
-        .await;
+    let opening = resolve_opening_plot_for_initialize(
+        &effective_settings,
+        fallback_opening_text,
+        plot_engine.generate_opening_plot_async(
+            &player_name,
+            &realm_name,
+            &spiritual_root,
+            &location,
+        ),
+    )
+    .await?;
     let opening_gen_ms = opening_started.elapsed().as_millis();
-    if !opening.from_llm {
-        return Err(
-            "初始化剧情失败：未获取到 LLM 开局内容（已禁止预设文案回退）。请检查模型配置、网络与超时后重试。"
-                .to_string(),
-        );
-    }
 
     let opening_option_started = Instant::now();
     let opening_options = if opening.options.is_empty() {
@@ -4003,17 +4141,25 @@ pub async fn initialize_plot(engine: State<'_, Mutex<GameEngine>>) -> Result<Plo
     let mut plot_state = engine
         .initialize_plot_with_opening(opening.text, opening_options)
         .map_err(|e| e.to_string())?;
+    plot_state.settings = effective_settings;
     let state_persist_ms = persist_started.elapsed().as_millis();
     let total_ms = total_started.elapsed().as_millis();
-    plot_state.last_option_generation_source =
-        Some(if plot_state.current_scene.available_options.is_empty() {
-            "opening_default_rule".to_string()
+    plot_state.last_option_generation_source = Some(if opening.from_llm {
+        if plot_state.current_scene.available_options.is_empty() {
+            "opening_llm_text".to_string()
         } else {
             "opening_llm_options".to_string()
-        });
+        }
+    } else {
+        "opening_default_rule".to_string()
+    });
     plot_state.last_generation_diagnostics = Some(format!(
-        "初始化耗时(ms)：total={},input_assembly=0,model_request_parse={},opening_option_build={},state_persist={}",
-        total_ms, opening_gen_ms, opening_option_build_ms, state_persist_ms
+        "初始化耗时(ms)：total={},input_assembly=0,model_request_parse={},opening_option_build={},state_persist={}；开篇来源：{}",
+        total_ms,
+        opening_gen_ms,
+        opening_option_build_ms,
+        state_persist_ms,
+        if opening.from_llm { "llm" } else { "fallback" }
     ));
     engine
         .update_plot_state(plot_state.clone())
@@ -6540,6 +6686,110 @@ mod tests {
         assert!(applied.trace.apply_execution_log.iter().any(|item| {
             item.target == "plot_text_hint" && item.outcome == "manual_plot_text_applied"
         }));
+    }
+
+    #[tokio::test]
+    async fn test_initialize_plot_strict_mode_rejects_non_llm_opening() {
+        let settings = PlotSettings {
+            llm_strict_mode: true,
+            ..PlotSettings::default()
+        };
+
+        let result =
+            resolve_opening_plot_for_initialize(&settings, "fallback opening".to_string(), async {
+                OpeningPlot {
+                    text: "fallback opening".to_string(),
+                    options: vec![],
+                    from_llm: false,
+                }
+            })
+            .await;
+
+        assert!(result.is_err());
+        assert!(result
+            .err()
+            .unwrap_or_default()
+            .contains("未获取到 LLM 开局内容"));
+    }
+
+    #[tokio::test]
+    async fn test_initialize_plot_non_strict_mode_times_out_to_fallback() {
+        let settings = PlotSettings {
+            llm_strict_mode: false,
+            ..PlotSettings::default()
+        };
+
+        let opening = resolve_opening_plot_for_initialize_with_timeout(
+            &settings,
+            "fallback opening".to_string(),
+            async {
+                tokio::time::sleep(Duration::from_millis(25)).await;
+                OpeningPlot {
+                    text: "llm opening".to_string(),
+                    options: vec!["继续前进".to_string()],
+                    from_llm: true,
+                }
+            },
+            Duration::from_millis(5),
+        )
+        .await
+        .expect("non-strict mode should fall back instead of erroring");
+
+        assert_eq!(opening.text, "fallback opening");
+        assert!(opening.options.is_empty());
+        assert!(!opening.from_llm);
+    }
+
+    #[tokio::test]
+    async fn test_resolve_plot_update_for_action_non_strict_mode_times_out_to_quick_mode() {
+        let settings = PlotSettings {
+            llm_strict_mode: false,
+            ..PlotSettings::default()
+        };
+        let mut quick_mode = false;
+        let fallback_update = crate::plot_engine::PlotUpdate {
+            new_scene: None,
+            plot_text: "fallback plot".to_string(),
+            triggered_events: vec![],
+            state_changes: vec![],
+            is_waiting_for_input: true,
+            available_options: vec![],
+            chapter_title: None,
+            chapter_summary: None,
+            chapter_end: false,
+            generation_diagnostics: Some("快速模式：已跳过 LLM，使用规则续写".to_string()),
+        };
+
+        let (plot_update, timed_out) = resolve_plot_update_for_action_with_timeout(
+            &settings,
+            &mut quick_mode,
+            fallback_update,
+            async {
+                tokio::time::sleep(Duration::from_millis(25)).await;
+                crate::plot_engine::PlotUpdate {
+                    new_scene: None,
+                    plot_text: "llm plot".to_string(),
+                    triggered_events: vec![],
+                    state_changes: vec![],
+                    is_waiting_for_input: true,
+                    available_options: vec![],
+                    chapter_title: None,
+                    chapter_summary: None,
+                    chapter_end: false,
+                    generation_diagnostics: Some("链路：structured_ok".to_string()),
+                }
+            },
+            Duration::from_millis(5),
+        )
+        .await;
+
+        assert!(timed_out);
+        assert!(quick_mode);
+        assert_eq!(plot_update.plot_text, "fallback plot");
+        assert!(plot_update
+            .generation_diagnostics
+            .as_deref()
+            .is_some_and(|diag| diag.contains("主链路超时：已切换快速模式续写")));
     }
 
     #[test]

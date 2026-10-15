@@ -3,7 +3,7 @@
     class="game-shell h-screen overflow-hidden text-[var(--ink-text-primary)]"
     :class="activeThemeClass"
   >
-    <div class="mx-auto flex h-full w-full max-w-[1380px] flex-col px-4 pb-4 pt-4 sm:px-7 sm:pb-6 sm:pt-5">
+    <div class="runtime-shell-content mx-auto flex h-full w-full max-w-[1380px] flex-col px-4 pb-4 pt-4 sm:px-7 sm:pb-6 sm:pt-5">
       <GameRuntimeTopBar
         :chapter-index-label="chapterIndexLabel"
         :chapter-name-label="chapterNameLabel"
@@ -72,7 +72,7 @@
       <button
         v-if="isDevMode && hasNoNameTraceHistory"
         type="button"
-        class="fixed bottom-6 right-6 z-40 rounded-full border px-4 py-2 text-sm shadow-lg transition hover:-translate-y-0.5"
+        class="runtime-noname-debug-trigger fixed bottom-6 right-6 z-40 rounded-full border px-4 py-2 text-sm shadow-lg transition hover:-translate-y-0.5"
         :style="{
           borderColor: 'var(--ink-border-accent)',
           background: 'color-mix(in srgb, var(--ink-card-bg) 92%, transparent)',

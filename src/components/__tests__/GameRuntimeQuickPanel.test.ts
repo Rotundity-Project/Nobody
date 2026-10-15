@@ -2,6 +2,7 @@ import { mount } from '@vue/test-utils';
 import { describe, expect, it, vi } from 'vitest';
 import { ref } from 'vue';
 import GameRuntimeView from '../GameRuntimeView.vue';
+import RuntimeQuickPanelsDialog from '../RuntimeQuickPanelsDialog.vue';
 
 vi.mock('vue-router', () => ({
   useRouter: () => ({
@@ -128,31 +129,52 @@ vi.mock('../../composables/useGameHotkeys', () => ({
 }));
 
 describe('GameRuntimeView quick panel', () => {
-  it('opens world quick panel from bottom action dock', async () => {
+  it('opens the matching panel from every bottom action dock button', async () => {
     const wrapper = mount(GameRuntimeView, {
       global: {
         stubs: {
           InkQuickActionDock: {
             template: `
               <div>
+                <button data-testid="open-character" @click="$emit('open-character')">open-character</button>
+                <button data-testid="open-info" @click="$emit('open-info')">open-info</button>
+                <button data-testid="open-backpack" @click="$emit('open-backpack')">open-backpack</button>
+                <button data-testid="open-techniques" @click="$emit('open-techniques')">open-techniques</button>
+                <button data-testid="open-factions" @click="$emit('open-factions')">open-factions</button>
                 <button data-testid="open-world" @click="$emit('open-world')">open-world</button>
+                <button data-testid="open-save" @click="$emit('open-save')">open-save</button>
+                <button data-testid="open-load" @click="$emit('open-load')">open-load</button>
               </div>
             `,
+          },
+          GameSystemDialogs: {
+            props: ['showSaveDialog', 'showLoadDialog'],
+            template: `
+              <div
+                data-testid="system-dialogs"
+                :data-save-open="String(showSaveDialog)"
+                :data-load-open="String(showLoadDialog)"
+              />
+            `,
+          },
+          GameInfoCenterDialog: {
+            props: ['isOpen'],
+            template: '<div data-testid="info-dialog" :data-open="String(isOpen)" />',
+          },
+          CharacterInfoModal: {
+            props: ['isOpen', 'character'],
+            template: '<div data-testid="character-dialog" :data-open="String(isOpen)">{{ character?.name }}</div>',
           },
           RuntimeQuickPanelsDialog: {
             name: 'RuntimeQuickPanelsDialog',
             props: ['isOpen', 'activeTab', 'panels'],
             template: `
               <div data-testid="quick-dialog" :data-open="String(isOpen)" :data-tab="activeTab">
-                {{ JSON.stringify((panels.find((item) => item.id === 'world') || {}).items || []) }}
+                {{ JSON.stringify((panels.find((item) => item.id === activeTab) || {}).items || []) }}
               </div>
             `,
           },
           StoryViewport: true,
-          GameInteractionPanel: true,
-          GameSystemDialogs: true,
-          GameInfoCenterDialog: true,
-          CharacterInfoModal: true,
           NotificationCenter: true,
         },
       },
@@ -160,12 +182,75 @@ describe('GameRuntimeView quick panel', () => {
 
     expect(wrapper.get('[data-testid="quick-dialog"]').attributes('data-open')).toBe('false');
 
+    await wrapper.get('[data-testid="open-character"]').trigger('click');
+    expect(wrapper.get('[data-testid="character-dialog"]').attributes('data-open')).toBe('true');
+    expect(wrapper.get('[data-testid="character-dialog"]').text()).toContain('无名弟子');
+
+    await wrapper.get('[data-testid="open-info"]').trigger('click');
+    expect(wrapper.get('[data-testid="info-dialog"]').attributes('data-open')).toBe('true');
+
+    await wrapper.get('[data-testid="open-backpack"]').trigger('click');
+    let quickDialog = wrapper.get('[data-testid="quick-dialog"]');
+    expect(quickDialog.attributes('data-open')).toBe('true');
+    expect(quickDialog.attributes('data-tab')).toBe('backpack');
+    expect(quickDialog.text()).toContain('下品灵石');
+
+    await wrapper.get('[data-testid="open-techniques"]').trigger('click');
+    quickDialog = wrapper.get('[data-testid="quick-dialog"]');
+    expect(quickDialog.attributes('data-open')).toBe('true');
+    expect(quickDialog.attributes('data-tab')).toBe('techniques');
+    expect(quickDialog.text()).toContain('引气诀');
+
+    await wrapper.get('[data-testid="open-factions"]').trigger('click');
+    quickDialog = wrapper.get('[data-testid="quick-dialog"]');
+    expect(quickDialog.attributes('data-open')).toBe('true');
+    expect(quickDialog.attributes('data-tab')).toBe('factions');
+    expect(quickDialog.text()).toContain('青岚宗');
+
     await wrapper.get('[data-testid="open-world"]').trigger('click');
 
-    const quickDialog = wrapper.get('[data-testid="quick-dialog"]');
+    quickDialog = wrapper.get('[data-testid="quick-dialog"]');
     expect(quickDialog.attributes('data-open')).toBe('true');
     expect(quickDialog.attributes('data-tab')).toBe('world');
     expect(quickDialog.text()).toContain('山门');
     expect(quickDialog.text()).toContain('戒备森严');
+
+    await wrapper.get('[data-testid="open-save"]').trigger('click');
+    expect(wrapper.get('[data-testid="system-dialogs"]').attributes('data-save-open')).toBe('true');
+
+    await wrapper.get('[data-testid="open-load"]').trigger('click');
+    expect(wrapper.get('[data-testid="system-dialogs"]').attributes('data-load-open')).toBe('true');
+  });
+
+  it('does not apply shell stacking styles to overlay component roots', () => {
+    const wrapper = mount(GameRuntimeView, {
+      global: {
+        stubs: {
+          GameRuntimeTopBar: true,
+          GameRuntimeLeftStatusPanels: true,
+          GameRuntimeWorldRegistryPanel: true,
+          GameRuntimeMainHeader: true,
+          StoryViewport: true,
+          GameRuntimeInteractionCard: true,
+          GameRuntimeBottomBar: true,
+          GameSystemDialogs: true,
+          GameInfoCenterDialog: true,
+          CharacterInfoModal: true,
+          RuntimeQuickPanelsDialog,
+          NoNameDebugConsole: true,
+          NotificationCenter: true,
+        },
+      },
+    });
+
+    const shellContent = wrapper.get('.runtime-shell-content').element;
+    expect(shellContent.parentElement).toBe(wrapper.get('.game-shell').element);
+    expect(wrapper.find('.game-shell > .runtime-shell-content').exists()).toBe(true);
+
+    const quickDialog = wrapper.getComponent(RuntimeQuickPanelsDialog);
+    quickDialog.vm.$emit('update:active-tab', 'world');
+    quickDialog.vm.$emit('close');
+
+    expect(wrapper.find('.runtime-quick-overlay').exists()).toBe(false);
   });
 });

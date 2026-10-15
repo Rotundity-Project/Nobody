@@ -717,10 +717,20 @@ function applyExecutionDisplay(item: NoNameExecutionView) {
 }
 
 .info-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
   background: var(--info-overlay-bg);
 }
 
 .ink-info-drawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(100%, 768px);
+  max-width: 100%;
+  padding: 16px;
   border-left: 1px solid var(--info-drawer-border);
   background: var(--info-drawer-bg);
   backdrop-filter: blur(10px) saturate(1.03);
@@ -730,9 +740,13 @@ function applyExecutionDisplay(item: NoNameExecutionView) {
 }
 
 .ink-info-panel {
+  height: 100%;
+  overflow-y: auto;
+  border-radius: 16px;
   background: var(--info-panel-bg);
   border: 1px solid var(--info-panel-border);
   box-shadow: var(--info-panel-shadow);
+  padding: 16px;
   overscroll-behavior: contain;
 }
 

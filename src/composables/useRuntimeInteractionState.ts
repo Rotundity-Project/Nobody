@@ -93,6 +93,9 @@ export const useRuntimeInteractionState = ({
       rule_fallback: '规则回退',
       rule_fallback_latency_budget: '规则回退（时延预算）',
       previous_reused: '复用上一组选项',
+      opening_default_rule: '开篇规则选项',
+      opening_llm_text: '开篇模型文本',
+      opening_llm_options: '开篇模型选项',
       not_waiting_for_input: '当前无需输入',
       consistency_non_waiting_fallback: '一致性兜底自动推进',
     };

@@ -355,8 +355,11 @@ const highlightParts = (value: string | undefined): HighlightPart[] => {
 
 <style scoped>
 .runtime-quick-dialog {
+  width: min(100%, 672px);
+  border-radius: 16px;
   border: 1px solid var(--runtime-quick-dialog-border);
   background: var(--runtime-quick-dialog-bg);
+  padding: 16px;
   box-shadow: var(--runtime-quick-dialog-shadow);
   backdrop-filter: blur(10px) saturate(1.03);
   transform: translateY(0) scale(1);
@@ -365,6 +368,13 @@ const highlightParts = (value: string | undefined): HighlightPart[] => {
 }
 
 .runtime-quick-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
   background: var(--runtime-quick-overlay-bg);
   backdrop-filter: blur(2px);
 }
@@ -603,6 +613,7 @@ const highlightParts = (value: string | undefined): HighlightPart[] => {
   }
 
   .runtime-quick-dialog {
+    width: 100%;
     max-width: none;
     border-radius: 14px;
   }

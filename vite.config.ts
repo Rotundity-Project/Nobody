@@ -34,5 +34,15 @@ export default defineConfig(async () => ({
       // 3. tell Vite to ignore watching `src-tauri`
       ignored: ["**/src-tauri/**"],
     },
+    warmup: {
+      clientFiles: [
+        "./src/main.ts",
+        "./src/router/index.ts",
+        "./src/App.vue",
+        "./src/components/MainMenu.vue",
+        "./src/components/ScriptSelector.vue",
+        "./src/views/GameViewPage.vue",
+      ],
+    },
   },
 }));

@@ -65,7 +65,7 @@ fn default_llm_priority_mode() -> bool {
 }
 
 fn default_llm_strict_mode() -> bool {
-    true
+    false
 }
 
 impl Default for PlotSettings {
@@ -74,7 +74,7 @@ impl Default for PlotSettings {
             recap_enabled: true,
             novel_style: "修仙白话·第三人称".to_string(),
             llm_priority_mode: true,
-            llm_strict_mode: true,
+            llm_strict_mode: false,
             min_interactions_per_chapter: 2,
             max_interactions_per_chapter: 3,
             target_chapter_words_min: 5000,

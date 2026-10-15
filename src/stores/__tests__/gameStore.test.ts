@@ -109,6 +109,7 @@ describe('gameStore', () => {
     setActivePinia(createPinia());
     invokeMock.mockReset();
     invokeWithTimeoutMock.mockReset();
+    window.localStorage.clear();
   });
 
   it('initializes game and plot state', async () => {
@@ -132,6 +133,16 @@ describe('gameStore', () => {
     expect(store.currentScript?.initial_state.player_name).toBe('Lin Mo');
     expect(store.gameState).toEqual(gameState);
     expect(store.plotState).toEqual(plotState);
+    expect(invokeWithTimeoutMock).toHaveBeenCalledWith(
+      'initialize_plot',
+      expect.objectContaining({
+        settings: expect.objectContaining({
+          llm_strict_mode: false,
+        }),
+      }),
+      300000,
+      expect.any(String),
+    );
     expect(store.isLoading).toBe(false);
     expect(store.error).toBeNull();
   });
@@ -165,12 +176,73 @@ describe('gameStore', () => {
     expect(invokeWithTimeoutMock).toHaveBeenCalledWith(
       'execute_player_action',
       { action: expect.any(Object) },
-      60000,
+      300000,
       expect.any(String),
     );
     expect(store.gameState).toEqual(gameState);
     expect(store.plotState).toEqual(plotState);
     expect(store.error).toBeNull();
+    expect(store.isLoading).toBe(false);
+  });
+
+  it('falls back to quick mode without surfacing an error when main action times out', async () => {
+    const script = baseScript();
+    const gameState = baseGameState(script);
+    const plotState = basePlotState();
+    plotState.last_generation_diagnostics = '快速模式：已跳过 LLM，使用规则续写；链路：quick_mode_rule_only';
+
+    invokeWithTimeoutMock.mockImplementation((command: string, payload?: Record<string, unknown>) => {
+      if (command === 'execute_player_action') {
+        if (payload?.quickMode) {
+          return Promise.resolve('ok');
+        }
+        return Promise.reject(new Error('剧情推进超时，请稍后重试'));
+      }
+      if (command === 'get_game_state') {
+        return Promise.resolve(gameState);
+      }
+      if (command === 'get_plot_state') {
+        return Promise.resolve(plotState);
+      }
+      return Promise.resolve(null);
+    });
+    invokeMock.mockImplementation((command: string) => {
+      if (command === 'get_noname_recent_traces') {
+        return Promise.resolve([]);
+      }
+      if (command === 'get_world_registry') {
+        return Promise.resolve(null);
+      }
+      if (command === 'get_reachable_locations') {
+        return Promise.resolve([]);
+      }
+      if (command === 'get_map_overview') {
+        return Promise.resolve([]);
+      }
+      if (command === 'rehydrate_last_quick_mode_segment') {
+        return Promise.resolve(false);
+      }
+      return Promise.resolve(null);
+    });
+
+    const store = useGameStore();
+    await expect(store.executePlayerAction({
+      action_type: ActionType.FreeText,
+      content: 'test',
+      selected_option_id: null,
+    })).resolves.toBeUndefined();
+
+    expect(invokeWithTimeoutMock).toHaveBeenCalledWith(
+      'execute_player_action',
+      expect.objectContaining({
+        quickMode: true,
+      }),
+      15000,
+      expect.any(String),
+    );
+    expect(store.error).toBeNull();
+    expect(store.backgroundNotice?.message).toContain('快速模式续写');
+    expect(store.plotState?.last_generation_diagnostics).toContain('quick_mode_rule_only');
     expect(store.isLoading).toBe(false);
   });
 
@@ -222,6 +294,16 @@ describe('gameStore', () => {
       'generate_random_script',
       undefined,
       120000,
+      expect.any(String),
+    );
+    expect(invokeWithTimeoutMock).toHaveBeenCalledWith(
+      'initialize_plot',
+      expect.objectContaining({
+        settings: expect.objectContaining({
+          llm_strict_mode: false,
+        }),
+      }),
+      300000,
       expect.any(String),
     );
     expect(store.currentScript).toEqual(script);

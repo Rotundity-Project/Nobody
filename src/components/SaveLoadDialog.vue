@@ -2,7 +2,7 @@
   <div
     v-if="isOpen"
     class="save-load-overlay fixed inset-0 flex items-center justify-center"
-    style="z-index: 50;"
+    style="z-index: 80;"
     @click.self="handleClose"
   >
     <div
@@ -299,12 +299,23 @@ const formatDate = (timestamp: number): string => {
 
 <style scoped>
 .save-load-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background-color: var(--save-load-overlay-bg);
 }
 
 .save-load-panel {
+  width: min(100%, 672px);
+  max-height: 80vh;
+  overflow-y: auto;
+  border-radius: 16px;
   border-color: var(--save-load-panel-border);
   background: var(--save-load-panel-bg);
+  padding: 32px;
   box-shadow: var(--save-load-panel-shadow);
 }
 

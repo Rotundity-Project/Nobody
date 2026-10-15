@@ -34,13 +34,23 @@ defineEmits<{
 
 <style scoped>
 .ink-character-modal {
+  width: min(100%, 448px);
+  border-radius: 16px;
   border: 1px solid var(--modal-border);
   background: var(--modal-bg);
+  padding: 12px;
   box-shadow: var(--modal-shadow);
   backdrop-filter: blur(6px);
 }
 
 .ink-character-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
   background: var(--modal-overlay-bg);
 }
 
